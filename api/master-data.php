@@ -1,10 +1,9 @@
 <?php
 // api/master-data.php
 
-// CORS対策 (ローカル開発環境用)
+// CORS対策 (ローカル開発環境用) React(Vite)からのアクセスを許可
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
+header("Access-Control-Allow-Methods: GET");
 header("Content-Type: application/json; charset=UTF-8");
 
 // OPTIONSリクエスト（プリフライト）の早期リターン
@@ -15,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 // DB接続設定 (環境に合わせて修正してください)
 $host = '127.0.0.1';
-$db   = 'cebutori_db';
+$db   = 'cebu_conquest';
 $user = 'root';
 $pass = ''; // XAMPPやMAMP等のパスワード
 
@@ -30,8 +29,26 @@ try{
   $pdo = new PDO($dsn, $user, $pass, $options);
 
   //陣地データ取得
-  $stmtTerritories = $pdo->query("SELECT * FROM territories");
-  $territories = $stmtTerritories->fetchAll();
+  $stmtT = $pdo->query("SELECT id, area, name, description, buff_name, buff_effect FROM territories");
+  $territories = $stmtT->fetchAll();
 
   //特産品データの取得
+  $stmtI = $pdo->query("SELECT id, territory_id, name, effect, drop_rate FROM items");
+  $items = $stmtI->fetchAll();
+
+  //フロントが扱いやすい形にJSONを整形
+  echo json_encode ([
+    'status'  => 'success',
+    'data'    => [
+        'territories' => $territories,
+        'items'       => $items
+    ]
+  ], JSON_UNESCAPED_UNICODE);
+
+} catch(\PDOException $e){
+    http_response_code(500);
+    echo json_encode([
+        'status'      => 'error',
+        'message'     => 'DB Connection Failed: ' . $e->getMessage()
+    ]);
 }
