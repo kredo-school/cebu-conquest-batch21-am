@@ -19,3 +19,6 @@ vendor/
 composer.lock
 
 .vite/
+node_modules/
+.DS_Store
+public/.DS_Store
