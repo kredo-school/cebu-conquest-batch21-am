@@ -20,7 +20,6 @@ const COLOR = {
   HIGHLIGHT: 0xf39c12, // 橙（ホバー）
   PLAYER_UI: "#f1c40f",
 };
-
 // プレイヤー初期ステータス
 const INITIAL_PLAYER_STATS = {
   atk: 50,
@@ -29,26 +28,24 @@ const INITIAL_PLAYER_STATS = {
   ap: 80,
   faith: 1.0,
 };
-
 // 隣接グラフ（地区IDベース）
 const ADJACENCY = {
   // セブ市街地
   101: [102, 103, 104, 105, 201], // 歴史保護地区
-  102: [101, 104, 105, 401],      // ダウンタウン・港湾地区
-  103: [101, 105, 201, 301],           // 新都心・ビジネス地区
-  104: [101, 102, 105, 401],      // 山間・アップタウン地区
-  105: [101, 103, 104, 301],      // ショッピング・商業特区
+  102: [101, 104, 105, 401], // ダウンタウン・港湾地区
+  103: [101, 105, 201, 301], // 新都心・ビジネス地区
+  104: [101, 102, 105, 401], // 山間・アップタウン地区
+  105: [101, 103, 104, 301], // ショッピング・商業特区
   // マクタン島
   201: [202, 101, 103], // リゾート・バトルゾーン
-  202: [201],           // ゲートウェイゾーン
+  202: [201], // ゲートウェイゾーン
   // 北部
   301: [302, 103, 105], // アドベンチャーゾーン
-  302: [301],           // コースタル・トレードゾーン
+  302: [301], // コースタル・トレードゾーン
   // 南部
   401: [402, 102, 104], // マリン・ジャイアントゾーン
-  402: [401],           // ヘリテージ・グルメゾーン
+  402: [401], // ヘリテージ・グルメゾーン
 };
-
 // ═══════════════════════════════════════════════════
 // ポリゴン内外判定（Ray Casting アルゴリズム）
 // point: {x, y}、polygon: [{x, y}, ...] （絶対座標）
@@ -331,6 +328,17 @@ export default class MainScene extends Phaser.Scene {
     const clickedId = this._getDistrictAtPoint(worldX, worldY);
 
     if (!clickedId) return;
+
+    // いっせい(React)へ、クリックした陣地の情報を送る
+    window.dispatchEvent(
+      new CustomEvent("phaser:selectDistrict", {
+        detail: {
+          districtId: clickedId,
+          name: this.districts[clickedId].name,
+          owner: this.districts[clickedId].owner,
+        },
+      }),
+    );
     if (clickedId === this.currentDistrictId) return;
 
     const neighbors = ADJACENCY[this.currentDistrictId] || [];
@@ -395,32 +403,56 @@ export default class MainScene extends Phaser.Scene {
     target.owner = owner;
     this._redrawDistrict(target, owner === "player" ? COLOR.PLAYER : COLOR.ENEMY);
     this.showLog(`✅ 「${target.name}」を占領！`);
-    // TODO: socket.emit('territoryClaimed', { districtId, owner });
+
+    // TODOを置き換え。Reactへ占領イベントを飛ばし、ReactからSocket.IOへ送ってもらう
+    window.dispatchEvent(
+      new CustomEvent("phaser:territoryClaimed", {
+        detail: { districtId, owner },
+      }),
+    );
   }
 
-  // バトル P = A / (A + D)
-  startBattle(targetDistrictId) {
-    const enemyStats = { atk: 45, def: 50 };
-    const myFinalAtk = this.playerStats.atk * this.playerStats.faith;
-    const winRate = myFinalAtk / (myFinalAtk + enemyStats.def);
-    const winPercent = Math.round(winRate * 100);
+ // ③ バトル結果を React へ通知
+startBattle(targetDistrictId) {
+  const enemyStats = { atk: 45, def: 50 };
+  const myFinalAtk = this.playerStats.atk * this.playerStats.faith;
+  const winRate    = myFinalAtk / (myFinalAtk + enemyStats.def);
+  const winPercent = Math.round(winRate * 100);
 
-    this.showLog(`⚔ バトル！ 予測勝率: ${winPercent}%`);
+  this.showLog(`⚔ バトル！ 予測勝率: ${winPercent}%`);
 
-    this.time.delayedCall(300, () => {
-      if (Math.random() < winRate) {
-        this.showLog(`🎉 勝利！ 地区${targetDistrictId}を制圧`);
-        this.movePlayer(targetDistrictId);
-        this.claimDistrict(targetDistrictId, "player");
-      } else {
-        const damage = Math.floor(enemyStats.atk * 0.5);
-        this.playerStats.hp = Math.max(0, this.playerStats.hp - damage);
-        this.showLog(`💀 敗北… HP -${damage} (残HP: ${this.playerStats.hp})`);
-        this.updateStatusHUD();
-        if (this.playerStats.hp <= 0) this.respawnPlayer();
-      }
-    });
-  }
+  this.time.delayedCall(300, () => {
+    if (Math.random() < winRate) {
+      this.showLog(`🎉 勝利！ 地区${targetDistrictId}を制圧`);
+      this.movePlayer(targetDistrictId);
+      this.claimDistrict(targetDistrictId, "player");
+
+      window.dispatchEvent(
+        new CustomEvent("battleResult", {
+          detail: { result: "win", districtId: targetDistrictId, winPercent },
+        })
+      );
+    } else {
+      const damage = Math.floor(enemyStats.atk * 0.5);
+      this.playerStats.hp = Math.max(0, this.playerStats.hp - damage);
+      this.showLog(`💀 敗北… HP -${damage} (残HP: ${this.playerStats.hp})`);
+      this.updateStatusHUD(); // ← ここで statsUpdated も一緒に飛ぶ
+
+      window.dispatchEvent(
+        new CustomEvent("battleResult", {
+          detail: {
+            result:    "lose",
+            damage,
+            remainHp:  this.playerStats.hp,
+            winPercent,
+          },
+        })
+      );
+
+      if (this.playerStats.hp <= 0) this.respawnPlayer();
+    }
+  });
+}
 
   // リスポーン
   respawnPlayer() {
@@ -452,13 +484,20 @@ export default class MainScene extends Phaser.Scene {
     return { x: sumX / polygon.length, y: sumY / polygon.length };
   }
 
-  // HUD更新
+  // React へのステータス通知を追加
   updateStatusHUD() {
     const s = this.playerStats;
     this.statusText?.setText(
       `HP:${s.hp}  ATK:${s.atk}  DEF:${s.def}  AP:${s.ap}  信仰:${s.faith.toFixed(1)}`,
     );
-  }
+    // React HUD へ通知
+  window.dispatchEvent(
+    new CustomEvent("statsUpdated", {
+      detail: { hp: s.hp, atk: s.atk, def: s.def, ap: s.ap, faith: s.faith },
+    })
+  );
+}
+  
 
   // ログ表示
   showLog(message) {
