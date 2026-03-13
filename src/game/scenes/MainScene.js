@@ -1,5 +1,3 @@
-// src/game/scenes/MainScene.js
-
 import Phaser from "phaser";
 
 // ═══════════════════════════════════════════════════
