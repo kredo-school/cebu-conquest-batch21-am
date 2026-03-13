@@ -86,13 +86,13 @@ export const GameContainer: React.FC = () => {
           minWidth: '300px'
         }}>
           <h3>📍 {selectedTerritory.name}</h3>
-          <p>獲得できるバフ: {selectedTerritory.buff}</p>
+          <p>get buffs: {selectedTerritory.buff}</p>
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
             <button onClick={() => handleAction('attack')} style={{ padding: '10px 20px', cursor: 'pointer', background: '#ff4444', border: 'none', color: 'white', fontWeight: 'bold' }}>
-              攻める
+              attack
             </button>
             <button onClick={() => handleAction('stay')} style={{ padding: '10px 20px', cursor: 'pointer', background: '#4444ff', border: 'none', color: 'white', fontWeight: 'bold' }}>
-              Stay (回復)
+              Stay recover
             </button>
           </div>
         </div>
