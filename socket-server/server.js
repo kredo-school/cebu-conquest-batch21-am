@@ -34,17 +34,15 @@ io.on('connection', (socket) => {
             y: userData.y || 0,
             team: userData.team || 'neutral'
         };
-        // 全員に現在の全プレイヤー状態を同期 (syncStateに名称変更)
         io.emit('syncState', players);
     });
 
-    // 2. プレイヤー移動 (playerMoveに変更)
+    // 2. プレイヤー移動
     socket.on('playerMove', (moveData) => {
         if (players[socket.id]) {
             players[socket.id].x = moveData.x;
             players[socket.id].y = moveData.y;
 
-            // 送信者以外に移動を通知 (playerMovedに変更)
             socket.broadcast.emit('playerMoved', {
                 id: socket.id,
                 x: moveData.x,
@@ -53,24 +51,26 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 3. 陣地獲得 (territoryClaimedを追加)
+    // 3. 陣地獲得 (変数名を districtId / owner に修正)
     socket.on('territoryClaimed', (data) => {
-        console.log(`陣地獲得イベント: Area ${data.areaId} by User ${data.userId}`);
+        console.log(`陣地獲得イベント: District ${data.districtId} by Owner ${data.owner}`);
         // 全員に通知
         io.emit('territoryUpdated', {
-            areaId: data.areaId,
-            ownerId: data.userId,
-            team: data.team
+            districtId: data.districtId,
+            owner: data.owner,
+            team: data.team // 必要に応じて維持
         });
     });
 
-    // 4. バトル開始 (battleStartに変更)
+    // 4. バトル開始 (変数名を districtId に修正 / loserId, hpDamage を追加)
     socket.on('battleStart', (battleData) => {
         console.log('バトル開始:', battleData);
         // バトル結果の計算ロジック（仮）を返却
         io.emit('battleResult', {
-            winnerId: battleData.attackerId, // 現状は攻撃側勝利のモック
-            areaId: battleData.areaId
+            winnerId: battleData.attackerId,
+            loserId: battleData.defenderId, // 追加
+            districtId: battleData.districtId, // 修正
+            hpDamage: 20 // 仮の値
         });
     });
 
@@ -78,7 +78,6 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log(`ユーザー切断: ${socket.id}`);
         delete players[socket.id];
-        // 誰かがいなくなったことを全員に通知
         io.emit('playerDisconnected', socket.id);
     });
 });
@@ -87,6 +86,6 @@ server.listen(PORT, () => {
     console.log(`-----------------------------------------`);
     console.log(`『セブとり合戦』Socketサーバー起動中`);
     console.log(`PORT: ${PORT}`);
-    console.log(`イベント名: socketEvents.js 準拠にアップデート済`);
+    console.log(`イベント・変数名: districtId 仕様へアップデート済`);
     console.log(`-----------------------------------------`);
 });
