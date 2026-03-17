@@ -1,4 +1,6 @@
 import Phaser from "phaser";
+import socket from "../../socket";
+import { CLIENT_EVENTS, SERVER_EVENTS } from "../socketEvents";
 
 // ═══════════════════════════════════════════════════
 // 定数
@@ -8,18 +10,18 @@ const TILE_SIZE = 32;
 const MAP_SCALE = 0.5;
 
 const COLOR = {
-  PLAYER:    0xe74c3c,
-  ENEMY:     0x27ae60,
-  NEUTRAL:   0x4a90d9,
+  PLAYER: 0xe74c3c,
+  ENEMY: 0x27ae60,
+  NEUTRAL: 0x4a90d9,
   HIGHLIGHT: 0xf39c12,
   PLAYER_UI: "#f1c40f",
 };
 
 const INITIAL_PLAYER_STATS = {
-  atk:   50,
-  def:   40,
-  hp:    100,
-  ap:    80,
+  atk: 50,
+  def: 40,
+  hp: 100,
+  ap: 80,
   faith: 1.0,
 };
 
@@ -44,11 +46,11 @@ function pointInPolygon(point, polygon) {
   let inside = false;
   const { x, y } = point;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].x, yi = polygon[i].y;
-    const xj = polygon[j].x, yj = polygon[j].y;
-    const intersect =
-      yi > y !== yj > y &&
-      x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    const xi = polygon[i].x,
+      yi = polygon[i].y;
+    const xj = polygon[j].x,
+      yj = polygon[j].y;
+    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
     if (intersect) inside = !inside;
   }
   return inside;
@@ -60,8 +62,8 @@ function pointInPolygon(point, polygon) {
 export default class MainScene extends Phaser.Scene {
   constructor() {
     super({ key: "MainScene" });
-    this.districts         = {};
-    this.playerStats       = { ...INITIAL_PLAYER_STATS };
+    this.districts = {};
+    this.playerStats = { ...INITIAL_PLAYER_STATS };
     this.currentDistrictId = null;
     this.START_DISTRICT_ID = 102;
   }
@@ -84,6 +86,7 @@ export default class MainScene extends Phaser.Scene {
     this._placePlayer();
     this._createHUD();
     this._setupCamera();
+    this._initSocket();
   }
 
   // ───────────────────────────────────────────────
@@ -118,7 +121,7 @@ export default class MainScene extends Phaser.Scene {
 
     objectLayer.objects.forEach((obj) => {
       const districtIdStr = obj.properties?.[0]?.name;
-      const districtId    = parseInt(districtIdStr, 10);
+      const districtId = parseInt(districtIdStr, 10);
       if (isNaN(districtId)) {
         console.warn(`[MainScene] 不正な地区ID: ${districtIdStr}`, obj);
         return;
@@ -132,11 +135,11 @@ export default class MainScene extends Phaser.Scene {
       const center = this._calcPolygonCenter(absolutePolygon);
 
       this.districts[districtId] = {
-        id:       districtId,
-        name:     obj.name,
-        polygon:  absolutePolygon,
+        id: districtId,
+        name: obj.name,
+        polygon: absolutePolygon,
         center,
-        owner:    null,
+        owner: null,
         graphics: null,
       };
     });
@@ -162,11 +165,11 @@ export default class MainScene extends Phaser.Scene {
 
       this.add
         .text(district.center.x, district.center.y, district.name, {
-          fontSize:        "9px",
-          color:           "#ffffff",
-          align:           "center",
-          wordWrap:        { width: 80 },
-          stroke:          "#000000",
+          fontSize: "9px",
+          color: "#ffffff",
+          align: "center",
+          wordWrap: { width: 80 },
+          stroke: "#000000",
           strokeThickness: 2,
         })
         .setOrigin(0.5)
@@ -204,15 +207,13 @@ export default class MainScene extends Phaser.Scene {
       return;
     }
 
-    this.player = this.add
-      .circle(start.center.x, start.center.y, 12, 0xf1c40f)
-      .setDepth(3);
+    this.player = this.add.circle(start.center.x, start.center.y, 12, 0xf1c40f).setDepth(3);
 
     this.playerLabel = this.add
       .text(start.center.x, start.center.y - 20, "あきら", {
-        fontSize:        "11px",
-        color:           COLOR.PLAYER_UI,
-        stroke:          "#000000",
+        fontSize: "11px",
+        color: COLOR.PLAYER_UI,
+        stroke: "#000000",
         strokeThickness: 2,
       })
       .setOrigin(0.5)
@@ -239,10 +240,10 @@ export default class MainScene extends Phaser.Scene {
 
     this.logText = this.add
       .text(8, this.scale.height - 28, "", {
-        fontSize:        "11px",
-        color:           "#aaffaa",
+        fontSize: "11px",
+        color: "#aaffaa",
         backgroundColor: "#00000099",
-        padding:         { x: 4, y: 2 },
+        padding: { x: 4, y: 2 },
       })
       .setScrollFactor(0)
       .setDepth(11);
@@ -276,8 +277,8 @@ export default class MainScene extends Phaser.Scene {
   // ═══════════════════════════════════════════════
 
   _onMapClicked(screenX, screenY) {
-    const worldX    = screenX + this.cameras.main.scrollX;
-    const worldY    = screenY + this.cameras.main.scrollY;
+    const worldX = screenX + this.cameras.main.scrollX;
+    const worldY = screenY + this.cameras.main.scrollY;
     const clickedId = this._getDistrictAtPoint(worldX, worldY);
 
     if (!clickedId) return;
@@ -285,8 +286,8 @@ export default class MainScene extends Phaser.Scene {
     // React へ選択地区情報を送信
     this._emitToReact("phaser:selectDistrict", {
       districtId: clickedId,
-      name:       this.districts[clickedId].name,
-      owner:      this.districts[clickedId].owner,
+      name: this.districts[clickedId].name,
+      owner: this.districts[clickedId].owner,
     });
 
     if (clickedId === this.currentDistrictId) return;
@@ -301,20 +302,22 @@ export default class MainScene extends Phaser.Scene {
     if (target.owner === "enemy") {
       this.startBattle(clickedId);
     } else {
+      this._emitPlayerMove(this.currentDistrictId, clickedId);
       this.movePlayer(clickedId);
       this.claimDistrict(clickedId, "player");
+      this._emitTerritoryClaimed(clickedId);
     }
   }
 
   _onMapHover(screenX, screenY) {
-    const worldX    = screenX + this.cameras.main.scrollX;
-    const worldY    = screenY + this.cameras.main.scrollY;
+    const worldX = screenX + this.cameras.main.scrollX;
+    const worldY = screenY + this.cameras.main.scrollY;
     const hoveredId = this._getDistrictAtPoint(worldX, worldY);
 
     Object.values(this.districts).forEach((d) => {
-      if      (d.owner === "player") this._redrawDistrict(d, COLOR.PLAYER);
-      else if (d.owner === "enemy")  this._redrawDistrict(d, COLOR.ENEMY);
-      else                           this._redrawDistrict(d, COLOR.NEUTRAL);
+      if (d.owner === "player") this._redrawDistrict(d, COLOR.PLAYER);
+      else if (d.owner === "enemy") this._redrawDistrict(d, COLOR.ENEMY);
+      else this._redrawDistrict(d, COLOR.NEUTRAL);
     });
 
     if (hoveredId && this.districts[hoveredId]) {
@@ -331,7 +334,7 @@ export default class MainScene extends Phaser.Scene {
     if (!target) return;
 
     const tweenCfg = (obj, x, y) => ({ targets: obj, x, y, duration: 300, ease: "Power2" });
-    this.tweens.add(tweenCfg(this.player,      target.center.x,      target.center.y));
+    this.tweens.add(tweenCfg(this.player, target.center.x, target.center.y));
     this.tweens.add(tweenCfg(this.playerLabel, target.center.x, target.center.y - 20));
     this.currentDistrictId = districtId;
   }
@@ -354,8 +357,17 @@ export default class MainScene extends Phaser.Scene {
   startBattle(targetDistrictId) {
     const enemyStats = { atk: 45, def: 50 }; // TODO: けいのSocket経由で取得
     const myFinalAtk = this.playerStats.atk * this.playerStats.faith;
-    const winRate    = myFinalAtk / (myFinalAtk + enemyStats.def);
+    const winRate = myFinalAtk / (myFinalAtk + enemyStats.def);
     const winPercent = Math.round(winRate * 100);
+
+/* ==================================
+けいとのサーバー連携後コメントの計算式に置き換える
+===================================== */
+    // const defenderId = `npc_${targetDistrictId}`;
+    // const myAtk = this.playerStats.atk * this.playerStats.faith;
+    // const winPercent = Math.round((myAtk / (myAtk + 50)) * 100);
+    // this.showLog(`⚔ バトルリクエスト送信中… 予測勝率: ${winPercent}%`);
+    // this._emitBattleStart(targetDistrictId, defenderId);
 
     this.showLog(`⚔ バトル！ 予測勝率: ${winPercent}%`);
 
@@ -365,7 +377,9 @@ export default class MainScene extends Phaser.Scene {
         this.movePlayer(targetDistrictId);
         this.claimDistrict(targetDistrictId, "player");
         this._emitToReact("battleResult", {
-          result: "win", districtId: targetDistrictId, winPercent,
+          result: "win",
+          districtId: targetDistrictId,
+          winPercent,
         });
       } else {
         const damage = Math.floor(enemyStats.atk * 0.5);
@@ -373,7 +387,10 @@ export default class MainScene extends Phaser.Scene {
         this.showLog(`💀 敗北… HP -${damage} (残HP: ${this.playerStats.hp})`);
         this.updateStatusHUD();
         this._emitToReact("battleResult", {
-          result: "lose", damage, remainHp: this.playerStats.hp, winPercent,
+          result: "lose",
+          damage,
+          remainHp: this.playerStats.hp,
+          winPercent,
         });
         if (this.playerStats.hp <= 0) this.respawnPlayer();
       }
@@ -394,10 +411,14 @@ export default class MainScene extends Phaser.Scene {
   updateStatusHUD() {
     const s = this.playerStats;
     this.statusText?.setText(
-      `HP:${s.hp}  ATK:${s.atk}  DEF:${s.def}  AP:${s.ap}  信仰:${s.faith.toFixed(1)}`
+      `HP:${s.hp}  ATK:${s.atk}  DEF:${s.def}  AP:${s.ap}  信仰:${s.faith.toFixed(1)}`,
     );
     this._emitToReact("statsUpdated", {
-      hp: s.hp, atk: s.atk, def: s.def, ap: s.ap, faith: s.faith,
+      hp: s.hp,
+      atk: s.atk,
+      def: s.def,
+      ap: s.ap,
+      faith: s.faith,
     });
   }
 
@@ -427,5 +448,139 @@ export default class MainScene extends Phaser.Scene {
     const sumX = polygon.reduce((s, p) => s + p.x, 0);
     const sumY = polygon.reduce((s, p) => s + p.y, 0);
     return { x: sumX / polygon.length, y: sumY / polygon.length };
+  }
+  // ───────────────────────────────────────────────
+  // Socket.IO 初期化
+  // ───────────────────────────────────────────────
+  _initSocket() {
+    socket.connect();
+
+    socket.on(SERVER_EVENTS.SYNC_STATE, (payload) => {
+      this.showLog("🔄 サーバーと同期中...");
+      this._applySyncState(payload);
+    });
+
+    socket.on(SERVER_EVENTS.PLAYER_MOVED, (payload) => {
+      if (payload.playerId === socket.id) return;
+      this._renderOtherPlayer(payload);
+    });
+
+    socket.on(SERVER_EVENTS.TERRITORY_UPDATED, (payload) => {
+      const { districtId, owner } = payload;
+      if (!this.districts[districtId]) return;
+      this.districts[districtId].owner = owner;
+      this._redrawDistrict(
+        this.districts[districtId],
+        owner === "player" ? COLOR.PLAYER : owner === "neutral" ? COLOR.NEUTRAL : COLOR.ENEMY,
+      );
+      this.showLog(`📡 地区${districtId} → ${owner}`);
+      this._emitToReact("phaser:territoryClaimed", payload);
+    });
+
+    socket.on(SERVER_EVENTS.BATTLE_RESULT, (payload) => {
+      const { winnerId, districtId, hpDamage } = payload;
+      const iWon = winnerId === socket.id;
+
+      if (iWon) {
+        this.showLog(`🎉 勝利！ 地区${districtId}を制圧`);
+        this.movePlayer(districtId);
+        this.claimDistrict(districtId, "player");
+      } else {
+        this.playerStats.hp = Math.max(0, this.playerStats.hp - hpDamage);
+        this.showLog(`💀 敗北… HP -${hpDamage}（残HP: ${this.playerStats.hp}）`);
+        this.updateStatusHUD();
+        if (this.playerStats.hp <= 0) this.respawnPlayer();
+      }
+
+      this._emitToReact("battleResult", payload);
+    });
+
+    socket.on(SERVER_EVENTS.NPC_UPDATE, (payload) => {
+      this._renderNpc(payload);
+    });
+
+    socket.on("disconnect", () => {
+      this.showLog("⚠ サーバー接続が切れました");
+    });
+  }
+
+  _applySyncState({ territories }) {
+    Object.entries(territories).forEach(([id, data]) => {
+      const districtId = Number(id);
+      if (!this.districts[districtId]) return;
+      this.districts[districtId].owner = data.owner;
+      const color =
+        data.owner === "player"
+          ? COLOR.PLAYER
+          : data.owner === "neutral"
+            ? COLOR.NEUTRAL
+            : COLOR.ENEMY;
+      this._redrawDistrict(this.districts[districtId], color);
+    });
+    this.showLog("✅ 同期完了");
+  }
+
+  _renderOtherPlayer({ playerId, toDistrictId }) {
+    const target = this.districts[toDistrictId];
+    if (!target) return;
+    if (!this.otherPlayers) this.otherPlayers = {};
+
+    if (!this.otherPlayers[playerId]) {
+      this.otherPlayers[playerId] = this.add
+        .circle(target.center.x, target.center.y, 16, COLOR.ENEMY)
+        .setDepth(1);
+    } else {
+      this.tweens.add({
+        targets: this.otherPlayers[playerId],
+        x: target.center.x,
+        y: target.center.y,
+        duration: 300,
+        ease: "Power2",
+      });
+    }
+  }
+
+  _renderNpc({ npcId, districtId }) {
+    const target = this.districts[districtId];
+    if (!target) return;
+    if (!this.npcSprites) this.npcSprites = {};
+
+    if (!this.npcSprites[npcId]) {
+      this.npcSprites[npcId] = this.add
+        .circle(target.center.x, target.center.y, 14, 0xff6600)
+        .setDepth(1);
+    } else {
+      this.tweens.add({
+        targets: this.npcSprites[npcId],
+        x: target.center.x,
+        y: target.center.y,
+        duration: 400,
+        ease: "Power2",
+      });
+    }
+  }
+
+  _emitPlayerMove(fromDistrictId, toDistrictId) {
+    socket.emit(CLIENT_EVENTS.PLAYER_MOVE, {
+      playerId: socket.id,
+      fromDistrictId,
+      toDistrictId,
+    });
+  }
+
+  _emitTerritoryClaimed(districtId) {
+    socket.emit(CLIENT_EVENTS.TERRITORY_CLAIMED, {
+      playerId: socket.id,
+      districtId,
+      owner: "player",
+    });
+  }
+
+  _emitBattleStart(targetDistrictId, defenderId) {
+    socket.emit(CLIENT_EVENTS.BATTLE_START, {
+      attackerId: socket.id,
+      defenderId,
+      districtId: targetDistrictId,
+    });
   }
 }
