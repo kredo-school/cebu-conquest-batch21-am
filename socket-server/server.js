@@ -5,7 +5,10 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 
-// CORS設定: Vite(5173)とPHP(8000等)からのアクセスを許可
+// ポートを3001に統一
+const PORT = 3001;
+
+// CORS設定: クライアント側(5173等)からのアクセスを許可
 const io = new Server(server, {
     cors: {
         origin: ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:8000"],
@@ -13,34 +16,34 @@ const io = new Server(server, {
     }
 });
 
-// 接続中のプレイヤー情報を保持するオブジェクト（任意）
-const players = {};
+// ゲームの状態（プレイヤー情報）を保持
+let players = {};
 
 io.on('connection', (socket) => {
-    console.log(`ユーザーが接続しました: ${socket.id}`);
+    console.log(`ユーザー接続成功: ${socket.id}`);
 
-    // 1. プレイヤーがゲームに参加したときの処理
+    // --- 受信イベント (クライアント → サーバー) ---
+
+    // 1. ゲーム参加
     socket.on('join_game', (userData) => {
         players[socket.id] = {
             id: socket.id,
             userId: userData.userId,
             username: userData.username,
             x: userData.x || 0,
-            y: userData.y || 0
+            y: userData.y || 0,
+            team: userData.team || 'neutral'
         };
-        // 全員に新しいプレイヤーが来たことを通知
-        io.emit('current_players', players);
+        io.emit('syncState', players);
     });
 
-    // 2. プレイヤー移動の受信と配信 (けいさんの担当部分)
-    socket.on('player_move', (moveData) => {
-        // moveData = { x: 100, y: 200 }
+    // 2. プレイヤー移動
+    socket.on('playerMove', (moveData) => {
         if (players[socket.id]) {
             players[socket.id].x = moveData.x;
             players[socket.id].y = moveData.y;
 
-            // 送信者以外の全員に「この人が動いたよ」と通知
-            socket.broadcast.emit('player_moved', {
+            socket.broadcast.emit('playerMoved', {
                 id: socket.id,
                 x: moveData.x,
                 y: moveData.y
@@ -48,16 +51,41 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 3. 切断時の処理
+    // 3. 陣地獲得 (変数名を districtId / owner に修正)
+    socket.on('territoryClaimed', (data) => {
+        console.log(`陣地獲得イベント: District ${data.districtId} by Owner ${data.owner}`);
+        // 全員に通知
+        io.emit('territoryUpdated', {
+            districtId: data.districtId,
+            owner: data.owner,
+            team: data.team // 必要に応じて維持
+        });
+    });
+
+    // 4. バトル開始 (変数名を districtId に修正 / loserId, hpDamage を追加)
+    socket.on('battleStart', (battleData) => {
+        console.log('バトル開始:', battleData);
+        // バトル結果の計算ロジック（仮）を返却
+        io.emit('battleResult', {
+            winnerId: battleData.attackerId,
+            loserId: battleData.defenderId, // 追加
+            districtId: battleData.districtId, // 修正
+            hpDamage: 20 // 仮の値
+        });
+    });
+
+    // --- 切断処理 ---
     socket.on('disconnect', () => {
-        console.log(`ユーザーが切断しました: ${socket.id}`);
+        console.log(`ユーザー切断: ${socket.id}`);
         delete players[socket.id];
-        // 全員に誰かが消えたことを通知
-        io.emit('player_disconnected', socket.id);
+        io.emit('playerDisconnected', socket.id);
     });
 });
 
-const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Socket.IOサーバーがポート ${PORT} で起動しました`);
+    console.log(`-----------------------------------------`);
+    console.log(`『セブとり合戦』Socketサーバー起動中`);
+    console.log(`PORT: ${PORT}`);
+    console.log(`イベント・変数名: districtId 仕様へアップデート済`);
+    console.log(`-----------------------------------------`);
 });

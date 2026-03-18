@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
-import  MainScene  from '../game/scenes/MainScene'; // あきらさんのScene
+import  MainScene from '../game/scenes/MainScene'; // あきらさんのScene
 import { EventBus } from '../game/EventBus'; // 橋渡し役
 
 // 陣地情報の型定義（必要に応じて拡張してください）
