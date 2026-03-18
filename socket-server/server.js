@@ -25,6 +25,7 @@ io.on('connection', (socket) => {
     // --- 受信イベント (クライアント → サーバー) ---
 
     // 1. ゲーム参加
+    // 1. ゲーム参加
     socket.on('join_game', (userData) => {
         players[socket.id] = {
             id: socket.id,
@@ -34,7 +35,22 @@ io.on('connection', (socket) => {
             y: userData.y || 0,
             team: userData.team || 'neutral'
         };
+
+        console.log(`参加者: ${userData.username} (Team: ${userData.team})`);
+
+        // ① 全員に現在の状況を同期
         io.emit('syncState', players);
+
+        // ② ★ここが重要！★ 2人以上揃ったら「開始合図」を送る
+        // 役割：React側の「waiting画面」を終わらせて、ゲームをスタートさせます。
+        const playerCount = Object.keys(players).length;
+        if (playerCount >= 2) {
+            console.log(`人数が揃いました (${playerCount}人)。ゲーム開始信号を送信します！`);
+            io.emit('gameStart', { 
+                startTime: Date.now(),
+                message: "Battle Start!" 
+            });
+        }
     });
 
     // 2. プレイヤー移動
