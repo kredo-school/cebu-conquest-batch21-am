@@ -25,7 +25,6 @@ io.on('connection', (socket) => {
     // --- 受信イベント (クライアント → サーバー) ---
 
     // 1. ゲーム参加
-    // 1. ゲーム参加
     socket.on('join_game', (userData) => {
         players[socket.id] = {
             id: socket.id,
