@@ -16,8 +16,12 @@ const io = new Server(server, {
     }
 });
 
-// ゲームの状態（プレイヤー情報）を保持
-let players = {};
+// ゲーム全体の状態を管理（Room管理用）
+let gameState = {
+    status: 'waiting', // 'waiting' (待機中) または 'playing' (プレイ中)
+    players: {},
+    districts: {}      
+};
 
 io.on('connection', (socket) => {
     console.log(`ユーザー接続成功: ${socket.id}`);
@@ -26,22 +30,31 @@ io.on('connection', (socket) => {
 
     // 1. ゲーム参加
     socket.on('join_game', (userData) => {
-        players[socket.id] = {
+        gameState.players[socket.id] = {
             id: socket.id,
-            userId: userData.userId,
-            username: userData.username,
-            x: userData.x || 0,
-            y: userData.y || 0,
-            team: userData.team || 'neutral'
+            userId: userData?.userId || socket.id,
+            username: userData?.username || `Player_${socket.id.substring(0,4)}`,
+            x: userData?.x || 0,
+            y: userData?.y || 0,
+            team: userData?.team || 'neutral'
         };
-        io.emit('syncState', players);
+
+        console.log(`${gameState.players[socket.id].username} が入室。現在: ${Object.keys(gameState.players).length}名`);
+
+        // ★ 木曜タスク：2人揃ったらゲーム開始！
+        if (Object.keys(gameState.players).length === 2 && gameState.status === 'waiting') {
+            gameState.status = 'playing';
+            console.log('★ 2名揃いました！セブとり合戦、開始！ ★');
+            // 全員にゲーム開始を通知
+            io.emit('gameStart', { status: gameState.status });
+        }
     });
 
     // 2. プレイヤー移動
     socket.on('playerMove', (moveData) => {
-        if (players[socket.id]) {
-            players[socket.id].x = moveData.x;
-            players[socket.id].y = moveData.y;
+        if (gameState.players[socket.id]) {
+            gameState.players[socket.id].x = moveData.x;
+            gameState.players[socket.id].y = moveData.y;
 
             socket.broadcast.emit('playerMoved', {
                 id: socket.id,
@@ -51,41 +64,52 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 3. 陣地獲得 (変数名を districtId / owner に修正)
+    // 3. 陣地獲得
     socket.on('territoryClaimed', (data) => {
         console.log(`陣地獲得イベント: District ${data.districtId} by Owner ${data.owner}`);
-        // 全員に通知
         io.emit('territoryUpdated', {
             districtId: data.districtId,
             owner: data.owner,
-            team: data.team // 必要に応じて維持
+            team: data.team
         });
     });
 
-    // 4. バトル開始 (変数名を districtId に修正 / loserId, hpDamage を追加)
+    // 4. バトル開始
     socket.on('battleStart', (battleData) => {
         console.log('バトル開始:', battleData);
-        // バトル結果の計算ロジック（仮）を返却
         io.emit('battleResult', {
             winnerId: battleData.attackerId,
-            loserId: battleData.defenderId, // 追加
-            districtId: battleData.districtId, // 修正
-            hpDamage: 20 // 仮の値
+            loserId: battleData.defenderId,
+            districtId: battleData.districtId,
+            hpDamage: 20
         });
     });
 
     // --- 切断処理 ---
     socket.on('disconnect', () => {
         console.log(`ユーザー切断: ${socket.id}`);
-        delete players[socket.id];
+        delete gameState.players[socket.id];
+        
+        // ★ 1人以下になったら待機状態に戻す
+        if (Object.keys(gameState.players).length < 2) {
+            gameState.status = 'waiting';
+            console.log('プレイヤーが退出したため、待機状態に戻ります。');
+        }
         io.emit('playerDisconnected', socket.id);
     });
 });
+
+// ★ 木曜タスク：1秒間隔で gameState を全クライアントに同期
+setInterval(() => {
+    if (Object.keys(gameState.players).length > 0) {
+        io.emit('syncState', gameState);
+    }
+}, 1000);
 
 server.listen(PORT, () => {
     console.log(`-----------------------------------------`);
     console.log(`『セブとり合戦』Socketサーバー起動中`);
     console.log(`PORT: ${PORT}`);
-    console.log(`イベント・変数名: districtId 仕様へアップデート済`);
+    console.log(`Room管理・定周期ブロードキャスト 実装完了`);
     console.log(`-----------------------------------------`);
 });
