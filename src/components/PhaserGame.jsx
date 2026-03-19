@@ -62,7 +62,14 @@ export default function PhaserGame({ playerName }) {
   return (
     <div 
       id="phaser-container" 
-      style={{ width: '100vw', height: '100vh', position: 'fixed', top: 0, left: 0 }} 
+      style={{ 
+        
+        flex: 1,
+        height: '100vh', 
+        position: 'relative', 
+        top: 0, 
+        left: 0 
+        }} 
     />
   );
 }
