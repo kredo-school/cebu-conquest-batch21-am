@@ -211,20 +211,23 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _setupCamera() {
-    const mapPixelW = 50 * TILE_SIZE * MAP_SCALE;
-    const mapPixelH = 50 * TILE_SIZE * MAP_SCALE;
-    this.cameras.main.setBounds(0, 0, mapPixelW, mapPixelH);
-    this.input.on("pointerdown", (p) => {
-      this._dragStartX = p.x + this.cameras.main.scrollX;
-      this._dragStartY = p.y + this.cameras.main.scrollY;
-    });
-    this.input.on("pointermove", (p) => {
-      if (p.isDown) {
-        this.cameras.main.scrollX = this._dragStartX - p.x;
-        this.cameras.main.scrollY = this._dragStartY - p.y;
-      }
-    });
-  }
+  const mapPixelW = 50 * TILE_SIZE * MAP_SCALE; // 約800px
+  const mapPixelH = 50 * TILE_SIZE * MAP_SCALE; // 約800px
+
+  // カメラが動ける範囲を地図のサイズに合わせる
+  this.cameras.main.setBounds(0, 0, mapPixelW, mapPixelH);
+
+  // ★ ここを追加：地図を画面（キャンバス）の中央に配置する
+  // 【役割】画面の幅から地図の幅を引いて、半分移動させることで「中央寄せ」にします
+  const offsetX = (this.scale.width - mapPixelW) / 2;
+  const offsetY = (this.scale.height - mapPixelH) / 2;
+  
+  // 地図が画面より小さい場合のみ、カメラをずらして中央に見せる
+  if (offsetX > 0) this.cameras.main.setViewport(offsetX, offsetY, mapPixelW, mapPixelH);
+  
+  // 背景色を少し明るい紺色にして「海」っぽくする（没入感UP）
+  this.cameras.main.setBackgroundColor('#1a1a2e'); 
+}
 
   _onMapClicked(screenX, screenY) {
     const worldX = screenX + this.cameras.main.scrollX;
