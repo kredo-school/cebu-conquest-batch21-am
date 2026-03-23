@@ -87,6 +87,7 @@ export default class MainScene extends Phaser.Scene {
     this._createHUD();
     this._setupCamera();
     this._initSocket();
+    this._setupSyncState();
   }
 
   _setupTilemap() {
@@ -211,23 +212,23 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _setupCamera() {
-  const mapPixelW = 50 * TILE_SIZE * MAP_SCALE; // 約800px
-  const mapPixelH = 50 * TILE_SIZE * MAP_SCALE; // 約800px
+    const mapPixelW = 50 * TILE_SIZE * MAP_SCALE; // 約800px
+    const mapPixelH = 50 * TILE_SIZE * MAP_SCALE; // 約800px
 
-  // カメラが動ける範囲を地図のサイズに合わせる
-  this.cameras.main.setBounds(0, 0, mapPixelW, mapPixelH);
+    // カメラが動ける範囲を地図のサイズに合わせる
+    this.cameras.main.setBounds(0, 0, mapPixelW, mapPixelH);
 
-  // ★ ここを追加：地図を画面（キャンバス）の中央に配置する
-  // 【役割】画面の幅から地図の幅を引いて、半分移動させることで「中央寄せ」にします
-  const offsetX = (this.scale.width - mapPixelW) / 2;
-  const offsetY = (this.scale.height - mapPixelH) / 2;
-  
-  // 地図が画面より小さい場合のみ、カメラをずらして中央に見せる
-  if (offsetX > 0) this.cameras.main.setViewport(offsetX, offsetY, mapPixelW, mapPixelH);
-  
-  // 背景色を少し明るい紺色にして「海」っぽくする（没入感UP）
-  this.cameras.main.setBackgroundColor('#1a1a2e'); 
-}
+    // ★ ここを追加：地図を画面（キャンバス）の中央に配置する
+    // 【役割】画面の幅から地図の幅を引いて、半分移動させることで「中央寄せ」にします
+    const offsetX = (this.scale.width - mapPixelW) / 2;
+    const offsetY = (this.scale.height - mapPixelH) / 2;
+
+    // 地図が画面より小さい場合のみ、カメラをずらして中央に見せる
+    if (offsetX > 0) this.cameras.main.setViewport(offsetX, offsetY, mapPixelW, mapPixelH);
+
+    // 背景色を少し明るい紺色にして「海」っぽくする（没入感UP）
+    this.cameras.main.setBackgroundColor("#1a1a2e");
+  }
 
   _onMapClicked(screenX, screenY) {
     const worldX = screenX + this.cameras.main.scrollX;
@@ -268,6 +269,96 @@ export default class MainScene extends Phaser.Scene {
     if (hoveredId && this.districts[hoveredId]) {
       this._redrawDistrict(this.districts[hoveredId], COLOR.HIGHLIGHT, 0.7);
     }
+  }
+
+  // ─────────────────────────────────────────
+  // syncState受信 → 敵プレイヤー描画・陣地同期
+  // ─────────────────────────────────────────
+  _setupSyncState() {
+    // 敵スプライトを管理するオブジェクト { socketId: { sprite, label } }
+    this.enemySprites = {};
+
+    window.addEventListener("syncState", (e) => {
+      const gameState = e.detail;
+      this._syncDistricts(gameState.districts);
+      this._syncPlayers(gameState.players);
+    });
+  }
+
+  // 陣地の色を同期
+  _syncDistricts(districts) {
+    if (!districts) return;
+
+    Object.entries(districts).forEach(([districtId, owner]) => {
+      const cell = this.cells[Number(districtId)];
+      if (!cell) return;
+
+      const mySocketId = window.__mySocketId;
+
+      if (owner === mySocketId) {
+        cell.cell.setFillStyle(COLOR.PLAYER);
+        cell.owner = "player";
+      } else {
+        cell.cell.setFillStyle(COLOR.ENEMY);
+        cell.owner = "enemy";
+      }
+    });
+  }
+
+  // 他プレイヤーのスプライトを同期
+  _syncPlayers(players) {
+    if (!players) return;
+
+    const mySocketId = window.__mySocketId;
+
+    Object.entries(players).forEach(([socketId, playerData]) => {
+      // 自分はスキップ
+      if (socketId === mySocketId) return;
+
+      const targetCell = this.cells[playerData.districtId];
+      if (!targetCell) return;
+
+      if (!this.enemySprites[socketId]) {
+        // 初回：敵スプライトを生成
+        const sprite = this.add.circle(targetCell.x, targetCell.y, 20, COLOR.ENEMY).setDepth(1);
+
+        const label = this.add
+          .text(targetCell.x, targetCell.y - 30, playerData.username || "敵", {
+            fontSize: "12px",
+            color: "#27ae60",
+          })
+          .setOrigin(0.5)
+          .setDepth(1);
+
+        this.enemySprites[socketId] = { sprite, label };
+      } else {
+        // 2回目以降：位置をTweenで更新
+        const { sprite, label } = this.enemySprites[socketId];
+        this.tweens.add({
+          targets: sprite,
+          x: targetCell.x,
+          y: targetCell.y,
+          duration: 300,
+          ease: "Power2",
+        });
+        this.tweens.add({
+          targets: label,
+          x: targetCell.x,
+          y: targetCell.y - 30,
+          duration: 300,
+          ease: "Power2",
+        });
+      }
+    });
+
+    // 切断したプレイヤーのスプライトを削除
+    Object.keys(this.enemySprites).forEach((socketId) => {
+      if (!players[socketId]) {
+        this.enemySprites[socketId].sprite.destroy();
+        this.enemySprites[socketId].label.destroy();
+        delete this.enemySprites[socketId];
+      }
+    });
   }
 
   movePlayer(districtId) {
@@ -353,10 +444,10 @@ export default class MainScene extends Phaser.Scene {
     // 【今：簡易版マップ用】
     const MAP_WIDTH = 1600; // 50tiles × 32px
     const MAP_HEIGHT = 1600; // 50tiles × 32px
-// 【本番マップに切り替えたら↓に変える】
-// const MAP_WIDTH  = 8000;  // 250tiles × 32px
-// const MAP_HEIGHT = 9600;  // 300tiles × 32px
-    
+    // 【本番マップに切り替えたら↓に変える】
+    // const MAP_WIDTH  = 8000;  // 250tiles × 32px
+    // const MAP_HEIGHT = 9600;  // 300tiles × 32px
+
     cam.setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT);
 
     // 初期ズーム（全体が見える程度に設定）
