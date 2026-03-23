@@ -38,8 +38,8 @@ io.on('connection', (socket) => {
             username: userData.username,
             x: userData.x || 0,
             y: userData.y || 0,
-            districtId: null, // 現在いる地区
-            hp: 100,          // 初期HP
+            districtId: null, // 追加: 現在いる地区
+            hp: 100,          // 追加: 初期HP
             team: userData.team || 'neutral'
         };
 
