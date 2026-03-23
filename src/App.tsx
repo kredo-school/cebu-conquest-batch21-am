@@ -8,53 +8,55 @@ import PhaserGame from './components/PhaserGame';
 import socket from './socket';
 
 const App: React.FC = () => {
-  const { hp, syncServerState } = useGameStore();
+  // ★ store から damage と addLog を新しく取り出します
+  const { hp, syncServerState, damage, addLog } = useGameStore();
 
   const [view, setView] = useState<'title' | 'login' | 'waiting' | 'game'>('title');
   const [playerName, setPlayerName] = useState('');
 
-  // ② 【役割：耳と脳の接続】サーバーの声をStoreに書き込む
   useEffect(() => {
-    // 🚩 毎秒届く syncState を Zustand へ流し込む
-    // 【意味】これで Sidebar や Hud が自動的に最新情報で再描画されます
+    // 1. サーバーの「正の世界」を同期
     socket.on('syncState', (state) => {
       syncServerState(state);
     });
 
-    // サーバーからの開始合図
+    // 2. ゲーム開始の合図
     socket.on('gameStart', (data) => {
-      console.log('🚀 Matching Success!', data);
+      console.log('Matching Success!', data);
       setView('game'); 
     });
 
-    socket.on('connect', () => {
-  window.__mySocketId = socket.id;  // MainSceneから参照できるように
-});
+    // ★ 3. 【バトル結果の受け取り】
+    // 【役割】サーバーで判定されたバトルの結果を、自分のHPやログに反映させます
+    socket.on('battleResult', (result) => {
+      console.log('バトル終了通知:', result);
 
+      if (result.loserId === socket.id) {
+        // 自分が負けた場合
+        damage(result.hpDamage); // ZustandのHPを減らす
+        addLog(`lose... ${result.hpDamage}のダメージ！ (勝率:${result.winProbability}%)`);
+      } else if (result.winnerId === socket.id) {
+        // 自分が勝った場合
+        addLog(`win！ 陣地を確保しました！`);
+      }
+    });
 
     return () => {
       socket.off('syncState');
       socket.off('gameStart');
+      socket.off('battleResult'); // お片付けも忘れずに！
     };
-  }, [syncServerState]);
+  }, [syncServerState, damage, addLog]); // 依存関係に damage と addLog を追加
 
-  // ③ 【役割：作戦】ログイン
+  // --- 以下、ログイン処理や表示の分岐（以前と同じ） ---
   const handleLoginSubmit = (name: string) => {
     setPlayerName(name); 
     socket.connect();
-
     const selectedTeam = name === 'issei' ? 'red' : 'blue';
-
-    socket.emit('join_game', {
-      userId: Math.floor(Math.random() * 1000), 
-      username: name,
-      team: selectedTeam 
-    });
-
+    socket.emit('join_game', { userId: Math.floor(Math.random() * 1000), username: name, team: selectedTeam });
     setView('waiting'); 
   };
 
-  // --- 表示の分岐 ---
   if (view === 'title') return <TitleScreen onStart={() => setView('login')} />;
   if (view === 'login') return <LoginView onLogin={handleLoginSubmit} />;
   
@@ -69,12 +71,11 @@ const App: React.FC = () => {
     );
   }
 
-  // --- ゲーム本編レイアウト ---
   return (
     <div style={gameMainContainerStyle}>
       <div style={gameViewportStyle}>
         <PhaserGame playerName={playerName} />
-        <HUD /> {/* ★ ここで Store の情報が表示されるようになる */}
+        <HUD />
         {hp <= 0 && (
           <div style={gameOverOverlayStyle}>
             <h1 style={{ color: 'white', fontSize: '80px' }}>GAME OVER</h1>
@@ -87,7 +88,7 @@ const App: React.FC = () => {
   );
 };
 
-// --- デザイン設定（以前のものを継承） ---
+// --- スタイル設定（変更なし） ---
 const gameMainContainerStyle: React.CSSProperties = { display: 'flex', width: '100vw', height: '100vh', backgroundColor: '#1a1a2e', overflow: 'hidden' };
 const gameViewportStyle: React.CSSProperties = { flex: 1, position: 'relative' };
 const waitingContainerStyle: React.CSSProperties = { height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: 'white' };
