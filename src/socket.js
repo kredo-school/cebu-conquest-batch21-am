@@ -18,4 +18,10 @@ if (import.meta.env.DEV) {
   });
 }
 
+socket.on('syncState', (gameState) => {
+  // PhaserのMainSceneにカスタムイベントで渡す
+  window.dispatchEvent(new CustomEvent('syncState', { detail: gameState }));
+});
+
+
 export default socket;

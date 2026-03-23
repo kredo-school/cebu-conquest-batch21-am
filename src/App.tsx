@@ -27,6 +27,11 @@ const App: React.FC = () => {
       setView('game'); 
     });
 
+    socket.on('connect', () => {
+  window.__mySocketId = socket.id;  // MainSceneから参照できるように
+});
+
+
     return () => {
       socket.off('syncState');
       socket.off('gameStart');
