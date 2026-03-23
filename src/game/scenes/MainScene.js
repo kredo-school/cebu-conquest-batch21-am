@@ -52,8 +52,10 @@ function pointInPolygon(point, polygon) {
   let inside = false;
   const { x, y } = point;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].x, yi = polygon[i].y;
-    const xj = polygon[j].x, yj = polygon[j].y;
+    const xi = polygon[i].x,
+      yi = polygon[i].y;
+    const xj = polygon[j].x,
+      yj = polygon[j].y;
     const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
     if (intersect) inside = !inside;
   }
@@ -136,9 +138,16 @@ export default class MainScene extends Phaser.Scene {
     Object.values(this.districts).forEach((district) => {
       district.graphics = this.add.graphics();
       this._redrawDistrict(district, COLOR.NEUTRAL);
-      this.add.text(district.center.x, district.center.y, district.name, {
-        fontSize: "9px", color: "#ffffff", align: "center", stroke: "#000000", strokeThickness: 2,
-      }).setOrigin(0.5).setDepth(2);
+      this.add
+        .text(district.center.x, district.center.y, district.name, {
+          fontSize: "9px",
+          color: "#ffffff",
+          align: "center",
+          stroke: "#000000",
+          strokeThickness: 2,
+        })
+        .setOrigin(0.5)
+        .setDepth(2);
     });
   }
 
@@ -146,7 +155,7 @@ export default class MainScene extends Phaser.Scene {
     const gfx = district.graphics;
     if (!gfx) return;
     gfx.clear().fillStyle(fillColor, alpha).beginPath();
-    district.polygon.forEach((p, i) => i === 0 ? gfx.moveTo(p.x, p.y) : gfx.lineTo(p.x, p.y));
+    district.polygon.forEach((p, i) => (i === 0 ? gfx.moveTo(p.x, p.y) : gfx.lineTo(p.x, p.y)));
     gfx.closePath().fillPath().lineStyle(2, 0xffffff, 0.8).strokePath();
   }
 
@@ -162,10 +171,11 @@ export default class MainScene extends Phaser.Scene {
 
     // 【役割：名前の取得】
     // PhaserGame.jsx で registry.set した 'playerName' を取り出します。
-    const nameFromLogin = this.registry.get('playerName') || 'Guest';
+    const nameFromLogin = this.registry.get("playerName") || "Guest";
 
     this.playerLabel = this.add
-      .text(start.center.x, start.center.y - 20, nameFromLogin, { // ★ "あきら" から変更
+      .text(start.center.x, start.center.y - 20, nameFromLogin, {
+        // ★ "あきら" から変更
         fontSize: "11px",
         color: COLOR.PLAYER_UI,
         stroke: "#000000",
@@ -179,11 +189,24 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _createHUD() {
-    this.add.rectangle(0, 0, 320, 28, 0x000000, 0.6).setOrigin(0, 0).setScrollFactor(0).setDepth(10);
-    this.statusText = this.add.text(8, 6, "", { fontSize: "11px", color: "#ffffff" }).setScrollFactor(0).setDepth(11);
-    this.logText = this.add.text(8, this.scale.height - 28, "", {
-      fontSize: "11px", color: "#aaffaa", backgroundColor: "#00000099", padding: { x: 4, y: 2 },
-    }).setScrollFactor(0).setDepth(11);
+    this.add
+      .rectangle(0, 0, 320, 28, 0x000000, 0.6)
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(10);
+    this.statusText = this.add
+      .text(8, 6, "", { fontSize: "11px", color: "#ffffff" })
+      .setScrollFactor(0)
+      .setDepth(11);
+    this.logText = this.add
+      .text(8, this.scale.height - 28, "", {
+        fontSize: "11px",
+        color: "#aaffaa",
+        backgroundColor: "#00000099",
+        padding: { x: 4, y: 2 },
+      })
+      .setScrollFactor(0)
+      .setDepth(11);
     this.updateStatusHUD();
   }
 
@@ -292,7 +315,9 @@ export default class MainScene extends Phaser.Scene {
 
   updateStatusHUD() {
     const s = this.playerStats;
-    this.statusText?.setText(`HP:${s.hp}  ATK:${s.atk}  DEF:${s.def}  AP:${s.ap}  信仰:${s.faith.toFixed(1)}`);
+    this.statusText?.setText(
+      `HP:${s.hp}  ATK:${s.atk}  DEF:${s.def}  AP:${s.ap}  信仰:${s.faith.toFixed(1)}`,
+    );
   }
 
   showLog(message) {
@@ -314,6 +339,119 @@ export default class MainScene extends Phaser.Scene {
     return { x: sumX / polygon.length, y: sumY / polygon.length };
   }
 
+  // ─────────────────────────────────────────
+  // カメラ制御（ドラッグ・ホイール・ピンチ）
+  // ─────────────────────────────────────────
+  _setupCamera() {
+    const cam = this.cameras.main;
+
+    // マップ全体サイズに合わせてカメラ境界を設定
+    // Tiledのマップサイズ（tilewidth × mapwidth など）に合わせて調整
+    // 【今：簡易版マップ用】
+    const MAP_WIDTH = 1600; // 50tiles × 32px
+    const MAP_HEIGHT = 1600; // 50tiles × 32px
+// 【本番マップに切り替えたら↓に変える】
+// const MAP_WIDTH  = 8000;  // 250tiles × 32px
+// const MAP_HEIGHT = 9600;  // 300tiles × 32px
+    
+    cam.setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT);
+
+    // 初期ズーム（全体が見える程度に設定）
+    cam.setZoom(1.09);
+
+    // ズームの範囲制限
+    const ZOOM_MIN = 0.1;
+    const ZOOM_MAX = 2.0;
+
+    // ─── ドラッグスクロール ───
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let camStartX = 0;
+    let camStartY = 0;
+
+    this.input.on("pointerdown", (pointer) => {
+      // 2本指ピンチ中はドラッグしない
+      if (this.input.pointer1.isDown && this.input.pointer2.isDown) return;
+
+      isDragging = true;
+      dragStartX = pointer.x;
+      dragStartY = pointer.y;
+      camStartX = cam.scrollX;
+      camStartY = cam.scrollY;
+    });
+
+    this.input.on("pointermove", (pointer) => {
+      if (!isDragging) return;
+      // 2本指になったらドラッグ中断
+      if (this.input.pointer1.isDown && this.input.pointer2.isDown) {
+        isDragging = false;
+        return;
+      }
+
+      const dx = (pointer.x - dragStartX) / cam.zoom;
+      const dy = (pointer.y - dragStartY) / cam.zoom;
+      cam.setScroll(camStartX - dx, camStartY - dy);
+    });
+
+    this.input.on("pointerup", () => {
+      isDragging = false;
+    });
+
+    // ─── マウスホイールズーム ───
+    this.input.on("wheel", (pointer, _objs, _dx, dy) => {
+      const zoomDelta = dy > 0 ? -0.05 : 0.05;
+      const newZoom = Phaser.Math.Clamp(cam.zoom + zoomDelta, ZOOM_MIN, ZOOM_MAX);
+
+      // ポインター位置を中心にズーム
+      const worldX = cam.scrollX + pointer.x / cam.zoom;
+      const worldY = cam.scrollY + pointer.y / cam.zoom;
+      cam.setZoom(newZoom);
+      cam.setScroll(worldX - pointer.x / newZoom, worldY - pointer.y / newZoom);
+    });
+
+    // ─── ピンチズーム（スマホ2本指）───
+    let lastPinchDistance = 0;
+
+    this.input.on("pointermove", () => {
+      const p1 = this.input.pointer1;
+      const p2 = this.input.pointer2;
+
+      if (!p1.isDown || !p2.isDown) {
+        lastPinchDistance = 0;
+        return;
+      }
+
+      // 2本指の距離を計算
+      const dist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+
+      if (lastPinchDistance === 0) {
+        lastPinchDistance = dist;
+        return;
+      }
+
+      const pinchDelta = (dist - lastPinchDistance) * 0.005;
+      const newZoom = Phaser.Math.Clamp(cam.zoom + pinchDelta, ZOOM_MIN, ZOOM_MAX);
+
+      // 2本指の中心を基準にズーム
+      const centerX = (p1.x + p2.x) / 2;
+      const centerY = (p1.y + p2.y) / 2;
+      const worldX = cam.scrollX + centerX / cam.zoom;
+      const worldY = cam.scrollY + centerY / cam.zoom;
+      cam.setZoom(newZoom);
+      cam.setScroll(worldX - centerX / newZoom, worldY - centerY / newZoom);
+
+      lastPinchDistance = dist;
+    });
+
+    this.input.on("pointerup", () => {
+      lastPinchDistance = 0;
+      isDragging = false;
+    });
+
+    console.log("[MainScene] カメラ制御セットアップ完了");
+  }
+
   _initSocket() {
     socket.connect();
     socket.on(SERVER_EVENTS.SYNC_STATE, (p) => this._applySyncState(p));
@@ -323,7 +461,8 @@ export default class MainScene extends Phaser.Scene {
     socket.on(SERVER_EVENTS.TERRITORY_UPDATED, (p) => {
       if (!this.districts[p.districtId]) return;
       this.districts[p.districtId].owner = p.owner;
-      const color = p.owner === "player" ? COLOR.PLAYER : p.owner === "neutral" ? COLOR.NEUTRAL : COLOR.ENEMY;
+      const color =
+        p.owner === "player" ? COLOR.PLAYER : p.owner === "neutral" ? COLOR.NEUTRAL : COLOR.ENEMY;
       this._redrawDistrict(this.districts[p.districtId], color);
     });
   }
@@ -333,7 +472,12 @@ export default class MainScene extends Phaser.Scene {
       const d = this.districts[id];
       if (!d) return;
       d.owner = data.owner;
-      const color = data.owner === "player" ? COLOR.PLAYER : data.owner === "neutral" ? COLOR.NEUTRAL : COLOR.ENEMY;
+      const color =
+        data.owner === "player"
+          ? COLOR.PLAYER
+          : data.owner === "neutral"
+            ? COLOR.NEUTRAL
+            : COLOR.ENEMY;
       this._redrawDistrict(d, color);
     });
   }
@@ -343,9 +487,16 @@ export default class MainScene extends Phaser.Scene {
     if (!target) return;
     if (!this.otherPlayers) this.otherPlayers = {};
     if (!this.otherPlayers[playerId]) {
-      this.otherPlayers[playerId] = this.add.circle(target.center.x, target.center.y, 16, COLOR.ENEMY).setDepth(1);
+      this.otherPlayers[playerId] = this.add
+        .circle(target.center.x, target.center.y, 16, COLOR.ENEMY)
+        .setDepth(1);
     } else {
-      this.tweens.add({ targets: this.otherPlayers[playerId], x: target.center.x, y: target.center.y, duration: 300 });
+      this.tweens.add({
+        targets: this.otherPlayers[playerId],
+        x: target.center.x,
+        y: target.center.y,
+        duration: 300,
+      });
     }
   }
 
@@ -354,6 +505,10 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _emitTerritoryClaimed(districtId) {
-    socket.emit(CLIENT_EVENTS.TERRITORY_CLAIMED, { playerId: socket.id, districtId, owner: "player" });
+    socket.emit(CLIENT_EVENTS.TERRITORY_CLAIMED, {
+      playerId: socket.id,
+      districtId,
+      owner: "player",
+    });
   }
 }
