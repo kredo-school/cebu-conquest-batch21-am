@@ -211,25 +211,6 @@ export default class MainScene extends Phaser.Scene {
     this.updateStatusHUD();
   }
 
-  _setupCamera() {
-    const mapPixelW = 50 * TILE_SIZE * MAP_SCALE; // 約800px
-    const mapPixelH = 50 * TILE_SIZE * MAP_SCALE; // 約800px
-
-    // カメラが動ける範囲を地図のサイズに合わせる
-    this.cameras.main.setBounds(0, 0, mapPixelW, mapPixelH);
-
-    // ★ ここを追加：地図を画面（キャンバス）の中央に配置する
-    // 【役割】画面の幅から地図の幅を引いて、半分移動させることで「中央寄せ」にします
-    const offsetX = (this.scale.width - mapPixelW) / 2;
-    const offsetY = (this.scale.height - mapPixelH) / 2;
-
-    // 地図が画面より小さい場合のみ、カメラをずらして中央に見せる
-    if (offsetX > 0) this.cameras.main.setViewport(offsetX, offsetY, mapPixelW, mapPixelH);
-
-    // 背景色を少し明るい紺色にして「海」っぽくする（没入感UP）
-    this.cameras.main.setBackgroundColor("#1a1a2e");
-  }
-
   _onMapClicked(screenX, screenY) {
     const worldX = screenX + this.cameras.main.scrollX;
     const worldY = screenY + this.cameras.main.scrollY;
@@ -290,17 +271,15 @@ export default class MainScene extends Phaser.Scene {
     if (!districts) return;
 
     Object.entries(districts).forEach(([districtId, owner]) => {
-      const cell = this.cells[Number(districtId)];
-      if (!cell) return;
-
-      const mySocketId = window.__mySocketId;
-
+      const district = this.districts[Number(districtId)];
+      if (!district) return;
+      const mySocketId = socket.id;
       if (owner === mySocketId) {
-        cell.cell.setFillStyle(COLOR.PLAYER);
-        cell.owner = "player";
+        this._redrawDistrict(district, COLOR.PLAYER);
+        district.owner = "player";
       } else {
-        cell.cell.setFillStyle(COLOR.ENEMY);
-        cell.owner = "enemy";
+        this._redrawDistrict(district, COLOR.ENEMY);
+        district.owner = "enemy";
       }
     });
   }
@@ -379,25 +358,17 @@ export default class MainScene extends Phaser.Scene {
   }
 
   startBattle(targetDistrictId) {
-    const enemyStats = { atk: 45, def: 50 };
     const myFinalAtk = this.playerStats.atk * this.playerStats.faith;
-    const winRate = myFinalAtk / (myFinalAtk + enemyStats.def);
-    const winPercent = Math.round(winRate * 100);
+    const winPercent = Math.round((myFinalAtk / (myFinalAtk + 50)) * 100);
 
-    this.showLog(`⚔ バトル！ 予測勝率: ${winPercent}%`);
+    // 予測勝率だけローカルで表示（実際の判定はサーバーが行う）
+    this.showLog(`⚔ バトル送信中… 予測勝率: ${winPercent}%`);
 
-    this.time.delayedCall(300, () => {
-      if (Math.random() < winRate) {
-        this.showLog(`🎉 勝利！ 地区${targetDistrictId}を制圧`);
-        this.movePlayer(targetDistrictId);
-        this.claimDistrict(targetDistrictId, "player");
-      } else {
-        const damage = Math.floor(enemyStats.atk * 0.5);
-        this.playerStats.hp = Math.max(0, this.playerStats.hp - damage);
-        this.showLog(`💀 敗北… HP -${damage} (残HP: ${this.playerStats.hp})`);
-        this.updateStatusHUD();
-        if (this.playerStats.hp <= 0) this.respawnPlayer();
-      }
+    // サーバーに判定を委譲
+    socket.emit(CLIENT_EVENTS.BATTLE_START, {
+      attackerId: socket.id,
+      defenderId: "enemy", // 後でけいと合わせてリアル敵IDに変える
+      districtId: targetDistrictId,
     });
   }
 
@@ -558,6 +529,19 @@ export default class MainScene extends Phaser.Scene {
       const color =
         p.owner === "player" ? COLOR.PLAYER : p.owner === "neutral" ? COLOR.NEUTRAL : COLOR.ENEMY;
       this._redrawDistrict(this.districts[p.districtId], color);
+    });
+    socket.on(SERVER_EVENTS.BATTLE_RESULT, (result) => {
+      const isWinner = result.winnerId === socket.id;
+      if (isWinner) {
+        this.showLog(`🎉 勝利！ 地区${result.districtId}を制圧`);
+        this.movePlayer(result.districtId);
+        this.claimDistrict(result.districtId, "player");
+      } else {
+        this.playerStats.hp = Math.max(0, this.playerStats.hp - result.hpDamage);
+        this.showLog(`💀 敗北… HP -${result.hpDamage} (残HP: ${this.playerStats.hp})`);
+        this.updateStatusHUD();
+        if (this.playerStats.hp <= 0) this.respawnPlayer();
+      }
     });
   }
 
