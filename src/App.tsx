@@ -6,6 +6,7 @@ import TitleScreen from './components/TitleScreen';
 import { LoginView } from './components/LoginView'; 
 import PhaserGame from './components/PhaserGame'; 
 import socket from './socket';
+import './App.css'; 
 
 const App: React.FC = () => {
   // ★ store から damage と addLog を新しく取り出します
