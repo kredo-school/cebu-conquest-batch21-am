@@ -92,6 +92,10 @@ io.on('connection', (socket) => {
     socket.on('territoryClaimed', (data) => {
         console.log(`陣地獲得: District ${data.districtId} by ${data.owner}`);
         gameState.districts[data.districtId] = data.owner; // サーバーの正解データを更新
+
+        if (gameState.players[socket.id]) {
+          gameState.players[socket.id].districtId = data.districtId;
+        }
         
         io.emit('territoryUpdated', {
             districtId: data.districtId,
