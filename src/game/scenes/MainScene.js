@@ -563,16 +563,21 @@ export default class MainScene extends Phaser.Scene {
   _renderOtherPlayer({ playerId, toDistrictId }) {
     const target = this.districts[toDistrictId];
     if (!target) return;
+
+    // ★ 修正ポイント：中心から -10px 〜 +10px の範囲でランダムにずらす
+    const offsetX = (Math.random() - 0.5) * 20;
+    const offsetY = (Math.random() - 0.5) * 20;
+
     if (!this.otherPlayers) this.otherPlayers = {};
     if (!this.otherPlayers[playerId]) {
       this.otherPlayers[playerId] = this.add
-        .circle(target.center.x, target.center.y, 16, COLOR.ENEMY)
+        .circle(target.center.x + offsetX, target.center.y + offsetY, 16, COLOR.ENEMY)
         .setDepth(1);
     } else {
       this.tweens.add({
         targets: this.otherPlayers[playerId],
-        x: target.center.x,
-        y: target.center.y,
+        x: target.center.x + offsetX, // ずらした位置へ移動
+        y: target.center.y + offsetY, // ずらした位置へ移動
         duration: 300,
       });
     }
