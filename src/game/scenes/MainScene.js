@@ -284,46 +284,52 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  // 他プレイヤーのスプライトを同期
   _syncPlayers(players) {
     if (!players) return;
 
-    const mySocketId = window.__mySocketId;
+    const mySocketId = socket.id;
 
     Object.entries(players).forEach(([socketId, playerData]) => {
-      // 自分はスキップ
       if (socketId === mySocketId) return;
 
-      const targetCell = this.cells[playerData.districtId];
-      if (!targetCell) return;
+      // districtId が null の場合はまだ配置前なのでスキップ
+      if (!playerData.districtId) return;
+
+      const targetDistrict = this.districts[playerData.districtId];
+      if (!targetDistrict) return;
 
       if (!this.enemySprites[socketId]) {
-        // 初回：敵スプライトを生成
-        const sprite = this.add.circle(targetCell.x, targetCell.y, 20, COLOR.ENEMY).setDepth(1);
-
+        const sprite = this.add
+          .circle(targetDistrict.center.x, targetDistrict.center.y, 12, COLOR.ENEMY)
+          .setDepth(3);
         const label = this.add
-          .text(targetCell.x, targetCell.y - 30, playerData.username || "敵", {
-            fontSize: "12px",
-            color: "#27ae60",
-          })
+          .text(
+            targetDistrict.center.x,
+            targetDistrict.center.y - 20,
+            playerData.username || "敵",
+            {
+              fontSize: "11px",
+              color: "#27ae60",
+              stroke: "#000000",
+              strokeThickness: 2,
+            },
+          )
           .setOrigin(0.5)
-          .setDepth(1);
-
+          .setDepth(3);
         this.enemySprites[socketId] = { sprite, label };
       } else {
-        // 2回目以降：位置をTweenで更新
         const { sprite, label } = this.enemySprites[socketId];
         this.tweens.add({
           targets: sprite,
-          x: targetCell.x,
-          y: targetCell.y,
+          x: targetDistrict.center.x,
+          y: targetDistrict.center.y,
           duration: 300,
           ease: "Power2",
         });
         this.tweens.add({
           targets: label,
-          x: targetCell.x,
-          y: targetCell.y - 30,
+          x: targetDistrict.center.x,
+          y: targetDistrict.center.y - 20,
           duration: 300,
           ease: "Power2",
         });
