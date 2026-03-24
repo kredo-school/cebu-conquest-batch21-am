@@ -11,7 +11,7 @@ const PORT = 3001;
 // CORS設定: クライアント側(5173等)からのアクセスを許可
 const io = new Server(server, {
     cors: {
-        origin: ["*"],
+        origin: "*",
         methods: ["GET", "POST"]
     }
 });
