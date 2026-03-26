@@ -1,4 +1,3 @@
-// src/game/scenes/MainScene.js
 // TMJの districtName レイヤーからポリゴンを読み込み、
 // ハードコードされた DISTRICTS を完全に置き換える
 
@@ -72,6 +71,7 @@ export default class MainScene extends Phaser.Scene {
     this.playerStats = { ...INITIAL_PLAYER_STATS };
     this.currentDistrictId = null;
     this.START_DISTRICT_ID = 102;
+    this._dragMoved = false;
   }
 
   preload() {
@@ -86,8 +86,8 @@ export default class MainScene extends Phaser.Scene {
     this._placePlayer(); // ここで名前が表示されます
     this._createHUD();
     this._setupCamera();
+    this.enemySprites = {};
     this._initSocket();
-    this._setupSyncState();
   }
 
   _setupTilemap() {
@@ -133,7 +133,10 @@ export default class MainScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive();
 
-    inputOverlay.on("pointerdown", (p) => this._onMapClicked(p.x, p.y));
+    inputOverlay.on("pointerup", (p) => {
+      // ドラッグしていなければクリックとして処理
+      if (!this._dragMoved) this._onMapClicked(p.x, p.y);
+    });
     inputOverlay.on("pointermove", (p) => this._onMapHover(p.x, p.y));
 
     Object.values(this.districts).forEach((district) => {
@@ -212,8 +215,9 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _onMapClicked(screenX, screenY) {
-    const worldX = screenX + this.cameras.main.scrollX;
-    const worldY = screenY + this.cameras.main.scrollY;
+    const cam = this.cameras.main;
+    const worldX = cam.scrollX + screenX / cam.zoom;
+    const worldY = cam.scrollY + screenY / cam.zoom;
     const clickedId = this._getDistrictAtPoint(worldX, worldY);
     if (!clickedId) return;
 
@@ -237,8 +241,9 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _onMapHover(screenX, screenY) {
-    const worldX = screenX + this.cameras.main.scrollX;
-    const worldY = screenY + this.cameras.main.scrollY;
+    const cam = this.cameras.main;
+    const worldX = cam.scrollX + screenX / cam.zoom;
+    const worldY = cam.scrollY + screenY / cam.zoom;
     const hoveredId = this._getDistrictAtPoint(worldX, worldY);
 
     Object.values(this.districts).forEach((d) => {
@@ -255,26 +260,21 @@ export default class MainScene extends Phaser.Scene {
   // ─────────────────────────────────────────
   // syncState受信 → 敵プレイヤー描画・陣地同期
   // ─────────────────────────────────────────
-  _setupSyncState() {
-    // 敵スプライトを管理するオブジェクト { socketId: { sprite, label } }
-    this.enemySprites = {};
-
-    window.addEventListener("syncState", (e) => {
-      const gameState = e.detail;
-      this._syncDistricts(gameState.districts);
-      this._syncPlayers(gameState.players);
-    });
-  }
 
   // 陣地の色を同期
   _syncDistricts(districts) {
     if (!districts) return;
 
+    const mySocketId = socket.id;
+
     Object.entries(districts).forEach(([districtId, owner]) => {
       const district = this.districts[Number(districtId)];
       if (!district) return;
-      const mySocketId = socket.id;
-      if (owner === mySocketId) {
+
+      if (!owner) {
+        this._redrawDistrict(district, COLOR.NEUTRAL);
+        district.owner = null;
+      } else if (owner === mySocketId) {
         this._redrawDistrict(district, COLOR.PLAYER);
         district.owner = "player";
       } else {
@@ -444,8 +444,8 @@ export default class MainScene extends Phaser.Scene {
     this.input.on("pointerdown", (pointer) => {
       // 2本指ピンチ中はドラッグしない
       if (this.input.pointer1.isDown && this.input.pointer2.isDown) return;
-
       isDragging = true;
+      this._dragMoved = false;
       dragStartX = pointer.x;
       dragStartY = pointer.y;
       camStartX = cam.scrollX;
@@ -462,11 +462,8 @@ export default class MainScene extends Phaser.Scene {
 
       const dx = (pointer.x - dragStartX) / cam.zoom;
       const dy = (pointer.y - dragStartY) / cam.zoom;
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) this._dragMoved = true;
       cam.setScroll(camStartX - dx, camStartY - dy);
-    });
-
-    this.input.on("pointerup", () => {
-      isDragging = false;
     });
 
     // ─── マウスホイールズーム ───
@@ -525,17 +522,50 @@ export default class MainScene extends Phaser.Scene {
 
   _initSocket() {
     socket.connect();
-    socket.on(SERVER_EVENTS.SYNC_STATE, (p) => this._applySyncState(p));
-    socket.on(SERVER_EVENTS.PLAYER_MOVED, (p) => {
-      if (p.playerId !== socket.id) this._renderOtherPlayer(p);
+
+    socket.on("connect", () => {
+      socket.emit(CLIENT_EVENTS.PLAYER_MOVE, {
+        playerId: socket.id,
+        fromDistrictId: null,
+        toDistrictId: this.currentDistrictId,
+      });
     });
+
+    socket.on("assignStartDistrict", ({ districtId }) => {
+      this.START_DISTRICT_ID = districtId;
+      this.currentDistrictId = districtId;
+      // プレイヤーを正しい位置に移動
+      const start = this.districts[districtId];
+      if (start && this.player) {
+        this.player.setPosition(start.center.x, start.center.y);
+        this.playerLabel.setPosition(start.center.x, start.center.y - 20);
+        start.owner = "player";
+        this._redrawDistrict(start, COLOR.PLAYER);
+      }
+    });
+
+    // SYNC_STATE だけで敵の描画・領地同期を全部まかなう
+    socket.on(SERVER_EVENTS.SYNC_STATE, (gameState) => {
+      this._syncDistricts(gameState.districts);
+      this._syncPlayers(gameState.players);
+    });
+
     socket.on(SERVER_EVENTS.TERRITORY_UPDATED, (p) => {
-      if (!this.districts[p.districtId]) return;
-      this.districts[p.districtId].owner = p.owner;
-      const color =
-        p.owner === "player" ? COLOR.PLAYER : p.owner === "neutral" ? COLOR.NEUTRAL : COLOR.ENEMY;
-      this._redrawDistrict(this.districts[p.districtId], color);
+      const district = this.districts[p.districtId];
+      if (!district) return;
+
+      if (!p.owner) {
+        this._redrawDistrict(district, COLOR.NEUTRAL);
+        district.owner = null;
+      } else if (p.owner === socket.id) {
+        this._redrawDistrict(district, COLOR.PLAYER);
+        district.owner = "player";
+      } else {
+        this._redrawDistrict(district, COLOR.ENEMY);
+        district.owner = "enemy";
+      }
     });
+
     socket.on(SERVER_EVENTS.BATTLE_RESULT, (result) => {
       const isWinner = result.winnerId === socket.id;
       if (isWinner) {
@@ -551,44 +581,6 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  _applySyncState({ territories }) {
-    Object.entries(territories).forEach(([id, data]) => {
-      const d = this.districts[id];
-      if (!d) return;
-      d.owner = data.owner;
-      const color =
-        data.owner === "player"
-          ? COLOR.PLAYER
-          : data.owner === "neutral"
-            ? COLOR.NEUTRAL
-            : COLOR.ENEMY;
-      this._redrawDistrict(d, color);
-    });
-  }
-
-  _renderOtherPlayer({ playerId, toDistrictId }) {
-    const target = this.districts[toDistrictId];
-    if (!target) return;
-
-    // ★ 修正ポイント：中心から -10px 〜 +10px の範囲でランダムにずらす
-    const offsetX = (Math.random() - 0.5) * 20;
-    const offsetY = (Math.random() - 0.5) * 20;
-
-    if (!this.otherPlayers) this.otherPlayers = {};
-    if (!this.otherPlayers[playerId]) {
-      this.otherPlayers[playerId] = this.add
-        .circle(target.center.x + offsetX, target.center.y + offsetY, 16, COLOR.ENEMY)
-        .setDepth(1);
-    } else {
-      this.tweens.add({
-        targets: this.otherPlayers[playerId],
-        x: target.center.x + offsetX, // ずらした位置へ移動
-        y: target.center.y + offsetY, // ずらした位置へ移動
-        duration: 300,
-      });
-    }
-  }
-
   _emitPlayerMove(fromDistrictId, toDistrictId) {
     socket.emit(CLIENT_EVENTS.PLAYER_MOVE, { playerId: socket.id, fromDistrictId, toDistrictId });
   }
@@ -597,7 +589,7 @@ export default class MainScene extends Phaser.Scene {
     socket.emit(CLIENT_EVENTS.TERRITORY_CLAIMED, {
       playerId: socket.id,
       districtId,
-      owner: "player",
+      owner: socket.id,
     });
   }
 }
