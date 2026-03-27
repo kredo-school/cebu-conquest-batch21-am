@@ -210,6 +210,9 @@ export default class MainScene extends Phaser.Scene {
       this.districts[id],
       owner === "player" ? COLOR.MY_TERRITORY : COLOR.ENEMY_TERRITORY,
     );
+    if (owner === "player") {
+      this._emitTerritoryClaimed(id);
+    }
   }
 
   // ═══════════════════════════════════════════════
@@ -325,7 +328,7 @@ export default class MainScene extends Phaser.Scene {
       this.movePlayer(clickedId);
       this.claimDistrict(clickedId, "player");
       socket.emit("PLAYER_MOVE", {
-        fromDistrictId : fromDistrictId,
+        fromDistrictId: fromDistrictId,
         toDistrictId: clickedId,
       });
     }
