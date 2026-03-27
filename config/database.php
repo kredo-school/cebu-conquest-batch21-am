@@ -1,0 +1,25 @@
+<?php
+
+// データベース接続情報
+$host = '127.0.0.1';
+$port = '3306';
+$db   = 'cebu_conquest';
+$user = 'root';
+$pass = ''; // XAMPPのデフォルトは空欄
+
+// JWT生成用の秘密鍵（適当な複雑な文字列に変更してもOK）
+$jwt_secret = 'your_jwt_secret_key_cebu_conquest_2026';
+
+try {
+    // PDOインスタンスを作成して返す
+    $pdo = new PDO("mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4", $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+} catch (PDOException $e) {
+    // 接続に失敗した場合
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => 'データベース接続エラー: ' . $e->getMessage()]);
+    exit();
+}
