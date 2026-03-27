@@ -1,5 +1,3 @@
-/* src/App.css */
-/* src/App.css */
 #root {
   /* ★ 制限（max-width）を消して、幅と高さを100%にします */
   width: 100%;
@@ -43,4 +41,19 @@
 
 .read-the-docs {
   color: #888;
+}
+
+/* 1. 回転のアニメーション（コマ送り）を定義します */
+@keyframes spin {
+  0% { transform: rotate(0deg); }   /* 始まり：0度 */
+  100% { transform: rotate(360deg); } /* 終わり：360度（1回転） */
+}
+
+/* 2. 'loader' というクラス名を持つ要素に、このアニメーションを適用します */
+.loader {
+  /* 適用するアニメーション名：spin */
+  /* 1周にかかる時間：1s (1秒) */
+  /* 動き方：linear (一定の速さで) */
+  /* 繰り返しの回数：infinite (無限に) */
+  animation: spin 1s linear infinite;
 }
