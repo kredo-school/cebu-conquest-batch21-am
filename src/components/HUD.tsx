@@ -1,76 +1,42 @@
 import React from 'react';
 import { useGameStore } from '../store';
 
-// 【役割】画面上部に浮かぶ「司令部情報パネル」
-// ミッション：HUD実装（兵力、バフ状況のリアルタイム表示）
-// ★ export 名を HUD に修正しました！
 export const HUD: React.FC = () => {
-  // Zustandストアから現在の状況を取得
-  const { hp, blessing, players, stamina } = useGameStore();
+  // Storeから取得。store.tsで型を定義したから、もう赤波線は出ないはずだ。
+  const { currentDistrictName, districts, isMyTurn, turnOwner, myId, myTeam } = useGameStore();
 
-  // 現在参加しているプレイヤーの数
-  const playerCount = players ? Object.keys(players).length : 0;
+  const occupiedCount = Object.values(districts).filter(id => id === myId).length;
+  const conquestProgress = (occupiedCount / 11) * 100;
+
+  const textStyle: React.CSSProperties = { color: '#ffffff', fontSize: '12px', fontWeight: 'bold', textShadow: '1px 1px 2px #000' };
 
   return (
-    <div style={hudContainerStyle}>
-      {/* 1. プレイヤー情報エリア */}
-      <div style={hudSectionStyle}>
-        <span style={iconStyle}>👤</span>
-        <span style={textStyle}>部隊数: {playerCount}</span>
+    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', display: 'flex', justifyContent: 'space-between', padding: '10px', zIndex: 1000, pointerEvents: 'none' }}>
+      {/* 左：SECTOR */}
+      <div style={{ background: 'rgba(15,23,42,0.9)', padding: '10px 20px', borderBottom: '2px solid #fff', pointerEvents: 'auto' }}>
+        <div style={{ fontSize: '8px', color: '#aaa' }}>SECTOR</div>
+        <div style={textStyle}>{currentDistrictName}</div>
       </div>
 
-      {/* 2. 兵力・HPエリア */}
-      <div style={hudSectionStyle}>
-        <span style={iconStyle}>❤️</span>
-        <div style={healthBarBgStyle}>
-          <div style={{ ...healthBarStyle, width: `${hp}%` }} />
+      {/* 中央：STATUS */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', pointerEvents: 'auto' }}>
+        <div style={{ background: isMyTurn ? '#f1c40f' : '#334155', color: isMyTurn ? '#000' : '#fff', padding: '2px 20px', fontSize: '10px', fontWeight: 'bold' }}>
+          {isMyTurn ? "▶ MISSION ACTIVE" : `▶ STANDBY: ${turnOwner}`}
         </div>
-        <span style={textStyle}>{hp}</span>
+        <div style={{ background: 'rgba(15,23,42,0.9)', padding: '5px 20px', borderRadius: '0 0 10px 10px', display: 'flex', alignItems: 'center' }}>
+          <span style={textStyle}>🚩 STATUS </span>
+          <div style={{ width: '80px', height: '6px', background: '#000', margin: '0 10px', borderRadius: '3px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${conquestProgress}%`, backgroundColor: myTeam === 'red' ? '#ff3e3e' : '#00fbff', transition: 'width 1s ease' }} />
+          </div>
+          <span style={textStyle}>{occupiedCount} / 11</span>
+        </div>
       </div>
 
-      {/* 3. スタミナエリア */}
-      <div style={hudSectionStyle}>
-        <span style={iconStyle}>🔋</span>
-        <span style={textStyle}>ST: {stamina}</span>
-      </div>
-
-      {/* 4. 特産品バフ（マンゴー）エリア */}
-      <div style={hudSectionStyle}>
-        <span style={iconStyle}>🥭</span>
-        <span style={textStyle}>信仰: {blessing}</span>
+      {/* 右：COMMS */}
+      <div style={{ background: 'rgba(15,23,42,0.9)', padding: '10px 20px', borderBottom: '2px solid #fff', textAlign: 'right', pointerEvents: 'auto' }}>
+        <div style={{ fontSize: '8px', color: '#aaa' }}>COMMS</div>
+        <div style={textStyle}>02 ONLINE</div>
       </div>
     </div>
   );
 };
-
-// --- デザイン設定（モダンUI仕様） ---
-const hudContainerStyle: React.CSSProperties = {
-  position: 'absolute',
-  top: '20px',
-  left: '50%',
-  transform: 'translateX(-50%)',
-  display: 'flex',
-  gap: '20px',
-  padding: '10px 25px',
-  background: 'rgba(15, 23, 42, 0.85)',
-  backdropFilter: 'blur(8px)',
-  borderRadius: '50px',
-  border: '1px solid rgba(255, 255, 255, 0.1)',
-  boxShadow: '0 4px 15px rgba(0, 0, 0, 0.5)',
-  zIndex: 10,
-  pointerEvents: 'none',
-};
-
-const hudSectionStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-  color: 'white',
-  fontSize: '14px',
-  fontWeight: 'bold',
-};
-
-const iconStyle: React.CSSProperties = { fontSize: '18px' };
-const textStyle: React.CSSProperties = { fontFamily: 'monospace', letterSpacing: '0.5px' };
-const healthBarBgStyle: React.CSSProperties = { width: '60px', height: '8px', background: '#334155', borderRadius: '4px', overflow: 'hidden' };
-const healthBarStyle: React.CSSProperties = { height: '100%', background: 'linear-gradient(90deg, #ef4444, #f87171)', transition: 'width 0.3s ease-out' };
