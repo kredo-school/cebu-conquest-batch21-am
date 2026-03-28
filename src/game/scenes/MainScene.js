@@ -2,9 +2,6 @@ import Phaser from "phaser";
 import socket from "../../socket";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "../socketEvents";
 
-// ═══════════════════════════════════════════════════
-// 定数
-// ═══════════════════════════════════════════════════
 const MAP_SCALE = 0.5;
 const TILE_SIZE = 32;
 
@@ -67,6 +64,7 @@ export default class MainScene extends Phaser.Scene {
   preload() {
     this.load.image("tiles", "assets/tilesets/Slates.png");
     this.load.tilemapTiledJSON("map", "assets/maps/cebu_map_簡易版.tmj");
+    this.load.image('player_image', 'assets/sprites/player_dot.png'); 
   }
 
   // ───────────────────────────────────────────────
@@ -133,16 +131,23 @@ export default class MainScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(3);
 
-    this.claimDistrict(id, "player");
-    this.cameras.main.centerOn(start.center.x, start.center.y);
-  }
+    if (this.isSelectionMode) {
+      Object.values(this.districts).forEach(d => this._redrawDistrict(d, COLOR.NEUTRAL));
+      this._redrawDistrict(this.districts[clickedId], COLOR.HIGHLIGHT, 0.8);
+      window.dispatchEvent(new CustomEvent('DISTRICT_SELECTED', { detail: clickedId }));
+      return;
+    }
 
   // バトルロジック P = A / (A + D)
   startBattle(targetId) {
     const myFinalAtk = this.playerStats.atk * this.playerStats.blessing;
     const winRate = myFinalAtk / (myFinalAtk + 50);
 
-    this.showLog(`⚔️ 地区${targetId}の敵と交戦！`);
+    const neighbors = ADJACENCY[this.currentDistrictId] || [];
+    if (!neighbors.includes(clickedId)) {
+      this.showLog("🚫 その地区は遠すぎて進軍できません");
+      return;
+    }
 
     this.time.delayedCall(500, () => {
       if (Math.random() < winRate) {
@@ -232,7 +237,6 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _loadDistrictsFromTMJ() {
-    if (!this.tiledMap) return;
     const objectLayer = this.tiledMap.getObjectLayer("districtName");
     if (!objectLayer) {
       console.error("districtName レイヤーが見つかりません");
@@ -241,7 +245,6 @@ export default class MainScene extends Phaser.Scene {
 
     objectLayer.objects.forEach((obj) => {
       const id = parseInt(obj.properties?.[0]?.name, 10);
-      if (isNaN(id)) return;
       const poly = (obj.polygon || []).map((p) => ({
         x: (obj.x + p.x) * MAP_SCALE,
         y: (obj.y + p.y) * MAP_SCALE,
@@ -439,12 +442,9 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _getDistrictAtPoint(x, y) {
-    for (const d of Object.values(this.districts)) {
-      if (pointInPolygon({ x, y }, d.polygon)) return d.id;
-    }
+    for (const d of Object.values(this.districts)) { if (pointInPolygon({ x, y }, d.polygon)) return d.id; }
     return null;
   }
-
   _setupCamera() {
     const cam = this.cameras.main;
     const MAP_WIDTH = 50 * TILE_SIZE * MAP_SCALE; // 800px

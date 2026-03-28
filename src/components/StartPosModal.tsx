@@ -1,8 +1,8 @@
-// src/components/StartPosModal.tsx
 import React from 'react';
 
+// ✅ 地区リスト：MainScene.js の ID と完全に一致させています
 const START_CANDIDATES = [
- { id: 101, name: "West Hills (西の丘)" },
+  { id: 101, name: "West Hills (西の丘)" },
   { id: 102, name: "Downtown & Port (中心地)" },
   { id: 103, name: "Commercial District (商業区)" },
   { id: 104, name: "Residential Area (住宅街)" },
@@ -23,8 +23,16 @@ export const StartPosModal: React.FC<Props> = ({ onSelect }) => {
   return (
     <div className="start-modal-overlay">
       <div className="start-modal-content">
-        <h2>🚩 降下地点を選択せよ</h2>
-        <p>最初の領土となる地区を選んでください。</p>
+        <div className="modal-header">
+          <span className="icon">🚩</span>
+          <h2>TERRITORY SELECTION</h2>
+        </div>
+        
+        <p className="description">
+          Please choose the district that will become your first territory.<br />
+          <span>司令官、最初の拠点をリストから選定してください。</span>
+        </p>
+
         <div className="button-list">
           {START_CANDIDATES.map(district => (
             <button 
@@ -32,7 +40,8 @@ export const StartPosModal: React.FC<Props> = ({ onSelect }) => {
               onClick={() => onSelect(district.id)}
               className="start-button"
             >
-              {district.name} (ID: {district.id})
+              <span className="district-id">ID:{district.id}</span>
+              <span className="district-name">{district.name}</span>
             </button>
           ))}
         </div>
@@ -41,16 +50,59 @@ export const StartPosModal: React.FC<Props> = ({ onSelect }) => {
       <style>{`
         .start-modal-overlay {
           position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-          background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 999;
+          background: rgba(0, 0, 0, 0.85);
+          display: flex; align-items: center; justify-content: center;
+          z-index: 1000;
+          backdrop-filter: blur(4px);
         }
         .start-modal-content {
-          background: #2c3e50; padding: 30px; border-radius: 15px; border: 2px solid #f1c40f; text-align: center; color: white;
+          background: #1a1a2e;
+          padding: 40px;
+          border-radius: 20px;
+          border: 2px solid #f1c40f;
+          text-align: center;
+          color: white;
+          width: 90%;
+          max-width: 450px;
+          box-shadow: 0 0 30px rgba(241, 196, 15, 0.3);
         }
-        .button-list { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+        .modal-header {
+          display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 10px;
+        }
+        .modal-header h2 { color: #f1c40f; margin: 0; font-size: 24px; letter-spacing: 2px; }
+        .description { font-size: 14px; color: #94a3b8; margin-bottom: 25px; line-height: 1.6; }
+        .description span { font-size: 12px; color: #64748b; }
+
+        .button-list {
+          display: flex; flex-direction: column; gap: 8px;
+          max-height: 400px; /* リストが長いのでスクロール可能に */
+          overflow-y: auto;
+          padding-right: 10px;
+        }
+        
+        /* スクロールバーのカスタマイズ */
+        .button-list::-webkit-scrollbar { width: 6px; }
+        .button-list::-webkit-scrollbar-thumb { background: #34495e; border-radius: 3px; }
+
         .start-button {
-          padding: 15px; background: #34495e; border: 1px solid #7f8c8d; color: white; cursor: pointer; transition: 0.2s;
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 15px 20px;
+          background: #16213e;
+          border: 1px solid #0f3460;
+          border-radius: 8px;
+          color: white;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          text-align: left;
         }
-        .start-button:hover { background: #f1c40f; color: #2c3e50; transform: scale(1.05); }
+        .start-button:hover {
+          background: #f1c40f;
+          color: #1a1a2e;
+          transform: translateX(5px);
+          border-color: #f1c40f;
+        }
+        .district-id { font-family: monospace; opacity: 0.6; font-size: 12px; }
+        .district-name { font-weight: bold; font-size: 15px; }
       `}</style>
     </div>
   );
