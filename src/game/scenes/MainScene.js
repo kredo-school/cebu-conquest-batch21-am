@@ -130,12 +130,6 @@ export default class MainScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(3);
-
-    if (this.isSelectionMode) {
-      Object.values(this.districts).forEach(d => this._redrawDistrict(d, COLOR.NEUTRAL));
-      this._redrawDistrict(this.districts[clickedId], COLOR.HIGHLIGHT, 0.8);
-      window.dispatchEvent(new CustomEvent('DISTRICT_SELECTED', { detail: clickedId }));
-      return;
     }
 
   // バトルロジック P = A / (A + D)
@@ -144,7 +138,7 @@ export default class MainScene extends Phaser.Scene {
     const winRate = myFinalAtk / (myFinalAtk + 50);
 
     const neighbors = ADJACENCY[this.currentDistrictId] || [];
-    if (!neighbors.includes(clickedId)) {
+    if (!neighbors.includes(targetId)) {
       this.showLog("🚫 その地区は遠すぎて進軍できません");
       return;
     }
@@ -175,6 +169,7 @@ export default class MainScene extends Phaser.Scene {
     // this.showLog(`⚔️ 地区${targetId}へ進軍要請を送信...`);
     // // 結果は _initSocket() の BATTLE_RESULT リスナーで受け取る（実装済み）
   }
+
 
   // リスポーン
   respawnPlayer() {
