@@ -2,110 +2,120 @@
 
 header("Content-Type: text/plain; charset=UTF-8");
 
-// 日本語のCSVを正しく読み込むための設定
-// setlocale(LC_ALL, 'ja_JP. UTF-8');
-
-$host = '127.0.0.1';
-$db = 'cebu_conquest';
-$user = 'root';
-$pass = '';
+// ここで共通のデータベース設定を読み込む
+require_once __DIR__ . '/../config/database.php';
 
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-    ]);
 
     // 既存データをリセット
     $pdo->exec("SET FOREIGN_KEY_CHECKS = 0;");
     $pdo->exec("TRUNCATE TABLE items;");
+    $pdo->exec("TRUNCATE TABLE occupations;");
     $pdo->exec("TRUNCATE TABLE territories;");
     $pdo->exec("SET FOREIGN_KEY_CHECKS = 1;");
 
-    // インポートするCSVファイルのリスト
-    $csvFiles = [
-        '../GI_Project-エリア別スポット_特産品リスト - 市街地.csv',
-        '../GI_Project-エリア別スポット_特産品リスト - マクタン.csv',
-        '../GI_Project-エリア別スポット_特産品リスト - 北部.csv',
-        '../GI_Project-エリア別スポット_特産品リスト - 南部.csv'
-    ];
+    // ここで変数をしっかり初期化！
+    $totalSpots = 0;
+    $totalItems = 0;
 
-    $totalInserted = 0;
+    // __DIR__ を使って「確実に1つ上の階層」を見に行くように強化
+    $spotsFile = __DIR__ . '/../GI-Project_ID管理シート - Spots.csv'; //陣地
+    $itemsFile = __DIR__ . '/../GI-Project_ID管理シート - Items.csv';  //Items
 
-    foreach ($csvFiles as $file) {
-        if (!file_exists($file)) {
-            echo "File not found: $file\n";
-            continue;
-        }
+    // --- 1. Spots (陣地) のインポート ---
 
-        echo "Processing: $file...\n";
-        // ファイルの中身を丸ごとテキストとして読み込む（Windowsの不具合を回避）
-        $content = file_get_contents($file);
-
-        // 文字コードを確実にUTF-8へ変換
-        $encoding = mb_detect_encoding($content, 'UTF-8, SJIS-win, SJIS, EUC-JP, ASCII', true);
-        if ($encoding && $encoding !== 'UTF-8') {
-            $content = mb_convert_encoding($content, 'UTF-8', $encoding);
-        }
-
-        // UTF-8のBOM（見えない文字）を削除し、改行コードを統一
+    if (!file_exists($spotsFile)) {
+        echo "【エラー】ファイルが見つかりません: {$spotsFile}\n";
+    } else {
+        echo "■ Processing...: {$spotsFile}\n";
+        $content = file_get_contents($spotsFile);
+        $content = mb_convert_encoding($content, 'UTF-8', 'auto');
         $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
         $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $content));
+        array_shift($lines); // ヘッダーをスキップ
 
-        // BOM削除と改行コード統一
-        $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
-        $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $content));
+        // 🌟 記号を外してSQLエラーを防止
+        $stmtSpot = $pdo->prepare("INSERT INTO territories (id, island_name, area_id, name, map_x, map_y, capture_cost) VALUES (?, ?, ?, ?, ?, ?, ?)");
 
-        // 1行目（ヘッダー）を削除
-        array_shift($lines);
+        foreach ($lines as $line) {
+            if (trim($line) === '') continue;
 
-        foreach ($lines as $index => $line) {
-            if (trim($line) === '') continue; // 空行は無視
+            // fgetcsvの代わりに安全な str_getcsv を使用
+            $data = str_getcsv($line);
+            if (count($data) < 9) continue;
 
-            // CSVの1行を配列に分割
-            $data = explode(',', $line);
-
-            $area           = isset($data[0]) ? trim($data[0]) : '';
-            $spotName       = isset($data[1]) ? trim($data[1]) : '';
-            $itemName       = isset($data[2]) ? trim($data[2]) : '';
-            $effectRaw      = isset($data[3]) ? trim($data[3]) : '';
-            $dropRateRaw    = isset($data[4]) ? trim($data[4]) : '10'; // 空ならデフォルト10
-
-            // スポット名やアイテム名が空の場合は不正データとしてスキップ
-            if (empty($spotName) || empty($itemName)) {
-                continue;
+            $island_name   = trim($data[0]);
+            $area_id       = (int)trim($data[1]);
+            $spot_id       = (int)trim($data[3]);
+            $spot_name     = trim($data[4]);
+            $map_x = null;
+            if (isset($data[5]) && trim($data[5]) !== '') {
+                $map_x = (float)trim($data[5]);
             }
 
-            //バフ名分離ロジック
-            $buffName = "";
-            $buffEffect = $effectRaw;
-            if (Preg_match('/【(.*?)】(.*)/u', $effectRaw, $matches)) {
-                $buffName = $matches[1];
-                $buffEffect = trim($matches[2]);
+            $map_y = null;
+            if (isset($data[6]) && trim($data[6]) !== '') {
+                $map_y = (float)trim($data[6]);
             }
 
-            // ドロップ率を数値化
-            $dropRate = (int)str_replace('%', '', $dropRateRaw);
-            if ($dropRate === 0) {
-                $dropRate = 10;
+            $capture_cost = 10;
+            if (isset($data[7]) && trim($data[7]) !== '') {
+                $capture_cost = (int)trim($data[7]);
             }
 
-            //1. territories テーブルに挿入
-            $stmt = $pdo->prepare("INSERT INTO territories (area, name, description, buff_name, buff_effect) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$area, $spotName, "$area in Cebu Island is a famous spot.", $buffName, $buffEffect]);
+            if ($spot_id === 0 || empty($spot_name)) continue;
 
-            // 直前に挿入した陣地のIDを取得
-            $territoryId = $pdo->lastInsertId();
-
-            // 2. item テーブルに挿入
-            $stmtItem = $pdo->prepare("INSERT INTO items (territory_id, name, effect, drop_rate) VALUES (?, ?, ?, ?)");
-            $stmtItem->execute([$territoryId, $itemName, $effectRaw, $dropRate]);
-
-            $totalInserted++;
+            $stmtSpot->execute([$spot_id, $island_name, $area_id, $spot_name, $map_x, $map_y, $capture_cost]);
+            $totalSpots++;
         }
     }
 
-    echo "\nインポート完了!master-data.phpを確認してください。";
-    echo "🎉 合計 {$totalInserted} 件のスポットをDBに登録しました！\n";
+    // --- 2. Items (アイテム・バフ) のインポート ---
+
+    if (!file_exists($itemsFile)) {
+        echo "【エラー】ファイルが見つかりません: {$itemsFile}\n";
+    } else {
+        echo "■ Processing...: {$itemsFile}\n";
+        $content = file_get_contents($itemsFile);
+        $content = mb_convert_encoding($content, 'UTF-8', 'auto');
+        $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
+        $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $content));
+        array_shift($lines); // ヘッダーをスキップ
+
+        // 🌟 記号を外してSQLエラーを防止
+        $stmtItem = $pdo->prepare("INSERT INTO items (id, territory_id, name, buff_target, buff_type, buff_value, description) VALUES (?, ?, ?, ?, ?, ?, ?)");
+
+        foreach ($lines as $line) {
+            if (trim($line) === '') continue;
+
+            $data = str_getcsv($line);
+            if (count($data) < 12) continue;
+
+            $spot_id      = isset($data[2]) ? (int)trim($data[2]) : 0;
+            $item_name    = isset($data[3]) ? trim($data[3]) : '';
+            $drop_item_id = isset($data[7]) ? (int)trim($data[7]) : 0;
+            $buff_target  = isset($data[8]) ? trim($data[8]) : '';
+            $buff_type    = isset($data[9]) ? trim($data[9]) : '';
+            $buff_value = 0;
+            if (isset($data[10]) && trim($data[10]) !== '') {
+                $buff_value = (int)trim($data[10]);
+            }
+
+            $description  = isset($data[11]) ? trim($data[11]) : '';
+
+            if ($drop_item_id === 0 || empty($item_name)) continue;
+
+            $stmtItem->execute([$drop_item_id, $spot_id, $item_name, $buff_target, $buff_type, $buff_value, $description]);
+            $totalItems++;
+        }
+    }
+
+
+    echo "\n===================================\n";
+    echo "🎉 インポート完了！\n";
+    echo "Spots(陣地) を {$totalSpots} 件登録しました。\n";
+    echo "Items(アイテム) を {$totalItems} 件登録しました。\n";
+    echo "===================================\n";
 } catch (Exception $e) {
     echo "\nエラー発生: " . $e->getMessage();
 }
