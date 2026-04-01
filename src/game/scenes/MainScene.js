@@ -75,6 +75,7 @@ export default class MainScene extends Phaser.Scene {
     this._setupCamera();
     this.enemySprites = {};
     this._initSocket();
+    this._setupReactListeners();
     this.updateStatusToReact();
     this.showLog("📍 地図をタップして開始地点を選択せよ");
   }
@@ -90,6 +91,37 @@ export default class MainScene extends Phaser.Scene {
   // ═══════════════════════════════════════════════
   // React連携
   // ═══════════════════════════════════════════════
+
+// Reactからのカスタムイベントをリッスンする
+  _setupReactListeners() {
+    window.addEventListener("ACTION_STAY", () => {
+      this.handleStay();
+    });
+  }
+
+  // Stay（待機・休息）の処理ロジック
+  handleStay() {
+    // 選択モード中はアクション不可
+    if (this.isSelectionMode) return;
+
+    // スタミナが既に満タンの場合は何もしない（あるいはログだけ出す）
+    if (this.playerStats.stamina >= 100 && this.playerStats.hp >= 100) {
+      this.showLog("💡 すでに万全の状態だ。進軍せよ！");
+      return;
+    }
+
+    // 休息による回復ロジック（バランス調整用に値は仮置き）
+    this.playerStats.stamina = Math.min(100, this.playerStats.stamina + 30);
+    this.playerStats.hp = Math.min(100, this.playerStats.hp + 10);
+
+    this.showLog("🏕 拠点にて休息... スタミナとHPが回復した！");
+    
+    // 回復した最新のステータスをReactのHUDへ通知してUIを更新させる
+    this.updateStatusToReact();
+
+    // ※もし「ターン経過」や「待機したこと」をサーバーに伝える必要があればここでemitする
+    // socket.emit("PLAYER_STAY", { districtId: this.currentDistrictId });
+  }
 
   updateStatusToReact() {
     window.dispatchEvent(new CustomEvent("UPDATE_STATUS", { detail: this.playerStats }));
@@ -299,16 +331,21 @@ export default class MainScene extends Phaser.Scene {
   // ═══════════════════════════════════════════════
 
   _onMapClicked(screenX, screenY) {
-    const cam = this.cameras.main;
-    const worldX = cam.scrollX + screenX / cam.zoom;
-    const worldY = cam.scrollY + screenY / cam.zoom;
+    const { x: worldX, y: worldY } = this._screenToWorld(screenX, screenY);
     const clickedId = this._getDistrictAtPoint(worldX, worldY);
+
     if (!clickedId) return;
 
     // 配置フェーズ: ハイライトして React へ通知
     if (this.isSelectionMode) {
+      // ★ 仮予約リクエストをサーバーへ送信（サーバー側で排他制御を行う）
+      socket.emit("REQUEST_DISTRICT", { districtId: clickedId });
+
+      // 応答待ちの間はローカルでハイライト処理
       Object.values(this.districts).forEach((d) => this._redrawDistrict(d, COLOR.NEUTRAL));
       this._redrawDistrict(this.districts[clickedId], COLOR.HIGHLIGHT, 0.8);
+
+      // React側へ選択した地区を通知（「出撃」ボタンを表示させる）
       window.dispatchEvent(new CustomEvent("DISTRICT_SELECTED", { detail: clickedId }));
       return;
     }
@@ -341,9 +378,7 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _onMapHover(screenX, screenY) {
-    const cam = this.cameras.main;
-    const worldX = cam.scrollX + screenX / cam.zoom;
-    const worldY = cam.scrollY + screenY / cam.zoom;
+    const { x: worldX, y: worldY } = this._screenToWorld(screenX, screenY);
     const hoveredId = this._getDistrictAtPoint(worldX, worldY);
 
     // 全地区を現在の所有者カラーに戻す
@@ -425,7 +460,7 @@ export default class MainScene extends Phaser.Scene {
   }
 
   // ═══════════════════════════════════════════════
-  // 内部ユーティリティ（修正④で独立したメソッドとして復活）
+  // 内部ユーティリティ
   // ═══════════════════════════════════════════════
 
   _redrawDistrict(d, color, alpha = 0.5) {
@@ -450,6 +485,13 @@ export default class MainScene extends Phaser.Scene {
     }
     return null;
   }
+
+  _screenToWorld(screenX, screenY) {
+    const cam = this.cameras.main;
+    const worldPoint = cam.getWorldPoint(screenX, screenY);
+    return { x: worldPoint.x, y: worldPoint.y };
+  }
+
   _setupCamera() {
     const cam = this.cameras.main;
     const MAP_WIDTH = 50 * TILE_SIZE * MAP_SCALE; // 800px
@@ -554,7 +596,7 @@ export default class MainScene extends Phaser.Scene {
     socket.on("assignStartDistrict", ({ districtId }) => {
       this.START_DISTRICT_ID = districtId;
       this.currentDistrictId = districtId;
-      
+
       // ★ プレイヤーがまだ生成されていない場合のみ配置
       if (!this.player) {
         this._placePlayer(districtId);
@@ -601,6 +643,21 @@ export default class MainScene extends Phaser.Scene {
         this.updateStatusToReact();
         if (this.playerStats.hp <= 0) this.respawnPlayer();
       }
+    });
+
+    // ★ 他のプレイヤーが既にその地区を選択・仮予約していた場合のエラーハンドリング
+    socket.on("ERROR_DISTRICT_TAKEN", ({ districtId }) => {
+      const district = this.districts[districtId];
+      if (district) {
+        // ハイライトを中立カラーに戻す
+        this._redrawDistrict(district, COLOR.NEUTRAL);
+      }
+
+      // プレイヤーへの警告ログ表示
+      this.showLog(`⚠ 地区${districtId}はすでに他のプレイヤーが選択中です`);
+
+      // React側の「出撃」ボタンを非表示に戻すため null を送る
+      window.dispatchEvent(new CustomEvent("DISTRICT_SELECTED", { detail: null }));
     });
   }
 
