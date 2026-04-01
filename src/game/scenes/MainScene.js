@@ -64,7 +64,7 @@ export default class MainScene extends Phaser.Scene {
   preload() {
     this.load.image("tiles", "assets/tilesets/Slates.png");
     this.load.tilemapTiledJSON("map", "assets/maps/cebu_map_簡易版.tmj");
-    this.load.image('player_image', 'assets/sprites/player_dot.png'); 
+    this.load.image("player_image", "assets/sprites/player_dot.png");
   }
 
   // ───────────────────────────────────────────────
@@ -118,9 +118,18 @@ export default class MainScene extends Phaser.Scene {
     const start = this.districts[id];
     if (!start) return;
 
+    const name = this.registry.get("playerName") || "Guest";
+
+    // 既にプレイヤーオブジェクトが存在する場合は座標の更新のみ行う
+    if (this.player) {
+      this.player.setPosition(start.center.x, start.center.y);
+      this.playerLabel.setPosition(start.center.x, start.center.y - 20);
+      this.playerLabel.setText(name);
+      return;
+    }
+    // 存在しない場合は新規作成
     this.player = this.add.circle(start.center.x, start.center.y, 12, COLOR.PLAYER_DOT).setDepth(3);
 
-    const name = this.registry.get("playerName") || "Guest";
     this.playerLabel = this.add
       .text(start.center.x, start.center.y - 20, name, {
         fontSize: "11px",
@@ -130,7 +139,7 @@ export default class MainScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(3);
-    }
+  }
 
   // バトルロジック P = A / (A + D)
   startBattle(targetId) {
@@ -169,7 +178,6 @@ export default class MainScene extends Phaser.Scene {
     // this.showLog(`⚔️ 地区${targetId}へ進軍要請を送信...`);
     // // 結果は _initSocket() の BATTLE_RESULT リスナーで受け取る（実装済み）
   }
-
 
   // リスポーン
   respawnPlayer() {
@@ -437,7 +445,9 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _getDistrictAtPoint(x, y) {
-    for (const d of Object.values(this.districts)) { if (pointInPolygon({ x, y }, d.polygon)) return d.id; }
+    for (const d of Object.values(this.districts)) {
+      if (pointInPolygon({ x, y }, d.polygon)) return d.id;
+    }
     return null;
   }
   _setupCamera() {
@@ -544,10 +554,17 @@ export default class MainScene extends Phaser.Scene {
     socket.on("assignStartDistrict", ({ districtId }) => {
       this.START_DISTRICT_ID = districtId;
       this.currentDistrictId = districtId;
+      
+      // ★ プレイヤーがまだ生成されていない場合のみ配置
+      if (!this.player) {
+        this._placePlayer(districtId);
+      } else {
+        // 既にいれば移動だけ
+        this.movePlayer(districtId);
+      }
+
       const start = this.districts[districtId];
-      if (start && this.player) {
-        this.player.setPosition(start.center.x, start.center.y);
-        this.playerLabel.setPosition(start.center.x, start.center.y - 20);
+      if (start) {
         start.owner = "player";
         this._redrawDistrict(start, COLOR.MY_TERRITORY);
       }
