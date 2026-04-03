@@ -92,7 +92,7 @@ export default class MainScene extends Phaser.Scene {
   // React連携
   // ═══════════════════════════════════════════════
 
-// Reactからのカスタムイベントをリッスンする
+  // Reactからのカスタムイベントをリッスンする
   _setupReactListeners() {
     window.addEventListener("ACTION_STAY", () => {
       this.handleStay();
@@ -115,7 +115,7 @@ export default class MainScene extends Phaser.Scene {
     this.playerStats.hp = Math.min(100, this.playerStats.hp + 10);
 
     this.showLog("🏕 拠点にて休息... スタミナとHPが回復した！");
-    
+
     // 回復した最新のステータスをReactのHUDへ通知してUIを更新させる
     this.updateStatusToReact();
 
@@ -124,11 +124,11 @@ export default class MainScene extends Phaser.Scene {
   }
 
   updateStatusToReact() {
-    window.dispatchEvent(new CustomEvent("UPDATE_STATUS", { detail: this.playerStats }));
+    this._emitToReact("statsUpdated", this.playerStats);
   }
 
   showLog(message) {
-    window.dispatchEvent(new CustomEvent("NEW_LOG", { detail: message }));
+    this._emitToReact("gameLog", message);
     console.log(`[GameLog] ${message}`);
   }
 
@@ -175,41 +175,31 @@ export default class MainScene extends Phaser.Scene {
 
   // バトルロジック P = A / (A + D)
   startBattle(targetId) {
-    const myFinalAtk = this.playerStats.atk * this.playerStats.blessing;
-    const winRate = myFinalAtk / (myFinalAtk + 50);
+  const myFinalAtk = this.playerStats.atk * this.playerStats.blessing;
+  const winRate = myFinalAtk / (myFinalAtk + 50);
 
-    const neighbors = ADJACENCY[this.currentDistrictId] || [];
-    if (!neighbors.includes(targetId)) {
-      this.showLog("🚫 その地区は遠すぎて進軍できません");
-      return;
+  // ── ローカル仮判定（けいのサーバー統合まで使用） ──────────
+  this.time.delayedCall(500, () => {
+    if (Math.random() < winRate) {
+      this.showLog(`🎉 勝利！ 地区${targetId}を我が領土とした！`);
+      this.movePlayer(targetId);
+      this.claimDistrict(targetId, "player");
+    } else {
+      this.playerStats.hp = Math.max(0, this.playerStats.hp - 20);
+      this.playerStats.stamina = Math.max(0, this.playerStats.stamina - 25);
+      this.showLog("💀 敗北... 致命傷を負い、スタミナも尽きかけている。");
+      this.movePlayer(this.currentDistrictId);
     }
+    this.updateStatusToReact();
+  });
 
-    this.time.delayedCall(500, () => {
-      if (Math.random() < winRate) {
-        this.showLog(`🎉 勝利！ 地区${targetId}を我が領土とした！`);
-        this.movePlayer(targetId);
-        this.claimDistrict(targetId, "player");
-      } else {
-        // ダブルペナルティ
-        this.playerStats.hp = Math.max(0, this.playerStats.hp - 20);
-        this.playerStats.stamina = Math.max(0, this.playerStats.stamina - 25);
-        this.showLog("💀 敗北... 致命傷を負い、スタミナも尽きかけている。");
-        this.movePlayer(this.currentDistrictId); // 元の地区に戻る
-      }
-      this.updateStatusToReact();
-    });
-    /* けいのーサーバー完成用 */
-    /* 上記削除して置き換え */
-
-    // // サーバーへ「バトルしたい」とリクエストを投げるだけ
-    // socket.emit("BATTLE_START", {
-    //   attackerId: socket.id,
-    //   targetDistrictId: targetId,
-    //   attackerStats: this.playerStats, // 参考値。サーバー側DBの値が優先
-    // });
-    // this.showLog(`⚔️ 地区${targetId}へ進軍要請を送信...`);
-    // // 結果は _initSocket() の BATTLE_RESULT リスナーで受け取る（実装済み）
-  }
+  // ── TODO: けいのサーバー統合後にここに差し替える ──────────
+  // socket.emit(CLIENT_EVENTS.BATTLE_START, {
+  //   attackerId: socket.id,
+  //   targetDistrictId: targetId,
+  // });
+  // → 結果は _initSocket() の BATTLE_RESULT リスナーで受け取る
+}
 
   // リスポーン
   respawnPlayer() {
@@ -240,6 +230,7 @@ export default class MainScene extends Phaser.Scene {
       ease: "Power2",
     });
     this.currentDistrictId = id;
+    this._emitToReact("phaser:playerMoved", { districtId: id });
   }
 
   // 陣地占領
@@ -251,6 +242,7 @@ export default class MainScene extends Phaser.Scene {
       owner === "player" ? COLOR.MY_TERRITORY : COLOR.ENEMY_TERRITORY,
     );
     if (owner === "player") {
+      this._emitToReact("phaser:territoryClaimed", { districtId: id });
       this._emitTerritoryClaimed(id);
     }
   }
@@ -345,8 +337,7 @@ export default class MainScene extends Phaser.Scene {
       Object.values(this.districts).forEach((d) => this._redrawDistrict(d, COLOR.NEUTRAL));
       this._redrawDistrict(this.districts[clickedId], COLOR.HIGHLIGHT, 0.8);
 
-      // React側へ選択した地区を通知（「出撃」ボタンを表示させる）
-      window.dispatchEvent(new CustomEvent("DISTRICT_SELECTED", { detail: clickedId }));
+      this._emitToReact("phaser:selectDistrict", clickedId);
       return;
     }
 
@@ -370,10 +361,7 @@ export default class MainScene extends Phaser.Scene {
       const fromDistrictId = this.currentDistrictId;
       this.movePlayer(clickedId);
       this.claimDistrict(clickedId, "player");
-      socket.emit("PLAYER_MOVE", {
-        fromDistrictId: fromDistrictId,
-        toDistrictId: clickedId,
-      });
+      this._emitPlayerMove(fromDistrictId, clickedId);
     }
   }
 
@@ -462,6 +450,11 @@ export default class MainScene extends Phaser.Scene {
   // ═══════════════════════════════════════════════
   // 内部ユーティリティ
   // ═══════════════════════════════════════════════
+
+  // Phaser → React 統一ブリッジ
+  _emitToReact(eventName, payload) {
+    window.dispatchEvent(new CustomEvent(eventName, { detail: payload }));
+  }
 
   _redrawDistrict(d, color, alpha = 0.5) {
     if (!d || !d.graphics) return;
@@ -657,7 +650,7 @@ export default class MainScene extends Phaser.Scene {
       this.showLog(`⚠ 地区${districtId}はすでに他のプレイヤーが選択中です`);
 
       // React側の「出撃」ボタンを非表示に戻すため null を送る
-      window.dispatchEvent(new CustomEvent("DISTRICT_SELECTED", { detail: null }));
+      this._emitToReact("phaser:selectDistrict", null);
     });
   }
 
