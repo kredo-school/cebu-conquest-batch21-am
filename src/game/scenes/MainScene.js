@@ -77,6 +77,7 @@ export default class MainScene extends Phaser.Scene {
     this.enemySprites = {};
     this._initSocket();
     this._setupReactListeners();
+    this._createParticleTexture();
     this.updateStatusToReact();
     this.showLog("📍 地図をタップして開始地点を選択せよ");
   }
@@ -245,6 +246,7 @@ export default class MainScene extends Phaser.Scene {
 
   // バトルロジック P = A / (A + D)
   startBattle(targetId) {
+    this._playAttackEffect(targetId);
     const myFinalAtk = this.playerStats.atk * this.playerStats.blessing;
     const winRate = myFinalAtk / (myFinalAtk + 50);
 
@@ -255,6 +257,7 @@ export default class MainScene extends Phaser.Scene {
         this.movePlayer(targetId);
         this.claimDistrict(targetId, "player");
       } else {
+        this._playDefeatEffect(targetId);
         this.playerStats.hp = Math.max(0, this.playerStats.hp - 20);
         this.playerStats.stamina = Math.max(0, this.playerStats.stamina - 25);
         this.showLog("💀 敗北... 致命傷を負い、スタミナも尽きかけている。");
@@ -312,9 +315,174 @@ export default class MainScene extends Phaser.Scene {
       owner === "player" ? COLOR.MY_TERRITORY : COLOR.ENEMY_TERRITORY,
     );
     if (owner === "player") {
+      this._playClaimEffect(id);
       this._emitToReact(PHASER_TO_REACT.TERRITORY_CLAIMED, { districtId: id });
       this._emitTerritoryClaimed(id);
     }
+  }
+
+  // ═══════════════════════════════════════════════
+  // バトルエフェクト（Phaser 3.60+ 新Particle API）
+  // ═══════════════════════════════════════════════
+
+  /**
+   * 共通：1px白丸テクスチャを生成（preload不要）
+   * create() の末尾で1回だけ呼ぶ
+   */
+  _createParticleTexture() {
+    const gfx = this.make.graphics({ x: 0, y: 0, add: false });
+    gfx.fillStyle(0xffffff, 1);
+    gfx.fillCircle(4, 4, 4);
+    gfx.generateTexture("particle_dot", 8, 8);
+    gfx.destroy();
+  }
+
+  /**
+   * 勝利パーティクル（陣地獲得）
+   * claimDistrict() の owner === "player" で呼ぶ
+   */
+  _playClaimEffect(districtId) {
+    const d = this.districts[districtId];
+    if (!d) return;
+    const { x, y } = d.center;
+
+    // 占領テキストポップアップ
+    const popup = this.add
+      .text(x, y - 20, "占領！", {
+        fontSize: "16px",
+        color: "#f1c40f",
+        stroke: "#000000",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(11);
+
+    this.tweens.add({
+      targets: popup,
+      y: y - 65,
+      alpha: 0,
+      duration: 900,
+      ease: "Power1",
+      onComplete: () => popup.destroy(),
+    });
+
+    // パーティクル（金・赤・白）
+    const emitter = this.add
+      .particles(x, y, "particle_dot", {
+        speed: { min: 60, max: 150 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 1.0, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: 600,
+        quantity: 20,
+        tint: [0xf1c40f, 0xe74c3c, 0xffffff, 0xe67e22],
+        gravityY: 80,
+        emitting: false, // explodeモード
+      })
+      .setDepth(10);
+
+    emitter.explode(20);
+
+    this.time.delayedCall(800, () => emitter.destroy());
+  }
+
+  /**
+   * 攻撃エフェクト（斬撃ライン＋衝撃波）
+   * startBattle() の冒頭で呼ぶ
+   */
+  _playAttackEffect(targetId) {
+    const d = this.districts[targetId];
+    if (!d) return;
+    const { x, y } = d.center;
+
+    // 衝撃波パーティクル（白・細かく）
+    const emitter = this.add
+      .particles(x, y, "particle_dot", {
+        speed: { min: 30, max: 90 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 0.6, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: 350,
+        quantity: 12,
+        tint: [0xffffff, 0xaaaaff],
+        emitting: false,
+      })
+      .setDepth(10);
+
+    emitter.explode(12);
+
+    // 斬撃ライン（グラフィクスで描画）
+    const gfx = this.add.graphics().setDepth(10);
+    let alpha = 1.0;
+    const fade = this.time.addEvent({
+      delay: 25,
+      repeat: 14,
+      callback: () => {
+        gfx.clear();
+        alpha -= 0.07;
+        gfx.lineStyle(3, 0xffffff, Math.max(0, alpha));
+        [
+          [x - 30, y - 30, x + 30, y + 30],
+          [x - 20, y - 35, x + 20, y + 25],
+        ].forEach(([x1, y1, x2, y2]) => {
+          gfx.beginPath().moveTo(x1, y1).lineTo(x2, y2).strokePath();
+        });
+        if (alpha <= 0) {
+          gfx.destroy();
+          fade.remove();
+        }
+      },
+    });
+
+    this.time.delayedCall(500, () => emitter.destroy());
+  }
+
+  /**
+   * 敗北エフェクト（赤・散らばる）
+   * バトル敗北時に呼ぶ
+   */
+  _playDefeatEffect(districtId) {
+    const d = this.districts[districtId];
+    if (!d) return;
+    const { x, y } = d.center;
+
+    const emitter = this.add
+      .particles(x, y, "particle_dot", {
+        speed: { min: 40, max: 100 },
+        angle: { min: 200, max: 340 }, // 上方向に飛ばす
+        scale: { start: 1.2, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: 500,
+        quantity: 15,
+        tint: [0xe74c3c, 0xff6b6b, 0x800000],
+        gravityY: 120,
+        emitting: false,
+      })
+      .setDepth(10);
+
+    emitter.explode(15);
+
+    // 「敗北...」テキスト
+    const popup = this.add
+      .text(x, y - 20, "敗北...", {
+        fontSize: "14px",
+        color: "#e74c3c",
+        stroke: "#000000",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(11);
+
+    this.tweens.add({
+      targets: popup,
+      y: y - 55,
+      alpha: 0,
+      duration: 800,
+      ease: "Power1",
+      onComplete: () => popup.destroy(),
+    });
+
+    this.time.delayedCall(700, () => emitter.destroy());
   }
 
   // ═══════════════════════════════════════════════
