@@ -96,14 +96,22 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * 🚀 出撃確定処理
+   * 選択モードを終了し、初期地点を占領色で塗ります。
+   */
   confirmDeployment(startId) {
     this.isSelectionMode = false;
     this.currentDistrictId = startId;
     this._placePlayer(startId);
+    
+    // 一旦全地区を中立色でリセット
     Object.values(this.districts).forEach(d => this._redrawDistrict(d, COLOR.NEUTRAL));
     
-    // ✅ 出撃地点を占領（Statusに反映される）
-    this.claimDistrict(startId, this.playerStats.team);
+    // Storeから確実に現在のチーム（赤or青）を取得して初回の占領を実行
+    const store = window.useGameStore?.getState();
+    const myTeam = store?.myTeam || this.playerStats.team;
+    this.claimDistrict(startId, myTeam);
     
     const districtName = this.districts[startId]?.name || `Sector ${startId}`;
     window.dispatchEvent(new CustomEvent('UPDATE_STATUS', { 
@@ -120,6 +128,7 @@ export default class MainScene extends Phaser.Scene {
 
     const store = window.useGameStore?.getState();
 
+    // 地点選択モード時の処理
     if (this.isSelectionMode) {
       Object.values(this.districts).forEach(d => this._redrawDistrict(d, COLOR.NEUTRAL));
       this._redrawDistrict(this.districts[clickedId], COLOR.HIGHLIGHT, 0.8);
@@ -127,6 +136,7 @@ export default class MainScene extends Phaser.Scene {
       return;
     }
 
+    // 進軍モード時の処理
     if (!store) return;
     if (clickedId === this.currentDistrictId) return;
     if (!store.isMyTurn) {
@@ -145,8 +155,6 @@ export default class MainScene extends Phaser.Scene {
     }
 
     this.movePlayer(clickedId);
-    
-    // ✅ 移動先を占領（これでReactのHUDが 1/11, 2/11 と動く）
     this.claimDistrict(clickedId, store.myTeam || this.playerStats.team);
 
     window.dispatchEvent(new CustomEvent('UPDATE_STATUS', { 
@@ -177,15 +185,22 @@ export default class MainScene extends Phaser.Scene {
     if (!start) return;
     if (this.player) this.player.destroy();
     if (this.playerLabel) this.playerLabel.destroy();
-    this.player = this.add.circle(start.center.x, start.center.y, 12, COLOR.PLAYER_DOT).setDepth(10).setStrokeStyle(3, 0x000000);
+    
+    // 駒を Depth 10（最前面）に配置
+    this.player = this.add.circle(start.center.x, start.center.y, 12, COLOR.PLAYER_DOT)
+      .setDepth(10)
+      .setStrokeStyle(3, 0x000000);
+      
     this.playerLabel = this.add.text(start.center.x, start.center.y - 25, "YOU", {
       fontSize: "14px", color: "#fff", stroke: "#000", strokeThickness: 4, fontWeight: 'bold'
     }).setOrigin(0.5).setDepth(10);
+    
     this.cameras.main.pan(start.center.x, start.center.y, 600, 'Power2');
   }
 
   /**
-   * 🚩 占領メソッド：地図の色を変え、React Storeの占領数も更新する
+   * 🚩 占領メソッド
+   * 地図の色を変え、React Storeの占領データも更新します。
    */
   claimDistrict(id, team) {
     if (!this.districts[id]) return;
@@ -193,7 +208,6 @@ export default class MainScene extends Phaser.Scene {
     const color = team === 'red' ? COLOR.TEAM_RED : COLOR.TEAM_BLUE;
     this._redrawDistrict(this.districts[id], color);
 
-    // ✅ ReactのStoreに占領情報を同期（0/11を動かす鍵）
     const store = window.useGameStore?.getState();
     const myId = store?.myId || socket.id || 'me'; 
 
@@ -201,7 +215,7 @@ export default class MainScene extends Phaser.Scene {
       store.setStatus({
         districts: {
           ...store.districts,
-          [id]: myId // 地区IDに自分の通信IDを紐づける
+          [id]: myId 
         }
       });
       console.log(`[Phaser] District ${id} claimed by ${myId}`);
@@ -236,25 +250,37 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * ✅ 修正点：重なり順（Depth）の固定
+   * 1: 透明パネル, 2: 占領色, 3: 地区名テキスト
+   */
   _drawDistrictPolygons() {
     const overlay = this.add.rectangle(0, 0, 2000, 2000, 0, 0).setOrigin(0).setInteractive();
+    overlay.setDepth(1); 
     overlay.on("pointerdown", (p) => this._onMapClicked(p.x, p.y));
+
     Object.values(this.districts).forEach((d) => {
       d.graphics = this.add.graphics();
+      d.graphics.setDepth(2); 
       this._redrawDistrict(d, COLOR.NEUTRAL);
+      
       d.textLabel = this.add.text(d.center.x, d.center.y, d.name, { 
         fontSize: "10px", color: "#ffffff", stroke: "#000", strokeThickness: 2 
-      }).setOrigin(0.5).setDepth(2);
+      }).setOrigin(0.5).setDepth(3);
     });
   }
 
   updateStatusToReact() { window.dispatchEvent(new CustomEvent('UPDATE_STATUS', { detail: this.playerStats })); }
   showLog(message) { window.dispatchEvent(new CustomEvent('NEW_LOG', { detail: message })); }
   _calcCenter(p) { return { x: p.reduce((s, v) => s + v.x, 0) / p.length, y: p.reduce((s, v) => s + v.y, 0) / p.length }; }
+  
   _getDistrictAtPoint(x, y) {
-    for (const d of Object.values(this.districts)) { if (pointInPolygon({ x, y }, d.polygon)) return d.id; }
+    for (const d of Object.values(this.districts)) { 
+      if (pointInPolygon({ x, y }, d.polygon)) return d.id; 
+    }
     return null;
   }
+  
   _setupCamera() {
     const cam = this.cameras.main;
     cam.setBounds(0, 0, 1600, 1600).setZoom(1.0);
