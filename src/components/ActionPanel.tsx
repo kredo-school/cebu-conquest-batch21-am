@@ -2,29 +2,21 @@ import React from 'react';
 import { useGameStore } from '../store';
 
 export const ActionPanel: React.FC = () => {
-  const { addStamina } = useGameStore();
+  const { isSubmitted, isMyTurn, stay, defense, escape } = useGameStore();
+
+  if (!isMyTurn || isSubmitted) {
+    return <div style={{ color: '#aaa', textAlign: 'center' }}>相手のターン、または処理待ちです...</div>;
+  }
 
   return (
-    <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-      <button 
-        style={{ padding: '10px 20px', background: '#c0392b', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }} 
-        onClick={() => {
-          alert('Attack!!!');
-          // addStamina(-20); // 🔋 攻撃するとスタミナを20消費
-        }}
-      >
-        Attack!
-      </button>
-
-      <button 
-        style={{ padding: '10px 20px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }} 
-        onClick={() => {
-          alert('Resting...');
-          addStamina(30); // 🔋 休むとスタミナが30回復！
-        }}
-      >
-        Rest & Recover
-      </button>
+    <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', padding: '10px' }}>
+      <button onClick={stay} style={btnStyle('#27ae60')}>Stay</button>
+      <button onClick={defense} style={btnStyle('#2980b9')}>Defense</button>
+      <button onClick={escape} style={btnStyle('#7f8c8d')}>Escape</button>
     </div>
   );
 };
+
+const btnStyle = (bg: string) => ({
+  padding: '10px 20px', background: bg, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' as const
+});

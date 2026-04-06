@@ -169,50 +169,29 @@ export default class MainScene extends Phaser.Scene {
     this._reactListeners = handlers;
   }
 
-  // Stay（待機・休息）の処理ロジック
-  handleStay() {
-    // 選択モード中はアクション不可
-    if (this.isSelectionMode) return;
-
-    // スタミナが既に満タンの場合は何もしない（あるいはログだけ出す）
-    if (this.playerStats.stamina >= 100 && this.playerStats.hp >= 100) {
-      this.showLog("💡 すでに万全の状態だ。進軍せよ！");
-      return;
-    }
-
-    // 休息による回復ロジック（バランス調整用に値は仮置き）
-    this.playerStats.stamina = Math.min(100, this.playerStats.stamina + 30);
-    this.playerStats.hp = Math.min(100, this.playerStats.hp + 10);
-
-    this.showLog("🏕 拠点にて休息... スタミナとHPが回復した！");
-
-    // 回復した最新のステータスをReactのHUDへ通知してUIを更新させる
-    this.updateStatusToReact();
-
-    // ※もし「ターン経過」や「待機したこと」をサーバーに伝える必要があればここでemitする
-    // socket.emit("PLAYER_STAY", { districtId: this.currentDistrictId });
-  }
-
-  updateStatusToReact() {
-    this._emitToReact(PHASER_TO_REACT.STATS_UPDATED, this.playerStats);
-  }
-
-  showLog(message) {
-    this._emitToReact(PHASER_TO_REACT.GAME_LOG, message);
-    console.log(`[GameLog] ${message}`);
-  }
-
-  // ═══════════════════════════════════════════════
-  // ゲームロジック
-  // ═══════════════════════════════════════════════
-
-  // 出撃確定（Reactの「出撃ボタン」から呼び出される）
+  /**
+   * 🚀 出撃確定処理
+   * 選択モードを終了し、初期地点を占領色で塗ります。
+   */
   confirmDeployment(startId) {
     this.isSelectionMode = false;
     this.currentDistrictId = startId;
     this._placePlayer(startId);
-    socket.emit("READY_TO_START", { startDistrictId: startId });
-    this.showLog(`🚀 地区 ${startId} より攻略を開始する！`);
+    
+    // 一旦全地区を中立色でリセット
+    Object.values(this.districts).forEach(d => this._redrawDistrict(d, COLOR.NEUTRAL));
+    
+    // Storeから確実に現在のチーム（赤or青）を取得して初回の占領を実行
+    const store = window.useGameStore?.getState();
+    const myTeam = store?.myTeam || this.playerStats.team;
+    this.claimDistrict(startId, myTeam);
+    
+    const districtName = this.districts[startId]?.name || `Sector ${startId}`;
+    window.dispatchEvent(new CustomEvent('UPDATE_STATUS', { 
+      detail: { currentDistrictName: districtName } 
+    }));
+
+    this.showLog(`🚀 地区 ${startId} より攻略を開始します`);
   }
 
   // プレイヤーを地図上に配置
@@ -222,46 +201,35 @@ export default class MainScene extends Phaser.Scene {
 
     const name = this.registry.get("playerName") || "Guest";
 
-    // 既にプレイヤーオブジェクトが存在する場合は座標の更新のみ行う
-    if (this.player) {
-      this.player.setPosition(start.center.x, start.center.y);
-      this.playerLabel.setPosition(start.center.x, start.center.y - 20);
-      this.playerLabel.setText(name);
+    // 地点選択モード時の処理
+    if (this.isSelectionMode) {
+      Object.values(this.districts).forEach(d => this._redrawDistrict(d, COLOR.NEUTRAL));
+      this._redrawDistrict(this.districts[clickedId], COLOR.HIGHLIGHT, 0.8);
+      window.dispatchEvent(new CustomEvent('DISTRICT_SELECTED', { detail: clickedId }));
       return;
     }
     // 存在しない場合は新規作成
     this.player = this.add.circle(start.center.x, start.center.y, 12, COLOR.PLAYER_DOT).setDepth(3);
 
-    this.playerLabel = this.add
-      .text(start.center.x, start.center.y - 20, name, {
-        fontSize: "11px",
-        color: "#ffffff",
-        stroke: "#000000",
-        strokeThickness: 2,
-      })
-      .setOrigin(0.5)
-      .setDepth(3);
-  }
+    // 進軍モード時の処理
+    if (!store) return;
+    if (clickedId === this.currentDistrictId) return;
+    if (!store.isMyTurn) {
+      this.showLog("📡 通信待機中（相手のターンです）");
+      return;
+    }
+    if (store.stamina < 20) {
+      this.showLog("🔋 スタミナ不足です！「次の日」ボタンで休息してください");
+      return;
+    }
 
   // バトルロジック P = A / (A + D)
   startBattle(targetId) {
     const myFinalAtk = this.playerStats.atk * this.playerStats.blessing;
     const winRate = myFinalAtk / (myFinalAtk + 50);
 
-    // ── ローカル仮判定（けいのサーバー統合まで使用） ──────────
-    this.time.delayedCall(500, () => {
-      if (Math.random() < winRate) {
-        this.showLog(`🎉 勝利！ 地区${targetId}を我が領土とした！`);
-        this.movePlayer(targetId);
-        this.claimDistrict(targetId, "player");
-      } else {
-        this.playerStats.hp = Math.max(0, this.playerStats.hp - 20);
-        this.playerStats.stamina = Math.max(0, this.playerStats.stamina - 25);
-        this.showLog("💀 敗北... 致命傷を負い、スタミナも尽きかけている。");
-        this.movePlayer(this.currentDistrictId);
-      }
-      this.updateStatusToReact();
-    });
+    this.movePlayer(clickedId);
+    this.claimDistrict(clickedId, store.myTeam || this.playerStats.team);
 
     // ── TODO: けいのサーバー統合後にここに差し替える ──────────
     // socket.emit(CLIENT_EVENTS.BATTLE_START, {
@@ -303,17 +271,45 @@ export default class MainScene extends Phaser.Scene {
     this._emitToReact(PHASER_TO_REACT.PLAYER_MOVED, { districtId: id });
   }
 
-  // 陣地占領
-  claimDistrict(id, owner) {
+  _placePlayer(id) {
+    const start = this.districts[id];
+    if (!start) return;
+    if (this.player) this.player.destroy();
+    if (this.playerLabel) this.playerLabel.destroy();
+    
+    // 駒を Depth 10（最前面）に配置
+    this.player = this.add.circle(start.center.x, start.center.y, 12, COLOR.PLAYER_DOT)
+      .setDepth(10)
+      .setStrokeStyle(3, 0x000000);
+      
+    this.playerLabel = this.add.text(start.center.x, start.center.y - 25, "YOU", {
+      fontSize: "14px", color: "#fff", stroke: "#000", strokeThickness: 4, fontWeight: 'bold'
+    }).setOrigin(0.5).setDepth(10);
+    
+    this.cameras.main.pan(start.center.x, start.center.y, 600, 'Power2');
+  }
+
+  /**
+   * 🚩 占領メソッド
+   * 地図の色を変え、React Storeの占領データも更新します。
+   */
+  claimDistrict(id, team) {
     if (!this.districts[id]) return;
-    this.districts[id].owner = owner;
-    this._redrawDistrict(
-      this.districts[id],
-      owner === "player" ? COLOR.MY_TERRITORY : COLOR.ENEMY_TERRITORY,
-    );
-    if (owner === "player") {
-      this._emitToReact(PHASER_TO_REACT.TERRITORY_CLAIMED, { districtId: id });
-      this._emitTerritoryClaimed(id);
+    this.districts[id].owner = team;
+    const color = team === 'red' ? COLOR.TEAM_RED : COLOR.TEAM_BLUE;
+    this._redrawDistrict(this.districts[id], color);
+
+    const store = window.useGameStore?.getState();
+    const myId = store?.myId || socket.id || 'me'; 
+
+    if (store) {
+      store.setStatus({
+        districts: {
+          ...store.districts,
+          [id]: myId 
+        }
+      });
+      console.log(`[Phaser] District ${id} claimed by ${myId}`);
     }
   }
 
@@ -358,92 +354,23 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * ✅ 修正点：重なり順（Depth）の固定
+   * 1: 透明パネル, 2: 占領色, 3: 地区名テキスト
+   */
   _drawDistrictPolygons() {
-    const mapW = 50 * TILE_SIZE * MAP_SCALE;
-    const mapH = 50 * TILE_SIZE * MAP_SCALE;
-
-    // クリック・ホバー検出用の透明オーバーレイ
-    const overlay = this.add
-      .rectangle(0, 0, mapW, mapH, 0x000000, 0)
-      .setOrigin(0, 0)
-      .setInteractive();
-
-    overlay.on("pointerup", (p) => {
-      if (!this._dragMoved) this._onMapClicked(p.x, p.y);
-    });
-    overlay.on("pointermove", (p) => this._onMapHover(p.x, p.y));
+    const overlay = this.add.rectangle(0, 0, 2000, 2000, 0, 0).setOrigin(0).setInteractive();
+    overlay.setDepth(1); 
+    overlay.on("pointerdown", (p) => this._onMapClicked(p.x, p.y));
 
     Object.values(this.districts).forEach((d) => {
-      d.graphics = this.add.graphics().setDepth(1);
+      d.graphics = this.add.graphics();
+      d.graphics.setDepth(2); 
       this._redrawDistrict(d, COLOR.NEUTRAL);
-      d.textLabel = this.add
-        .text(d.center.x, d.center.y, d.name, {
-          fontSize: "9px",
-          color: "#ffffff",
-          stroke: "#000000",
-          strokeThickness: 2,
-        })
-        .setOrigin(0.5)
-        .setDepth(2);
-    });
-  }
-
-  // ═══════════════════════════════════════════════
-  // クリック・ホバー処理
-  // ═══════════════════════════════════════════════
-
-  _onMapClicked(screenX, screenY) {
-    const { x: worldX, y: worldY } = this._screenToWorld(screenX, screenY);
-    const clickedId = this._getDistrictAtPoint(worldX, worldY);
-
-    if (!clickedId) return;
-
-    // 配置フェーズ: ハイライトして React へ通知
-    if (this.isSelectionMode) {
-      // ★ 仮予約リクエストをサーバーへ送信（サーバー側で排他制御を行う）
-      socket.emit("REQUEST_DISTRICT", { districtId: clickedId });
-
-      // 応答待ちの間はローカルでハイライト処理
-      Object.values(this.districts).forEach((d) => this._redrawDistrict(d, COLOR.NEUTRAL));
-      this._redrawDistrict(this.districts[clickedId], COLOR.HIGHLIGHT, 0.8);
-
-      this._emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, clickedId);
-      return;
-    }
-
-    // ゲーム本編
-    if (this.playerStats.stamina <= 0) {
-      this.showLog("🪫 スタミナ切れ！動けません。");
-      return;
-    }
-    if (clickedId === this.currentDistrictId) return;
-
-    const neighbors = ADJACENCY[this.currentDistrictId] || [];
-    if (!neighbors.includes(clickedId)) {
-      this.showLog("⚠ 遠すぎて一気には進めません！");
-      return;
-    }
-
-    const target = this.districts[clickedId];
-    if (target.owner === "enemy") {
-      this.startBattle(clickedId);
-    } else {
-      const fromDistrictId = this.currentDistrictId;
-      this.movePlayer(clickedId);
-      this.claimDistrict(clickedId, "player");
-      this._emitPlayerMove(fromDistrictId, clickedId);
-    }
-  }
-
-  _onMapHover(screenX, screenY) {
-    const { x: worldX, y: worldY } = this._screenToWorld(screenX, screenY);
-    const hoveredId = this._getDistrictAtPoint(worldX, worldY);
-
-    // 全地区を現在の所有者カラーに戻す
-    Object.values(this.districts).forEach((d) => {
-      if (d.owner === "player") this._redrawDistrict(d, COLOR.MY_TERRITORY);
-      else if (d.owner === "enemy") this._redrawDistrict(d, COLOR.ENEMY_TERRITORY);
-      else this._redrawDistrict(d, COLOR.NEUTRAL);
+      
+      d.textLabel = this.add.text(d.center.x, d.center.y, d.name, { 
+        fontSize: "10px", color: "#ffffff", stroke: "#000", strokeThickness: 2 
+      }).setOrigin(0.5).setDepth(3);
     });
 
     // ホバー中の地区をハイライト
@@ -542,19 +469,17 @@ export default class MainScene extends Phaser.Scene {
     };
   }
 
+  updateStatusToReact() { window.dispatchEvent(new CustomEvent('UPDATE_STATUS', { detail: this.playerStats })); }
+  showLog(message) { window.dispatchEvent(new CustomEvent('NEW_LOG', { detail: message })); }
+  _calcCenter(p) { return { x: p.reduce((s, v) => s + v.x, 0) / p.length, y: p.reduce((s, v) => s + v.y, 0) / p.length }; }
+  
   _getDistrictAtPoint(x, y) {
-    for (const d of Object.values(this.districts)) {
-      if (pointInPolygon({ x, y }, d.polygon)) return d.id;
+    for (const d of Object.values(this.districts)) { 
+      if (pointInPolygon({ x, y }, d.polygon)) return d.id; 
     }
     return null;
   }
-
-  _screenToWorld(screenX, screenY) {
-    const cam = this.cameras.main;
-    const worldPoint = cam.getWorldPoint(screenX, screenY);
-    return { x: worldPoint.x, y: worldPoint.y };
-  }
-
+  
   _setupCamera() {
     const cam = this.cameras.main;
     const MAP_WIDTH = 50 * TILE_SIZE * MAP_SCALE; // 800px
