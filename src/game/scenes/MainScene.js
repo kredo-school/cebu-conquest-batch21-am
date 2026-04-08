@@ -9,12 +9,12 @@ const MAP_SCALE = 0.5;
 const TILE_SIZE = 32;
 
 const COLOR = {
-  MY_TERRITORY:    0xe74c3c,
+  MY_TERRITORY: 0xe74c3c,
   ENEMY_TERRITORY: 0x27ae60,
-  NEUTRAL:         0x4a90d9,
-  HIGHLIGHT:       0xffff00,
-  PLAYER_DOT:      0xf1c40f,
-  ENEMY_DOT:       0x2ecc71,
+  NEUTRAL: 0x4a90d9,
+  HIGHLIGHT: 0xffff00,
+  PLAYER_DOT: 0xf1c40f,
+  ENEMY_DOT: 0x2ecc71,
 };
 
 const ADJACENCY = {
@@ -35,10 +35,11 @@ function pointInPolygon(point, polygon) {
   let inside = false;
   const { x, y } = point;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].x, yi = polygon[i].y;
-    const xj = polygon[j].x, yj = polygon[j].y;
-    const intersect = (yi > y) !== (yj > y) &&
-      x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    const xi = polygon[i].x,
+      yi = polygon[i].y;
+    const xj = polygon[j].x,
+      yj = polygon[j].y;
+    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
     if (intersect) inside = !inside;
   }
   return inside;
@@ -47,14 +48,14 @@ function pointInPolygon(point, polygon) {
 export default class MainScene extends Phaser.Scene {
   constructor() {
     super({ key: "MainScene" });
-    this.districts      = {};
-    this.playerStats    = { hp: 100, stamina: 100, blessing: 1.0, atk: 50, def: 40 };
+    this.districts = {};
+    this.playerStats = { hp: 100, stamina: 100, blessing: 1.0, atk: 50, def: 40 };
     this.currentDistrictId = null;
     this.START_DISTRICT_ID = 102;
-    this._dragMoved     = false;
-    this.otherPlayers   = {};
+    this._dragMoved = false;
+    this.otherPlayers = {};
     this.isSelectionMode = true;
-    this.isDefending    = false;
+    this.isDefending = false;
   }
 
   // ───────────────────────────────────────────────
@@ -141,7 +142,9 @@ export default class MainScene extends Phaser.Scene {
           if (this.isSelectionMode) return;
           this.isDefending = true;
           this.showLog("🛡 防御態勢！次の被ダメージを半減");
-          this.time.delayedCall(3000, () => { this.isDefending = false; });
+          this.time.delayedCall(3000, () => {
+            this.isDefending = false;
+          });
         },
       },
       {
@@ -166,7 +169,7 @@ export default class MainScene extends Phaser.Scene {
       return;
     }
     this.playerStats.stamina = Math.min(100, this.playerStats.stamina + 30);
-    this.playerStats.hp      = Math.min(100, this.playerStats.hp + 10);
+    this.playerStats.hp = Math.min(100, this.playerStats.hp + 10);
     this.showLog("🏕 休息... スタミナとHPが回復した！");
     this.updateStatusToReact();
   }
@@ -201,7 +204,7 @@ export default class MainScene extends Phaser.Scene {
     if (!start) return;
 
     // 既存オブジェクトを破棄してから再生成
-    if (this.player)      this.player.destroy();
+    if (this.player) this.player.destroy();
     if (this.playerLabel) this.playerLabel.destroy();
 
     this.player = this.add
@@ -236,7 +239,7 @@ export default class MainScene extends Phaser.Scene {
         this.claimDistrict(targetId, "player");
       } else {
         this._playDefeatEffect(targetId);
-        this.playerStats.hp      = Math.max(0, this.playerStats.hp - 20);
+        this.playerStats.hp = Math.max(0, this.playerStats.hp - 20);
         this.playerStats.stamina = Math.max(0, this.playerStats.stamina - 25);
         this.showLog("💀 敗北... 致命傷を負い、スタミナも尽きかけている。");
         this.movePlayer(this.currentDistrictId);
@@ -279,20 +282,52 @@ export default class MainScene extends Phaser.Scene {
     this._emitToReact(PHASER_TO_REACT.PLAYER_MOVED, { districtId: id });
   }
 
-  // ★ コンフリクト解決：owner("player"/"enemy"/"neutral") で統一
   // Socket.IOのteam情報は _syncDistricts() 側でowner変換して吸収する
   claimDistrict(id, owner) {
-    if (!this.districts[id]) return;
-    this.districts[id].owner = owner;
-    this._redrawDistrict(
-      this.districts[id],
-      owner === "player" ? COLOR.MY_TERRITORY : COLOR.ENEMY_TERRITORY,
-    );
-    if (owner === "player") {
-      this._playClaimEffect(id);
-      this._emitToReact(PHASER_TO_REACT.TERRITORY_CLAIMED, { districtId: id });
-      this._emitTerritoryClaimed(id);
-    }
+    const d = this.districts[id];
+    if (!d) return;
+
+    d.owner = owner;
+    const finalColor = owner === "player" ? COLOR.MY_TERRITORY : COLOR.ENEMY_TERRITORY;
+
+    this._animateCapture(d, finalColor, () => {
+      if (owner === "player") {
+        this._emitToReact(PHASER_TO_REACT.TERRITORY_CLAIMED, { districtId: id });
+        this._emitTerritoryClaimed(id);
+      }
+    });
+  }
+  // ─────────────────────────────────────────
+  // 塗り替えフラッシュアニメ
+  // ─────────────────────────────────────────
+  _animateCapture(d, finalColor, onComplete) {
+    if (!d.graphics) return;
+
+    // フラッシュ用に白で上書き → 最終カラーへフェード
+    const FLASH_COLOR = 0xffffff;
+    const FLASH_DURATION = 120; // ms
+    const SETTLE_DURATION = 300; // ms
+
+    // ステップ1: 白フラッシュ
+    this._redrawDistrict(d, FLASH_COLOR, 0.95);
+
+    this.time.delayedCall(FLASH_DURATION, () => {
+      // ステップ2: 最終カラーで再描画しつつ alpha を Tween でフェード
+      this._redrawDistrict(d, finalColor, 0.0);
+
+      this.tweens.add({
+        targets: d.graphics,
+        alpha: { from: 0, to: 1 },
+        duration: SETTLE_DURATION,
+        ease: "Quad.easeOut",
+        onComplete: () => {
+          // graphics.alpha を 1 に戻して通常描画に統一
+          d.graphics.setAlpha(1);
+          this._redrawDistrict(d, finalColor, 0.5);
+          onComplete?.();
+        },
+      });
+    });
   }
 
   // ═══════════════════════════════════════════════
@@ -332,13 +367,13 @@ export default class MainScene extends Phaser.Scene {
 
     const emitter = this.add
       .particles(x, y, "particle_dot", {
-        speed:    { min: 60, max: 150 },
-        angle:    { min: 0, max: 360 },
-        scale:    { start: 1.0, end: 0 },
-        alpha:    { start: 1, end: 0 },
+        speed: { min: 60, max: 150 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 1.0, end: 0 },
+        alpha: { start: 1, end: 0 },
         lifespan: 600,
         quantity: 20,
-        tint:     [0xf1c40f, 0xe74c3c, 0xffffff, 0xe67e22],
+        tint: [0xf1c40f, 0xe74c3c, 0xffffff, 0xe67e22],
         gravityY: 80,
         emitting: false,
       })
@@ -354,13 +389,13 @@ export default class MainScene extends Phaser.Scene {
 
     const emitter = this.add
       .particles(x, y, "particle_dot", {
-        speed:    { min: 30, max: 90 },
-        angle:    { min: 0, max: 360 },
-        scale:    { start: 0.6, end: 0 },
-        alpha:    { start: 1, end: 0 },
+        speed: { min: 30, max: 90 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 0.6, end: 0 },
+        alpha: { start: 1, end: 0 },
         lifespan: 350,
         quantity: 12,
-        tint:     [0xffffff, 0xaaaaff],
+        tint: [0xffffff, 0xaaaaff],
         emitting: false,
       })
       .setDepth(10);
@@ -375,10 +410,16 @@ export default class MainScene extends Phaser.Scene {
         gfx.clear();
         alpha -= 0.07;
         gfx.lineStyle(3, 0xffffff, Math.max(0, alpha));
-        [[x-30, y-30, x+30, y+30], [x-20, y-35, x+20, y+25]].forEach(([x1,y1,x2,y2]) => {
+        [
+          [x - 30, y - 30, x + 30, y + 30],
+          [x - 20, y - 35, x + 20, y + 25],
+        ].forEach(([x1, y1, x2, y2]) => {
           gfx.beginPath().moveTo(x1, y1).lineTo(x2, y2).strokePath();
         });
-        if (alpha <= 0) { gfx.destroy(); fade.remove(); }
+        if (alpha <= 0) {
+          gfx.destroy();
+          fade.remove();
+        }
       },
     });
     this.time.delayedCall(500, () => emitter.destroy());
@@ -391,13 +432,13 @@ export default class MainScene extends Phaser.Scene {
 
     const emitter = this.add
       .particles(x, y, "particle_dot", {
-        speed:    { min: 40, max: 100 },
-        angle:    { min: 200, max: 340 },
-        scale:    { start: 1.2, end: 0 },
-        alpha:    { start: 1, end: 0 },
+        speed: { min: 40, max: 100 },
+        angle: { min: 200, max: 340 },
+        scale: { start: 1.2, end: 0 },
+        alpha: { start: 1, end: 0 },
         lifespan: 500,
         quantity: 15,
-        tint:     [0xe74c3c, 0xff6b6b, 0x800000],
+        tint: [0xe74c3c, 0xff6b6b, 0x800000],
         gravityY: 120,
         emitting: false,
       })
@@ -431,7 +472,10 @@ export default class MainScene extends Phaser.Scene {
   _setupTilemap() {
     const map = this.make.tilemap({ key: "map" });
     const tileset = map.addTilesetImage("Slates.png", "tiles");
-    if (!tileset) { console.error("タイルセットが見つかりません"); return; }
+    if (!tileset) {
+      console.error("タイルセットが見つかりません");
+      return;
+    }
     this.tileLayer = map.createLayer("タイルレイヤー1", tileset, 0, 0);
     if (this.tileLayer) this.tileLayer.setScale(MAP_SCALE);
     this.tiledMap = map;
@@ -439,7 +483,10 @@ export default class MainScene extends Phaser.Scene {
 
   _loadDistrictsFromTMJ() {
     const objectLayer = this.tiledMap.getObjectLayer("districtName");
-    if (!objectLayer) { console.error("districtName レイヤーが見つかりません"); return; }
+    if (!objectLayer) {
+      console.error("districtName レイヤーが見つかりません");
+      return;
+    }
     objectLayer.objects.forEach((obj) => {
       const id = parseInt(obj.properties?.[0]?.name, 10);
       const poly = (obj.polygon || []).map((p) => ({
@@ -468,7 +515,9 @@ export default class MainScene extends Phaser.Scene {
       .setInteractive()
       .setDepth(1);
 
-    overlay.on("pointerup",   (p) => { if (!this._dragMoved) this._onMapClicked(p.x, p.y); });
+    overlay.on("pointerup", (p) => {
+      if (!this._dragMoved) this._onMapClicked(p.x, p.y);
+    });
     overlay.on("pointermove", (p) => this._onMapHover(p.x, p.y));
 
     Object.values(this.districts).forEach((d) => {
@@ -531,9 +580,9 @@ export default class MainScene extends Phaser.Scene {
     const hoveredId = this._getDistrictAtPoint(worldX, worldY);
 
     Object.values(this.districts).forEach((d) => {
-      if      (d.owner === "player")  this._redrawDistrict(d, COLOR.MY_TERRITORY);
-      else if (d.owner === "enemy")   this._redrawDistrict(d, COLOR.ENEMY_TERRITORY);
-      else                            this._redrawDistrict(d, COLOR.NEUTRAL);
+      if (d.owner === "player") this._redrawDistrict(d, COLOR.MY_TERRITORY);
+      else if (d.owner === "enemy") this._redrawDistrict(d, COLOR.ENEMY_TERRITORY);
+      else this._redrawDistrict(d, COLOR.NEUTRAL);
     });
 
     if (hoveredId && this.districts[hoveredId]) {
@@ -577,9 +626,12 @@ export default class MainScene extends Phaser.Scene {
             .circle(district.center.x, district.center.y, 10, COLOR.ENEMY_DOT)
             .setDepth(10),
           label: this.add
-            .text(district.center.x, district.center.y - 18,
+            .text(
+              district.center.x,
+              district.center.y - 18,
               data.username || playerId.slice(0, 6),
-              { fontSize: "10px", color: "#2ecc71", stroke: "#000", strokeThickness: 2 })
+              { fontSize: "10px", color: "#2ecc71", stroke: "#000", strokeThickness: 2 },
+            )
             .setOrigin(0.5)
             .setDepth(10),
         };
@@ -639,7 +691,7 @@ export default class MainScene extends Phaser.Scene {
 
   _setupCamera() {
     const cam = this.cameras.main;
-    const MAP_WIDTH  = 50 * TILE_SIZE * MAP_SCALE;
+    const MAP_WIDTH = 50 * TILE_SIZE * MAP_SCALE;
     const MAP_HEIGHT = 50 * TILE_SIZE * MAP_SCALE;
     cam.setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT);
     cam.setZoom(1.0);
@@ -647,20 +699,26 @@ export default class MainScene extends Phaser.Scene {
     const ZOOM_MIN = 0.3;
     const ZOOM_MAX = 2.5;
     let isDragging = false;
-    let dragStartX = 0, dragStartY = 0, camStartX = 0, camStartY = 0;
+    let dragStartX = 0,
+      dragStartY = 0,
+      camStartX = 0,
+      camStartY = 0;
 
     this.input.on("pointerdown", (pointer) => {
       if (this.input.pointer1.isDown && this.input.pointer2.isDown) return;
       isDragging = true;
       this._dragMoved = false;
-      dragStartX = pointer.x; dragStartY = pointer.y;
-      camStartX = cam.scrollX; camStartY = cam.scrollY;
+      dragStartX = pointer.x;
+      dragStartY = pointer.y;
+      camStartX = cam.scrollX;
+      camStartY = cam.scrollY;
     });
 
     this.input.on("pointermove", (pointer) => {
       if (!isDragging) return;
       if (this.input.pointer1.isDown && this.input.pointer2.isDown) {
-        isDragging = false; return;
+        isDragging = false;
+        return;
       }
       const dx = (pointer.x - dragStartX) / cam.zoom;
       const dy = (pointer.y - dragStartY) / cam.zoom;
@@ -668,7 +726,9 @@ export default class MainScene extends Phaser.Scene {
       cam.setScroll(camStartX - dx, camStartY - dy);
     });
 
-    this.input.on("pointerup", () => { isDragging = false; });
+    this.input.on("pointerup", () => {
+      isDragging = false;
+    });
 
     this.input.on("wheel", (pointer, _objs, _dx, dy) => {
       const zoomDelta = dy > 0 ? -0.05 : 0.05;
@@ -683,11 +743,19 @@ export default class MainScene extends Phaser.Scene {
     this.input.on("pointermove", () => {
       const p1 = this.input.pointer1;
       const p2 = this.input.pointer2;
-      if (!p1.isDown || !p2.isDown) { lastPinchDistance = 0; return; }
+      if (!p1.isDown || !p2.isDown) {
+        lastPinchDistance = 0;
+        return;
+      }
       const dist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
-      if (lastPinchDistance === 0) { lastPinchDistance = dist; return; }
+      if (lastPinchDistance === 0) {
+        lastPinchDistance = dist;
+        return;
+      }
       const newZoom = Phaser.Math.Clamp(
-        cam.zoom + (dist - lastPinchDistance) * 0.005, ZOOM_MIN, ZOOM_MAX
+        cam.zoom + (dist - lastPinchDistance) * 0.005,
+        ZOOM_MIN,
+        ZOOM_MAX,
       );
       const centerX = (p1.x + p2.x) / 2;
       const centerY = (p1.y + p2.y) / 2;
