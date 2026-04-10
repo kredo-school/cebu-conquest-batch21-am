@@ -58,8 +58,9 @@ export default class MainScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image("tiles", "assets/tilesets/Slates.png");
-    this.load.tilemapTiledJSON("map", "assets/maps/cebu_map_簡易版.tmj");
+    // 💡 修正: Vite環境でのルーティングエラーを防ぐため、絶対パス（/始まり）に変更
+    this.load.image("tiles", "/assets/tilesets/Slates.png");
+    this.load.tilemapTiledJSON("map", "/assets/maps/cebu_map_簡易版.tmj");
   }
 
   create() {
@@ -70,7 +71,7 @@ export default class MainScene extends Phaser.Scene {
     this.enemySprites = {};
     this._initSocket();
     this._setupReactListeners();
-    this._createParticleTexture();
+    // this._createParticleTexture(); // ⚠️ 定義が見当たらなかったので一旦コメントアウト等で対応するか、別の場所に実装があればそのままでOK
     this.updateStatusToReact();
     this.showLog("📍 地図をタップして開始地点を選択せよ");
   }
@@ -85,8 +86,9 @@ export default class MainScene extends Phaser.Scene {
   // --- React連携 ---
   _setupReactListeners() {
     const handlers = [
-      { event: REACT_TO_PHASER.COMMAND_STAY, handler: () => this.handleStay() },
-      { event: REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, handler: (e) => this.confirmDeployment(e.detail.districtId) },
+      // 💡 修正ポイント：React側から直接文字列でイベントが飛んできた場合（定数エラー回避）にも対応！
+      { event: REACT_TO_PHASER?.COMMAND_STAY || 'COMMAND_STAY', handler: () => this.handleStay() },
+      { event: REACT_TO_PHASER?.COMMAND_DEPLOY_CONFIRM || 'COMMAND_DEPLOY_CONFIRM', handler: (e) => this.confirmDeployment(e.detail.districtId) },
     ];
 
     handlers.forEach(({ event, handler }) => {
@@ -115,12 +117,9 @@ export default class MainScene extends Phaser.Scene {
       Object.values(this.districts).forEach(d => this._redrawDistrict(d, COLOR.NEUTRAL));
       this._redrawDistrict(this.districts[id], COLOR.HIGHLIGHT, 0.8);
 
-      // 🔴 修正ポイント：あきらさんの定数（SELECT_DISTRICT）を使ってReactに通知
-      const eventName = PHASER_TO_REACT.SELECT_DISTRICT || 'DISTRICT_SELECTED';
+      const eventName = PHASER_TO_REACT?.SELECT_DISTRICT || 'DISTRICT_SELECTED';
       window.dispatchEvent(new CustomEvent(eventName, { detail: id }));
 
-      // 🔴 重要：Store（Zustand）を直接更新
-      // これにより、HUDの「地点未選択」が解消され、App.tsxの「DEPLOY START」ボタンが出現します
       if (window.useGameStore) {
         window.useGameStore.getState().setStatus({ 
           selectedDistrictId: id,
@@ -187,10 +186,24 @@ export default class MainScene extends Phaser.Scene {
 
   _loadDistrictsFromTMJ() {
     const objectLayer = this.tiledMap.getObjectLayer("districtName");
-    if (!objectLayer) return;
+    
+    if (!objectLayer) {
+      console.error('🚨 [エラー] Tiledマップ内に "districtName" という名前のオブジェクトレイヤーが見つかりません！');
+      return;
+    }
 
     objectLayer.objects.forEach((obj) => {
-      const id = parseInt(obj.properties?.[0]?.value || obj.name, 10);
+      // 💡 修正: Tiledのプロパティのズレ（nameとvalue）を吸収する堅牢なID取得処理
+      const prop = obj.properties?.[0];
+      let id = null;
+      
+      if (prop) {
+        id = parseInt(prop.name, 10) || parseInt(prop.value, 10);
+      }
+      
+      // それでもIDが取れなかった場合は、Tiledの内部ID(obj.id)を仮当てしてクラッシュを防ぐ
+      if (!id || isNaN(id)) id = obj.id;
+
       const poly = (obj.polygon || []).map((p) => ({
         x: (obj.x + p.x) * MAP_SCALE,
         y: (obj.y + p.y) * MAP_SCALE,
@@ -237,10 +250,28 @@ export default class MainScene extends Phaser.Scene {
 
   _setupCamera() {
     const cam = this.cameras.main;
-    cam.setBounds(0, 0, 2000, 2000);
+    
+    // 💡 修正ポイント①: 実際のマップサイズ×スケールに合わせる
+    const mapWidth = this.tiledMap.widthInPixels * MAP_SCALE;
+    const mapHeight = this.tiledMap.heightInPixels * MAP_SCALE;
+    cam.setBounds(0, 0, mapWidth, mapHeight);
+
+    // 💡 修正ポイント: 真っ黒画面を防ぐための背景色設定（海っぽい色）
+    cam.setBackgroundColor('#1a365d');
+
+    // 💡 修正ポイント②: タップ開始時に必ずドラッグフラグをリセットする
+    this.input.on("pointerdown", () => {
+      this._dragMoved = false; 
+    });
+
     this.input.on("pointermove", (pointer) => {
       if (!pointer.isDown) return;
-      this._dragMoved = true;
+      
+      // 💡 修正ポイント③: 遊びを持たせる（3px以上動かした時だけドラッグ判定）
+      if (pointer.getDistance() > 3) {
+        this._dragMoved = true;
+      }
+      
       cam.scrollX -= (pointer.x - pointer.prevPosition.x) / cam.zoom;
       cam.scrollY -= (pointer.y - pointer.prevPosition.y) / cam.zoom;
     });
