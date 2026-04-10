@@ -12,13 +12,14 @@ const io = new Server(server, {
 
 // ゲーム全体の状態
 let gameState = {
-    status: 'waiting',
-    turn: 1,
+    status: 'waiting', // waiting -> standby -> playing -> finished
+    turn: 0,           // 0: Standby, 1-10: Playing
     players: {},
     districts: {},
-    pendingActions: {} // ★修正1: アクション保留箱を追加
+    pendingActions: {} 
 };
 
+// バトル解決ロジック
 function resolveBattle(attackerAtk, defenderDef) {
     const winProbability = attackerAtk / (attackerAtk + defenderDef);
     const isWin = Math.random() < winProbability;
@@ -29,31 +30,26 @@ function resolveBattle(attackerAtk, defenderDef) {
 function resolveTurn() {
     console.log(`\n=== ターン ${gameState.turn} 解決フェーズ ===`);
     const actions = gameState.pendingActions;
-    let turnLogs = []; // クライアントに表示するログ
+    let turnLogs = []; 
 
-    // ②＆③: アクションの処理（AP消費とサーバーバトル）
     for (const [playerId, action] of Object.entries(actions)) {
         const player = gameState.players[playerId];
         if (!player) continue;
 
-        if (action.type === 'rest') {
-            // 休息アクション: APを30回復
+        if (action.type === 'rest' || action.type === 'stay') {
             player.stamina = Math.min(100, player.stamina + 30);
             turnLogs.push(`💤 ${player.username} は休息し、APを回復した。`);
         } 
         else if (action.type === 'attack') {
-            // 攻撃アクション: APを20消費してバトル
             if (player.stamina >= 20) {
                 player.stamina -= 20; 
-                const targetId = action.targetId; // 攻める陣地のID
+                const targetId = action.targetId; 
                 
-                // バトル判定 (勝率計算)
-                const result = resolveBattle(60, 40); // ※テスト用に固定値
+                const result = resolveBattle(60, 40); 
                 
                 if (result.isWin) {
-                    // ★修正3: 勝利時の処理を移植（陣地獲得と色の即時更新）
                     gameState.districts[targetId] = playerId;
-                    turnLogs.push(`⚔️ ${player.username} が陣地を獲得しました！`);
+                    turnLogs.push(`⚔️ ${player.username} が地区 ${targetId} を獲得しました！`);
                     
                     io.emit('territoryUpdated', {
                         districtId: targetId,
@@ -61,9 +57,8 @@ function resolveTurn() {
                         team: player.team 
                     });
                 } else {
-                    // ★修正3: 敗北時の処理を移植（HP減少）
                     player.hp = Math.max(0, player.hp - 20);
-                    turnLogs.push(`🛡️ ${player.username} は陣地の制圧に失敗し、ダメージを受けた...`);
+                    turnLogs.push(`🛡️ ${player.username} は地区 ${targetId} の制圧に失敗し、ダメージを受けた...`);
                 }
             } else {
                 turnLogs.push(`⚠️ ${player.username} はスタミナ不足で動けなかった！`);
@@ -71,21 +66,16 @@ function resolveTurn() {
         }
     }
 
-    // クライアントへ結果と最新ステータスを送信
     io.emit('turnResult', { logs: turnLogs, state: gameState });
 
-    // ①＆④: 10ターン制ロジックと勝利条件判定
     if (gameState.turn >= 10) {
         console.log("=== ゲーム終了！勝敗判定 ===");
         let scores = {};
-        
-        // 陣地の数をカウント
         for (const district in gameState.districts) {
             const owner = gameState.districts[district];
             scores[owner] = (scores[owner] || 0) + 1;
         }
 
-        // 最も陣地が多いプレイヤーを特定
         let winnerId = null;
         let maxScore = -1;
         for (const [pId, score] of Object.entries(scores)) {
@@ -98,9 +88,8 @@ function resolveTurn() {
         gameState.status = 'finished';
         io.emit('gameOver', { winnerId: winnerId, scores: scores });
     } else {
-        // 次のターンへ進む
         gameState.turn++;
-        gameState.pendingActions = {}; // アクション箱をリセット
+        gameState.pendingActions = {}; 
         io.emit('turnStart', { turn: gameState.turn });
     }
 }
@@ -113,8 +102,7 @@ io.on('connection', (socket) => {
         const currentPlayers = Object.keys(gameState.players);
 
         if (currentPlayers.length >= 2 && !gameState.players[socket.id]) {
-            console.log(`入室拒否: ルーム満員 (${socket.id})`);
-            socket.emit('room_full', { message: '現在ルームは満員です。観戦モードは未実装です。' });
+            socket.emit('room_full', { message: 'ルーム満員です。' });
             return;
         }
 
@@ -126,34 +114,51 @@ io.on('connection', (socket) => {
 
         gameState.players[socket.id] = {
             id: socket.id,
-            userId: userData?.userId || socket.id,
             username: userData?.username || `Player_${socket.id.substring(0,4)}`,
-            x: userData?.x || 0,
-            y: userData?.y || 0,
             districtId: null, 
-            hp: 100,          
-            stamina: 100,
-            team: assignedTeam 
+            hp: 100, stamina: 100,
+            team: assignedTeam,
+            isReady: false // 出撃地点確定フラグ
         };
 
-        console.log(`参加者: ${gameState.players[socket.id].username} [${assignedTeam}チーム] (現在: ${Object.keys(gameState.players).length}名)`);
+        console.log(`参加: ${gameState.players[socket.id].username} [${assignedTeam}]`);
 
-        // ★修正2: 2人揃ったらターン1をスタートさせる
-        if (Object.keys(gameState.players).length === 2 && gameState.status === 'waiting') {
-            gameState.status = 'playing';
-            gameState.turn = 1;
-            gameState.pendingActions = {};
-            console.log(`★ 2名揃いました！セブとり合戦、開始！`);
-            io.emit('gameStart', { 
-                startTime: Date.now(),
-                status: gameState.status 
-            });
-            // ターン開始イベントを発火！
-            io.emit('turnStart', { turn: gameState.turn });
+        // 2人揃ったら「Standby（地点選択）」状態へ
+        if (Object.keys(gameState.players).length === 2) {
+            gameState.status = 'standby';
+            io.emit('gameStart', { status: 'standby' });
+            console.log("★ 2名揃いました。地点選択（Standby）開始");
         }
     });
 
-    // --- 2. プレイヤー移動 ---
+    // --- 🔴 2. 【新規】出撃確定 (READY_TO_START) ---
+    socket.on('READY_TO_START', (data) => {
+        const player = gameState.players[socket.id];
+        if (!player) return;
+
+        const { startDistrictId } = data;
+        console.log(`[READY] ${player.username} が地区 ${startDistrictId} を選択`);
+
+        // サーバー側の状態更新
+        player.districtId = startDistrictId;
+        player.isReady = true;
+        gameState.districts[startDistrictId] = socket.id; // 初期拠点の所有権登録
+
+        // 全員に現在の地区所有状況を同期
+        io.emit('syncState', gameState);
+
+        // 全プレイヤー（2名）が準備完了したら Day 1 開始！
+        const allReady = Object.values(gameState.players).every(p => p.isReady);
+        if (allReady && Object.keys(gameState.players).length === 2) {
+            gameState.status = 'playing';
+            gameState.turn = 1;
+            gameState.pendingActions = {};
+            console.log("🚀 全員出撃完了！ Day 1 スタート！");
+            io.emit('turnStart', { turn: 1 });
+        }
+    });
+
+    // --- 3. プレイヤー移動 ---
     socket.on('playerMove', (moveData) => { 
         if (gameState.players[socket.id]) {
             gameState.players[socket.id].x = moveData.x;
@@ -162,37 +167,35 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- 3. アクションの提出 ---
-    // ※socket.on('battleStart') は削除し、すべてこちらで受け付けます
+    // --- 4. アクション提出 ---
     socket.on('actionSubmit', (actionData) => {
         if (gameState.status !== 'playing') return;
 
-        console.log(`[TURN ${gameState.turn}] Player ${socket.id} がアクション決定: ${actionData.type}`);
-
-        // 保留箱にアクションを格納
+        console.log(`[TURN ${gameState.turn}] Player ${socket.id} アクション: ${actionData.type}`);
         gameState.pendingActions[socket.id] = actionData;
         
-        // 相手に「準備完了」を通知（UI更新用）
         io.emit('playerReady', { socketId: socket.id });
 
-        // 両者のアクションが揃ったらターン一斉解決！
         if (Object.keys(gameState.pendingActions).length === 2) {
             resolveTurn();
         }
     });
 
-    // --- 4. 切断処理 ---
+    // --- 5. 切断処理 ---
     socket.on('disconnect', () => {
-        console.log(`ユーザー切断: ${socket.id}`);
+        console.log(`切断: ${socket.id}`);
         delete gameState.players[socket.id];
-        delete gameState.pendingActions[socket.id]; // 切断時はアクションも消す
+        delete gameState.pendingActions[socket.id];
         if (Object.keys(gameState.players).length < 2) {
             gameState.status = 'waiting';
+            gameState.turn = 0;
+            gameState.districts = {}; // リセット
         }
         io.emit('playerDisconnected', socket.id);
     });
 });
 
+// 定期的な同期
 setInterval(() => {
     if (Object.keys(gameState.players).length > 0) io.emit('syncState', gameState);
 }, 1000);
@@ -200,6 +203,6 @@ setInterval(() => {
 server.listen(PORT, () => {
     console.log(`-----------------------------------------`);
     console.log(`『セブとり合戦』Socketサーバー起動中 (PORT: ${PORT})`);
-    console.log(`★ 10ターン制・AP管理・同時ターン処理エンジン 稼働中！`);
+    console.log(`★ 10ターン制・出撃同期ロジック実装済み`);
     console.log(`-----------------------------------------`);
 });

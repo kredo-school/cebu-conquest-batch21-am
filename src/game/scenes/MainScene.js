@@ -98,6 +98,9 @@ export default class MainScene extends Phaser.Scene {
     this.updateStatusToReact();
   }
 
+  /**
+   * 🗺️ 地図クリック時の処理
+   */
   _onMapClicked(x, y) {
     if (this._dragMoved) return;
     const worldPoint = this.cameras.main.getWorldPoint(x, y);
@@ -105,9 +108,22 @@ export default class MainScene extends Phaser.Scene {
     if (!id) return;
 
     if (this.isSelectionMode) {
+      // 1. ハイライト描画
       Object.values(this.districts).forEach(d => this._redrawDistrict(d, COLOR.NEUTRAL));
       this._redrawDistrict(this.districts[id], COLOR.HIGHLIGHT, 0.8);
-      window.dispatchEvent(new CustomEvent('DISTRICT_SELECTED', { detail: id }));
+
+      // 🔴 修正ポイント：あきらさんの定数（SELECT_DISTRICT）を使ってReactに通知
+      const eventName = PHASER_TO_REACT.SELECT_DISTRICT || 'DISTRICT_SELECTED';
+      window.dispatchEvent(new CustomEvent(eventName, { detail: id }));
+
+      // 🔴 重要：Store（Zustand）を直接更新
+      // これにより、HUDの「地点未選択」が解消され、App.tsxの「DEPLOY START」ボタンが出現します
+      if (window.useGameStore) {
+        window.useGameStore.getState().setStatus({ 
+          selectedDistrictId: id,
+          currentDistrictName: this.districts[id].name 
+        });
+      }
     }
   }
 
@@ -227,47 +243,27 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  // ═══════════════════════════════════════════════
-  // 🛰️ Socket.IO 同期ロジック 
-  // ═══════════════════════════════════════════════
-
   _initSocket() {
     socket.connect();
-
-    // 🔴 修正：'state' を使用してリアルタイム同期を行う 
     socket.on(SERVER_EVENTS.SYNC_STATE, (state) => {
       if (!state) return;
-
-      // 1. 領地の所有状況と色を同期 
-      if (state.districts) {
-        this._syncDistricts(state.districts);
-      }
-
-      // 2. 他プレイヤーの座標を同期 
-      if (state.players) {
-        this._syncPlayers(state.players);
-      }
+      if (state.districts) this._syncDistricts(state.districts);
+      if (state.players) this._syncPlayers(state.players);
     });
 
-    // 10ターン経過や決着のフラグを受信した際の処理 [cite: 29]
     socket.on(SERVER_EVENTS.GAME_OVER, () => {
       this.showLog("🏁 作戦終了！リザルトを確認してください。");
     });
   }
 
-  /**
-   * 他プレイヤーのドットを地図上に描画/移動する 
-   */
   _syncPlayers(players) {
     const mySocketId = socket.id;
     Object.entries(players).forEach(([playerId, data]) => {
-      if (playerId === mySocketId) return; // 自分は除外
-      
+      if (playerId === mySocketId) return; 
       const district = this.districts[data.districtId];
       if (!district) return;
 
       if (!this.otherPlayers[playerId]) {
-        // 新規プレイヤーの描画
         this.otherPlayers[playerId] = {
           dot: this.add.circle(district.center.x, district.center.y, 10, COLOR.ENEMY_DOT).setDepth(3),
           label: this.add.text(district.center.x, district.center.y - 18, data.name || "ENEMY", {
@@ -275,16 +271,12 @@ export default class MainScene extends Phaser.Scene {
           }).setOrigin(0.5).setDepth(3)
         };
       } else {
-        // 位置の更新 
         this.otherPlayers[playerId].dot.setPosition(district.center.x, district.center.y);
         this.otherPlayers[playerId].label.setPosition(district.center.x, district.center.y - 18);
       }
     });
   }
 
-  /**
-   * サーバーの所有状況に合わせて地図の色を更新する 
-   */
   _syncDistricts(serverDistricts) {
     const mySocketId = socket.id;
     Object.entries(serverDistricts).forEach(([districtId, ownerId]) => {

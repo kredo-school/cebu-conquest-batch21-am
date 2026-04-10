@@ -1,20 +1,22 @@
 import React, { useState } from 'react';
-import axios from 'axios'; // ✅ 通信用に追加
-import { useGameStore } from '../store'; // ✅ ステート保存用に追加
+import axios from 'axios'; 
+import { useGameStore } from '../store'; 
 
 interface LoginViewProps {
   onLogin: (name: string) => void;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
-  const { setStatus, addLog } = useGameStore();
+  // 🔴 setPlayerName を追加して、名前をグローバルに保持できるようにする
+  const { setStatus, addLog, setPlayerName } = useGameStore();
   
-  // ✅ ユーザー名とパスワードの両方を管理 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // ✅ ログイン実行アクション
+  /**
+   * 🔐 ログイン実行アクション
+   */
   const handleStart = async () => {
     if (username.trim().length === 0 || password.trim().length === 0) {
       alert('Please enter both your name and password.');
@@ -23,15 +25,18 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
     setIsLoading(true);
     try {
-      // ✅ PHPのAPIエンドポイントを叩く (Naoさんの作成したAPIと連携) 
-      // ※ URLはチームの環境（例: http://localhost/api/login.php）に合わせて調整してください
-      const response = await axios.post('http://your-backend-url/api/login.php', {
+      // ✅ PHPのAPI連携 (Naoさんの作成したAPIと連携想定)
+      // ⚠️ 実際の環境に合わせて 'http://localhost/api/login.php' などに書き換えてください
+      const response = await axios.post('/api/login.php', {
         username: username,
         password: password
       });
 
       if (response.data.success) {
-        // ✅ サーバーから受け取ったユーザーデータをグローバルステートに保存 
+        // 🔴 1. 名前をStoreに保存（これで出撃時に名前が送れるようになる）
+        setPlayerName(username);
+
+        // 🔴 2. サーバーから受け取ったユーザーデータをStoreに保存 
         setStatus({
           myId: response.data.userId,
           myTeam: response.data.team || 'red',
@@ -40,14 +45,20 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         });
 
         addLog(`🔐 ログイン成功: Welcome ${username}`);
-        onLogin(username); // 親コンポーネントへ通知して画面遷移
+        onLogin(username); 
       } else {
         alert('Login failed: ' + response.data.message);
       }
     } catch (error) {
       console.error("Login API Error:", error);
-      // ⚠️ 開発用モック: 通信エラーでも名前だけで進めるようにしておく（任意）
+      
+      // ⚠️ 開発用モック: APIが未完成・エラーでも名前をStoreに入れて進めるようにする
       addLog("⚠️ API接続失敗。開発用ローカルモードで開始します。");
+      
+      // 🔴 失敗時も名前だけは保持して進行
+      setPlayerName(username);
+      setStatus({ myId: `temp_${Date.now()}`, myTeam: 'red' });
+      
       onLogin(username);
     } finally {
       setIsLoading(false);
@@ -68,7 +79,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         style={inputStyle}
       />
 
-      {/* ✅ パスワード入力の追加  */}
+      {/* パスワード入力 */}
       <input
         type="password"
         placeholder="Enter password..."
@@ -88,7 +99,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   );
 };
 
-// --- 🎨 デザインの設定（提供されたデザインを継承） ---
+// --- 🎨 デザインの設定 ---
 const containerStyle: React.CSSProperties = {
   height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column',
   alignItems: 'center', justifyContent: 'center',
