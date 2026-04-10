@@ -10,6 +10,45 @@ const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
+// ==========================================
+// マスターデータ＆定数定義
+// ==========================================
+
+// --- 1. Socketイベント名の完全統一 ---
+// src/game/socketEvents.js と値（文字列）を完全に一致させています
+const EVENTS = {
+  CLIENT: {
+    PLAYER_MOVE: "playerMove",
+    TERRITORY_CLAIMED: "territoryClaimed",
+    BATTLE_START: "battleStart",
+    ACTION_ESCAPE: "actionEscape",  // 新規: 逃げる
+    ACTION_DEFEND: "actionDefend",  // 新規: 防御
+    ITEM_WARP: "itemWarp"           // 新規: ワープアイテム使用
+  },
+  SERVER: {
+    SYNC_STATE: "syncState",
+    PLAYER_MOVED: "playerMoved",
+    TERRITORY_UPDATED: "territoryUpdated",
+    BATTLE_RESULT: "battleResult",
+    NPC_UPDATE: "npcUpdate",
+    STATUS_UPDATED: "statusUpdated", // 新規: バフ等ステータス更新
+    ACTION_RESULT: "actionResult"    // 新規: 逃走結果など
+  }
+};
+
+// --- 2. ワープ移動用スポット座標テーブル ---
+// GI-Project_ID管理シート - Spots.csv より抜粋
+const SPOT_COORDS = {
+  10011: { x: 320, y: 480 }, // サン・ペドロ要塞
+  10012: { x: 350, y: 500 }, // カルボン・マーケット
+  20000: { x: 800, y: 200 }  // マクタン・シュライン
+  // ※他のスポット座標も確定次第ここに追加してください
+};
+
+// ==========================================
+// ゲームステート管理
+// ==========================================
+
 // ゲーム全体の状態
 let gameState = {
     status: 'waiting', // waiting -> standby -> playing -> finished
@@ -51,7 +90,7 @@ function resolveTurn() {
                     gameState.districts[targetId] = playerId;
                     turnLogs.push(`⚔️ ${player.username} が地区 ${targetId} を獲得しました！`);
                     
-                    io.emit('territoryUpdated', {
+                    io.emit(EVENTS.SERVER.TERRITORY_UPDATED, {
                         districtId: targetId,
                         owner: playerId,
                         team: player.team 
@@ -93,6 +132,10 @@ function resolveTurn() {
         io.emit('turnStart', { turn: gameState.turn });
     }
 }
+
+// ==========================================
+// Socket 通信処理
+// ==========================================
 
 io.on('connection', (socket) => {
     console.log(`ユーザー接続成功: ${socket.id}`);
@@ -163,7 +206,7 @@ io.on('connection', (socket) => {
         if (gameState.players[socket.id]) {
             gameState.players[socket.id].x = moveData.x;
             gameState.players[socket.id].y = moveData.y;
-            socket.broadcast.emit('playerMoved', { id: socket.id, x: moveData.x, y: moveData.y });
+            socket.broadcast.emit(EVENTS.SERVER.PLAYER_MOVED, { id: socket.id, x: moveData.x, y: moveData.y });
         }
     });
 
@@ -197,7 +240,7 @@ io.on('connection', (socket) => {
 
 // 定期的な同期
 setInterval(() => {
-    if (Object.keys(gameState.players).length > 0) io.emit('syncState', gameState);
+    if (Object.keys(gameState.players).length > 0) io.emit(EVENTS.SERVER.SYNC_STATE, gameState);
 }, 1000);
 
 server.listen(PORT, () => {
