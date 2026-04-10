@@ -156,4 +156,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   addLog: (text) => set((state) => ({ logs: [text, ...state.logs].slice(0, 10) })),
   saveGame: () => get().addLog("💾 作戦データを保存しました。"),
   loadGame: () => get().addLog("📂 作戦データを読み込みました。"),
+
+
 }));
+
+  // src/store.ts の末尾に追加
+// Phaser(window)から直接ZustandのStoreを更新できるようにするブリッジ
+if (typeof window !== 'undefined') {
+  (window as any).useGameStore = useGameStore;
+}
