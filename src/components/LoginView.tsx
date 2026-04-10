@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import axios from 'axios'; 
 import { useGameStore } from '../store'; 
 
 interface LoginViewProps {
@@ -7,68 +6,49 @@ interface LoginViewProps {
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
-  // 🔴 setPlayerName を追加して、名前をグローバルに保持できるようにする
   const { setStatus, addLog, setPlayerName } = useGameStore();
   
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState(''); // 開発中は入力しなくてもOKにしています
   const [isLoading, setIsLoading] = useState(false);
 
   /**
-   * 🔐 ログイン実行アクション
+   * 🔐 ログイン実行アクション（Week 2 開発用ショートカット版）
    */
-  const handleStart = async () => {
-    if (username.trim().length === 0 || password.trim().length === 0) {
-      alert('Please enter both your name and password.');
+  const handleStart = () => {
+    if (username.trim().length === 0) {
+      alert('Please enter your name.');
       return;
     }
 
     setIsLoading(true);
-    try {
-      // ✅ PHPのAPI連携 (Naoさんの作成したAPIと連携想定)
-      // ⚠️ 実際の環境に合わせて 'http://localhost/api/login.php' などに書き換えてください
-      const response = await axios.post('/api/login.php', {
-        username: username,
-        password: password
+
+    // 🔴 API通信をスキップして、直接Storeを更新する（CORSエラーを回避）
+    setTimeout(() => {
+      // 1. 名前をStoreに保存
+      setPlayerName(username);
+
+      // 2. 初期ステータスを強制セット
+      setStatus({
+        myId: `dev_${Date.now()}`,
+        myTeam: username === 'issei' ? 'red' : 'blue', // 名前に応じて自動振り分け
+        hp: 100,
+        stamina: 100,
       });
 
-      if (response.data.success) {
-        // 🔴 1. 名前をStoreに保存（これで出撃時に名前が送れるようになる）
-        setPlayerName(username);
+      addLog(`🛠️ 開発モードでログイン: Welcome ${username}`);
+      
+      // 3. 親コンポーネント(App.tsx)の処理を実行
+      onLogin(username); 
 
-        // 🔴 2. サーバーから受け取ったユーザーデータをStoreに保存 
-        setStatus({
-          myId: response.data.userId,
-          myTeam: response.data.team || 'red',
-          hp: response.data.hp || 100,
-          stamina: response.data.stamina || 100,
-        });
-
-        addLog(`🔐 ログイン成功: Welcome ${username}`);
-        onLogin(username); 
-      } else {
-        alert('Login failed: ' + response.data.message);
-      }
-    } catch (error) {
-      console.error("Login API Error:", error);
-      
-      // ⚠️ 開発用モック: APIが未完成・エラーでも名前をStoreに入れて進めるようにする
-      addLog("⚠️ API接続失敗。開発用ローカルモードで開始します。");
-      
-      // 🔴 失敗時も名前だけは保持して進行
-      setPlayerName(username);
-      setStatus({ myId: `temp_${Date.now()}`, myTeam: 'red' });
-      
-      onLogin(username);
-    } finally {
       setIsLoading(false);
-    }
+    }, 500); // 少しだけ「通信してる感」を出すための待ち時間
   };
 
   return (
     <div style={containerStyle}>
       <h1 style={titleStyle}>CEBU CONQUEST</h1>
-      <p style={subtitleStyle}>〜 Entry permit to Cebu City 〜</p>
+      <p style={subtitleStyle}>〜 Week 2 Debug Mode 〜</p>
 
       {/* ユーザー名入力 */}
       <input
@@ -79,10 +59,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         style={inputStyle}
       />
 
-      {/* パスワード入力 */}
+      {/* パスワード入力（表示のみ残していますが、チェックはしません） */}
       <input
         type="password"
-        placeholder="Enter password..."
+        placeholder="Password (any is OK in Debug)"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         style={{ ...inputStyle, marginBottom: '30px' }}
@@ -93,37 +73,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         style={{ ...buttonStyle, opacity: isLoading ? 0.7 : 1 }}
         disabled={isLoading}
       >
-        {isLoading ? 'Connecting...' : 'Battle start'}
+        {isLoading ? 'Entering Game...' : '🚀 Skip API & Start'}
       </button>
     </div>
   );
 };
 
-// --- 🎨 デザインの設定 ---
-const containerStyle: React.CSSProperties = {
-  height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column',
-  alignItems: 'center', justifyContent: 'center',
-  background: 'radial-gradient(circle, #1e3a8a 0%, #0f172a 100%)',
-  color: 'white', fontFamily: 'sans-serif', boxSizing: 'border-box', padding: '0 20px',
-};
-
-const titleStyle: React.CSSProperties = {
-  fontSize: '5vw', fontWeight: 'bold', letterSpacing: '4px', marginBottom: '10px',
-  textShadow: '0 0 20px rgba(59, 130, 246, 0.6)', textAlign: 'center',
-};
-
-const subtitleStyle: React.CSSProperties = {
-  color: '#94a3b8', marginBottom: '30px', fontSize: '2vw',
-};
-
-const inputStyle: React.CSSProperties = {
-  padding: '12px 20px', fontSize: '24px', borderRadius: '8px', border: '2px solid #3b82f6',
-  backgroundColor: '#1e293b', color: 'white', width: '80%', maxWidth: '800px',
-  textAlign: 'center', marginBottom: '10px', outline: 'none', boxSizing: 'border-box',
-};
-
-const buttonStyle: React.CSSProperties = {
-  padding: '15px 50px', fontSize: '24px', fontWeight: 'bold', backgroundColor: '#f97316',
-  color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer',
-  boxShadow: '0 6px 0 #9a3412', transition: '0.2s transform', width: '80%', maxWidth: '800px',
-};
+// --- 🎨 デザインの設定（以前のものを維持） ---
+const containerStyle: React.CSSProperties = { height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(circle, #1e3a8a 0%, #0f172a 100%)', color: 'white', fontFamily: 'sans-serif', boxSizing: 'border-box', padding: '0 20px' };
+const titleStyle: React.CSSProperties = { fontSize: '5vw', fontWeight: 'bold', letterSpacing: '4px', marginBottom: '10px', textShadow: '0 0 20px rgba(59, 130, 246, 0.6)', textAlign: 'center' };
+const subtitleStyle: React.CSSProperties = { color: '#94a3b8', marginBottom: '30px', fontSize: '2vw' };
+const inputStyle: React.CSSProperties = { padding: '12px 20px', fontSize: '24px', borderRadius: '8px', border: '2px solid #3b82f6', backgroundColor: '#1e293b', color: 'white', width: '80%', maxWidth: '800px', textAlign: 'center', marginBottom: '10px', outline: 'none', boxSizing: 'border-box' };
+const buttonStyle: React.CSSProperties = { padding: '15px 50px', fontSize: '24px', fontWeight: 'bold', backgroundColor: '#f97316', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', boxShadow: '0 6px 0 #9a3412', transition: '0.2s transform', width: '80%', maxWidth: '800px' };
