@@ -8,15 +8,19 @@ interface GameState {
   logs: string[]; players: Record<string, any>;
   districts: Record<string, string>;
   currentDistrictName: string;
-  selectedDistrictId: number | null; // 🔴 追加：選択中の地点ID
-  playerName: string;               // 🔴 追加：プレイヤー名
+  selectedDistrictId: number | null;
+  playerName: string;
   myId: string; myTeam: string;
   isMyTurn: boolean; turnOwner: string;
   isGameOver: boolean; isSubmitted: boolean;
+  // 🚀 追加：ログイン状態
+  isAuthenticated: boolean;
 
   setStatus: (status: Partial<GameState>) => void;
   syncServerState: (data: any, myId: string) => void;
-  setPlayerName: (name: string) => void; // 🔴 追加
+  setPlayerName: (name: string) => void;
+  // 🚀 追加：ログイン関数（APIをスキップして強制突破）
+  login: (username: string) => Promise<boolean>;
   damage: (amount: number) => void;
   addLog: (text: string) => void;
   nextTurn: () => void;
@@ -30,7 +34,7 @@ interface GameState {
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
-  // --- 🔴 初期状態：Turn 0 (Standby) ---
+  // --- 🔴 初期状態 ---
   hp: 100,
   stamina: 100,
   blessing: 1.0,
@@ -40,20 +44,39 @@ export const useGameStore = create<GameState>((set, get) => ({
   players: {},
   districts: {},
   currentDistrictName: "地点未選択",
-  selectedDistrictId: null, // 初期値
-  playerName: "",           // 初期値
-  myId: "",
+  selectedDistrictId: null,
+  playerName: "",
+  myId: "player-1",
   myTeam: "red",
   isMyTurn: true, 
   turnOwner: "YOU",
   isGameOver: false,
   isSubmitted: false,
+  // 🚀 追加：初期は未ログイン
+  isAuthenticated: false,
+
+  // --- 📡 ログインアクション（強制突破版） ---
+  login: async (username: string) => {
+    console.log("🛠️ skipAPI発動：強制ログイン成功扱いにします:", username);
+    
+    // APIを叩かずに直接ログイン状態にする
+    set({ 
+      isAuthenticated: true, 
+      playerName: username,
+      turn: 0, 
+      isMyTurn: true,
+      myTeam: 'red' 
+    });
+    
+    return true; 
+  },
+
+  setPlayerName: (name) => set({ playerName: name }),
 
   // --- 📡 通信・同期アクション ---
 
   setStatus: (newStatus) => set((state) => {
     if (state.isGameOver) return state;
-
     const { isMyTurn, turnOwner, turn, isSubmitted, isGameOver: newIsGameOver, ...safeStatus } = newStatus as any;
     const nextHp = safeStatus.hp !== undefined ? safeStatus.hp : state.hp;
     const isDead = nextHp <= 0;
@@ -69,13 +92,11 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   syncServerState: (data, myId) => {
     if (!data || get().isGameOver) return;
-
     const isMe = data.turnOwnerId === myId;
     set((state) => ({
       ...state,
       hp: data.hp ?? state.hp,
       stamina: data.stamina ?? state.stamina,
-      // 確定までは turn 0 を死守
       turn: state.turn === 0 ? 0 : (data.turn ?? state.turn),
       districts: data.districts ?? state.districts,
       isMyTurn: state.turn === 0 ? true : isMe,
@@ -85,21 +106,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     }));
   },
 
-  setPlayerName: (name) => set({ playerName: name }),
-
-  // --- ⚔️ Day 1 以降のゲーム進行 ---
+  // --- ⚔️ ゲーム進行 ---
 
   nextTurn: () => {
     if (get().isGameOver) return;
-    
     const nextT = get().turn + 1;
-    set({ 
-      turn: nextT, 
-      isMyTurn: true, 
-      turnOwner: "YOU", 
-      isSubmitted: false 
-    });
-
+    set({ turn: nextT, isMyTurn: true, turnOwner: "YOU", isSubmitted: false });
     if (nextT === 1) {
       get().addLog("🚀 作戦開始！第一日目。セブ島制圧ミッションをスタートします。");
     } else {
@@ -107,16 +119,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
   },
 
-  // --- 🧘 戦略アクション（定数連携版） ---
+  // --- 🧘 戦略アクション ---
 
   stay: () => {
     if (get().isGameOver || !get().isMyTurn) return;
-    
     const nextStamina = Math.min(100, get().stamina + 20);
     set({ stamina: nextStamina, isSubmitted: true, isMyTurn: false });
-    
     get().addLog(`🧘 休息：スタミナが ${nextStamina} に回復しました。`);
-    // 🔴 修正：あきらさんの定数を使用
     window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_STAY));
   },
 
@@ -124,7 +133,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (get().isGameOver || !get().isMyTurn) return;
     set({ isSubmitted: true, isMyTurn: false });
     get().addLog("🛡️ 防御：防御姿勢をとり、敵の攻撃に備えます。");
-    // 🔴 修正：あきらさんの定数を使用
     window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_DEFEND));
   },
 
@@ -132,7 +140,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (get().isGameOver || !get().isMyTurn) return;
     set({ isSubmitted: true, isMyTurn: false });
     get().addLog("🏃 撤退：現在のセクターから緊急離脱を試みます。");
-    // 🔴 修正：あきらさんの定数を使用
     window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_ESCAPE));
   },
 
@@ -156,12 +163,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   addLog: (text) => set((state) => ({ logs: [text, ...state.logs].slice(0, 10) })),
   saveGame: () => get().addLog("💾 作戦データを保存しました。"),
   loadGame: () => get().addLog("📂 作戦データを読み込みました。"),
-
-
 }));
 
-  // src/store.ts の末尾に追加
-// Phaser(window)から直接ZustandのStoreを更新できるようにするブリッジ
 if (typeof window !== 'undefined') {
   (window as any).useGameStore = useGameStore;
 }
