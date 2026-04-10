@@ -1,3 +1,5 @@
+// src/game/scenes/MainScene.js
+
 import Phaser from "phaser";
 import socket from "../../socket";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "../socketEvents";
@@ -68,6 +70,7 @@ export default class MainScene extends Phaser.Scene {
     this.enemySprites = {};
     this._initSocket();
     this._setupReactListeners();
+    this._createParticleTexture();
     this.updateStatusToReact();
     this.showLog("📍 地図をタップして開始地点を選択せよ");
   }
