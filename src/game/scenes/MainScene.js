@@ -1,5 +1,3 @@
-// src/game/scenes/MainScene.js
-
 import Phaser from "phaser";
 import socket from "../../socket";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "../socketEvents";
@@ -54,11 +52,10 @@ export default class MainScene extends Phaser.Scene {
     this.START_DISTRICT_ID = 102;
     this._dragMoved = false;
     this.otherPlayers = {};
-    this.isSelectionMode = true; 
+    this.isSelectionMode = true; // 最初は地点選択モード
   }
 
   preload() {
-    // 💡 修正: Vite環境でのルーティングエラーを防ぐため、絶対パス（/始まり）に変更
     this.load.image("tiles", "/assets/tilesets/Slates.png");
     this.load.tilemapTiledJSON("map", "/assets/maps/cebu_map_簡易版.tmj");
   }
@@ -71,7 +68,6 @@ export default class MainScene extends Phaser.Scene {
     this.enemySprites = {};
     this._initSocket();
     this._setupReactListeners();
-    // this._createParticleTexture(); // ⚠️ 定義が見当たらなかったので一旦コメントアウト等で対応するか、別の場所に実装があればそのままでOK
     this.updateStatusToReact();
     this.showLog("📍 地図をタップして開始地点を選択せよ");
   }
@@ -86,7 +82,6 @@ export default class MainScene extends Phaser.Scene {
   // --- React連携 ---
   _setupReactListeners() {
     const handlers = [
-      // 💡 修正ポイント：React側から直接文字列でイベントが飛んできた場合（定数エラー回避）にも対応！
       { event: REACT_TO_PHASER?.COMMAND_STAY || 'COMMAND_STAY', handler: () => this.handleStay() },
       { event: REACT_TO_PHASER?.COMMAND_DEPLOY_CONFIRM || 'COMMAND_DEPLOY_CONFIRM', handler: (e) => this.confirmDeployment(e.detail.districtId) },
     ];
@@ -112,25 +107,36 @@ export default class MainScene extends Phaser.Scene {
     const id = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
     if (!id) return;
 
+    const store = window.useGameStore?.getState();
+    if (!store) return;
+
     if (this.isSelectionMode) {
-      // 1. ハイライト描画
+      // --- 【Week 1】 出撃地点の選択 ---
       Object.values(this.districts).forEach(d => this._redrawDistrict(d, COLOR.NEUTRAL));
       this._redrawDistrict(this.districts[id], COLOR.HIGHLIGHT, 0.8);
 
       const eventName = PHASER_TO_REACT?.SELECT_DISTRICT || 'DISTRICT_SELECTED';
       window.dispatchEvent(new CustomEvent(eventName, { detail: id }));
 
-      if (window.useGameStore) {
-        window.useGameStore.getState().setStatus({ 
-          selectedDistrictId: id,
-          currentDistrictName: this.districts[id].name 
-        });
-      }
+      store.setStatus({ 
+        selectedDistrictId: id,
+        currentDistrictName: this.districts[id].name 
+      });
+    } else {
+      // --- 【Week 2】 占領バトルのトリガー ---
+      // 🔴 修正ポイント：isSelectionModeがfalse（出撃後）なら、モーダルを開く
+      console.log(`⚔️ 地区 ${id} への占領モーダルを要求`);
+
+      // 自分の現在地と隣接しているか等のロジックはここで追加可能
+      store.setModal(true, {
+        id: id,
+        name: this.districts[id].name
+      });
     }
   }
 
   confirmDeployment(startId) {
-    this.isSelectionMode = false;
+    this.isSelectionMode = false; // 🔴 これで「占領モード」に切り替わる
     this.currentDistrictId = startId;
     this._placePlayer(startId);
     
@@ -186,23 +192,15 @@ export default class MainScene extends Phaser.Scene {
 
   _loadDistrictsFromTMJ() {
     const objectLayer = this.tiledMap.getObjectLayer("districtName");
-    
     if (!objectLayer) {
-      console.error('🚨 [エラー] Tiledマップ内に "districtName" という名前のオブジェクトレイヤーが見つかりません！');
+      console.error('🚨 [エラー] districtName レイヤーが見つかりません');
       return;
     }
 
     objectLayer.objects.forEach((obj) => {
-      // 💡 修正: Tiledのプロパティのズレ（nameとvalue）を吸収する堅牢なID取得処理
       const prop = obj.properties?.[0];
-      let id = null;
-      
-      if (prop) {
-        id = parseInt(prop.name, 10) || parseInt(prop.value, 10);
-      }
-      
-      // それでもIDが取れなかった場合は、Tiledの内部ID(obj.id)を仮当てしてクラッシュを防ぐ
-      if (!id || isNaN(id)) id = obj.id;
+      let id = prop ? (parseInt(prop.name, 10) || parseInt(prop.value, 10)) : obj.id;
+      if (isNaN(id)) id = obj.id;
 
       const poly = (obj.polygon || []).map((p) => ({
         x: (obj.x + p.x) * MAP_SCALE,
@@ -250,28 +248,15 @@ export default class MainScene extends Phaser.Scene {
 
   _setupCamera() {
     const cam = this.cameras.main;
-    
-    // 💡 修正ポイント①: 実際のマップサイズ×スケールに合わせる
     const mapWidth = this.tiledMap.widthInPixels * MAP_SCALE;
     const mapHeight = this.tiledMap.heightInPixels * MAP_SCALE;
     cam.setBounds(0, 0, mapWidth, mapHeight);
-
-    // 💡 修正ポイント: 真っ黒画面を防ぐための背景色設定（海っぽい色）
     cam.setBackgroundColor('#1a365d');
 
-    // 💡 修正ポイント②: タップ開始時に必ずドラッグフラグをリセットする
-    this.input.on("pointerdown", () => {
-      this._dragMoved = false; 
-    });
-
+    this.input.on("pointerdown", () => { this._dragMoved = false; });
     this.input.on("pointermove", (pointer) => {
       if (!pointer.isDown) return;
-      
-      // 💡 修正ポイント③: 遊びを持たせる（3px以上動かした時だけドラッグ判定）
-      if (pointer.getDistance() > 3) {
-        this._dragMoved = true;
-      }
-      
+      if (pointer.getDistance() > 3) this._dragMoved = true;
       cam.scrollX -= (pointer.x - pointer.prevPosition.x) / cam.zoom;
       cam.scrollY -= (pointer.y - pointer.prevPosition.y) / cam.zoom;
     });
@@ -284,10 +269,6 @@ export default class MainScene extends Phaser.Scene {
       if (state.districts) this._syncDistricts(state.districts);
       if (state.players) this._syncPlayers(state.players);
     });
-
-    socket.on(SERVER_EVENTS.GAME_OVER, () => {
-      this.showLog("🏁 作戦終了！リザルトを確認してください。");
-    });
   }
 
   _syncPlayers(players) {
@@ -296,11 +277,10 @@ export default class MainScene extends Phaser.Scene {
       if (playerId === mySocketId) return; 
       const district = this.districts[data.districtId];
       if (!district) return;
-
       if (!this.otherPlayers[playerId]) {
         this.otherPlayers[playerId] = {
           dot: this.add.circle(district.center.x, district.center.y, 10, COLOR.ENEMY_DOT).setDepth(3),
-          label: this.add.text(district.center.x, district.center.y - 18, data.name || "ENEMY", {
+          label: this.add.text(district.center.x, district.center.y - 18, data.username || "ENEMY", {
             fontSize: "10px", color: "#2ecc71", stroke: "#000", strokeThickness: 2
           }).setOrigin(0.5).setDepth(3)
         };
@@ -316,14 +296,8 @@ export default class MainScene extends Phaser.Scene {
     Object.entries(serverDistricts).forEach(([districtId, ownerId]) => {
       const d = this.districts[Number(districtId)];
       if (!d) return;
-
-      if (!ownerId) {
-        this._redrawDistrict(d, COLOR.NEUTRAL);
-      } else if (ownerId === mySocketId) {
-        this._redrawDistrict(d, COLOR.MY_TERRITORY);
-      } else {
-        this._redrawDistrict(d, COLOR.ENEMY_TERRITORY);
-      }
+      const color = ownerId === mySocketId ? COLOR.MY_TERRITORY : (ownerId ? COLOR.ENEMY_TERRITORY : COLOR.NEUTRAL);
+      this._redrawDistrict(d, color);
     });
   }
 }
