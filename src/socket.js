@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
-// 🔴 あきらさん指定の定数をインポート（パスは環境に合わせて調整してください）
-import { SERVER_EVENTS } from "./game/socketEvents"; 
+// 🟢 共有フォルダ(shared)から読み込むようにパスを修正！
+import { SERVER_EVENTS } from "../shared/socketEvents.js";
 
 // ★ 魔法のコード：今ブラウザで開いているURLのIP（またはlocalhost）を自動取得
 const host = window.location.hostname;
