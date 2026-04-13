@@ -1,28 +1,38 @@
 import React from 'react';
 import { useGameStore } from '../store';
 
-// ✅ App.tsx での import { GameOverView } に合わせるため Named Export に変更
 export const GameOverView: React.FC = () => {
-  // Store から状態を取得
-  const isGameOver = useGameStore((state) => state.isGameOver);
+  // 🔴 判定に必要な情報を Store からすべて取得
+  const { isGameOver, districts, myId, hp, resetGame } = useGameStore();
 
-  // ゲームオーバーでない時は一切描画しない（これでチラつきを防止）
   if (!isGameOver) return null;
+
+  // --- ⚔️ 勝敗判定ロジック ---
+  const myCores = Object.values(districts).filter(ownerId => ownerId === myId).length;
+  const totalOccupied = Object.values(districts).filter(ownerId => ownerId !== null).length;
+  const enemyCores = totalOccupied - myCores;
+
+  // 敗北条件：HPが0、または地区数が敵より少ない
+  const isDeath = hp <= 0;
+  const isWin = !isDeath && myCores > enemyCores;
+
+  // 結果に応じたスタイル設定
+  const themeColor = isWin ? '#f1c40f' : '#ff0000'; // 勝てば金、負ければ赤
+  const bgColor = isWin ? '#0f172a' : '#ffffff';  // 勝てば宇宙（紺）、負ければ白
+  const textColor = isWin ? '#ffffff' : '#000000';
 
   return (
     <div style={{
-      position: 'fixed', // 画面全体に固定
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      backgroundColor: '#ffffff', // 純白
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 9999, // HUDやSidebar(1000)を完全に覆い隠す
-      animation: 'fadeIn 1.5s ease-in-out'
+      position: 'fixed',
+      top: 0, left: 0, width: '100vw', height: '100vh',
+      backgroundColor: bgColor,
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      zIndex: 9999,
+      animation: 'fadeIn 1.5s ease-in-out',
+      color: textColor,
+      textAlign: 'center',
+      fontFamily: 'sans-serif'
     }}>
       <style>{`
         @keyframes fadeIn {
@@ -31,37 +41,41 @@ export const GameOverView: React.FC = () => {
         }
       `}</style>
 
-      <h1 style={{ 
-        color: '#ff0000', 
-        fontSize: '64px', 
-        fontWeight: 'bold', 
-        marginBottom: '10px',
-        textAlign: 'center' 
-      }}>
-        MISSION FAILED
+      <h1 style={{ color: themeColor, fontSize: '64px', fontWeight: 'bold', marginBottom: '10px' }}>
+        {isWin ? '🏆 MISSION COMPLETE' : '🚨 MISSION FAILED'}
       </h1>
       
-      <p style={{ 
-        color: '#000', 
-        fontSize: '20px', 
-        marginBottom: '40px',
-        textAlign: 'center' 
-      }}>
-        コマンダーの生命反応が消失。作戦を中断します。
+      <p style={{ fontSize: '24px', marginBottom: '20px' }}>
+        {isDeath ? 'コマンダーの生命反応が消失。' : `作戦終了。領地の確保を完了。`}
       </p>
 
+      {/* 📊 戦績スコアの表示 */}
+      <div style={{ 
+        background: isWin ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', 
+        padding: '20px 40px', borderRadius: '15px', marginBottom: '40px' 
+      }}>
+        <div style={{ fontSize: '18px', opacity: 0.8 }}>FINAL SCORE</div>
+        <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
+          YOU: {myCores} <span style={{ color: themeColor }}>VS</span> ENEMY: {enemyCores}
+        </div>
+      </div>
+
       <button 
-        onClick={() => window.location.reload()} // ページをリロードして完全リセット
+        onClick={() => {
+          resetGame(); // Storeをリセット
+          window.location.reload(); // ページをリロードしてPhaserも初期化
+        }}
         style={{
-          padding: '15px 40px',
-          fontSize: '18px',
-          background: '#000',
-          color: '#fff',
+          padding: '15px 50px',
+          fontSize: '20px',
+          background: themeColor,
+          color: isWin ? '#000' : '#fff',
           border: 'none',
-          borderRadius: '5px',
+          borderRadius: '50px',
           cursor: 'pointer',
           fontWeight: 'bold',
-          transition: 'transform 0.2s active'
+          boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+          transition: 'transform 0.2s'
         }}
       >
         RE-DEPLOY (再起動)
