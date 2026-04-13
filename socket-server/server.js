@@ -16,43 +16,39 @@ const io = new Server(server, {
 // マスターデータ＆定数定義
 // ==========================================
 
-// 💡 インポートしたイベント定数を、既存のコード内で使いやすいようにまとめる
-// （長々としたローカル定義は消え、スッキリしました！）
 const EVENTS = {
-  CLIENT: CLIENT_EVENTS,
-  SERVER: SERVER_EVENTS
+    CLIENT: CLIENT_EVENTS,
+    SERVER: SERVER_EVENTS
 };
 
 const SPOT_COORDS = {
-  10011: { x: 320, y: 480 }, 
-  10012: { x: 350, y: 500 }, 
-  20000: { x: 800, y: 200 }  
+    10011: { x: 320, y: 480 }, 
+    10012: { x: 350, y: 500 }, 
+    20000: { x: 800, y: 200 }  
 };
 
-const TOTAL_DISTRICTS = 11; // 勝利条件判定用：全11地区
+const TOTAL_DISTRICTS = 11; 
 
 // ==========================================
-// ゲームステート管理 (Week 1: 交互ターン制)
+// ゲームステート管理
 // ==========================================
 
 let gameState = {
-    status: 'waiting',   // waiting -> standby -> playing -> finished
-    turn: 1,             // 現在のターン数 (1〜10)
-    maxTurn: 10,         // 最大ターン数
-    turnOwnerId: null,   // 現在ターンのプレイヤーの socket.id
-    firstPlayerId: null, // 先攻プレイヤー (ターン数カウント進行用)
+    status: 'waiting', 
+    turn: 1, 
+    maxTurn: 10,
+    turnOwnerId: null,
+    firstPlayerId: null,
     players: {},
     districts: {}
 };
 
-// バトル解決ロジック（サーバー側で実際のステータスを使って計算）
 function resolveBattle(attackerAtk, defenderDef) {
     const winProbability = attackerAtk / (attackerAtk + defenderDef);
     const isWin = Math.random() < winProbability;
     return { isWin, winProbability };
 }
 
-// 11地区完全制覇チェック
 function checkCompleteDomination() {
     const owners = Object.values(gameState.districts);
     if (owners.length === TOTAL_DISTRICTS) {
@@ -65,7 +61,7 @@ function checkCompleteDomination() {
     }
 }
 
-// ゲーム終了＆勝敗判定処理
+// 🚀 修正：Task No.33 要件に基づきリザルトデータを詳細化
 function endGame(winnerId = null) {
     gameState.status = 'finished';
     console.log("=== ゲーム終了！ 勝敗判定 ===");
@@ -83,12 +79,24 @@ function endGame(winnerId = null) {
                 maxScore = score;
                 winnerId = pId;
             } else if (score === maxScore) {
-                winnerId = "draw"; // 占有地区数が同じ場合は引き分け
+                winnerId = "draw"; 
             }
         }
     }
 
-    io.emit(EVENTS.SERVER.GAME_OVER, { winnerId: winnerId, scores: scores });
+    const winnerName = (winnerId !== "draw" && gameState.players[winnerId]) 
+        ? gameState.players[winnerId].username 
+        : "DRAW (引き分け)";
+
+    // フロントの ResultView.tsx へ詳細データを送信
+    io.emit(EVENTS.SERVER.GAME_OVER, { 
+        status: 'finished',
+        winnerId: winnerId, 
+        winnerName: winnerName,
+        scores: scores,
+        mvp: winnerName,
+        districts: gameState.districts 
+    });
 }
 
 // ==========================================
@@ -98,7 +106,6 @@ function endGame(winnerId = null) {
 io.on('connection', (socket) => {
     console.log(`ユーザー接続成功: ${socket.id}`);
 
-    // --- 1. ゲーム参加 ---
     socket.on('join_game', (userData) => {
         const currentPlayers = Object.keys(gameState.players);
 
@@ -113,7 +120,6 @@ io.on('connection', (socket) => {
             assignedTeam = existingPlayer.team === 'red' ? 'blue' : 'red';
         }
 
-        // 初期ステータスの設定
         gameState.players[socket.id] = {
             id: socket.id,
             username: userData?.username || `Player_${socket.id.substring(0,4)}`,
@@ -135,32 +141,25 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- 2. 出撃確定 (READY_TO_START) ---
     socket.on(EVENTS.CLIENT.READY_TO_START, (data) => {
         const player = gameState.players[socket.id];
         if (!player) return;
 
         const { startDistrictId } = data;
-        console.log(`[READY] ${player.username} が地区 ${startDistrictId} を選択`);
-
         player.districtId = startDistrictId;
         player.isReady = true;
         gameState.districts[startDistrictId] = socket.id; 
 
         io.emit(EVENTS.SERVER.SYNC_STATE, gameState);
 
-        // 全員出撃完了したら Day 1 開始！
         const allReady = Object.values(gameState.players).every(p => p.isReady);
         if (allReady && Object.keys(gameState.players).length === 2) {
             gameState.status = 'playing';
             gameState.turn = 1;
-            
-            // 先攻をランダムに決定
             const playerIds = Object.keys(gameState.players);
             gameState.firstPlayerId = playerIds[Math.floor(Math.random() * playerIds.length)];
             gameState.turnOwnerId = gameState.firstPlayerId;
 
-            console.log(`🚀 Day 1 スタート！ 先攻: ${gameState.players[gameState.turnOwnerId].username}`);
             io.emit(EVENTS.SERVER.TURN_START, { 
                 turn: 1, 
                 turnOwnerId: gameState.turnOwnerId 
@@ -168,7 +167,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- 3. プレイヤー移動 ---
     socket.on(EVENTS.CLIENT.PLAYER_MOVE, (moveData) => { 
         if (gameState.players[socket.id]) {
             gameState.players[socket.id].x = moveData.x;
@@ -177,10 +175,8 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- 4. アクション提出 (ターン処理エンジン) ---
     socket.on(EVENTS.CLIENT.ACTION_SUBMIT, (actionData) => {
         if (gameState.status !== 'playing') return;
-
         if (socket.id !== gameState.turnOwnerId) {
             socket.emit(EVENTS.SERVER.ACTION_REJECTED, { message: "相手のターンです！" });
             return;
@@ -189,51 +185,47 @@ io.on('connection', (socket) => {
         const player = gameState.players[socket.id];
         let turnLogs = [];
 
-        if (player.stamina <= 0 && actionData.type !== 'rest' && actionData.type !== 'stay') {
-            socket.emit(EVENTS.SERVER.ACTION_REJECTED, { message: "スタミナ不足で行動できません！" });
-            return;
-        }
+        // 🚀 修正：防御・逃げる・休息の分岐処理を追加
+        switch (actionData.type) {
+            case 'stay':
+            case 'rest':
+                player.stamina = Math.min(100, player.stamina + 20);
+                turnLogs.push(`💤 ${player.username} は休息し、APを20回復した。`);
+                break;
 
-        if (actionData.type === 'rest' || actionData.type === 'stay') {
-            player.stamina = Math.min(100, player.stamina + 10);
-            turnLogs.push(`💤 ${player.username} は休息し、APを回復した。`);
-        } 
-        else if (actionData.type === 'attack') {
-            const cost = 10;
-            if (player.stamina >= cost) {
-                player.stamina -= cost;
-                const targetId = actionData.targetId;
-                const defenderId = gameState.districts[targetId];
-                
-                let targetDef = 40; 
-                if (defenderId && gameState.players[defenderId]) {
-                    targetDef = gameState.players[defenderId].def;
-                }
+            case 'defend': // 🛡️ 防御
+                player.def += 10;
+                turnLogs.push(`🛡️ ${player.username} は防御姿勢をとった！（DEF+10）`);
+                break;
 
-                const result = resolveBattle(player.atk, targetDef);
+            case 'escape': // 🏃 逃走
+                player.stamina = Math.max(0, player.stamina - 5);
+                turnLogs.push(`🏃 ${player.username} は緊急離脱を試みた！`);
+                break;
 
-                if (result.isWin) {
-                    gameState.districts[targetId] = socket.id;
-                    turnLogs.push(`⚔️ ${player.username} が地区 ${targetId} を制圧！`);
-                    io.emit(EVENTS.SERVER.TERRITORY_UPDATED, { districtId: targetId, owner: socket.id, team: player.team });
-                    
-                    checkCompleteDomination();
+            case 'attack': // ⚔️ 攻撃
+                const cost = 20;
+                if (player.stamina >= cost) {
+                    player.stamina -= cost;
+                    const targetId = actionData.targetId;
+                    const defenderId = gameState.districts[targetId];
+                    let targetDef = defenderId ? gameState.players[defenderId].def : 40;
+
+                    const result = resolveBattle(player.atk, targetDef);
+                    if (result.isWin) {
+                        gameState.districts[targetId] = socket.id;
+                        turnLogs.push(`⚔️ ${player.username} が地区 ${targetId} を制圧！`);
+                        io.emit(EVENTS.SERVER.TERRITORY_UPDATED, { districtId: targetId, owner: socket.id, team: player.team });
+                        checkCompleteDomination();
+                    } else {
+                        player.hp = Math.max(0, player.hp - 20);
+                        turnLogs.push(`🛡️ ${player.username} は制圧に失敗し、ダメージを受けた！`);
+                    }
                 } else {
-                    player.hp = Math.max(0, player.hp - 20);
-                    turnLogs.push(`🛡️ ${player.username} は制圧に失敗し、ダメージを受けた...`);
+                    socket.emit(EVENTS.SERVER.ACTION_REJECTED, { message: "スタミナ不足です！" });
+                    return;
                 }
-
-                io.emit(EVENTS.SERVER.BATTLE_RESULT, {
-                    winnerId: result.isWin ? socket.id : (defenderId || 'npc'),
-                    loserId: result.isWin ? (defenderId || 'npc') : socket.id,
-                    targetDistrict: targetId,
-                    damage: result.isWin ? 0 : 20
-                });
-
-            } else {
-                socket.emit(EVENTS.SERVER.ACTION_REJECTED, { message: "スタミナ不足です！" });
-                return;
-            }
+                break;
         }
 
         io.emit(EVENTS.SERVER.ACTION_RESULT, { logs: turnLogs, state: gameState });
@@ -242,7 +234,6 @@ io.on('connection', (socket) => {
         if (gameState.status === 'playing') {
             const playerIds = Object.keys(gameState.players);
             const nextPlayerId = playerIds.find(id => id !== socket.id);
-            
             gameState.turnOwnerId = nextPlayerId;
 
             if (gameState.turnOwnerId === gameState.firstPlayerId) {
@@ -260,9 +251,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- 5. 切断処理 ---
     socket.on('disconnect', () => {
-        console.log(`切断: ${socket.id}`);
         delete gameState.players[socket.id];
         if (Object.keys(gameState.players).length < 2) {
             gameState.status = 'waiting';
@@ -282,6 +271,6 @@ setInterval(() => {
 server.listen(PORT, () => {
     console.log(`-----------------------------------------`);
     console.log(`『セブとり合戦』Socketサーバー起動中 (PORT: ${PORT})`);
-    console.log(`★ ESM化完了！共有定数によるターン制ロジック稼働中`);
+    console.log(`★ Week 3 要件統合済みロジック稼働中`);
     console.log(`-----------------------------------------`);
 });
