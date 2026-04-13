@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { REACT_TO_PHASER } from './game/events/PhaserBridge';
+import socket from './socket'; // 🚀 修正：サーバー通信のために socket をインポート
 
 // --- Task No.30：特産品マスタデータ ---
 const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
@@ -10,8 +10,13 @@ const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   105: { name: "マゼラン・クロス", effect: "信仰力 +0.2" },
 };
 
+const GODS_DATA = [
+  { id: 1, name: "戦神 ラプパプ", bonus: "初期攻撃力 ATK +20", item: "古びた剣" },
+  { id: 2, name: "豊穣の女神 セブナ", bonus: "初期スタミナ AP +30", item: "マンゴーの種" },
+  { id: 3, name: "知恵の神 クレド", bonus: "毎ターンAP回復 +5", item: "光るUSB" },
+];
+
 interface GameState {
-  // 基本ステータス
   hp: number; stamina: number; blessing: number;
   atk: number; def: number;
   turn: number; maxTurn: number;
@@ -24,74 +29,72 @@ interface GameState {
   isMyTurn: boolean; turnOwner: string;
   isGameOver: boolean; isSubmitted: boolean;
   isAuthenticated: boolean;
-
-  // 🚀 Week 3追加：初期ボーナス選択 (資料 No.83-85)
-  initialBonus: string | null;
-  selectInitialBonus: (bonusName: string) => void;
-
-  // 🚀 Week 3追加：リザルトデータ (資料 No.68-71, 74)
-  resultData: {
-    winnerName: string;
-    scores: Record<string, number>;
-    occupiedTerritories: number;
-    mvp: string;
-  } | null;
-
-  // Week 2：占領モーダル・バフ管理
+  selectedGodId: number | null;
+  godsList: typeof GODS_DATA;
+  selectGod: (id: number) => void;
+  resultData: { winnerName: string; scores: Record<string, number>; occupiedTerritories: number; mvp: string; } | null;
   isModalOpen: boolean;
   targetDistrict: { id: number; name: string } | null;
   setModal: (open: boolean, district?: { id: number; name: string } | null) => void;
   activeBuffs: { id: number; name: string; effect: string }[];
   updateBuffs: () => void;
-
-  // アクション
   setStatus: (status: Partial<GameState>) => void;
   syncServerState: (data: any, myId: string) => void;
-  setPlayerName: (name: string) => void; // 🚀 ここが漏れていました
+  setPlayerName: (name: string) => void;
   login: (username: string) => Promise<boolean>;
   damage: (amount: number) => void;
   addLog: (text: string) => void;
-  nextTurn: () => void;
   resetGame: () => void;
-  saveGame: () => void;
-  loadGame: () => void;
   setIsSubmitted: (val: boolean) => void;
-  
-  // 🚀 Week 3：戦略コマンド (資料 No.83-85 準拠)
+  nextTurn: () => void; 
+  attack: (targetId: number) => void;
   defense: () => void;
   stay: () => void;
   escape: () => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
-  // --- 🔴 初期状態 ---
   hp: 100, stamina: 100, blessing: 1.0, atk: 50, def: 40,
   turn: 0, maxTurn: 10,
-  logs: ["🌞 システム起動：スタンバイ。出撃地点を選択してください。"],
+  logs: ["🌞 システム起動：スタンバイ。守護神と出撃地点を選択してください。"],
   players: {}, districts: {},
   currentDistrictName: "地点未選択", selectedDistrictId: null,
-  playerName: "", myId: "player-1", myTeam: "red",
+  playerName: "", myId: "", myTeam: "red",
   isMyTurn: true, turnOwner: "YOU",
   isGameOver: false, isSubmitted: false, isAuthenticated: false,
-
   isModalOpen: false, targetDistrict: null, activeBuffs: [],
-  initialBonus: null, 
+  selectedGodId: null,
+  godsList: GODS_DATA,
   resultData: null,   
 
-  // --- 📡 ログイン & 初期選択 ---
   login: async (username: string) => {
     set({ isAuthenticated: true, playerName: username, turn: 0, isMyTurn: true });
     return true; 
   },
 
-  setPlayerName: (name) => set({ playerName: name }), // 🚀 修正：実装を追加
-
-  selectInitialBonus: (bonusName) => {
-    set({ initialBonus: bonusName });
-    get().addLog(`🛡️ 初期ボーナス：[${bonusName}] を選択しました。`);
+  selectGod: (id: number) => {
+    const god = GODS_DATA.find(g => g.id === id);
+    if (god) {
+      set((state) => ({ 
+        selectedGodId: id,
+        atk: id === 1 ? state.atk + 20 : state.atk,
+        stamina: id === 2 ? state.stamina + 30 : state.stamina
+      }));
+      get().addLog(`🙏 守護神：[${god.name}] の加護を受けました。(${god.bonus})`);
+    }
   },
 
-  // --- ⚙️ モーダル & バフ管理 ---
+  setPlayerName: (name) => set({ playerName: name }),
+
+  nextTurn: () => {
+    set((state) => ({ 
+      turn: state.turn + 1,
+      isMyTurn: false,
+      isSubmitted: false,
+      selectedDistrictId: null // 🚀 修正：選択地点をリセット
+    }));
+  },
+
   setModal: (open, district = null) => set({ isModalOpen: open, targetDistrict: district }),
 
   updateBuffs: () => {
@@ -107,88 +110,75 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ activeBuffs: buffs });
   },
 
-  // --- 📡 同期 & ステータス更新 ---
-  setStatus: (newStatus) => set((state) => {
-    if (state.isGameOver) return state;
-    const { isMyTurn, turnOwner, turn, isSubmitted, ...safeStatus } = newStatus as any;
-    if (safeStatus.districts) setTimeout(() => get().updateBuffs(), 0);
-    return { ...state, ...safeStatus };
-  }),
+  setStatus: (newStatus) => set((state) => ({ ...state, ...newStatus })),
 
   syncServerState: (data, myId) => {
     if (!data) return;
-    
-    // 決着フラグの受信チェック (資料 No.29) [cite: 29, 30]
     if (data.status === 'finished' || data.isGameOver) {
-      set({ 
-        isGameOver: true, 
-        resultData: {
-          winnerName: data.winnerName || "UNKNOWN",
-          scores: data.scores || {},
-          occupiedTerritories: Object.values(data.districts || {}).filter(id => id === myId).length,
-          mvp: data.mvp || "No Data"
-        }
-      });
+      set({ isGameOver: true, resultData: { winnerName: data.winnerName || "UNKNOWN", scores: data.scores || {}, occupiedTerritories: Object.values(data.districts || {}).filter(id => id === myId).length, mvp: data.mvp || "No Data" } });
       return;
     }
-
     const isMe = data.turnOwnerId === myId;
     set((state) => ({
       ...state,
+      myId: myId,
       hp: data.hp ?? state.hp,
       stamina: data.stamina ?? state.stamina,
       turn: data.turn ?? state.turn,
       districts: data.districts ?? state.districts,
-      isMyTurn: isMe,
+      isMyTurn: data.turn === 0 ? true : isMe,
       turnOwner: isMe ? "YOU" : (data.turnOwnerName || "ENEMY"),
       isSubmitted: false
     }));
     get().updateBuffs();
   },
 
-  // --- ⚔️ 戦略コマンド (CustomEvent経由でPhaserに送信 / 資料 No.83-85) ---
-  stay: () => {
+  // 🚀 ⚔️ 攻撃コマンド：サーバーへ送信するように修正
+  attack: (targetId: number) => {
     if (get().isGameOver || !get().isMyTurn) return;
+
+    // 1. サーバーへ攻撃を送信
+    socket.emit("ACTION_SUBMIT", { type: 'attack', targetId: targetId });
+
+    // 2. クライアントの状態を更新
     set({ isSubmitted: true, isMyTurn: false });
-    get().addLog("🧘 休息：APを回復し、待機します。");
-    window.dispatchEvent(new CustomEvent('ACTION_STAY'));
+    get().addLog(`⚔️ 地区 ${targetId} へ攻撃を仕掛けました！`);
+    
+    // Phaser 演出用
+    window.dispatchEvent(new CustomEvent('ACTION_ATTACK', { detail: { targetId } }));
   },
 
-  defense: () => {
-    if (get().isGameOver || !get().isMyTurn) return;
+  // 🚀 🧘 休息コマンド：サーバーへ送信
+  stay: () => { 
+    if (!get().isMyTurn) return;
+    socket.emit("ACTION_SUBMIT", { type: 'stay' });
     set({ isSubmitted: true, isMyTurn: false });
-    get().addLog("🛡️ 防御：防御姿勢をとり、敵の攻撃に備えます。");
-    window.dispatchEvent(new CustomEvent('ACTION_DEFEND'));
+    get().addLog("🧘 休息を選択しました。");
+    window.dispatchEvent(new CustomEvent('ACTION_STAY')); 
   },
 
-  escape: () => {
-    if (get().isGameOver || !get().isMyTurn) return;
+  // 🚀 🛡️ 防御コマンド：サーバーへ送信
+  defense: () => { 
+    if (!get().isMyTurn) return;
+    socket.emit("ACTION_SUBMIT", { type: 'defend' });
     set({ isSubmitted: true, isMyTurn: false });
-    get().addLog("🏃 撤退：現在のセクターから緊急離脱を試みます。");
-    window.dispatchEvent(new CustomEvent('ACTION_ESCAPE'));
+    get().addLog("🛡️ 防御姿勢をとりました。");
+    window.dispatchEvent(new CustomEvent('ACTION_DEFEND')); 
   },
 
-  // --- 🛠️ ユーティリティ ---
-  damage: (amount) => {
-    const nextHp = Math.max(0, get().hp - amount);
-    set({ hp: nextHp, isGameOver: nextHp <= 0 });
-    get().addLog(`💥 警告：${amount} ダメージを受領。`);
+  // 🚀 🏃 逃走コマンド：サーバーへ送信
+  escape: () => { 
+    if (!get().isMyTurn) return;
+    socket.emit("ACTION_SUBMIT", { type: 'escape' });
+    set({ isSubmitted: true, isMyTurn: false });
+    get().addLog("🏃 撤退を試みています。");
+    window.dispatchEvent(new CustomEvent('ACTION_ESCAPE')); 
   },
 
-  resetGame: () => {
-    set({
-      turn: 0, hp: 100, stamina: 100, isGameOver: false, isSubmitted: false, isMyTurn: true,
-      logs: ["🌞 システム再起動：スタンバイ。"],
-      resultData: null, initialBonus: null, activeBuffs: []
-    });
-    window.location.reload(); 
-  },
-
+  damage: (amount) => set({ hp: Math.max(0, get().hp - amount) }),
+  resetGame: () => window.location.reload(),
   setIsSubmitted: (val) => set({ isSubmitted: val }),
   addLog: (text) => set((state) => ({ logs: [text, ...state.logs].slice(0, 10) })),
-  nextTurn: () => set((state) => ({ turn: state.turn + 1, isMyTurn: true, isSubmitted: false })),
-  saveGame: () => get().addLog("💾 作戦データを保存しました。"),
-  loadGame: () => get().addLog("📂 作戦データを読み込みました。"),
 }));
 
 if (typeof window !== 'undefined') {
