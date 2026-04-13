@@ -1,22 +1,22 @@
 import Phaser from "phaser";
 import socket from "../../socket";
-import { CLIENT_EVENTS, SERVER_EVENTS } from "../socketEvents";
+// 🟢 修正：深い階層(src/game/scenes/)からsharedフォルダへ正しくアクセス
+import { CLIENT_EVENTS, SERVER_EVENTS } from "../../../shared/socketEvents.js";
 import { PHASER_TO_REACT, REACT_TO_PHASER } from "../events/PhaserBridge";
 
 const MAP_SCALE = 0.5;
 
 const COLOR = {
-  MY_TERRITORY: 0xe74c3c, // 自分の領地（赤）
-  ENEMY_TERRITORY: 0x27ae60, // 敵の領地（緑）
-  NEUTRAL: 0x4a90d9, // 中立（青）
-  HIGHLIGHT: 0xffff00, // 選択中（黄）
-  PLAYER_DOT: 0xf1c40f, // 自分の現在地(黄)
-  ENEMY_DOT: 0x2ecc71, // 敵の現在地（緑）
+  MY_TERRITORY: 0xe74c3c, 
+  ENEMY_TERRITORY: 0x27ae60, 
+  NEUTRAL: 0x4a90d9, 
+  HIGHLIGHT: 0xffff00, 
+  PLAYER_DOT: 0xf1c40f, 
+  ENEMY_DOT: 0x2ecc71, 
   TEAM_RED: 0xe74c3c,
   TEAM_BLUE: 0x3498db,
 };
 
-// 🗺️ 地区ごとの隣接データ
 const ADJACENCY = {
   101: [102, 103, 104, 105, 201],
   102: [101, 104, 105, 401],
@@ -95,9 +95,6 @@ export default class MainScene extends Phaser.Scene {
     this.updateStatusToReact();
   }
 
-  /**
-   * 🗺️ 地図クリック時の処理
-   */
   _onMapClicked(x, y) {
     if (this._dragMoved) return;
     const worldPoint = this.cameras.main.getWorldPoint(x, y);
@@ -108,12 +105,10 @@ export default class MainScene extends Phaser.Scene {
     if (!store) return;
 
     if (this.isSelectionMode) {
-      // --- Week 1: 地点選択 ---
       Object.values(this.districts).forEach((d) => this._redrawDistrict(d, COLOR.NEUTRAL));
       this._redrawDistrict(this.districts[id], COLOR.HIGHLIGHT, 0.8);
       store.setStatus({ selectedDistrictId: id, currentDistrictName: this.districts[id].name });
     } else {
-      // --- 🚀 Week 2: 隣接チェックの実装 ---
       const neighbors = ADJACENCY[this.currentDistrictId] || [];
       const isNeighbor = neighbors.includes(id);
 
@@ -155,9 +150,6 @@ export default class MainScene extends Phaser.Scene {
     this.cameras.main.pan(start.center.x, start.center.y, 600, "Power2");
   }
 
-  /**
-   * 🚀 Week 2: 占領演出（フラッシュエフェクト）
-   */
   claimDistrict(id, team) {
     const d = this.districts[id];
     if (!d) return;
@@ -165,7 +157,6 @@ export default class MainScene extends Phaser.Scene {
     d.owner = team;
     const color = team === "red" ? COLOR.TEAM_RED : COLOR.TEAM_BLUE;
 
-    // 🔴 演出：占領した地区を点滅させてから色を変える
     this.tweens.add({
       targets: d.graphics,
       alpha: 0.1,
@@ -183,7 +174,6 @@ export default class MainScene extends Phaser.Scene {
     }
   }
 
-  // --- 内部処理 ---
   _setupTilemap() {
     const map = this.make.tilemap({ key: "map" });
     const tileset = map.addTilesetImage("Slates.png", "tiles");
@@ -238,7 +228,7 @@ export default class MainScene extends Phaser.Scene {
     d.graphics.clear().fillStyle(color, alpha).beginPath();
     d.polygon.forEach((p, i) => i === 0 ? d.graphics.moveTo(p.x, p.y) : d.graphics.lineTo(p.x, p.y));
     d.graphics.closePath().fillPath().lineStyle(2, 0xffffff, 0.8).strokePath();
-    d.graphics.setAlpha(alpha); // Tween用
+    d.graphics.setAlpha(alpha); 
   }
 
   _calcCenter(p) {
@@ -283,7 +273,6 @@ export default class MainScene extends Phaser.Scene {
     const mySocketId = socket.id;
     Object.entries(players).forEach(([playerId, data]) => {
       if (playerId === mySocketId) {
-        // 自分の位置がサーバー上で更新されたら追従する
         if (data.districtId && data.districtId !== this.currentDistrictId) {
           this.currentDistrictId = data.districtId;
           this._placePlayer(data.districtId);
@@ -314,7 +303,6 @@ export default class MainScene extends Phaser.Scene {
       
       const newOwnerTeam = ownerId ? (ownerId === mySocketId ? "me" : "enemy") : "neutral";
       
-      // 🚀 前の状態と所有者が変わっていたら claimDistrict を呼んで演出させる
       if (d.owner !== newOwnerTeam) {
         this.claimDistrict(Number(districtId), ownerId === mySocketId ? "red" : (ownerId ? "blue" : "neutral"));
       }
