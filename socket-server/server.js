@@ -91,29 +91,32 @@ function endGame(winnerId = null) {
     io.emit(EVENTS.SERVER.GAME_OVER, { winnerId: winnerId, scores: scores });
 }
 
-function finishGame() {
-    gameState.status = 'finished';
-    console.log("=== ゲーム終了！リザルト集計中 ===");
-    io.emit(EVENTS.SERVER.GAME_OVER, { state: gameState });
-}
-
 // ==========================================
 // Socket 通信処理
 // ==========================================
 
 io.on('connection', (socket) => {
-    console.log(`接続: ${socket.id}`);
+    console.log(`ユーザー接続成功: ${socket.id}`);
 
+    // --- 1. ゲーム参加 ---
     socket.on('join_game', (userData) => {
         const currentPlayers = Object.keys(gameState.players);
-        if (currentPlayers.length >= 2) return socket.emit('room_full');
 
-        let team = currentPlayers.length === 0 ? 'red' : 'blue';
+        if (currentPlayers.length >= 2 && !gameState.players[socket.id]) {
+            socket.emit('room_full', { message: 'ルーム満員です。' });
+            return;
+        }
+
+        let assignedTeam = 'red'; 
+        if (currentPlayers.length === 1) {
+            const existingPlayer = gameState.players[currentPlayers[0]];
+            assignedTeam = existingPlayer.team === 'red' ? 'blue' : 'red';
+        }
 
         // 初期ステータスの設定
         gameState.players[socket.id] = {
             id: socket.id,
-            username: userData?.username || 'Guest',
+            username: userData?.username || `Player_${socket.id.substring(0,4)}`,
             districtId: null, 
             hp: 100, 
             stamina: 100, 
@@ -128,6 +131,7 @@ io.on('connection', (socket) => {
         if (Object.keys(gameState.players).length === 2) {
             gameState.status = 'standby';
             io.emit('gameStart', { status: 'standby' });
+            console.log("★ 2名揃いました。地点選択（Standby）開始");
         }
     });
 
@@ -147,7 +151,7 @@ io.on('connection', (socket) => {
 
         // 全員出撃完了したら Day 1 開始！
         const allReady = Object.values(gameState.players).every(p => p.isReady);
-        if (allReady && Object.keys(gameState.players).length >= 2) {
+        if (allReady && Object.keys(gameState.players).length === 2) {
             gameState.status = 'playing';
             gameState.turn = 1;
             
@@ -256,13 +260,16 @@ io.on('connection', (socket) => {
         }
     });
 
+    // --- 5. 切断処理 ---
     socket.on('disconnect', () => {
+        console.log(`切断: ${socket.id}`);
         delete gameState.players[socket.id];
         if (Object.keys(gameState.players).length < 2) {
             gameState.status = 'waiting';
             gameState.turn = 1;
             gameState.districts = {};
         }
+        io.emit('playerDisconnected', socket.id);
     });
 });
 
