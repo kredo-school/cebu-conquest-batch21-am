@@ -8,12 +8,12 @@ const MAP_SCALE = 0.5;
 const COLOR = {
   MY_TERRITORY: 0xe74c3c, 
   ENEMY_TERRITORY: 0x27ae60, 
-  NEUTRAL: 0x4a90d9, 
+  NEUTRAL: 0x95a5a6,    // 🚀 中立は「グレー」に（これが一番重要！）
   HIGHLIGHT: 0xffff00, 
   PLAYER_DOT: 0xf1c40f, 
   ENEMY_DOT: 0x2ecc71, 
-  TEAM_RED: 0xe74c3c,   // 赤チームの色
-  TEAM_BLUE: 0x3498db,  // 青チームの色
+  TEAM_RED: 0xff0000,   // 🟥 真っ赤
+  TEAM_BLUE: 0x00ffff,  // 🟦 明るい水色（シアン）なら絶対に見えます
 };
 
 const ADJACENCY = {
