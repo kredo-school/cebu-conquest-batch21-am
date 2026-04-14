@@ -5,169 +5,161 @@ import { useGameStore } from './store';
 // ✅ インポート形式の整合性を維持
 import { Sidebar } from './components/Sidebar';
 import { GameOverView } from './components/GameOverView';
-import TitleScreen from './components/TitleScreen'; // Default export
+import TitleScreen from './components/TitleScreen'; 
 import { HUD } from './components/HUD';
 import { PhaserGameView } from './components/PhaserGame';
 import { LoginView } from './components/LoginView';
+import { GodSelectionView } from './components/GodSelectionView';
+
+// 🔴 ブリッジ定数とイベント定数をインポート
+import { PHASER_TO_REACT, REACT_TO_PHASER } from './game/events/PhaserBridge';
+import { SERVER_EVENTS } from '../shared/socketEvents.js';
 
 const App: React.FC = () => {
-  const { setStatus, syncServerState, addLog, nextTurn } = useGameStore();
-  const gameRef = useRef<any>(null);
+  const { 
+    login, setStatus, syncServerState, addLog,
+    turn, playerName: storePlayerName, selectedDistrictId,
+  } = useGameStore();
   
+  const gameRef = useRef<any>(null);
   const [view, setView] = useState<'title' | 'login' | 'waiting' | 'game'>('title');
-  const [playerName, setPlayerName] = useState('');
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [playerName, setLocalPlayerName] = useState('');
 
   useEffect(() => {
     (window as any).useGameStore = useGameStore;
 
-    // --- 📡 サーバー通信の設定（ガード付き） ---
+    // --- 📡 サーバー通信の設定 ---
 
-    socket.on('syncState', (state) => {
-      // 🔴 ガード：ゲームオーバー確定後は、いかなるデータも受け付けない（チラつき防止）
+    // 🚀 1. 接続した瞬間に自分のIDをStoreに覚えさせる（最重要）
+    socket.on('connect', () => {
+      console.log("📡 サーバー接続成功! My ID:", socket.id);
+      if (socket.id) setStatus({ myId: socket.id });
+    });
+
+    // 🚀 2. サーバーからの「全員への号令（TURN_START）」を最優先で処理
+    socket.on(SERVER_EVENTS.TURN_START, (data) => {
+      console.log("⚔️ サーバーからのターン開始信号受信:", data);
+      if (socket.id) {
+        // 現在のIDを添えて、サーバーの指定IDと照合させる
+        syncServerState({ ...useGameStore.getState(), ...data }, socket.id);
+        const isMe = data.turnOwnerId === socket.id;
+        addLog(`📢 Day ${data.turn} 開始！ ${isMe ? '⚔️ あなたのターン' : '⌛ 相手のターン'}`);
+      }
+    });
+
+    socket.on(SERVER_EVENTS.SYNC_STATE, (state) => {
       if (useGameStore.getState().isGameOver) return;
-
       if (socket.id) syncServerState(state, socket.id);
     });
 
     socket.on('gameStart', () => {
       setView('game');
-      addLog("🚀 マッチング完了。出撃地点を選択してください（Standby）");
+      addLog("🚀 マッチング完了。出撃地点を選択してください");
     });
 
-    socket.on('turnResult', (data) => {
+    socket.on(SERVER_EVENTS.ACTION_RESULT, (data) => {
       if (useGameStore.getState().isGameOver) return;
-
-      if (data.logs) {
-        data.logs.forEach((log: string) => addLog(log));
-      }
-      if (data.state && socket.id) {
-        syncServerState(data.state, socket.id);
-      }
+      if (data.logs) data.logs.forEach((log: string) => addLog(log));
+      if (data.state && socket.id) syncServerState(data.state, socket.id);
     });
 
-    socket.on('gameOver', (data) => {
-      const isWin = data.winnerId === socket.id;
-      addLog(isWin ? "🏆 MISSION COMPLETE" : "🚨 MISSION FAILED");
+    socket.on(SERVER_EVENTS.GAME_OVER, (data) => {
+      addLog(data.winnerId === socket.id ? "🏆 MISSION COMPLETE" : "🚨 MISSION FAILED");
     });
 
-    // --- 🎮 Phaserブリッジ（数値データ同期・ガード付き） ---
-
+    // --- 🎮 Phaserブリッジ ---
     const handleUpdateStatus = (e: any) => {
-      // 🔴 ガード：React側のStoreですでに死んでいるなら、Phaserの更新を無視
       if (useGameStore.getState().isGameOver) return;
-
-      // 数値ステータスのみ反映（isMyTurnやTurn数はStore/サーバーが管理するため除外）
-      const { isMyTurn, turn, turnOwner, isSubmitted, isGameOver, ...pureStats } = e.detail;
-      setStatus(pureStats);
+      setStatus(e.detail);
     };
 
-    const handleDistrictSelected = (e: any) => setSelectedId(e.detail);
+    const handleDistrictSelected = (e: any) => {
+      setStatus({ selectedDistrictId: e.detail });
+    };
 
-    window.addEventListener("UPDATE_STATUS", handleUpdateStatus);
-    window.addEventListener("DISTRICT_SELECTED", handleDistrictSelected);
+    window.addEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
+    window.addEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleDistrictSelected);
 
     return () => {
-      socket.off('syncState');
+      socket.off('connect');
+      socket.off(SERVER_EVENTS.TURN_START);
+      socket.off(SERVER_EVENTS.SYNC_STATE);
       socket.off('gameStart');
-      socket.off('turnResult');
-      socket.off('gameOver');
-      window.removeEventListener("UPDATE_STATUS", handleUpdateStatus);
-      window.removeEventListener("DISTRICT_SELECTED", handleDistrictSelected);
+      socket.off(SERVER_EVENTS.ACTION_RESULT);
+      socket.off(SERVER_EVENTS.GAME_OVER);
+      window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
+      window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleDistrictSelected);
     };
   }, [setStatus, syncServerState, addLog]);
 
-  const handleLoginSubmit = (name: string) => {
-    setPlayerName(name);
+  const handleLoginSubmit = async (name: string) => {
+    setLocalPlayerName(name);
+    await login(name); 
     socket.connect();
-    socket.emit('join_game', { username: name, team: name === 'issei' ? 'red' : 'blue' });
+    socket.emit('join_game', { username: name });
     setView('waiting');
   };
 
-  // ✅ 出撃確定処理：ここで自動的に Turn 0 (Standby) -> Turn 1 (Day 1) へ移行
+  /**
+   * 🚀 出撃確定処理
+   * マルチプレイなので nextTurn() を勝手に呼んではいけません。サーバーの号令を待ちます。
+   */
   const handleFinalDeploy = () => {
-    const gameInstance = gameRef.current?.game || gameRef.current;
-    const mainScene = gameInstance?.scene?.getScene('MainScene');
-
-    if (selectedId && mainScene) {
-      // 1. サーバーへ地点情報を送信
-      socket.emit("READY_TO_START", { username: playerName, startDistrictId: selectedId });
+    if (selectedDistrictId) {
+      socket.emit("READY_TO_START", { 
+        username: playerName || storePlayerName || 'Guest', 
+        startDistrictId: selectedDistrictId 
+      });
       
-      // 2. Phaser側のデプロイ演出を実行
-      if (mainScene.confirmDeployment) mainScene.confirmDeployment(selectedId);
+      window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, {
+        detail: { districtId: selectedDistrictId }
+      }));
       
-      // 3. 🔴 ターンを 0 から 1 へ進め、Day 1 を正式に開始させる
-      nextTurn();
-
-      setSelectedId(null);
+      addLog(`🚀 地区 ${selectedDistrictId} への配置完了。マッチング相手を待機中...`);
+      setStatus({ selectedDistrictId: null });
     }
   };
-
-  // --- 🖼 画面表示分岐 ---
 
   if (view === 'title') return <TitleScreen onStart={() => setView('login')} />;
   if (view === 'login') return <LoginView onLogin={handleLoginSubmit} />;
   
-  if (view === 'waiting') return (
-    <div style={waitingScreenStyle}>
-      <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-      <h1 style={{ fontSize: '48px', marginBottom: '20px', fontWeight: 'bold' }}>Looking for a match...</h1>
-      <p style={{ fontSize: '18px', color: '#ccc', marginBottom: '40px' }}>
-        「{playerName || 'issei'}」 is Preparing for sortie
-      </p>
-      <div style={spinnerStyle}></div>
-      {/* 開発・テスト用強制開始ボタン */}
-      <button onClick={() => setView('game')} style={debugButtonStyle}>
-        (Debug) Force Start Game
-      </button>
-    </div>
-  );
-
   return (
-    <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', background: '#000' }}>
-      <div style={{ flex: 1, position: 'relative' }}>
-        <PhaserGameView ref={gameRef} playerName={playerName} />
-        
-        {/* 出撃地点選択中に出るボタン（これを押すと Day 1 になる） */}
-        {selectedId && (
-          <div style={{ position: 'absolute', bottom: '50px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}>
-            <button onClick={handleFinalDeploy} style={deployButtonStyle}>
-              DEPLOY START
-            </button>
-          </div>
-        )}
+    <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', background: '#000', position: 'relative' }}>
+      <GodSelectionView />
 
-        <HUD />
-        {/* GameOverView は zIndex 9999 で全画面を白く覆います */}
-        <GameOverView />
-      </div>
-      <Sidebar />
+      {view === 'waiting' ? (
+        <div style={waitingScreenStyle}>
+          <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+          <h1 style={{ fontSize: '48px', marginBottom: '20px', fontWeight: 'bold' }}>Looking for a match...</h1>
+          <p style={{ fontSize: '18px', color: '#ccc', marginBottom: '40px' }}>
+            「{playerName || storePlayerName}」 is Preparing for sortie
+          </p>
+          <div style={spinnerStyle}></div>
+          <button onClick={() => setView('game')} style={debugButtonStyle}>(Debug) Force Start Game</button>
+        </div>
+      ) : (
+        <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <PhaserGameView ref={gameRef} playerName={playerName || storePlayerName} />
+            {turn === 0 && selectedDistrictId && (
+              <div style={{ position: 'absolute', bottom: '120px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}>
+                <button onClick={handleFinalDeploy} style={deployButtonStyle}>DEPLOY START</button>
+              </div>
+            )}
+            <HUD />
+            <GameOverView />
+          </div>
+          <Sidebar />
+        </div>
+      )}
     </div>
   );
 };
 
-// --- 🎨 スタイル定義（以前の使いやすいデザインを維持） ---
-
-const waitingScreenStyle: React.CSSProperties = { 
-  background: '#121926', height: '100vh', display: 'flex', flexDirection: 'column', 
-  alignItems: 'center', justifyContent: 'center', color: 'white', fontFamily: 'sans-serif' 
-};
-
-const spinnerStyle: React.CSSProperties = { 
-  width: '60px', height: '60px', border: '6px solid rgba(255, 255, 255, 0.1)', 
-  borderTop: '6px solid #3498db', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '40px' 
-};
-
-const debugButtonStyle: React.CSSProperties = { 
-  marginTop: '20px', background: 'rgba(255, 255, 255, 0.05)', color: '#666', 
-  padding: '10px 20px', borderRadius: '5px', border: '1px solid rgba(255, 255, 255, 0.1)', 
-  cursor: 'pointer', fontSize: '12px' 
-};
-
-const deployButtonStyle: React.CSSProperties = { 
-  background: '#f1c40f', color: '#000', padding: '15px 40px', fontSize: '20px', 
-  fontWeight: 'bold', borderRadius: '10px', border: 'none', cursor: 'pointer', 
-  boxShadow: '0 0 20px rgba(241, 196, 15, 0.5)' 
-};
+// スタイル定義（省略・変更なし）
+const waitingScreenStyle: React.CSSProperties = { flex: 1, background: '#121926', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', fontFamily: 'sans-serif' };
+const spinnerStyle: React.CSSProperties = { width: '60px', height: '60px', border: '6px solid rgba(255, 255, 255, 0.1)', borderTop: '6px solid #3498db', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '40px' };
+const debugButtonStyle: React.CSSProperties = { marginTop: '20px', background: 'rgba(255, 255, 255, 0.05)', color: '#666', padding: '10px 20px', borderRadius: '5px', border: '1px solid rgba(255, 255, 255, 0.1)', cursor: 'pointer', fontSize: '12px' };
+const deployButtonStyle: React.CSSProperties = { background: '#f1c40f', color: '#000', padding: '15px 40px', fontSize: '20px', fontWeight: 'bold', borderRadius: '10px', border: 'none', cursor: 'pointer', boxShadow: '0 0 20px rgba(241, 196, 15, 0.5)' };
 
 export default App;

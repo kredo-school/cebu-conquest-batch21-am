@@ -1,154 +1,192 @@
 import { create } from 'zustand';
+import socket from './socket';
 
+// --- 特産品マスタデータ ---
+const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
+  101: { name: "セブ・マンゴー", effect: "ATK +10%" },
+  102: { name: "サン・ペドロの祈り", effect: "DEF +10%" },
+  103: { name: "レチョン・パワー", effect: "HP回復 +5" },
+  104: { name: "ITパークの知恵", effect: "AP消費 -2" },
+  105: { name: "マゼラン・クロス", effect: "信仰力 +0.2" },
+};
+
+const GODS_DATA = [
+  { id: 1, name: "戦神 ラプパプ", bonus: "初期攻撃力 ATK +20", item: "古びた剣" },
+  { id: 2, name: "豊穣の女神 セブナ", bonus: "初期スタミナ AP +30", item: "マンゴーの種" },
+  { id: 3, name: "知恵の神 クレド", bonus: "毎ターンAP回復 +5", item: "光るUSB" },
+];
+
+// 🚀 GameState インターフェース
 interface GameState {
   hp: number; stamina: number; blessing: number;
+  atk: number; def: number;
   turn: number; maxTurn: number;
   logs: string[]; players: Record<string, any>;
   districts: Record<string, string>;
   currentDistrictName: string;
+  selectedDistrictId: number | null;
+  playerName: string;
   myId: string; myTeam: string;
   isMyTurn: boolean; turnOwner: string;
   isGameOver: boolean; isSubmitted: boolean;
-
+  isAuthenticated: boolean;
+  selectedGodId: number | null;
+  godsList: typeof GODS_DATA;
+  selectGod: (id: number) => void;
+  resultData: { winnerName: string; scores: Record<string, number>; occupiedTerritories: number; mvp: string; } | null;
+  isModalOpen: boolean;
+  targetDistrict: { id: number; name: string } | null;
+  setModal: (open: boolean, district?: { id: number; name: string } | null) => void;
+  activeBuffs: { id: number; name: string; effect: string }[];
+  updateBuffs: () => void;
   setStatus: (status: Partial<GameState>) => void;
   syncServerState: (data: any, myId: string) => void;
+  setPlayerName: (name: string) => void;
+  login: (username: string) => Promise<boolean>;
   damage: (amount: number) => void;
   addLog: (text: string) => void;
-  nextTurn: () => void;
   resetGame: () => void;
-  saveGame: () => void;
-  loadGame: () => void;
   setIsSubmitted: (val: boolean) => void;
+  nextTurn: () => void; 
+  attack: (targetId: number) => void;
   defense: () => void;
   stay: () => void;
   escape: () => void;
+  endTurn: () => void; 
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
-  // --- 🔴 初期状態：Turn 0 (Standby) ---
-  hp: 100,
-  stamina: 100,
-  blessing: 1.0,
-  turn: 0, 
-  maxTurn: 10,
-  logs: ["🌞 システム起動：スタンバイ。出撃地点を選択してください。"],
-  players: {},
-  districts: {},
-  currentDistrictName: "地点未選択",
-  myId: "",
-  myTeam: "red",
-  isMyTurn: true, 
-  turnOwner: "YOU",
-  isGameOver: false,
-  isSubmitted: false,
+  hp: 100, stamina: 100, blessing: 1.0, atk: 50, def: 40,
+  turn: 0, maxTurn: 10,
+  logs: ["🌞 戦場へようこそ。出撃地点を選択してください。"],
+  players: {}, districts: {},
+  currentDistrictName: "地点未選択", selectedDistrictId: null,
+  playerName: "", myId: "", myTeam: "red",
+  isMyTurn: true, turnOwner: "YOU",
+  isGameOver: false, isSubmitted: false, isAuthenticated: false,
+  isModalOpen: false, targetDistrict: null, activeBuffs: [],
+  selectedGodId: null,
+  godsList: GODS_DATA,
+  resultData: null,   
 
-  // --- 📡 通信・同期アクション（鉄壁ガード） ---
-
-  setStatus: (newStatus) => set((state) => {
-    if (state.isGameOver) return state; // ゲームオーバー時は何もしない
-
-    const { isMyTurn, turnOwner, turn, isSubmitted, isGameOver: newIsGameOver, ...safeStatus } = newStatus as any;
-    const nextHp = safeStatus.hp !== undefined ? safeStatus.hp : state.hp;
-    const isDead = nextHp <= 0;
-
-    return { 
-      ...state, 
-      ...safeStatus,
-      hp: nextHp,
-      isGameOver: isDead,
-      // 地点選択中(turn 0)なら常に自ターンを維持
-      isMyTurn: isDead ? false : (state.turn === 0 ? true : state.isMyTurn) 
-    };
-  }),
-
-  syncServerState: (data, myId) => {
-    if (!data || get().isGameOver) return;
-
-    const isMe = data.turnOwnerId === myId;
-    set((state) => ({
-      ...state,
-      hp: data.hp ?? state.hp,
-      stamina: data.stamina ?? state.stamina,
-      // 🔴 修正：地点選択確定(nextTurn実行)までは、サーバー同期が来ても turn 0 を守る
-      turn: state.turn === 0 ? 0 : (data.turn ?? state.turn),
-      districts: data.districts ?? state.districts,
-      isMyTurn: state.turn === 0 ? true : isMe,
-      turnOwner: isMe ? "YOU" : (data.turnOwnerName || "ENEMY"),
-      isSubmitted: false,
-      isGameOver: (data.hp !== undefined && data.hp <= 0) || (data.turn > state.maxTurn)
-    }));
+  login: async (username: string) => {
+    set({ isAuthenticated: true, playerName: username, turn: 0, isMyTurn: true });
+    return true; 
   },
 
-  // --- ⚔️ Day 1 以降のゲーム進行 ---
-
-  nextTurn: () => {
-    if (get().isGameOver) return;
-    
-    const nextT = get().turn + 1;
-    set({ 
-      turn: nextT, 
-      isMyTurn: true, 
-      turnOwner: "YOU", 
-      isSubmitted: false 
-    });
-
-    if (nextT === 1) {
-      get().addLog("🚀 作戦開始！第一日目。セブ島制圧ミッションをスタートします。");
-    } else {
-      get().addLog(`🌞 第${nextT}日目。新たな指令を待機中...`);
+  selectGod: (id: number) => {
+    const god = GODS_DATA.find(g => g.id === id);
+    if (god) {
+      set((state) => ({ 
+        selectedGodId: id,
+        atk: id === 1 ? state.atk + 20 : state.atk,
+        stamina: id === 2 ? state.stamina + 30 : state.stamina
+      }));
+      get().addLog(`🙏 守護神：[${god.name}] の加護を受けました。(${god.bonus})`);
     }
   },
 
-  // --- 🧘 戦略アクション（Day 1 以降のプレイ要素） ---
+  setPlayerName: (name) => set({ playerName: name }),
 
-  stay: () => {
-    if (get().isGameOver || !get().isMyTurn) return;
+  nextTurn: () => {
+    set((state) => ({ 
+      turn: state.turn + 1,
+      isMyTurn: false,
+      isSubmitted: false,
+      selectedDistrictId: null 
+    }));
+  },
+
+  setModal: (open, district = null) => set({ isModalOpen: open, targetDistrict: district }),
+
+  updateBuffs: () => {
+    const { districts, myId } = get();
+    const myDistrictIds = Object.entries(districts)
+      .filter(([_, ownerId]) => ownerId === myId)
+      .map(([id, _]) => Number(id));
+
+    const buffs = myDistrictIds
+      .filter(id => SPECIALTY_DATA[id])
+      .map(id => ({ id, ...SPECIALTY_DATA[id] }));
+
+    set({ activeBuffs: buffs });
+  },
+
+  setStatus: (newStatus) => set((state) => ({ ...state, ...newStatus })),
+
+  // 🚀 同期処理：ここを強化
+  syncServerState: (data, myId) => {
+    if (!data) return;
+    if (data.status === 'finished' || data.isGameOver) {
+      set({ isGameOver: true, resultData: { winnerName: data.winnerName || "UNKNOWN", scores: data.scores || {}, occupiedTerritories: Object.values(data.districts || {}).filter(id => id === myId).length, mvp: data.mvp || "No Data" } });
+      return;
+    }
+    const isMe = data.turnOwnerId === myId;
+    const myPlayerData = data.players?.[myId];
+
+    set((state) => ({
+      ...state,
+      myId: myId,
+      hp: myPlayerData?.hp ?? state.hp,
+      stamina: myPlayerData?.stamina ?? state.stamina,
+      atk: myPlayerData?.atk ?? state.atk,
+      def: myPlayerData?.def ?? state.def,
+      turn: data.turn ?? state.turn,
+      districts: data.districts ?? state.districts,
+      isMyTurn: data.turn === 0 ? true : isMe,
+      turnOwner: isMe ? "YOU" : (data.turnOwnerName || "ENEMY"),
+      isSubmitted: isMe ? false : state.isSubmitted 
+    }));
+
+    // 🚀 【最重要】Phaserへ地図の再描画命令を飛ばす
+    // これにより、もう一人の画面でもリアルタイムに領地の色が変わります。
+    window.dispatchEvent(new CustomEvent('MAP_REPAINT', { 
+        detail: { districts: data.districts, players: data.players } 
+    }));
+
+    get().updateBuffs();
+  },
+
+  attack: (targetId: number) => {
+    const { isGameOver, isMyTurn, stamina } = get();
+    if (isGameOver || !isMyTurn || stamina < 30) return;
     
-    // 🔴 Day 1 要素：休息でスタミナを 20 回復するロジック
-    const currentStamina = get().stamina;
-    const nextStamina = Math.min(100, currentStamina + 20);
-    
-    set({ 
-      stamina: nextStamina,
-      isSubmitted: true, 
-      isMyTurn: false 
-    });
-    
-    get().addLog(`🧘 休息：スタミナが ${nextStamina} に回復しました。`);
-    window.dispatchEvent(new CustomEvent("ACTION_STAY"));
+    socket.emit("ACTION_SUBMIT", { type: 'attack', targetId: targetId });
+    get().addLog(`⚔️ 地区 ${targetId} 攻撃指令！ (AP-30)`);
+    window.dispatchEvent(new CustomEvent('ACTION_ATTACK', { detail: { targetId } }));
   },
 
-  defense: () => {
-    if (get().isGameOver || !get().isMyTurn) return;
-    set({ isSubmitted: true, isMyTurn: false });
-    get().addLog("🛡️ 防御：防御姿勢をとり、敵の攻撃に備えます。");
-    window.dispatchEvent(new CustomEvent("ACTION_DEFEND"));
+  stay: () => { 
+    if (!get().isMyTurn) return;
+    socket.emit("ACTION_SUBMIT", { type: 'stay' });
+    get().addLog("🧘 休息 (AP回復)");
   },
 
-  escape: () => {
-    if (get().isGameOver || !get().isMyTurn) return;
-    set({ isSubmitted: true, isMyTurn: false });
-    get().addLog("🏃 撤退：現在のセクターから緊急離脱を試みます。");
-    window.dispatchEvent(new CustomEvent("ACTION_ESCAPE"));
+  defense: () => { 
+    if (!get().isMyTurn || get().stamina < 10) return;
+    socket.emit("ACTION_SUBMIT", { type: 'defend' });
+    get().addLog("🛡️ 防御！ (AP-10)");
   },
 
-  // --- 🛠️ ユーティリティ ---
-
-  damage: (amount) => {
-    if (get().isGameOver) return;
-    const nextHp = Math.max(0, get().hp - amount);
-    set({ hp: nextHp, isGameOver: nextHp <= 0 });
-    get().addLog(`💥 警告：${amount} ダメージを受領。`);
+  escape: () => { 
+    if (!get().isMyTurn) return;
+    socket.emit("ACTION_SUBMIT", { type: 'escape' });
+    get().addLog("🏃 撤退中...");
   },
 
-  resetGame: () => set({
-    turn: 0, hp: 100, stamina: 100, isGameOver: false, isSubmitted: false, isMyTurn: true,
-    logs: ["🌞 システム再起動：スタンバイ。"],
-    currentDistrictName: "地点未選択"
-  }),
+  endTurn: () => {
+    if (!get().isMyTurn) return;
+    socket.emit("TURN_END_SUBMIT");
+    set({ isMyTurn: false, isSubmitted: true }); 
+    get().addLog("⌛ ターンを終了しました。");
+  },
 
+  damage: (amount) => set({ hp: Math.max(0, get().hp - amount) }),
+  resetGame: () => window.location.reload(),
   setIsSubmitted: (val) => set({ isSubmitted: val }),
   addLog: (text) => set((state) => ({ logs: [text, ...state.logs].slice(0, 10) })),
-  saveGame: () => get().addLog("💾 作戦データを保存しました。"),
-  loadGame: () => get().addLog("📂 作戦データを読み込みました。"),
 }));
+
+if (typeof window !== 'undefined') {
+  (window as any).useGameStore = useGameStore;
+}
