@@ -30,6 +30,7 @@ let gameState = {
 };
 
 function resolveBattle(attackerAtk, defenderDef) {
+    // 信仰力(Faith)込みの最終ステータスが渡ってくる前提
     const winProbability = attackerAtk / (attackerAtk + defenderDef);
     return { isWin: Math.random() < winProbability };
 }
@@ -70,8 +71,12 @@ io.on('connection', (socket) => {
         gameState.players[socket.id] = {
             id: socket.id,
             username: userData?.username || `Player_${socket.id.substring(0,4)}`,
-            districtId: null, hp: 100, stamina: 100, atk: 60, def: 40,
-            team: assignedTeam, isReady: false 
+            districtId: null, 
+            hp: 100, maxHp: 100, 
+            ap: 100, maxAp: 100, stamina: 100, // staminaは互換性維持のため残す
+            atk: 50, def: 40, faith: 1.0, apRegenMulti: 1.0,
+            team: assignedTeam, isReady: false,
+            isDefending: false 
         };
 
         if (Object.keys(gameState.players).length === 2) {
@@ -127,6 +132,12 @@ io.on('connection', (socket) => {
         const player = gameState.players[socket.id];
         let turnLogs = [];
 
+        // 🚀 AP不足チェック
+        if (player.ap <= 0 && actionData.type !== 'stay' && actionData.type !== 'rest') {
+            io.to(socket.id).emit(EVENTS.SERVER.ACTION_REJECTED, { message: "AP(スタミナ)が足りません！" });
+            return;
+        }
+
         try {
             switch (actionData.type) {
                 case 'stay':
@@ -134,6 +145,7 @@ io.on('connection', (socket) => {
                     player.stamina = Math.min(100, player.stamina + 30);
                     turnLogs.push(`💤 ${player.username} は休息し、APを30回復した。`);
                     break;
+
                 case 'defend': 
                     if (player.stamina >= 10) {
                         player.stamina -= 10;
@@ -141,6 +153,7 @@ io.on('connection', (socket) => {
                         turnLogs.push(`🛡️ ${player.username} は防御を固めた！(AP-10)`);
                     }
                     break;
+
                 case 'attack': 
                     if (player.stamina >= 30) {
                         player.stamina -= 30;
@@ -155,6 +168,9 @@ io.on('connection', (socket) => {
                             player.hp = Math.max(0, player.hp - 10);
                             turnLogs.push(`🛡️ ${player.username} は失敗した！(AP-30)`);
                         }
+                    } else {
+                        io.to(socket.id).emit(EVENTS.SERVER.ACTION_REJECTED, { message: "APが足りません！" });
+                        return;
                     }
                     break;
             }
