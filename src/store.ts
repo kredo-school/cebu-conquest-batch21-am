@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import socket from './socket'; // 🚀 修正：サーバー通信のために socket をインポート
+import socket from './socket';
 
-// --- Task No.30：特産品マスタデータ ---
+// --- 特産品マスタデータ ---
 const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   101: { name: "セブ・マンゴー", effect: "ATK +10%" },
   102: { name: "サン・ペドロの祈り", effect: "DEF +10%" },
@@ -16,6 +16,7 @@ const GODS_DATA = [
   { id: 3, name: "知恵の神 クレド", bonus: "毎ターンAP回復 +5", item: "光るUSB" },
 ];
 
+// 🚀 GameState インターフェース
 interface GameState {
   hp: number; stamina: number; blessing: number;
   atk: number; def: number;
@@ -51,12 +52,13 @@ interface GameState {
   defense: () => void;
   stay: () => void;
   escape: () => void;
+  endTurn: () => void; 
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
   hp: 100, stamina: 100, blessing: 1.0, atk: 50, def: 40,
   turn: 0, maxTurn: 10,
-  logs: ["🌞 システム起動：スタンバイ。守護神と出撃地点を選択してください。"],
+  logs: ["🌞 戦場へようこそ。出撃地点を選択してください。"],
   players: {}, districts: {},
   currentDistrictName: "地点未選択", selectedDistrictId: null,
   playerName: "", myId: "", myTeam: "red",
@@ -91,7 +93,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       turn: state.turn + 1,
       isMyTurn: false,
       isSubmitted: false,
-      selectedDistrictId: null // 🚀 修正：選択地点をリセット
+      selectedDistrictId: null 
     }));
   },
 
@@ -112,6 +114,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setStatus: (newStatus) => set((state) => ({ ...state, ...newStatus })),
 
+  // 🚀 同期処理：ここを強化
   syncServerState: (data, myId) => {
     if (!data) return;
     if (data.status === 'finished' || data.isGameOver) {
@@ -119,60 +122,63 @@ export const useGameStore = create<GameState>((set, get) => ({
       return;
     }
     const isMe = data.turnOwnerId === myId;
+    const myPlayerData = data.players?.[myId];
+
     set((state) => ({
       ...state,
       myId: myId,
-      hp: data.hp ?? state.hp,
-      stamina: data.stamina ?? state.stamina,
+      hp: myPlayerData?.hp ?? state.hp,
+      stamina: myPlayerData?.stamina ?? state.stamina,
+      atk: myPlayerData?.atk ?? state.atk,
+      def: myPlayerData?.def ?? state.def,
       turn: data.turn ?? state.turn,
       districts: data.districts ?? state.districts,
       isMyTurn: data.turn === 0 ? true : isMe,
       turnOwner: isMe ? "YOU" : (data.turnOwnerName || "ENEMY"),
-      isSubmitted: false
+      isSubmitted: isMe ? false : state.isSubmitted 
     }));
+
+    // 🚀 【最重要】Phaserへ地図の再描画命令を飛ばす
+    // これにより、もう一人の画面でもリアルタイムに領地の色が変わります。
+    window.dispatchEvent(new CustomEvent('MAP_REPAINT', { 
+        detail: { districts: data.districts, players: data.players } 
+    }));
+
     get().updateBuffs();
   },
 
-  // 🚀 ⚔️ 攻撃コマンド：サーバーへ送信するように修正
   attack: (targetId: number) => {
-    if (get().isGameOver || !get().isMyTurn) return;
-
-    // 1. サーバーへ攻撃を送信
-    socket.emit("ACTION_SUBMIT", { type: 'attack', targetId: targetId });
-
-    // 2. クライアントの状態を更新
-    set({ isSubmitted: true, isMyTurn: false });
-    get().addLog(`⚔️ 地区 ${targetId} へ攻撃を仕掛けました！`);
+    const { isGameOver, isMyTurn, stamina } = get();
+    if (isGameOver || !isMyTurn || stamina < 30) return;
     
-    // Phaser 演出用
+    socket.emit("ACTION_SUBMIT", { type: 'attack', targetId: targetId });
+    get().addLog(`⚔️ 地区 ${targetId} 攻撃指令！ (AP-30)`);
     window.dispatchEvent(new CustomEvent('ACTION_ATTACK', { detail: { targetId } }));
   },
 
-  // 🚀 🧘 休息コマンド：サーバーへ送信
   stay: () => { 
     if (!get().isMyTurn) return;
     socket.emit("ACTION_SUBMIT", { type: 'stay' });
-    set({ isSubmitted: true, isMyTurn: false });
-    get().addLog("🧘 休息を選択しました。");
-    window.dispatchEvent(new CustomEvent('ACTION_STAY')); 
+    get().addLog("🧘 休息 (AP回復)");
   },
 
-  // 🚀 🛡️ 防御コマンド：サーバーへ送信
   defense: () => { 
-    if (!get().isMyTurn) return;
+    if (!get().isMyTurn || get().stamina < 10) return;
     socket.emit("ACTION_SUBMIT", { type: 'defend' });
-    set({ isSubmitted: true, isMyTurn: false });
-    get().addLog("🛡️ 防御姿勢をとりました。");
-    window.dispatchEvent(new CustomEvent('ACTION_DEFEND')); 
+    get().addLog("🛡️ 防御！ (AP-10)");
   },
 
-  // 🚀 🏃 逃走コマンド：サーバーへ送信
   escape: () => { 
     if (!get().isMyTurn) return;
     socket.emit("ACTION_SUBMIT", { type: 'escape' });
-    set({ isSubmitted: true, isMyTurn: false });
-    get().addLog("🏃 撤退を試みています。");
-    window.dispatchEvent(new CustomEvent('ACTION_ESCAPE')); 
+    get().addLog("🏃 撤退中...");
+  },
+
+  endTurn: () => {
+    if (!get().isMyTurn) return;
+    socket.emit("TURN_END_SUBMIT");
+    set({ isMyTurn: false, isSubmitted: true }); 
+    get().addLog("⌛ ターンを終了しました。");
   },
 
   damage: (amount) => set({ hp: Math.max(0, get().hp - amount) }),

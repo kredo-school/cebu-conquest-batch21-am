@@ -12,8 +12,8 @@ const COLOR = {
   HIGHLIGHT: 0xffff00, 
   PLAYER_DOT: 0xf1c40f, 
   ENEMY_DOT: 0x2ecc71, 
-  TEAM_RED: 0xe74c3c,
-  TEAM_BLUE: 0x3498db,
+  TEAM_RED: 0xe74c3c,   // 赤チームの色
+  TEAM_BLUE: 0x3498db,  // 青チームの色
 };
 
 const ADJACENCY = {
@@ -76,11 +76,20 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
+  // 🚀 修正：MAP_REPAINT を待ち受けるように変更
   _setupReactListeners() {
     const handlers = [
       { event: 'ACTION_STAY', handler: () => this.handleStay() },
       { event: 'ACTION_DEFEND', handler: () => this.handleDefense() },
       { event: 'ACTION_ESCAPE', handler: () => this.handleEscape() },
+      {
+        event: 'MAP_REPAINT', // 🚀 Storeからの再描画命令をキャッチ
+        handler: (e) => {
+          if (e.detail.districts && e.detail.players) {
+            this._syncDistricts(e.detail.districts, e.detail.players);
+          }
+        }
+      },
       {
         event: REACT_TO_PHASER?.COMMAND_DEPLOY_CONFIRM || "COMMAND_DEPLOY_CONFIRM",
         handler: (e) => this.confirmDeployment(e.detail.districtId),
@@ -90,59 +99,36 @@ export default class MainScene extends Phaser.Scene {
     this._reactListeners = handlers;
   }
 
-  handleStay() {
-    this.showLog("🧘 休息：APを回復し、待機中...");
-    this.updateStatusToReact();
-  }
+  handleStay() { this.showLog("🧘 休息：APを回復し、待機中..."); }
+  handleDefense() { this.showLog("🛡️ 防御：守りを固めています！"); }
+  handleEscape() { this.showLog("🏃 逃走：安全圏へ離脱します！"); }
 
-  handleDefense() {
-    this.showLog("🛡️ 防御：守りを固めています！");
-  }
-
-  handleEscape() {
-    this.showLog("🏃 逃走：安全圏へ離脱します！");
-  }
-
-  /**
-   * 🚀 修正：Day 1 以降のクリックで Attack ボタンを有効化するように変更
-   */
   _onMapClicked(x, y) {
     if (this._dragMoved) return;
     const worldPoint = this.cameras.main.getWorldPoint(x, y);
     const id = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
-    
-    console.log("🗺️ マップクリック検知 ID:", id); // デバッグ用
-
     if (!id) return;
 
     const store = window.useGameStore?.getState();
     if (!store) return;
 
     if (this.isSelectionMode) {
-      // --- 出撃地点選択モード ---
       Object.values(this.districts).forEach((d) => this._redrawDistrict(d, COLOR.NEUTRAL));
       this._redrawDistrict(this.districts[id], COLOR.HIGHLIGHT, 0.8);
       store.setStatus({ selectedDistrictId: id, currentDistrictName: this.districts[id].name });
     } else {
-      // --- ⚔️ 攻撃対象選択モード（Day 1 以降） ---
       const neighbors = ADJACENCY[this.currentDistrictId] || [];
-      const isNeighbor = neighbors.includes(id);
-
-      if (isNeighbor) {
+      if (neighbors.includes(id)) {
         this.showLog(`🎯 ターゲット選択：${this.districts[id].name}`);
-        
-        // 1. 地図上の見た目を更新（選択した場所を黄色く光らせる）
+        // 選択ハイライト（自分の色や相手の色を維持しつつ黄色く光らせる）
         Object.values(this.districts).forEach((d) => {
-          const baseColor = (d.owner === "red") ? COLOR.TEAM_RED : (d.owner === "blue" ? COLOR.TEAM_BLUE : COLOR.NEUTRAL);
-          this._redrawDistrict(d, baseColor);
+          let baseCol = COLOR.NEUTRAL;
+          if (d.owner === "red") baseCol = COLOR.TEAM_RED;
+          if (d.owner === "blue") baseCol = COLOR.TEAM_BLUE;
+          this._redrawDistrict(d, baseCol);
         });
         this._redrawDistrict(this.districts[id], COLOR.HIGHLIGHT, 0.8);
-
-        // 2. React の Store を更新（これで Attack ボタンが赤くなります）
         store.setStatus({ selectedDistrictId: id });
-        
-        // 3. 念のためカスタムイベントも飛ばす
-        window.dispatchEvent(new CustomEvent('DISTRICT_SELECTED', { detail: id }));
       } else {
         this.showLog("⚠️ 隣接する地区しか攻撃できません！");
       }
@@ -153,11 +139,9 @@ export default class MainScene extends Phaser.Scene {
     this.isSelectionMode = false; 
     this.currentDistrictId = startId;
     this._placePlayer(startId);
-    Object.values(this.districts).forEach((d) => this._redrawDistrict(d, COLOR.NEUTRAL));
     const store = window.useGameStore?.getState();
     const team = store?.myTeam || "red";
     this.claimDistrict(startId, team);
-    this.showLog(`🚀 地区 ${startId} より攻略を開始します`);
   }
 
   _placePlayer(id) {
@@ -175,18 +159,7 @@ export default class MainScene extends Phaser.Scene {
     if (!d) return;
     d.owner = team;
     const color = (team === "red") ? COLOR.TEAM_RED : (team === "blue" ? COLOR.TEAM_BLUE : COLOR.NEUTRAL);
-    this.tweens.add({
-      targets: d.graphics,
-      alpha: 0.1,
-      duration: 100,
-      yoyo: true,
-      repeat: 3,
-      onComplete: () => { this._redrawDistrict(d, color); }
-    });
-    const store = window.useGameStore?.getState();
-    if (store) {
-      store.setStatus({ districts: { ...store.districts, [id]: store.myId || "me" } });
-    }
+    this._redrawDistrict(d, color);
   }
 
   _setupTilemap() {
@@ -255,13 +228,16 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
+  // 🚀 修正：SYNC_STATE 時に players も渡すように変更
   _initSocket() {
     socket.connect();
     socket.on(SERVER_EVENTS.SYNC_STATE, (state) => {
       if (!state) return;
       if (state.turn >= 1) this.isSelectionMode = false;
-      if (state.districts) this._syncDistricts(state.districts);
-      if (state.players) this._syncPlayers(state.players);
+      if (state.districts && state.players) {
+        this._syncDistricts(state.districts, state.players);
+        this._syncPlayers(state.players);
+      }
     });
   }
 
@@ -289,15 +265,20 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  _syncDistricts(serverDistricts) {
-    const mySocketId = socket.id;
+  // 🚀 修正：絶対的なチームカラー（red/blue）で色を塗るように変更
+  _syncDistricts(serverDistricts, serverPlayers) {
     Object.entries(serverDistricts).forEach(([districtId, ownerId]) => {
       const d = this.districts[Number(districtId)];
       if (!d) return;
-      const serverOwnerTeam = (ownerId === mySocketId) ? "red" : (ownerId ? "blue" : "neutral");
-      if (d.owner !== serverOwnerTeam) {
-        d.owner = serverOwnerTeam;
-        const color = (serverOwnerTeam === "red") ? COLOR.TEAM_RED : (serverOwnerTeam === "blue" ? COLOR.TEAM_BLUE : COLOR.NEUTRAL);
+
+      const ownerData = serverPlayers[ownerId];
+      const actualTeam = ownerData ? ownerData.team : "neutral";
+
+      if (d.owner !== actualTeam) {
+        d.owner = actualTeam;
+        let color = COLOR.NEUTRAL;
+        if (actualTeam === "red") color = COLOR.TEAM_RED;
+        if (actualTeam === "blue") color = COLOR.TEAM_BLUE;
         this._redrawDistrict(d, color);
       }
     });
