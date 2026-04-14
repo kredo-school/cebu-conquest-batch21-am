@@ -23,6 +23,21 @@ const EVENTS = {
 
 const TOTAL_DISTRICTS = 11; 
 
+// 🚀 神の恩恵（ボーナス）定義
+const GOD_BONUSES = {
+    war:       { atk: 10, def: 0, hp: 0,  apRegen: 0,   faith: 0 },   // 戦いの神
+    fertility: { atk: 0,  def: 0, hp: 0,  apRegen: 0.2, faith: 0 },   // 豊穣の神 (AP回復量+20% = 1.2倍)
+    guardian:  { atk: 0,  def: 10,hp: 20, apRegen: 0,   faith: 0 },   // 守護の神
+    holy:      { atk: 0,  def: 0, hp: 0,  apRegen: 0,   faith: 0.2 }  // 聖なる神
+};
+
+// 🚀 サーバー内 簡易バフテーブル（特産品バフ：API連携まではこれで代用）
+const DISTRICT_BUFFS = {
+    "1": { atk: 10, def: 0, hp: 0 },   
+    "2": { atk: 0, def: 10, hp: 0 },   
+    // 必要に応じて拡張
+};
+
 // ==========================================
 // ゲームステート管理
 // ==========================================
@@ -38,6 +53,7 @@ let gameState = {
 };
 
 function resolveBattle(attackerAtk, defenderDef) {
+    // 信仰力(Faith)込みの最終ステータスが渡ってくる前提
     const winProbability = attackerAtk / (attackerAtk + defenderDef);
     return { isWin: Math.random() < winProbability, winProbability };
 }
@@ -89,6 +105,7 @@ function endGame(winnerId = null) {
     });
 }
 
+
 // ==========================================
 // Socket 通信処理
 // ==========================================
@@ -109,11 +126,16 @@ io.on('connection', (socket) => {
             assignedTeam = existingPlayer.team === 'red' ? 'blue' : 'red';
         }
 
+        // 🚀 初期ステータス適用（神選択前）
         gameState.players[socket.id] = {
             id: socket.id,
             username: userData?.username || `Player_${socket.id.substring(0,4)}`,
-            districtId: null, hp: 100, stamina: 100, atk: 60, def: 40,
-            team: assignedTeam, isReady: false 
+            districtId: null, 
+            hp: 100, maxHp: 100, 
+            ap: 100, maxAp: 100, stamina: 100, // staminaは互換性維持のため残す
+            atk: 50, def: 40, faith: 1.0, apRegenMulti: 1.0,
+            team: assignedTeam, isReady: false,
+            isDefending: false 
         };
 
         if (Object.keys(gameState.players).length === 2) {
@@ -125,6 +147,18 @@ io.on('connection', (socket) => {
     socket.on(EVENTS.CLIENT.READY_TO_START, (data) => {
         const player = gameState.players[socket.id];
         if (!player) return;
+
+        // 🚀 神のボーナスを適用
+        const god = data.selectedGod || 'war'; 
+        const bonus = GOD_BONUSES[god];
+        if (bonus) {
+            player.atk += bonus.atk;
+            player.def += bonus.def;
+            player.maxHp += bonus.hp;
+            player.hp = player.maxHp;
+            player.apRegenMulti += bonus.apRegen;
+            player.faith += bonus.faith;
+        }
 
         player.districtId = data.startDistrictId;
         player.isReady = true;
@@ -153,7 +187,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 🚀 【鉄壁の修正】通信の名前ズレを防止し、エラーで止まらないようにする
     const ACTION_EVENT = EVENTS.CLIENT?.ACTION_SUBMIT || "ACTION_SUBMIT";
 
     socket.on(ACTION_EVENT, handleAction);
@@ -179,51 +212,117 @@ io.on('connection', (socket) => {
         
         let turnLogs = [];
 
+        // 🚀 AP不足チェック
+        if (player.ap <= 0 && actionData.type !== 'stay' && actionData.type !== 'rest') {
+            io.to(socket.id).emit(EVENTS.SERVER.ACTION_REJECTED, { message: "AP(スタミナ)が足りません！" });
+            return;
+        }
+
         try {
             switch (actionData.type) {
                 case 'stay':
                 case 'rest':
-                    player.stamina = Math.min(100, player.stamina + 20);
-                    turnLogs.push(`💤 ${player.username} は休息し、APを回復した。`);
+                    // 仕様: HP +20 / AP +30 (豊穣の神なら apRegenMultiでボーナス)
+                    player.hp = Math.min(player.maxHp, player.hp + 20);
+                    const apRecover = Math.floor(30 * player.apRegenMulti);
+                    player.ap = Math.min(player.maxAp, player.ap + apRecover);
+                    player.stamina = player.ap; // 互換性維持
+                    turnLogs.push(`💤 ${player.username} は待機し、HPとAPを回復した。`);
                     break;
+
                 case 'defend': 
-                    player.def += 10;
-                    turnLogs.push(`🛡️ ${player.username} は防御を固めた！`);
+                    player.isDefending = true; 
+                    turnLogs.push(`🛡️ ${player.username} は防御を固めた！（被ダメージ軽減）`);
                     break;
+
                 case 'escape': 
-                    player.stamina = Math.max(0, player.stamina - 5);
-                    turnLogs.push(`🏃 ${player.username} は緊急離脱を試みた！`);
+                    const ownedDistricts = Object.values(gameState.districts).filter(id => id === socket.id);
+                    if (ownedDistricts.length > 0) {
+                        turnLogs.push(`🏃 ${player.username} は自陣へ無事に緊急離脱した！`);
+                    } else {
+                        player.hp = Math.max(0, player.hp - 50);
+                        turnLogs.push(`💥 ${player.username} は逃げ場がなく、50の大ダメージを受けた！`);
+                    }
                     break;
+
                 case 'attack': 
-                    if (player.stamina >= 20) {
-                        player.stamina -= 20;
+                    if (player.ap >= 5) {
+                        player.ap -= 5; 
+                        player.stamina = player.ap; 
+                        
                         const targetId = actionData.targetId;
                         const defenderId = gameState.districts[targetId];
                         
-                        // 🚀 エラー回避：相手が切断等で居なくてもクラッシュしない
                         let targetDef = 40;
+                        let targetFaith = 1.0;
+                        let defender = null;
+
                         if (defenderId && gameState.players[defenderId]) {
-                            targetDef = gameState.players[defenderId].def;
+                            defender = gameState.players[defenderId];
+                            targetDef = defender.def;
+                            targetFaith = defender.faith;
+                            
+                            // 防御フラグが立っていたら防御力1.5倍
+                            if (defender.isDefending) {
+                                targetDef = Math.floor(targetDef * 1.5);
+                                turnLogs.push(`🛡️ ${defender.username} の鉄壁の防御！`);
+                            }
                         }
 
-                        const result = resolveBattle(player.atk, targetDef);
+                        // 🚀 信仰力(Faith)を乗算して最終ステータスを算出
+                        const finalAtk = player.atk * player.faith;
+                        const finalDef = targetDef * targetFaith;
+
+                        const result = resolveBattle(finalAtk, finalDef);
+
                         if (result.isWin) {
                             gameState.districts[targetId] = socket.id;
-
-                            // 🚀 追加：勝ったら自分のコマをその地区へ「進軍（移動）」させる！
                             player.districtId = targetId; 
+
+                            // 特産品バフの付与
+                            const buff = DISTRICT_BUFFS[targetId];
+                            if (buff) {
+                                player.atk += buff.atk || 0;
+                                player.def += buff.def || 0;
+                            }
 
                             turnLogs.push(`⚔️ ${player.username} が地区 ${targetId} を制圧！`);
                             checkCompleteDomination();
                         } else {
-                            player.hp = Math.max(0, player.hp - 20);
-                            turnLogs.push(`🛡️ ${player.username} は制圧に失敗！`);
+                            // 敗北時ダメージ計算（もし自分が防御フラグを立てていたら半減）
+                            const dmg = player.isDefending ? 10 : 20;
+                            player.hp = Math.max(0, player.hp - dmg);
+                            turnLogs.push(`❌ ${player.username} は制圧に失敗し、${dmg}ダメージを受けた！`);
                         }
+                    } else {
+                        io.to(socket.id).emit(EVENTS.SERVER.ACTION_REJECTED, { message: "APが足りません！" });
+                        return;
                     }
                     break;
             }
 
-            // 🚀 絶対に番を交代する
+            // 自分の行動が終わったら防御フラグをリセット
+            if (actionData.type !== 'defend') {
+                player.isDefending = false;
+            }
+
+            // =========================================================
+            // サドンデス判定（HPが0以下なら即敗北）
+            // =========================================================
+            if (player.hp <= 0) {
+                player.hp = 0;
+                turnLogs.push(`💀 ${player.username} の体力が尽きた...！`);
+                
+                // 生き残った相手プレイヤーのIDを取得して勝者とする
+                const winnerId = playerIds.find(id => id !== socket.id) || null;
+                
+                // 死亡ログをクライアントに送ってから即ゲーム終了
+                io.emit(EVENTS.SERVER.ACTION_RESULT, { logs: turnLogs, state: gameState });
+                endGame(winnerId);
+                return; // ⚠️ ここで処理を強制終了（下のターン交代に進ませない）
+            }
+
+            // ターン交代
             gameState.turnOwnerId = nextPlayerId;
             if (gameState.turnOwnerId === gameState.firstPlayerId) {
                 gameState.turn++;
