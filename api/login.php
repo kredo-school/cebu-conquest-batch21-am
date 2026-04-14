@@ -3,18 +3,16 @@
 // CORS対策 (ReactからのPOSTリクエストを許可)
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Content-Type: application/json; charset=UTF-8");
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTION') exit();
-
-require_once __DIR__ . '/../config/database.php';
-
-// JWT作成用のヘルパー関数（Base64Urlエンコード）
-function base64UrlEncode($data)
-{
-  return str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($data));
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+  http_response_code(200);
+  exit();
 }
+
+require_once __DIR__ . '/jwt_helper.php';
+require_once __DIR__ . '/../config/database.php';
 
 try {
   // Reactから送られてきたJSONデータを受け取る
@@ -42,7 +40,7 @@ try {
     $userCount = $countStmt->fetch();
 
     // 2人以上いたらエラーにして追い返す
-    if ($userCount >=2) {
+    if ($userCount >= 2) {
       $pdo->rollBack();
       echo json_encode([
         'status'    => 'error',
@@ -74,45 +72,35 @@ try {
   $pdo->commit();
 
   // JWT（トークン）の生成処理
-  $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
 
-  $payload = json_encode([
+  $payload = [
     'user_id'    => $playerId,
     'username'   => $player['username'],
-    'exp'        => time() + (60 * 60 * 24) // 有効期限：24時間
-  ]);
+    'exp'        => time() + (60 * 60 * 24) // 24時間有効
+  ];
 
-  $base64UrlHeader  = base64UrlEncode($header);
-  $base64UrlPayload = base64UrlEncode($payload);
+  // 共通関数を呼び出してJWTを生成
+  $jwt = generateJWT($payload);
 
-  // 署名を作成（config/database.php で設定した $jwt_secret を使用）
-  $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, $jwt_secret, true);
-  $base64UrlSignature = base64UrlEncode($signature);
-
-  // 結合してJWT完成
-  $jwt = $base64UrlHeader . "." . $base64UrlPayload . "." . $base64UrlSignature;
-
-  // 結果を返す
-
-  echo json_encode([
-    'status'         => 'success',
-    'message'        => $message,
-    'token'          => $jwt,
-    'user'    => [
-      'id'           => $player['id'],
-      'username'     => $player['username'],
-      'player_color' => $player['player_color'],
-      'current_hp'   =>$player['current_hp'],
-      'stamina'      => $player['stamina'],
-      'atk'          => $player['atk'],
-      'def'          => $player['def']
+  // フロントエンドが使いやすい形でレスポンスを返す
+echo json_encode([
+    'status'  => 'success',
+    'message' => $message,
+    'data'    => [ // ★dataキーで包む
+        'token' => $jwt,
+        'user'  => [
+            'id'           => (int)$player['id'],
+            'username'     => $player['username'],
+            'player_color' => $player['player_color'],
+            'current_hp'   => (int)$player['current_hp'],
+            'stamina'      => (int)$player['stamina']
+        ]
     ]
-  ], JSON_UNESCAPED_UNICODE);
-
+], JSON_UNESCAPED_UNICODE);
 } catch (Exception $e) {
   if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
 
-    http_response_code(500);
+  http_response_code(500);
 
   echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
 }
