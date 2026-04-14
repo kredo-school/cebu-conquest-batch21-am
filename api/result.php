@@ -1,16 +1,38 @@
 <?php
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Content-Type: application/json; charset=UTF-8");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
 
 // ここで共通のデータベース設定を読み込む
+require_once __DIR__ . '/jwt_helper.php';
 require_once __DIR__ . '/../config/database.php';
 
-try {
+// JWT認証チェック (検問)
+$headers = getallheaders();
+$authHeader = $headers['Authorization'] ?? '';
 
+if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+    $jwt = $matches[1];
+    $userData = validateJWT($jwt);
+    
+    if (!$userData) {
+        http_response_code(401);
+        echo json_encode(['status' => 'error', 'message' => '無効なトークンです']);
+        exit;
+    }
+} else {
+    http_response_code(401);
+    echo json_encode(['status' => 'error', 'message' => '認証が必要です']);
+    exit;
+}
+
+// 【重要】JWTから「確実な本人」のIDを確定
+$userId = (int)$userData['user_id'];
+
+try {
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
 
@@ -20,14 +42,13 @@ try {
       exit();
     }
 
-    $userId = (int)$data['user_id'];
     $score = (int)$data['score'];
     $territoriesCount = (int)$data['territories_count'];
 
     $pdo->beginTransaction();
 
     // 2.match_results テーブルにデータを保存（INSERT）
-    $sql = "INSERT INTO match_results (user_id, score, territories_count) VALUES (?, ?, ?, NOW())";
+    $sql = "INSERT INTO match_results (user_id, score, territories_count, created_at) VALUES (?, ?, ?, NOW())";
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$userId, $score, $territoriesCount]);
 
@@ -66,11 +87,6 @@ try {
         'top_score'   => $highScore,
         'my_id'       => $userId,
         'all_players' => $allStats // 全員のスコアが入っているのでランキング表示も可能！
-      ],
-      'save_data' => [
-        'user_id'           => $userId,
-        'score'             => $score,
-        'territories_count' => $territoriesCount
       ]
     ], JSON_UNESCAPED_UNICODE);
 
@@ -79,14 +95,4 @@ try {
   http_response_code(500);
   echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
 }
-
-
-
-
-
-
-
-
-
-
 ?>

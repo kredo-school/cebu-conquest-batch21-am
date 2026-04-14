@@ -1,24 +1,44 @@
 <?php
+// 全てのAPIで使い回せるガード（検問）の基本構造
 
+// ヘッダー設定 (CORS)
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Content-Type: application/json; charset=UTF-8");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
 
+// 依存ファイルの読み込み
+require_once __DIR__ . '/jwt_helper.php';
 require_once __DIR__ . '/../config/database.php';
 
+// JWT認証チェック (検問開始)
+$headers = getallheaders();
+$authHeader = $headers['Authorization'] ?? '';
+
+if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+    $jwt = $matches[1];
+    $userData = validateJWT($jwt);
+    
+    if (!$userData) {
+        http_response_code(401);
+        echo json_encode(['status' => 'error', 'message' => '無効なトークンです']);
+        exit;
+    }
+} else {
+    http_response_code(401);
+    echo json_encode(['status' => 'error', 'message' => '認証が必要です']);
+    exit;
+}
+
+// トークンから取得した「確実な本人」のID
+$userId = (int)$userData['user_id'];
+
 try {
+  // JSONの受け取り（今回は本人のIDを使うので、ボディに user_id が入っていなくてもOKな設計）
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
-
-    if (empty($data['user_id'])) {
-        echo json_encode(['status' => 'error', 'message' => 'データが不足しています']);
-        exit();
-    }
-
-    $userId = (int)$data['user_id'];
 
     $pdo->beginTransaction();
 
@@ -65,7 +85,7 @@ try {
       'owned_territories'  => $ownedCount
     ], JSON_UNESCAPED_UNICODE);
 
-} catch (EXception $e) {
+} catch (Exception $e) {
   if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
   http_response_code(500);
   echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
