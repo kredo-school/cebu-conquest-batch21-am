@@ -2,23 +2,46 @@
 
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Content-Type: application/json; charset=UTF-8");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
 
+// 1依存ファイルの読み込み（jwt_helperを追加！）
+require_once __DIR__ . '/jwt_helper.php';
 require_once __DIR__ . '/../config/database.php';
+
+// JWT認証チェック (ここが「検問」です)
+$headers = getallheaders();
+$authHeader = $headers['Authorization'] ?? '';
+
+if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+    $jwt = $matches[1];
+    $userData = validateJWT($jwt);
+    
+    if (!$userData) {
+        http_response_code(401);
+        echo json_encode(['status' => 'error', 'message' => '無効なトークンです']);
+        exit;
+    }
+} else {
+    http_response_code(401);
+    echo json_encode(['status' => 'error', 'message' => '認証が必要です']);
+    exit;
+}
+
+// JWTから取得したIDを使用（ボディのuser_idはもう信じない）
+$userId = (int)$userData['user_id'];
 
 try {
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
 
-    if (empty($data['user_id']) || empty($data['territory_id'])) {
+    if (empty($data['territory_id'])) {
       echo json_encode(['status' => 'error', 'message' => "The user_id or territory_id is missing"]);
       exit();
     }
 
-    $userId = (int)$data['user_id'];
     $territoryId = (int)$data['territory_id'];
 
     $pdo->beginTransaction();
@@ -31,7 +54,8 @@ try {
 
     if ($userOcc['count'] > 0) {
       $pdo->rollBack();
-      echo json_encode(['status' => 'error', 'message' => "You already have a base. You can only choose your starting position once!" ]); //すでに陣地を持っています。初期位置の選択は1回だけです！
+      echo json_encode(['status' => 'error', 'message' => "You already have a base. You can only choose your starting position once!" ]); //すでに陣地を持っています。初期位置の選択は1回だけ
+      exit();
     }
 
      // チェック2：選んだ陣地は、すでに誰かに奪われていないか？

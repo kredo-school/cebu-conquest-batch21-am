@@ -2,34 +2,57 @@
 
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
+header("Access-Control-Allow-Headers: Content-Type, Authorization"); // Authorizationを追加
 header("Content-Type: application/json; charset=UTF-8");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
 
 // ここで共通のデータベース設定を読み込む
+require_once __DIR__ . '/jwt_helper.php';
 require_once __DIR__ . '/../config/database.php';
+
+// --- JWT認証チェック (検問) ---
+$headers = getallheaders();
+$authHeader = $headers['Authorization'] ?? '';
+$userData - validateJWT($jwt);
+
+if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+  $jwt = $matches[1];
+  $userData = validateJWT($jwt);
+
+  if (!$userData) {
+    http_response_code(401);
+    echo json_encode(['status' => 'error', 'message' => '無効なトークンです']);
+    exit;
+  }
+} else {
+  http_response_code(401);
+  echo json_encode(['status' => 'error', 'message' => '認証が必要です']);
+  exit;
+}
+
+// JWTからユーザーIDを取得（なりすまし防止のため、こちらを優先）
+$userId = (int)$userData['user_id'];
 
 try {
   $json = file_get_contents('php://input');
   $data = json_decode($json, true);
 
   // バリデーション
-  if (empty($data['user_id']) || empty($data['territory_id'])) {
-    echo json_encode(['status' => 'error', 'message' => 'データが不足しています']);
+  if (empty($data['territory_id'])) {
+    echo json_encode(['status' => 'error', 'message' => '陣地IDが不足しています']);
     exit();
   }
 
-  $userId = (int)$data['user_id'];
   $territoryId = (int)$data['territory_id'];
 
-  // ここで消費スタミナを一括管理！後から「30」などにすぐ変更できる
-  $staminaCost = 20;
+  // ここで消費スタミナを一括管理！後からすぐ変更できる
+  $staminaCost = 5;
 
   // トランザクション開始（スタミナ減少と占領をセットで確実に行う）
   $pdo->beginTransaction();
 
-  // 1. 狙った陣地の「名前」と「占領コスト」を取得する（新テーブル対応！）
+  // 1. 狙った陣地の「名前」と「占領コスト」を取得する
   $stmtTerritory = $pdo->prepare("SELECT capture_cost, name FROM territories WHERE id = ?");
   $stmtTerritory->execute([$territoryId]);
   $territory = $stmtTerritory->fetch(PDO::FETCH_ASSOC);
@@ -57,14 +80,11 @@ try {
   if ($user['stamina'] < $staminaCost) {
     $pdo->rollBack();
     echo json_encode([
-      'status'  => 'error', 
-      'message' => 'Not enough stamina! (Required: ' . $staminaCost . ' / Current: ' . $user['stamina'] . ')']);
+      'status'  => 'error',
+      'message' => 'Not enough stamina! (Required: ' . $staminaCost . ' / Current: ' . $user['stamina'] . ')'
+    ]);
     exit();
   }
-
-  //  スタミナを減らす 一律にしない場合は必要。
-  // $updateUser = $pdo->prepare("UPDATE users SET stamina = stamina - ? WHERE id = ?");
-  // $updateUser->execute([$cost, $userId]);
 
   // 4. 陣地の状態をチェックして奪う
   $stmtCheck = $pdo->prepare("SELECT user_id FROM occupations WHERE territory_id = ? FOR UPDATE");
@@ -77,30 +97,31 @@ try {
     echo json_encode([
       'status'  => 'error',
       'message' => "This is already your territory!"
-      ]);
-      exit();
+    ]);
+    exit();
   }
   // メッセージの出し分けだけしておく
   if ($existingOcc) {
     // 敵の陣地を奪った
     $message = "You captured \"{$spotName}\" from the enemy! (Stamina -{$staminaCost})";
-} else {
+  } else {
     // 新しく占領した
     $message = "You have newly occupied \"{$spotName}\"! (Stamina -{$staminaCost})";
-}
+  }
 
+  // 5. 占領実行
   $sqlCapture = "INSERT INTO occupations (territory_id, user_id)
                  VALUES (?, ?)
                  ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)";
   $stmtCap = $pdo->prepare($sqlCapture);
   $stmtCap->execute([$territoryId, $userId]);
 
-  // 5. スタミナを消費して保存
+  // 6. スタミナを消費して保存
   $stmtUpdateUser = $pdo->prepare("UPDATE users SET stamina = stamina - ? WHERE id = ?");
   $stmtUpdateUser->execute([$staminaCost, $userId]);
   $newStamina = $user['stamina'] - $staminaCost;
 
-  // 6. アイテムドロップ判定（新機能！）
+  // 7. アイテムドロップ判定（新機能！）
   $droppedItemName = null;
 
   // その陣地に設定されているアイテムを探す
@@ -110,7 +131,7 @@ try {
 
   if ($item) {
     // ドロップ確率の計算（現在はテスト用で 100% ドロップ）
-    // ※ 本番では rand(1, 100) <= 30 のようにして30%などに調整できます
+    // ※ 本番では rand(1, 100) <= 30 のようにして30%などに調整
     $dropChance = 100;
 
     if (rand(1, 100) <= $dropChance) {
@@ -142,7 +163,6 @@ try {
   }
 
   echo json_encode($response, JSON_UNESCAPED_UNICODE);
-
 } catch (Exception $e) {
   if ($pdo->inTransaction()) $pdo->rollBack();
   http_response_code(500);

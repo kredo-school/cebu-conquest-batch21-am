@@ -2,13 +2,36 @@
 // api/use-item.php
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Content-Type: application/json; charset=UTF-8");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
 
-// 🌟 共通設定の読み込み
+// 共通設定の読み込み
+require_once __DIR__ . '/jwt_helper.php';
 require_once __DIR__ . '/../config/database.php';
+
+// JWT認証チェック (検問)
+$headers = getallheaders();
+$authHeader = $headers['Authorization'] ?? '';
+
+if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+    $jwt = $matches[1];
+    $userData = validateJWT($jwt);
+    
+    if (!$userData) {
+        http_response_code(401);
+        echo json_encode(['status' => 'error', 'message' => '無効なトークンです']);
+        exit;
+    }
+} else {
+    http_response_code(401);
+    echo json_encode(['status' => 'error', 'message' => '認証が必要です']);
+    exit;
+}
+
+// JWTから本人のユーザーIDを取得
+$userId = (int)$userData['user_id'];
 
 try {
     $json = file_get_contents('php://input');
@@ -50,7 +73,7 @@ try {
     $stmtConsume->execute([$userId, $itemId]);
 
     // 個数が0になったらカバンからデータを消す（整理整頓）
-    $pdo->prepare("DELETE FROM user_items WHERE quantity <= 0")->execute();
+        $pdo->prepare("DELETE FROM user_items WHERE quantity <= 0 AND user_id = ? AND item_id = ?")->execute([$userId, $itemId]);
 
     // 3. アイテムの効果（バフ）をユーザーに適用する
     $updateSql = "";
