@@ -15,7 +15,7 @@ const io = new Server(server, {
 // ==========================================
 // マスターデータ＆定数定義
 // ==========================================
-const API_BASE_URL = process.env.API_URL || 'http://localhost/cebu-conquest/api';
+const API_BASE_URL = process.env.API_URL || 'http://localhost/cebu-conquest-batch21-am/api/result.php';
 
 const EVENTS = {
     CLIENT: CLIENT_EVENTS,
