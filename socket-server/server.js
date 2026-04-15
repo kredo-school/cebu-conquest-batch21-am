@@ -86,6 +86,9 @@ let gameState = {
     players: {},
     districts: {}
 };
+// 🚀 連打・競合防止用のロック管理
+const lockedDistricts = new Set();
+
 
 // 🚀 NPC自動参加用のタイマー変数
 let matchingTimer = null;
@@ -417,6 +420,16 @@ io.on('connection', (socket) => {
         if (gameState.status !== 'playing') return;
         if (socket.id !== gameState.turnOwnerId) return;
 
+        // =========================================================
+        // 対象の地区がロック中なら、アクションを弾く（連打防止）
+        // =========================================================
+        const targetId = actionData.targetId ? String(actionData.targetId) : null;
+        if (targetId && lockedDistricts.has(targetId)) {
+            console.log(`⚠️ 競合検知: 地区 ${targetId} は現在処理中です。`);
+            io.to(socket.id).emit(EVENTS.SERVER.ACTION_REJECTED, { message: "処理中です。連打しないでください！" });
+            return;
+        }
+
         const player = gameState.players[socket.id];
         const playerIds = Object.keys(gameState.players);
         const nextPlayerId = playerIds.find(id => id !== socket.id) || gameState.firstPlayerId;
@@ -425,6 +438,13 @@ io.on('connection', (socket) => {
         if (player.ap <= 0 && actionData.type !== 'stay' && actionData.type !== 'rest') {
             io.to(socket.id).emit(EVENTS.SERVER.ACTION_REJECTED, { message: "AP(スタミナ)が足りません！" });
             return;
+        }
+
+        // =========================================================
+        // 処理開始前にターゲット地区をロックする
+        // =========================================================
+        if (targetId) {
+            lockedDistricts.add(targetId);
         }
 
         try {
@@ -533,6 +553,13 @@ io.on('connection', (socket) => {
             }
         } catch (error) {
             console.error("🔥 ACTION_SUBMIT 処理中にエラーが発生:", error);
+        }finally {
+            // =========================================================
+            // エラーが起きても正常終了しても、必ず最後にロックを解除する
+            // =========================================================
+            if (targetId) {
+                lockedDistricts.delete(targetId);
+            }
         }
     }
 
