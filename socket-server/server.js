@@ -15,6 +15,7 @@ const io = new Server(server, {
 // ==========================================
 // マスターデータ＆定数定義
 // ==========================================
+const API_BASE_URL = process.env.API_URL || 'http://localhost/cebu-conquest/api';
 
 const EVENTS = {
     CLIENT: CLIENT_EVENTS,
@@ -37,6 +38,32 @@ const DISTRICT_BUFFS = {
     "2": { atk: 0, def: 10, hp: 0 },   
     // 必要に応じて拡張
 };
+
+// 🚀 データベースに試合結果を保存する非同期関数
+async function saveGameResultToDB(winnerId, scores) {
+    try {
+        const payload = {
+            winner_id: winnerId, // 勝者のID
+            scores: scores,      // 陣地の獲得数など
+            timestamp: new Date().toISOString()
+        };
+
+        console.log("📡 DBに結果を送信中...", payload);
+
+        const response = await fetch(`${API_BASE_URL}/result.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        // PHP側からのレスポンスを解析
+        const data = await response.json();
+        console.log("✅ DB保存成功:", data);
+
+    } catch (error) {
+        console.error("🔥 DB保存エラー:", error);
+    }
+}
 
 // ==========================================
 // ゲームステート管理
@@ -94,6 +121,12 @@ function endGame(winnerId = null) {
     const winnerName = (winnerId !== "draw" && gameState.players[winnerId]) 
         ? gameState.players[winnerId].username 
         : "DRAW (引き分け)";
+
+    // =========================================================
+    // 🚀 【新規追加】APIを叩いてDBに結果を非同期で保存！
+    // =========================================================
+    // 相手が切断した場合や引き分けの場合は、適切なIDを渡すよう調整が必要です
+    saveGameResultToDB(winnerId, scores);
 
     io.emit(EVENTS.SERVER.GAME_OVER, { 
         status: 'finished',
