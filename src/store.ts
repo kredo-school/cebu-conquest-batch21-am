@@ -1,13 +1,12 @@
 import { create } from 'zustand';
 import socket from './socket';
 
-// --- 特産品マスタデータ ---
 const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   101: { name: "セブ・マンゴー", effect: "ATK +10%" },
   102: { name: "サン・ペドロの祈り", effect: "DEF +10%" },
   103: { name: "レチョン・パワー", effect: "HP回復 +5" },
   104: { name: "ITパークの知恵", effect: "AP消費 -2" },
-  105: { name: "マゼラン・クロス", effect: "信仰力 +0.2" },
+  105: { name: "マゼラン_クロス", effect: "信仰力 +0.2" },
 };
 
 const GODS_DATA = [
@@ -16,7 +15,6 @@ const GODS_DATA = [
   { id: 3, name: "知恵の神 クレド", bonus: "毎ターンAP回復 +5", item: "光るUSB" },
 ];
 
-// 🚀 GameState インターフェース
 interface GameState {
   hp: number; stamina: number; blessing: number;
   atk: number; def: number;
@@ -34,8 +32,11 @@ interface GameState {
   godsList: typeof GODS_DATA;
   selectGod: (id: number) => void;
   resultData: { winnerName: string; scores: Record<string, number>; occupiedTerritories: number; mvp: string; } | null;
-  isModalOpen: boolean;
-  targetDistrict: { id: number; name: string } | null;
+  predictionModalOpen: boolean;
+  targetDistrictInfo: { id: number; name: string; enemyDef: number } | null;
+  openPrediction: (id: number, name: string) => void;
+  closePrediction: () => void;
+  // 🚀 型を明示的に指定
   setModal: (open: boolean, district?: { id: number; name: string } | null) => void;
   activeBuffs: { id: number; name: string; effect: string }[];
   updateBuffs: () => void;
@@ -64,10 +65,27 @@ export const useGameStore = create<GameState>((set, get) => ({
   playerName: "", myId: "", myTeam: "red",
   isMyTurn: true, turnOwner: "YOU",
   isGameOver: false, isSubmitted: false, isAuthenticated: false,
-  isModalOpen: false, targetDistrict: null, activeBuffs: [],
+  activeBuffs: [],
   selectedGodId: null,
   godsList: GODS_DATA,
-  resultData: null,   
+  resultData: null,
+  predictionModalOpen: false,
+  targetDistrictInfo: null,
+
+  openPrediction: (id: number, name: string) => {
+    set({ predictionModalOpen: true, targetDistrictInfo: { id: Number(id), name, enemyDef: 40 } });
+  },
+
+  closePrediction: () => set({ predictionModalOpen: false, targetDistrictInfo: null }),
+
+  // 🚀 引数に型を追加してエラーを解消
+  setModal: (open: boolean, district: { id: number; name: string } | null = null) => {
+    if (open && district) {
+      get().openPrediction(district.id, district.name);
+    } else {
+      get().closePrediction();
+    }
+  },
 
   login: async (username: string) => {
     set({ isAuthenticated: true, playerName: username, turn: 0, isMyTurn: true });
@@ -89,32 +107,20 @@ export const useGameStore = create<GameState>((set, get) => ({
   setPlayerName: (name) => set({ playerName: name }),
 
   nextTurn: () => {
-    set((state) => ({ 
-      turn: state.turn + 1,
-      isMyTurn: false,
-      isSubmitted: false,
-      selectedDistrictId: null 
-    }));
+    set((state) => ({ turn: state.turn + 1, isMyTurn: false, isSubmitted: false, selectedDistrictId: null }));
   },
-
-  setModal: (open, district = null) => set({ isModalOpen: open, targetDistrict: district }),
 
   updateBuffs: () => {
     const { districts, myId } = get();
     const myDistrictIds = Object.entries(districts)
       .filter(([_, ownerId]) => ownerId === myId)
       .map(([id, _]) => Number(id));
-
-    const buffs = myDistrictIds
-      .filter(id => SPECIALTY_DATA[id])
-      .map(id => ({ id, ...SPECIALTY_DATA[id] }));
-
+    const buffs = myDistrictIds.filter(id => SPECIALTY_DATA[id]).map(id => ({ id, ...SPECIALTY_DATA[id] }));
     set({ activeBuffs: buffs });
   },
 
   setStatus: (newStatus) => set((state) => ({ ...state, ...newStatus })),
 
-  // 🚀 同期処理：ここを強化
   syncServerState: (data, myId) => {
     if (!data) return;
     if (data.status === 'finished' || data.isGameOver) {
@@ -123,70 +129,40 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
     const isMe = data.turnOwnerId === myId;
     const myPlayerData = data.players?.[myId];
-
     set((state) => ({
       ...state,
       myId: myId,
       hp: myPlayerData?.hp ?? state.hp,
-      stamina: myPlayerData?.stamina ?? state.stamina,
+      stamina: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.stamina,
       atk: myPlayerData?.atk ?? state.atk,
       def: myPlayerData?.def ?? state.def,
+      blessing: myPlayerData?.faith ?? state.blessing,
       turn: data.turn ?? state.turn,
       districts: data.districts ?? state.districts,
       isMyTurn: data.turn === 0 ? true : isMe,
       turnOwner: isMe ? "YOU" : (data.turnOwnerName || "ENEMY"),
       isSubmitted: isMe ? false : state.isSubmitted 
     }));
-
-    // 🚀 【最重要】Phaserへ地図の再描画命令を飛ばす
-    // これにより、もう一人の画面でもリアルタイムに領地の色が変わります。
-    window.dispatchEvent(new CustomEvent('MAP_REPAINT', { 
-        detail: { districts: data.districts, players: data.players } 
-    }));
-
+    window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: data.players } }));
     get().updateBuffs();
   },
 
   attack: (targetId: number) => {
     const { isGameOver, isMyTurn, stamina } = get();
     if (isGameOver || !isMyTurn || stamina < 30) return;
-    
-    socket.emit("ACTION_SUBMIT", { type: 'attack', targetId: targetId });
+    socket.emit("ACTION_SUBMIT", { type: 'attack', targetId: Number(targetId) });
     get().addLog(`⚔️ 地区 ${targetId} 攻撃指令！ (AP-30)`);
-    window.dispatchEvent(new CustomEvent('ACTION_ATTACK', { detail: { targetId } }));
+    get().closePrediction();
   },
 
-  stay: () => { 
-    if (!get().isMyTurn) return;
-    socket.emit("ACTION_SUBMIT", { type: 'stay' });
-    get().addLog("🧘 休息 (AP回復)");
-  },
-
-  defense: () => { 
-    if (!get().isMyTurn || get().stamina < 10) return;
-    socket.emit("ACTION_SUBMIT", { type: 'defend' });
-    get().addLog("🛡️ 防御！ (AP-10)");
-  },
-
-  escape: () => { 
-    if (!get().isMyTurn) return;
-    socket.emit("ACTION_SUBMIT", { type: 'escape' });
-    get().addLog("🏃 撤退中...");
-  },
-
-  endTurn: () => {
-    if (!get().isMyTurn) return;
-    socket.emit("TURN_END_SUBMIT");
-    set({ isMyTurn: false, isSubmitted: true }); 
-    get().addLog("⌛ ターンを終了しました。");
-  },
-
+  stay: () => { if (!get().isMyTurn) return; socket.emit("ACTION_SUBMIT", { type: 'stay' }); get().addLog("🧘 休息 (AP回復)"); },
+  defense: () => { if (!get().isMyTurn || get().stamina < 10) return; socket.emit("ACTION_SUBMIT", { type: 'defend' }); get().addLog("🛡️ 防御！ (AP-10)"); },
+  escape: () => { if (!get().isMyTurn) return; socket.emit("ACTION_SUBMIT", { type: 'escape' }); get().addLog("🏃 撤退中..."); },
+  endTurn: () => { if (!get().isMyTurn) return; socket.emit("TURN_END_SUBMIT"); set({ isMyTurn: false, isSubmitted: true }); get().addLog("⌛ ターンを終了しました。"); },
   damage: (amount) => set({ hp: Math.max(0, get().hp - amount) }),
   resetGame: () => window.location.reload(),
   setIsSubmitted: (val) => set({ isSubmitted: val }),
   addLog: (text) => set((state) => ({ logs: [text, ...state.logs].slice(0, 10) })),
 }));
 
-if (typeof window !== 'undefined') {
-  (window as any).useGameStore = useGameStore;
-}
+if (typeof window !== 'undefined') { (window as any).useGameStore = useGameStore; }
