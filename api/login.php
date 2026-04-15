@@ -6,101 +6,94 @@ header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Content-Type: application/json; charset=UTF-8");
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-  http_response_code(200);
-  exit();
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
+
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/jwt_helper.php';
+
+// フロント(issei)からの入力を受け取る
+$input = json_decode(file_get_contents("php://input"), true);
+$username = trim($input['username'] ?? '');
+$password = $input['password'] ?? '';
+
+if (!$username || !$password) {
+  http_response_code(400);
+  echo json_encode(['status' => 'error', 'message' => 'ユーザー名とパスワードを入力してください']);
+  exit;
 }
 
-require_once __DIR__ . '/jwt_helper.php';
-require_once __DIR__ . '/../config/database.php';
-
 try {
-  // Reactから送られてきたJSONデータを受け取る
-  $json = file_get_contents('php://input');
-  $data = json_decode($json, true);
-
-  if (empty($data['username'])) {
-    echo json_encode(['status' => 'error', 'message' => 'Username has not been entered.']);
-    exit();
-  }
-
-  $username = trim($data['username']);
-
   $pdo->beginTransaction();
 
   // 1. ユーザーが存在するかチェック
   $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
   $stmt->execute([$username]);
-  $player = $stmt->fetch();
+  $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-  // 2. 存在しなければ新規作成 
-  if (!$player) {
-    // 新規登録の前に検問！現在のプレイヤー人数をカウント
-    $countStmt = $pdo->query("SELECT COUNT(*) FROM users");
-    $userCount = $countStmt->fetch();
+  $message = "";
 
-    // 2人以上いたらエラーにして追い返す
-    if ($userCount >= 2) {
+  if ($user) {
+    // --- 既存ユーザーの場合：パスワード検証 ---
+    // パスワードがハッシュ化されていない古いデータへの対策も含め検証
+    if (!password_verify($password, $user['password'])) {
       $pdo->rollBack();
-      echo json_encode([
-        'status'    => 'error',
-        'message'   => "The game is already full (max 2 players)."
-      ]);
-      exit();
+      http_response_code(401);
+      echo json_encode(['status' => 'error', 'message' => 'パスワードが正しくありません']);
+      exit;
+    }
+    $message = "You have successfully logged in!";
+  } else {
+    // --- 新規ユーザーの場合：登録処理 ---
+
+    // 人数制限チェック（最大2名）
+    $countStmt = $pdo->query("SELECT COUNT(*) FROM users");
+    if ($countStmt->fetchColumn() >= 2) {
+      $pdo->rollBack();
+      http_response_code(403);
+      echo json_encode(['status' => 'error', 'message' => '満員です（最大2名まで）']);
+      exit;
     }
 
-    // ランダムなプレイヤーカラーを生成
+    // パスワードをハッシュ化して保存
+    $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
     $playerColor = sprintf('#%06X', mt_rand(0, 0xFFFFFF));
 
-    // 初期ステータスを100に設定
-    $insertSql = "INSERT INTO users (username, player_color, max_hp, current_hp, stamina, atk, def)
-                  VALUES (?, ?, 100, 100, 100, 100, 100)";
-    $stmtInsert = $pdo->prepare($insertSql);
-    $stmtInsert->execute([$username, $playerColor]);
+    $insertSql = "INSERT INTO users (username, password, player_color, max_hp, current_hp, stamina, atk, def)
+                      VALUES (?, ?, ?, 100, 100, 100, 100, 100)";
+    $pdo->prepare($insertSql)->execute([$username, $hashedPassword, $playerColor]);
 
-    $playerId = $pdo->lastInsertId();
-
-    // 登録したユーザー情報を再取得
+    // 登録した情報を再取得
     $stmt->execute([$username]);
-    $player = $stmt->fetch();
-    $message = "Your registration is complete!";  //新規登録が完了しました！
-  } else {
-    $playerId = $player['id'];
-    $message = "You have successfully logged in!";  //ログインに成功しました！
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    $message = "Your registration is complete!";
   }
 
   $pdo->commit();
 
-  // JWT（トークン）の生成処理
+    // JWTトークンの生成 (jwt_helper.php の関数名に合わせる)
+    $token = createJWT($user['id'], $user['username']);
 
-  $payload = [
-    'user_id'    => $playerId,
-    'username'   => $player['username'],
-    'exp'        => time() + (60 * 60 * 24) // 24時間有効
-  ];
-
-  // 共通関数を呼び出してJWTを生成
-  $jwt = generateJWT($payload);
-
-  // フロントエンドが使いやすい形でレスポンスを返す
-echo json_encode([
-    'status'  => 'success',
-    'message' => $message,
-    'data'    => [ // ★dataキーで包む
-        'token' => $jwt,
-        'user'  => [
-            'id'           => (int)$player['id'],
-            'username'     => $player['username'],
-            'player_color' => $player['player_color'],
-            'current_hp'   => (int)$player['current_hp'],
-            'stamina'      => (int)$player['stamina']
+   // レスポンス（dataキーで包む形式を維持）
+    echo json_encode([
+        'status'  => 'success',
+        'message' => $message,
+        'data'    => [
+            'token' => $token,
+            'user'  => [
+                'id'           => (int)$user['id'],
+                'username'     => $user['username'],
+                'player_color' => $user['player_color'],
+                'current_hp'   => (int)$user['current_hp'],
+                'max_hp'       => (int)$user['max_hp'],
+                'stamina'      => (int)$user['stamina'],
+                'atk'          => (int)$user['atk'],
+                'def'          => (int)$user['def']
+            ]
         ]
-    ]
-], JSON_UNESCAPED_UNICODE);
+    ], JSON_UNESCAPED_UNICODE);
+
 } catch (Exception $e) {
-  if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
-
-  http_response_code(500);
-
-  echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
 }

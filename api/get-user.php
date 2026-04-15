@@ -8,50 +8,53 @@ header("Content-Type: application/json; charset=UTF-8");
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
 
 // ここで共通のデータベース設定を読み込む
-require_once __DIR__ . '/jwt_helper.php';
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/jwt_helper.php';
 
 // JWT認証チェック
 $headers = getallheaders();
-$authHeader = $headers['Authorization'] ?? '';
+$authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
 
-if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-    $jwt = $matches[1];
-    $userData = validateJWT($jwt);
-    if (!$userData) {
-        http_response_code(401);
-        echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
-        exit;
-    }
-} else {
+if (!preg_match('/Bearer\s(\S+)/', $authHeader, $matches) || !($userData = validateJWT($matches[1]))) {
     http_response_code(401);
-    echo json_encode(['status' => 'error', 'message' => 'No token provided']);
+    echo json_encode(['status' => 'error', 'message' => 'Unauthorized: Invalid or missing token']);
     exit;
 }
 
-// トークンから取得した本人のIDを使用
-$userId = (int)$userData['user_id'];
+// 誰の情報を取得するか決定
+// パラメータに user_id があればそれを優先、なければトークンの主（自分）
+$userId = isset($_GET['user_id']) ? (int)$_GET['user_id'] : (int)$userData['user_id'];
+
 
 try {
-        // URLパラメータの user_id は無視し、JWTの userId で検索する（セキュリティ向上）
+    // ユーザー情報の取得 (HP, ATK, DEFなど)
     $stmt = $pdo->prepare("SELECT id, username, player_color, max_hp, current_hp, stamina, atk, def FROM users WHERE id = ?");
     $stmt->execute([$userId]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$user) {
-      echo json_encode(['status' => 'error', 'message' =>'User not found']);
-      exit();
+        http_response_code(404);
+        echo json_encode(['status' => 'error', 'message' => 'User not found']);
+        exit();
     }
 
-// レスポンスの返却
+    // レスポンスの返却
     echo json_encode([
-      'status'    => 'success',
-      'data'      => $user
+        'status' => 'success',
+        'data'   => [
+            'user' => [
+                'id'           => (int)$user['id'],
+                'username'     => $user['username'],
+                'player_color' => $user['player_color'],
+                'current_hp'   => (int)$user['current_hp'],
+                'max_hp'       => (int)$user['max_hp'],
+                'stamina'      => (int)$user['stamina'],
+                'atk'          => (int)$user['atk'],
+                'def'          => (int)$user['def']
+            ]
+        ]
     ], JSON_UNESCAPED_UNICODE);
-
 } catch (Exception $e) {
-  http_response_code(500);
-  echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
 }
-
-?>
