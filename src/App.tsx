@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import socket from './socket';
 import { useGameStore } from './store';
 
-// ✅ インポート形式の整合性を維持
+// ✅ コンポーネントのインポート
 import { Sidebar } from './components/Sidebar';
 import { GameOverView } from './components/GameOverView';
 import TitleScreen from './components/TitleScreen'; 
@@ -10,8 +10,9 @@ import { HUD } from './components/HUD';
 import { PhaserGameView } from './components/PhaserGame';
 import { LoginView } from './components/LoginView';
 import { GodSelectionView } from './components/GodSelectionView';
+import { BattleModal } from './components/BattleModal'; 
 
-// 🔴 ブリッジ定数とイベント定数をインポート
+// 🔴 ブリッジ定数とイベント定数
 import { PHASER_TO_REACT, REACT_TO_PHASER } from './game/events/PhaserBridge';
 import { SERVER_EVENTS } from '../shared/socketEvents.js';
 
@@ -19,6 +20,7 @@ const App: React.FC = () => {
   const { 
     login, setStatus, syncServerState, addLog,
     turn, playerName: storePlayerName, selectedDistrictId,
+    openPrediction // 🚀 Storeから開く関数を確実に受け取る
   } = useGameStore();
   
   const gameRef = useRef<any>(null);
@@ -29,18 +31,13 @@ const App: React.FC = () => {
     (window as any).useGameStore = useGameStore;
 
     // --- 📡 サーバー通信の設定 ---
-
-    // 🚀 1. 接続した瞬間に自分のIDをStoreに覚えさせる（最重要）
     socket.on('connect', () => {
       console.log("📡 サーバー接続成功! My ID:", socket.id);
       if (socket.id) setStatus({ myId: socket.id });
     });
 
-    // 🚀 2. サーバーからの「全員への号令（TURN_START）」を最優先で処理
     socket.on(SERVER_EVENTS.TURN_START, (data) => {
-      console.log("⚔️ サーバーからのターン開始信号受信:", data);
       if (socket.id) {
-        // 現在のIDを添えて、サーバーの指定IDと照合させる
         syncServerState({ ...useGameStore.getState(), ...data }, socket.id);
         const isMe = data.turnOwnerId === socket.id;
         addLog(`📢 Day ${data.turn} 開始！ ${isMe ? '⚔️ あなたのターン' : '⌛ 相手のターン'}`);
@@ -73,8 +70,17 @@ const App: React.FC = () => {
       setStatus(e.detail);
     };
 
+    // 🚀 【重要】Phaserから届いた「以前の定義(101系)」を受け取り、モーダルを起動する
     const handleDistrictSelected = (e: any) => {
-      setStatus({ selectedDistrictId: e.detail });
+      const districtId = e.detail;
+      console.log("📍 Phaserから以前の定義IDを受信:", districtId);
+      
+      // ✅ ここでStoreの状態(predictionModalOpen)をtrueにする！
+      // これを忘れると画面にBattleModalが表示されません。
+      openPrediction(districtId, `地区 ${districtId}`);
+      
+      // 内部状態も更新
+      setStatus({ selectedDistrictId: districtId });
     };
 
     window.addEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
@@ -90,7 +96,7 @@ const App: React.FC = () => {
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleDistrictSelected);
     };
-  }, [setStatus, syncServerState, addLog]);
+  }, [setStatus, syncServerState, addLog, openPrediction]); // 🚀 openPredictionを依存配列に追加
 
   const handleLoginSubmit = async (name: string) => {
     setLocalPlayerName(name);
@@ -100,10 +106,6 @@ const App: React.FC = () => {
     setView('waiting');
   };
 
-  /**
-   * 🚀 出撃確定処理
-   * マルチプレイなので nextTurn() を勝手に呼んではいけません。サーバーの号令を待ちます。
-   */
   const handleFinalDeploy = () => {
     if (selectedDistrictId) {
       socket.emit("READY_TO_START", { 
@@ -126,6 +128,9 @@ const App: React.FC = () => {
   return (
     <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', background: '#000', position: 'relative' }}>
       <GodSelectionView />
+
+      {/* 🚀 勝率予測モーダル（最前面に配置） */}
+      <BattleModal />
 
       {view === 'waiting' ? (
         <div style={waitingScreenStyle}>
@@ -156,7 +161,7 @@ const App: React.FC = () => {
   );
 };
 
-// スタイル定義（省略・変更なし）
+// スタイル定義
 const waitingScreenStyle: React.CSSProperties = { flex: 1, background: '#121926', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', fontFamily: 'sans-serif' };
 const spinnerStyle: React.CSSProperties = { width: '60px', height: '60px', border: '6px solid rgba(255, 255, 255, 0.1)', borderTop: '6px solid #3498db', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '40px' };
 const debugButtonStyle: React.CSSProperties = { marginTop: '20px', background: 'rgba(255, 255, 255, 0.05)', color: '#666', padding: '10px 20px', borderRadius: '5px', border: '1px solid rgba(255, 255, 255, 0.1)', cursor: 'pointer', fontSize: '12px' };
