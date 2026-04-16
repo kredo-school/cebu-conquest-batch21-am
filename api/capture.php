@@ -2,7 +2,7 @@
 
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization"); // Authorizationを追加
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Content-Type: application/json; charset=UTF-8");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
@@ -13,8 +13,7 @@ require_once __DIR__ . '/../config/database.php';
 
 // --- JWT認証チェック (検問) ---
 $headers = getallheaders();
-$authHeader = $headers['Authorization'] ?? '';
-$userData - validateJWT($jwt);
+$authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
 
 if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
   $jwt = $matches[1];
@@ -44,7 +43,7 @@ try {
     exit();
   }
 
-  $territoryId = (int)$data['territory_id'];
+  $spotId = (int)$data['territory_id'];
 
   // ここで消費スタミナを一括管理！後からすぐ変更できる
   $staminaCost = 5;
@@ -53,17 +52,17 @@ try {
   $pdo->beginTransaction();
 
   // 1. 狙った陣地の「名前」と「占領コスト」を取得する
-  $stmtTerritory = $pdo->prepare("SELECT capture_cost, name FROM territories WHERE id = ?");
-  $stmtTerritory->execute([$territoryId]);
-  $territory = $stmtTerritory->fetch(PDO::FETCH_ASSOC);
+  $stmtSpot = $pdo->prepare("SELECT capture_cost, name FROM spots WHERE id = ?");
+  $stmtSpot->execute([$spotId]);
+  $spot = $stmtSpot->fetch(PDO::FETCH_ASSOC);
 
-  if (!$territory) {
+  if (!$spot) {
     $pdo->rollBack();
     echo json_encode(['status' => 'error', 'message' => '存在しない陣地です']);
     exit();
   }
   // $cost = (int)$territory['capture_cost'];//陣地ごとにコストを変えたくなった時に必要になるコード
-  $spotName = $territory['name'];
+  $spotName = $spot['name'];
 
   // 2. ユーザーの現在のスタミナを取得
   $stmtUser = $pdo->prepare("SELECT stamina FROM users WHERE id = ? FOR UPDATE");
@@ -87,8 +86,8 @@ try {
   }
 
   // 4. 陣地の状態をチェックして奪う
-  $stmtCheck = $pdo->prepare("SELECT user_id FROM occupations WHERE territory_id = ? FOR UPDATE");
-  $stmtCheck->execute([$territoryId]);
+  $stmtCheck = $pdo->prepare("SELECT user_id FROM occupations WHERE spot_id = ? FOR UPDATE");
+  $stmtCheck->execute([$spotId]);
   $existingOcc = $stmtCheck->fetch(PDO::FETCH_ASSOC);
 
   if ($existingOcc && $existingOcc['user_id'] == $userId) {
@@ -110,11 +109,11 @@ try {
   }
 
   // 5. 占領実行
-  $sqlCapture = "INSERT INTO occupations (territory_id, user_id)
-                 VALUES (?, ?)
-                 ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)";
+  $sqlCapture = "INSERT INTO occupations (spot_id, user_id, occupied_at)
+                 VALUES (?, ?, NOW())
+                 ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), occupied_at = NOW()";
   $stmtCap = $pdo->prepare($sqlCapture);
-  $stmtCap->execute([$territoryId, $userId]);
+  $stmtCap->execute([$spotId, $userId]);
 
   // 6. スタミナを消費して保存
   $stmtUpdateUser = $pdo->prepare("UPDATE users SET stamina = stamina - ? WHERE id = ?");
@@ -125,8 +124,8 @@ try {
   $droppedItemName = null;
 
   // その陣地に設定されているアイテムを探す
-  $stmtItem = $pdo->prepare("SELECT id, name FROM items WHERE territory_id = ?");
-  $stmtItem->execute([$territoryId]);
+  $stmtItem = $pdo->prepare("SELECT id, name FROM items WHERE spot_id = ?");
+  $stmtItem->execute([$spotId]);
   $item = $stmtItem->fetch(PDO::FETCH_ASSOC);
 
   if ($item) {
@@ -154,6 +153,7 @@ try {
     'status'        => 'success',
     'message'       => "“{$spotName}” has been captured! (Consumed {$staminaCost} Stamina)", // "「{$spotName}」を占領しました！（スタミナを {$cost} 消費）"
     'new_stamina'   => $newStamina,
+    'spot_id'     => $spotId
   ];
 
   // アイテムがドロップしていたら結果に追加する
