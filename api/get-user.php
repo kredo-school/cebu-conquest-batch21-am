@@ -21,9 +21,20 @@ if (!preg_match('/Bearer\s(\S+)/', $authHeader, $matches) || !($userData = valid
     exit;
 }
 
-// 誰の情報を取得するか決定
-// パラメータに user_id があればそれを優先、なければトークンの主（自分）
-$userId = isset($_GET['user_id']) ? (int)$_GET['user_id'] : (int)$userData['user_id'];
+// 本人認証チェックの厳格化 ---
+$authenticatedUserId = (int)$userData['user_id'];
+
+// パラメータにuser_idがある場合は取得、なければトークンのIDを使用
+$requestedUserId = isset($_GET['user_id']) ? (int)$_GET['user_id'] : $authenticatedUserId;
+
+// トークンの持ち主と、リクエストされたIDが一致しない場合は403エラーを返す
+if ($authenticatedUserId !== $requestedUserId) {
+    http_response_code(403);
+    echo json_encode(['status' => 'error', 'message' => 'Forbidden: You can only access your own data']);
+    exit;
+}
+
+$userId = $authenticatedUserId; // 最終的に使用するID
 
 
 try {
