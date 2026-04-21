@@ -20,7 +20,7 @@ const App: React.FC = () => {
   const { 
     login, setStatus, syncServerState, addLog,
     turn, playerName: storePlayerName, selectedDistrictId,
-    openPrediction // 🚀 Storeから開く関数を確実に受け取る
+    openPrediction, isGameOver
   } = useGameStore();
   
   const gameRef = useRef<any>(null);
@@ -36,14 +36,19 @@ const App: React.FC = () => {
       if (socket.id) setStatus({ myId: socket.id });
     });
 
+    // 🚀 Day（ターン数）開始通知の受信
     socket.on(SERVER_EVENTS.TURN_START, (data) => {
-      if (socket.id) {
-        syncServerState({ ...useGameStore.getState(), ...data }, socket.id);
-        const isMe = data.turnOwnerId === socket.id;
-        addLog(`📢 Day ${data.turn} 開始！ ${isMe ? '⚔️ あなたのターン' : '⌛ 相手のターン'}`);
-      }
+      if (!socket.id) return;
+      
+      // ストアの情報を最新化
+      syncServerState(data, socket.id);
+      
+      const isMe = data.turnOwnerId === socket.id;
+      const turnMsg = isMe ? '⚔️ あなたのターン（APが続く限り行動可能！）' : `⌛ 相手（${data.turnOwnerName}）のターン`;
+      addLog(`📢 Day ${data.turn} 開始！ ${turnMsg}`);
     });
 
+    // 🚀 リアルタイムな全ステート同期
     socket.on(SERVER_EVENTS.SYNC_STATE, (state) => {
       if (useGameStore.getState().isGameOver) return;
       if (socket.id) syncServerState(state, socket.id);
@@ -54,14 +59,25 @@ const App: React.FC = () => {
       addLog("🚀 マッチング完了。出撃地点を選択してください");
     });
 
+    // 🚀 重要：行動結果のログとステート更新（コンボ中のAP減少を即反映）
     socket.on(SERVER_EVENTS.ACTION_RESULT, (data) => {
       if (useGameStore.getState().isGameOver) return;
-      if (data.logs) data.logs.forEach((log: string) => addLog(log));
-      if (data.state && socket.id) syncServerState(data.state, socket.id);
+      
+      // ログの表示
+      if (data.logs) {
+        data.logs.forEach((log: string) => addLog(log));
+      }
+      
+      // 🚀 ここで同期することで、攻撃直後のAP減少がHUDに即反映される
+      if (data.state && socket.id) {
+        syncServerState(data.state, socket.id);
+      }
     });
 
     socket.on(SERVER_EVENTS.GAME_OVER, (data) => {
-      addLog(data.winnerId === socket.id ? "🏆 MISSION COMPLETE" : "🚨 MISSION FAILED");
+      addLog(data.winnerId === socket.id ? "🏆 MISSION COMPLETE (制圧完了)" : "🚨 MISSION FAILED (撤退)");
+      // ゲーム終了ステートをストアに反映
+      setStatus({ isGameOver: true });
     });
 
     // --- 🎮 Phaserブリッジ ---
@@ -70,16 +86,12 @@ const App: React.FC = () => {
       setStatus(e.detail);
     };
 
-    // 🚀 【重要】Phaserから届いた「以前の定義(101系)」を受け取り、モーダルを起動する
     const handleDistrictSelected = (e: any) => {
       const districtId = e.detail;
-      console.log("📍 Phaserから以前の定義IDを受信:", districtId);
+      console.log("📍 エリア選択を受信:", districtId);
       
-      // ✅ ここでStoreの状態(predictionModalOpen)をtrueにする！
-      // これを忘れると画面にBattleModalが表示されません。
+      // ✅ 複数回行動中、攻撃先を選択した際にモーダルを起動
       openPrediction(districtId, `地区 ${districtId}`);
-      
-      // 内部状態も更新
       setStatus({ selectedDistrictId: districtId });
     };
 
@@ -96,8 +108,9 @@ const App: React.FC = () => {
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleDistrictSelected);
     };
-  }, [setStatus, syncServerState, addLog, openPrediction]); // 🚀 openPredictionを依存配列に追加
+  }, [setStatus, syncServerState, addLog, openPrediction]);
 
+  // ログイン処理
   const handleLoginSubmit = async (name: string) => {
     setLocalPlayerName(name);
     await login(name); 
@@ -106,6 +119,7 @@ const App: React.FC = () => {
     setView('waiting');
   };
 
+  // 出撃地点確定
   const handleFinalDeploy = () => {
     if (selectedDistrictId) {
       socket.emit("READY_TO_START", { 
@@ -129,15 +143,15 @@ const App: React.FC = () => {
     <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', background: '#000', position: 'relative' }}>
       <GodSelectionView />
 
-      {/* 🚀 勝率予測モーダル（最前面に配置） */}
+      {/* 🚀 勝率予測モーダル（複数回行動の攻撃選択時に表示） */}
       <BattleModal />
 
       {view === 'waiting' ? (
         <div style={waitingScreenStyle}>
           <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-          <h1 style={{ fontSize: '48px', marginBottom: '20px', fontWeight: 'bold' }}>Looking for a match...</h1>
+          <h1 style={{ fontSize: '48px', marginBottom: '20px', fontWeight: 'bold', letterSpacing: '4px' }}>MATCHING...</h1>
           <p style={{ fontSize: '18px', color: '#ccc', marginBottom: '40px' }}>
-            「{playerName || storePlayerName}」 is Preparing for sortie
+            Commander: 「{playerName || storePlayerName}」 is Preparing for sortie
           </p>
           <div style={spinnerStyle}></div>
           <button onClick={() => setView('game')} style={debugButtonStyle}>(Debug) Force Start Game</button>
@@ -146,11 +160,14 @@ const App: React.FC = () => {
         <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
           <div style={{ flex: 1, position: 'relative' }}>
             <PhaserGameView ref={gameRef} playerName={playerName || storePlayerName} />
+            
+            {/* ⭐️ 初期配置ボタン */}
             {turn === 0 && selectedDistrictId && (
-              <div style={{ position: 'absolute', bottom: '120px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}>
+              <div style={{ position: 'absolute', bottom: '140px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}>
                 <button onClick={handleFinalDeploy} style={deployButtonStyle}>DEPLOY START</button>
               </div>
             )}
+
             <HUD />
             <GameOverView />
           </div>
@@ -162,9 +179,9 @@ const App: React.FC = () => {
 };
 
 // スタイル定義
-const waitingScreenStyle: React.CSSProperties = { flex: 1, background: '#121926', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', fontFamily: 'sans-serif' };
-const spinnerStyle: React.CSSProperties = { width: '60px', height: '60px', border: '6px solid rgba(255, 255, 255, 0.1)', borderTop: '6px solid #3498db', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '40px' };
-const debugButtonStyle: React.CSSProperties = { marginTop: '20px', background: 'rgba(255, 255, 255, 0.05)', color: '#666', padding: '10px 20px', borderRadius: '5px', border: '1px solid rgba(255, 255, 255, 0.1)', cursor: 'pointer', fontSize: '12px' };
-const deployButtonStyle: React.CSSProperties = { background: '#f1c40f', color: '#000', padding: '15px 40px', fontSize: '20px', fontWeight: 'bold', borderRadius: '10px', border: 'none', cursor: 'pointer', boxShadow: '0 0 20px rgba(241, 196, 15, 0.5)' };
+const waitingScreenStyle: React.CSSProperties = { flex: 1, background: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', fontFamily: 'Orbitron, sans-serif' };
+const spinnerStyle: React.CSSProperties = { width: '80px', height: '80px', border: '8px solid rgba(255, 255, 255, 0.1)', borderTop: '8px solid #f1c40f', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '40px', boxShadow: '0 0 20px rgba(241, 196, 15, 0.3)' };
+const debugButtonStyle: React.CSSProperties = { marginTop: '20px', background: 'rgba(255, 255, 255, 0.05)', color: '#444', padding: '10px 20px', borderRadius: '5px', border: '1px solid rgba(255, 255, 255, 0.1)', cursor: 'pointer', fontSize: '10px' };
+const deployButtonStyle: React.CSSProperties = { background: 'linear-gradient(to bottom, #f1c40f, #e67e22)', color: '#000', padding: '18px 60px', fontSize: '24px', fontWeight: '900', borderRadius: '12px', border: 'none', cursor: 'pointer', boxShadow: '0 0 30px rgba(241, 196, 15, 0.6)', letterSpacing: '2px', transition: '0.2s' };
 
 export default App;
