@@ -144,34 +144,54 @@ export default class MainScene extends Phaser.Scene {
     }
 
     _loadDistrictsFromTMJ() {
-        const objectLayer = this.tiledMap.getObjectLayer("districtName");
-        if (!objectLayer) return;
+        // 読み込みたいオブジェクトレイヤーの名前を配列で全て定義する
+        const targetLayers = ["islandName", "areaName", "districtName", "spotName"];
 
-        objectLayer.objects.forEach((obj) => {
-            let districtId = obj.id; 
+        targetLayers.forEach(layerName => {
+            // Tiledから該当するレイヤーを取得
+            const objectLayer = this.tiledMap.getObjectLayer(layerName);
             
-            // 🚀 【強化版】Tiledのプロパティ読み込み
-            if (obj.properties) {
-                if (Array.isArray(obj.properties)) {
-                    // 配列形式の場合
-                    const idProp = obj.properties.find(p => p.name.toLowerCase() === 'id' || p.name.toLowerCase() === 'districtid');
-                    if (idProp) districtId = parseInt(idProp.value, 10);
-                } else {
-                    // オブジェクト形式の場合
-                    districtId = obj.properties.id || obj.properties.districtId || districtId;
-                }
+            if (!objectLayer) {
+                // Tiled側の名前とズレている場合のデバッグ用警告
+                console.warn(`⚠️ オブジェクトレイヤーが見つかりません: ${layerName}`);
+                return; // 次のレイヤーの処理へ進む
             }
 
-            const poly = (obj.polygon || []).map((p) => ({ x: (obj.x + p.x) * MAP_SCALE, y: (obj.y + p.y) * MAP_SCALE }));
-            this.districts[districtId] = { 
-                id: districtId, 
-                name: obj.name, 
-                polygon: poly, 
-                center: this._calcCenter(poly), 
-                owner: "neutral", 
-                graphics: this.add.graphics().setDepth(2) 
-            };
-            this._redrawDistrict(this.districts[districtId], COLOR.NEUTRAL);
+            objectLayer.objects.forEach((obj) => {
+                let districtId = obj.id; 
+                
+                // Tiledのプロパティ読み込み
+                if (obj.properties) {
+                    if (Array.isArray(obj.properties)) {
+                        const idProp = obj.properties.find(p => p.name.toLowerCase() === 'id' || p.name.toLowerCase() === 'districtid');
+                        if (idProp) districtId = parseInt(idProp.value, 10);
+                    } else {
+                        districtId = obj.properties.id || obj.properties.districtId || districtId;
+                    }
+                }
+
+                // Tiledで描いたポリゴン座標をゲーム内のスケールに合わせる
+                const poly = (obj.polygon || []).map((p) => ({ 
+                    x: (obj.x + p.x) * MAP_SCALE, 
+                    y: (obj.y + p.y) * MAP_SCALE 
+                }));
+                
+                // 点や矩形（ポリゴンを持たないオブジェクト）を弾きたい場合はここでチェック
+                if (poly.length === 0) return;
+
+                this.districts[districtId] = { 
+                    id: districtId, 
+                    name: obj.name, 
+                    type: layerName, // 💡 後で「これは島？スポット？」と判別できるように種類を持たせておく
+                    polygon: poly, 
+                    center: this._calcCenter(poly), 
+                    owner: "neutral", 
+                    graphics: this.add.graphics().setDepth(2) 
+                };
+                
+                // 初期状態の枠線を描画
+                this._redrawDistrict(this.districts[districtId], COLOR.NEUTRAL);
+            });
         });
     }
 

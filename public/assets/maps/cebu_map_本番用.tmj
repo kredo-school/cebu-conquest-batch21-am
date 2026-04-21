@@ -4058,7 +4058,7 @@
         {
          "draworder":"topdown",
          "id":7,
-         "name":"island_id",
+         "name":"islandName",
          "objects":[
                 {
                  "height":0,
@@ -6682,7 +6682,7 @@
         {
          "draworder":"topdown",
          "id":9,
-         "name":"area_id",
+         "name":"areaName",
          "objects":[
                 {
                  "height":0,
@@ -9514,7 +9514,7 @@
         {
          "draworder":"topdown",
          "id":10,
-         "name":"district_id",
+         "name":"districtName",
          "objects":[
                 {
                  "height":0,
@@ -13563,7 +13563,7 @@
         {
          "draworder":"topdown",
          "id":21,
-         "name":"spot_id",
+         "name":"spotName",
          "objects":[
                 {
                  "height":222.949230582818,
@@ -13582,6 +13582,54 @@
                  "width":319.883678662304,
                  "x":4128.19580758512,
                  "y":4320.8530231431
+                }, 
+                {
+                 "height":156.306797528172,
+                 "id":72,
+                 "name":"Waterfront Hotel",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"13102",
+                         "type":"int",
+                         "value":0
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":157.518478129165,
+                 "x":4353.56839936993,
+                 "y":4162.12286441294
+                }, 
+                {
+                 "height":193.868896158972,
+                 "id":75,
+                 "name":"Ayala Malls Center",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"13103",
+                         "type":"int",
+                         "value":0
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":282.321580031504,
+                 "x":4546.2256149279,
+                 "y":4163.33454501393
+                }, 
+                {
+                 "height":285.956621834484,
+                 "id":76,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":155.095116927178,
+                 "x":4866.10929359021,
+                 "y":4097.90379256028
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -13590,7 +13638,7 @@
          "y":0
         }],
  "nextlayerid":22,
- "nextobjectid":70,
+ "nextobjectid":77,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.12.1",
