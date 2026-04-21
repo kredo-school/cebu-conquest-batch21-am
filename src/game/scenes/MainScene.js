@@ -227,7 +227,12 @@ export default class MainScene extends Phaser.Scene {
     const overlay = this.add.rectangle(0, 0, w, h, 0, 0).setOrigin(0).setInteractive();
     overlay.setDepth(1).on("pointerup", (p) => this._onMapClicked(p.x, p.y));
 
-    const sizeByType = { islandName: "36px", areaName: "16px", districtName: "8px", spotName: "8px" };
+    const sizeByType = {
+      islandName: "36px",
+      areaName: "16px",
+      districtName: "8px",
+      spotName: "8px",
+    };
 
     Object.values(this.districts).forEach((d) => {
       d.textLabel = this.add
@@ -394,21 +399,33 @@ export default class MainScene extends Phaser.Scene {
       }
     });
 
-    this.input.on("wheel", (_pointer, _gameObjects, _deltaX, deltaY) => {
+    this.input.on("wheel", (pointer, _gameObjects, _deltaX, deltaY, _deltaZ, event) => {
+      // 🍎 ピンチジェスチャ判定：タッチパッドのピンチ時は ctrlKey が true になる
+      const isPinch = event?.ctrlKey === true;
+
+      // ピンチは感度高め、通常ホイールは感度控えめに調整
+      const zoomSpeed = isPinch ? 0.1 : 0.001;
+
       const oldZoom = cam.zoom;
-      const newZoom = Phaser.Math.Clamp(oldZoom - deltaY * 0.0009, 0.5, 8);
+      const newZoom = Phaser.Math.Clamp(oldZoom - deltaY * zoomSpeed, 0.5, 8);
       if (oldZoom === newZoom) return;
 
-      // ビューポート中央のワールド座標を維持してズーム
-      const cx = cam.width / 2;
-      const cy = cam.height / 2;
-      const worldCX = cam.scrollX + cx / oldZoom;
-      const worldCY = cam.scrollY + cy / oldZoom;
+      // カーソル下のワールド座標を固定してズーム
+      const worldX = cam.scrollX + pointer.x / oldZoom;
+      const worldY = cam.scrollY + pointer.y / oldZoom;
+
       cam.setZoom(newZoom);
-      cam.scrollX = worldCX - cx / newZoom;
-      cam.scrollY = worldCY - cy / newZoom;
+
+      cam.scrollX = worldX - pointer.x / newZoom;
+      cam.scrollY = worldY - pointer.y / newZoom;
+
       this._clampCamera();
       this._updateLabelVisibility();
+
+      // ブラウザのデフォルトズーム（ページ全体拡大）を防止
+      if (isPinch && event?.preventDefault) {
+        event.preventDefault();
+      }
     });
 
     cam.setZoom(1);
@@ -424,13 +441,11 @@ export default class MainScene extends Phaser.Scene {
     const viewW = cam.width / cam.zoom;
     const viewH = cam.height / cam.zoom;
 
-    cam.scrollX = mapW > viewW
-      ? Phaser.Math.Clamp(cam.scrollX, 0, mapW - viewW)
-      : (mapW - viewW) / 2;
+    cam.scrollX =
+      mapW > viewW ? Phaser.Math.Clamp(cam.scrollX, 0, mapW - viewW) : (mapW - viewW) / 2;
 
-    cam.scrollY = mapH > viewH
-      ? Phaser.Math.Clamp(cam.scrollY, 0, mapH - viewH)
-      : (mapH - viewH) / 2;
+    cam.scrollY =
+      mapH > viewH ? Phaser.Math.Clamp(cam.scrollY, 0, mapH - viewH) : (mapH - viewH) / 2;
   }
 
   _updateHoverText(hoveredId) {
