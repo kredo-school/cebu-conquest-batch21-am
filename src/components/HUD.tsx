@@ -4,17 +4,25 @@ import { useGameStore } from '../store';
 export const HUD: React.FC = () => {
   const { 
     currentDistrictName, districts, isMyTurn, turnOwner, 
-    myId, myTeam, turn, maxTurn, isSubmitted, activeBuffs // 🚀 activeBuffs を追加
+    myId, myTeam, turn, maxTurn, isSubmitted, activeBuffs,
+    // 🚀 Task No.51, 52: ステータス表示用のデータを取得（store.tsの型定義修正済み）
+    hp, maxHp, stamina, maxStamina 
   } = useGameStore();
 
-  // 1. 占領進捗の計算
+  // 1. 各種進捗の計算
   const isSelected = currentDistrictName && currentDistrictName !== "未展開" && currentDistrictName !== "";
+  // 自分が占領している地区の数
   const actualCount = Object.values(districts).filter(id => id === myId).length;
-  const conquestProgress = ((isSelected ? actualCount + 1 : actualCount) / 11) * 100;
+  // 占領率の計算（全11地区） [cite: 11]
+  const conquestProgress = (actualCount / 11) * 100;
   
   const turnProgress = (turn / maxTurn) * 100;
 
-  // 2. ラベル判定
+  // 🚀 APとHPの割合（%） - 0除算防止のフォールバックを追加
+  const hpPercent = (hp / (maxHp || 100)) * 100;
+  const staminaPercent = (stamina / (maxStamina || 100)) * 100;
+
+  // 2. ラベル判定（現在のフェーズや手番を視覚化）
   let statusLabel = "";
   if (turn === 0) {
     statusLabel = "▶ INITIAL STANDBY";
@@ -37,14 +45,13 @@ export const HUD: React.FC = () => {
   return (
     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', display: 'flex', justifyContent: 'space-between', padding: '10px 15px', zIndex: 1000, pointerEvents: 'none' }}>
       
-      {/* 🚀 左：現在のセクター名 ＆ 特産品バフカード(No.30) */}
+      {/* 🚀 左：現在のセクター名 ＆ 特産品バフカード (Task No.30) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', pointerEvents: 'auto' }}>
         <div style={{ background: 'rgba(15, 23, 42, 0.9)', padding: '8px 25px', clipPath: 'polygon(0 0, 100% 0, 85% 100%, 0 100%)', borderBottom: '2px solid #fff' }}>
           <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)' }}>SECTOR</div>
           <div style={{ ...whiteText, fontSize: '13px' }}>{currentDistrictName || "地点未選択"}</div>
         </div>
 
-        {/* 🚀 Task No.30：バフカードの表示エリア */}
         <div style={{ display: 'flex', gap: '8px' }}>
           {activeBuffs.map((buff) => (
             <div key={buff.id} style={buffCardStyle}>
@@ -56,7 +63,7 @@ export const HUD: React.FC = () => {
         </div>
       </div>
 
-      {/* 中央：メインパネル（STATUS & TURN） */}
+      {/* 🚀 中央：メインパネル（STATUS / HP / AP / TURN） */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', pointerEvents: 'auto' }}>
         <div style={{ 
           background: (isMyTurn && !isSubmitted) ? (turn === 0 ? '#27ae60' : '#f1c40f') : '#334155', 
@@ -68,37 +75,53 @@ export const HUD: React.FC = () => {
           {statusLabel}
         </div>
         
-        <div style={{ background: 'rgba(15, 23, 42, 0.95)', padding: '10px 20px', borderRadius: '0 0 15px 15px', border: '1px solid rgba(255,255,255,0.2)', minWidth: '220px' }}>
-          {/* Status Progress Bar */}
-          <div style={{ display: 'flex', alignItems: 'center', width: '100%', marginBottom: '8px' }}>
-            <span style={{ ...whiteText, width: '50px' }}>STATUS</span>
-            <div style={{ flex: 1, height: '6px', background: '#000', margin: '0 10px', borderRadius: '3px', overflow: 'hidden', border: '1px solid #444' }}>
+        <div style={{ background: 'rgba(15, 23, 42, 0.95)', padding: '10px 20px', borderRadius: '0 0 15px 15px', border: '1px solid rgba(255,255,255,0.2)', minWidth: '280px' }}>
+          
+          {/* 🚀 Task No.51: HP Bar (VIT) */}
+          <div style={statRowStyle}>
+            <span style={{ ...whiteText, width: '60px' }}>VIT (HP)</span>
+            <div style={barContainerStyle}>
               <div style={{ 
-                height: '100%', 
-                width: `${Math.min(conquestProgress, 100)}%`, 
-                backgroundColor: myTeam === 'red' ? '#ff3e3e' : '#00fbff', 
-                boxShadow: `0 0 8px ${myTeam === 'red' ? '#ff3e3e' : '#00fbff'}`,
-                transition: 'width 0.5s ease-out' 
+                ...barProgressStyle, 
+                width: `${hpPercent}%`, 
+                backgroundColor: '#ff3e3e',
+                boxShadow: '0 0 10px #ff3e3e'
               }} />
             </div>
-            <span style={{ ...whiteText, width: '35px', textAlign: 'right' }}>{Math.round(conquestProgress)}%</span>
+            <span style={{ ...whiteText, width: '45px', textAlign: 'right' }}>{Math.round(hp)}</span>
           </div>
 
-          {/* Turn Progress Bar */}
-          <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-            <span style={{ ...whiteText, width: '50px' }}>TURN</span>
-            <div style={{ flex: 1, height: '6px', background: '#000', margin: '0 10px', borderRadius: '3px', overflow: 'hidden', border: '1px solid #444' }}>
+          {/* 🚀 Task No.52: Stamina (AP) Bar (STM) */}
+          <div style={statRowStyle}>
+            <span style={{ ...whiteText, width: '60px', color: '#00fbff' }}>STM (AP)</span>
+            <div style={barContainerStyle}>
               <div style={{ 
-                height: '100%', 
-                width: `${turnProgress}%`, 
-                backgroundColor: '#f1c40f', 
-                boxShadow: '0 0 8px #f1c40f',
-                transition: 'width 1s ease' 
+                ...barProgressStyle, 
+                width: `${staminaPercent}%`, 
+                backgroundColor: '#00fbff',
+                boxShadow: '0 0 10px #00fbff'
               }} />
             </div>
-            <span style={{ ...whiteText, width: '55px', textAlign: 'right' }}>
-              {turn === 0 ? "Standby" : `${turn}/${maxTurn}`}
-            </span>
+            <span style={{ ...whiteText, width: '45px', textAlign: 'right', color: '#00fbff' }}>{Math.round(stamina)}</span>
+          </div>
+
+          <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', margin: '8px 0' }} />
+
+          {/* 占領率 & ターン数表示 */}
+          <div style={statRowStyle}>
+            <span style={{ ...whiteText, width: '60px', fontSize: '9px' }}>CONQUEST</span>
+            <div style={{ ...barContainerStyle, height: '4px' }}>
+              <div style={{ ...barProgressStyle, width: `${conquestProgress}%`, backgroundColor: myTeam === 'red' ? '#ff3e3e' : '#00fbff' }} />
+            </div>
+            <span style={{ ...whiteText, width: '45px', textAlign: 'right', fontSize: '9px' }}>{Math.round(conquestProgress)}%</span>
+          </div>
+
+          <div style={statRowStyle}>
+            <span style={{ ...whiteText, width: '60px', fontSize: '9px' }}>TURN</span>
+            <div style={{ ...barContainerStyle, height: '4px' }}>
+              <div style={{ ...barProgressStyle, width: `${turnProgress}%`, backgroundColor: '#f1c40f' }} />
+            </div>
+            <span style={{ ...whiteText, width: '45px', textAlign: 'right', fontSize: '9px' }}>{turn}/{maxTurn}</span>
           </div>
         </div>
       </div>
@@ -112,7 +135,11 @@ export const HUD: React.FC = () => {
   );
 };
 
-// 🚀 Task No.30：バフカードの個別スタイル
+// スタイル定数
+const statRowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', width: '100%', marginBottom: '4px' };
+const barContainerStyle: React.CSSProperties = { flex: 1, height: '8px', background: '#000', margin: '0 10px', borderRadius: '4px', overflow: 'hidden', border: '1px solid #444' };
+const barProgressStyle: React.CSSProperties = { height: '100%', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)' };
+
 const buffCardStyle: React.CSSProperties = {
   background: 'rgba(15, 23, 42, 0.95)',
   padding: '5px 10px',

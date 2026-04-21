@@ -3,7 +3,7 @@
 // データベース接続情報
 $host = 'localhost';
 $port = '3306';
-$db   = 'cebu_conquest';
+$db   = 'cebu-conquest';
 $user = 'root';
 $pass = ''; // XAMPPのデフォルトは空欄
 
