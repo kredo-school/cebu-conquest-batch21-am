@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import socket from "../../socket";
-import { CLIENT_EVENTS, SERVER_EVENTS } from "../../../shared/socketEvents.js";
-import { PHASER_TO_REACT, REACT_TO_PHASER } from "../events/PhaserBridge";
+import { SERVER_EVENTS } from "../../../shared/socketEvents.js";
+import { PHASER_TO_REACT, REACT_TO_PHASER, emitToReact } from "../events/PhaserBridge";
 import { MAP_CONFIG } from "../config/mapConfig";
 
 const MAP_SCALE = 0.12;
@@ -15,7 +15,7 @@ const COLOR = {
   TEAM_BLUE: 0x00ffff,
 };
 
-// 🚀 以前の定義（101系）
+// TODO: 移行完了後に削除 — Tiledの隣接データで置き換える
 const ADJACENCY = {
   101: [102, 103, 104, 105, 201],
   102: [101, 104, 105, 401],
@@ -56,17 +56,12 @@ export default class MainScene extends Phaser.Scene {
   }
 
   preload() {
-    // 設定ファイルから現在のマップ情報を取得
     const config = MAP_CONFIG.MAPS[MAP_CONFIG.USE_MAP];
 
-    // 複数のタイルセットをループで一括ロード
-    if (config.tilesets && config.tilesets.length > 0) {
-      config.tilesets.forEach((ts) => {
-        this.load.image(ts.key, ts.path);
-      });
+    if (config.tilesets?.length > 0) {
+      config.tilesets.forEach((ts) => this.load.image(ts.key, ts.path));
     }
 
-    // マップデータのロード
     this.load.tilemapTiledJSON(config.key, config.path);
   }
 
@@ -80,7 +75,11 @@ export default class MainScene extends Phaser.Scene {
     this.updateStatusToReact();
   }
 
-  
+  shutdown() {
+    this._reactListeners?.forEach(({ event, handler }) =>
+      window.removeEventListener(event, handler),
+    );
+  }
 
   _setupReactListeners() {
     const handlers = [
@@ -94,7 +93,7 @@ export default class MainScene extends Phaser.Scene {
         },
       },
       {
-        event: REACT_TO_PHASER?.COMMAND_DEPLOY_CONFIRM || "COMMAND_DEPLOY_CONFIRM",
+        event: REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM,
         handler: (e) => this.confirmDeployment(Number(e.detail.districtId)),
       },
     ];
@@ -120,22 +119,16 @@ export default class MainScene extends Phaser.Scene {
       const targetId = Number(id);
       const neighbors = ADJACENCY[myPos] || [];
 
-      console.log(
-        `📍 [以前の定義を使用] 現在地: ${myPos}, クリック: ${targetId}, 隣接: ${neighbors}`,
-      );
-
-      // 🚀 隣接チェック または 隣接リストがまだ設定されていない場合（17, 18番など）
+      // 新システム移行完了前は、ID < 100（Tiled由来）の場合は隣接制限をスキップ
       if (neighbors.includes(targetId) || (myPos < 100 && targetId < 100)) {
         this.showLog(`🎯 ターゲット確認：${this.districts[targetId].name}`);
 
-        // React側へ「勝率予測モーダルを開け」と命令
         if (typeof store.openPrediction === "function") {
           store.openPrediction(targetId, this.districts[targetId].name);
         }
 
-        // UIのハイライト更新
         Object.values(this.districts).forEach((d) => {
-          let baseCol =
+          const baseCol =
             d.owner === "red"
               ? COLOR.TEAM_RED
               : d.owner === "blue"
@@ -164,23 +157,19 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _loadDistrictsFromTMJ() {
-    // 読み込みたいオブジェクトレイヤーの名前を配列で全て定義する
     const targetLayers = ["islandName", "areaName", "districtName", "spotName"];
 
     targetLayers.forEach((layerName) => {
-      // Tiledから該当するレイヤーを取得
       const objectLayer = this.tiledMap.getObjectLayer(layerName);
 
       if (!objectLayer) {
-        // Tiled側の名前とズレている場合のデバッグ用警告
         console.warn(`⚠️ オブジェクトレイヤーが見つかりません: ${layerName}`);
-        return; // 次のレイヤーの処理へ進む
+        return;
       }
 
       objectLayer.objects.forEach((obj) => {
         let districtId = obj.id;
 
-        // Tiledのプロパティ読み込み
         if (obj.properties) {
           if (Array.isArray(obj.properties)) {
             const idProp = obj.properties.find((p) => !isNaN(parseInt(p.name, 10)));
@@ -190,26 +179,23 @@ export default class MainScene extends Phaser.Scene {
           }
         }
 
-        // Tiledで描いたポリゴン座標をゲーム内のスケールに合わせる
         const poly = (obj.polygon || []).map((p) => ({
           x: (obj.x + p.x) * MAP_SCALE,
           y: (obj.y + p.y) * MAP_SCALE,
         }));
 
-        // 点や矩形（ポリゴンを持たないオブジェクト）を弾きたい場合はここでチェック
         if (poly.length === 0) return;
 
         this.districts[districtId] = {
           id: districtId,
           name: obj.name,
-          type: layerName, // 💡 後で「これは島？スポット？」と判別できるように種類を持たせておく
+          type: layerName,
           polygon: poly,
           center: this._calcCenter(poly),
           owner: "neutral",
           graphics: this.add.graphics().setDepth(2),
         };
 
-        // 初期状態の枠線を描画
         this._redrawDistrict(this.districts[districtId], COLOR.NEUTRAL, 0);
       });
     });
@@ -219,13 +205,10 @@ export default class MainScene extends Phaser.Scene {
     const config = MAP_CONFIG.MAPS[MAP_CONFIG.USE_MAP];
     const map = this.make.tilemap({ key: config.key });
 
-    // 全てのタイルセット画像をマップに追加し、配列に格納する
-    const allTilesets = config.tilesets.map((ts) => {
-      return map.addTilesetImage(ts.name, ts.key);
-    });
+    const tilesetList = config.tilesets ?? [{ name: config.tilesetName, key: config.tilesetKey }];
+    const allTilesets = tilesetList.map((ts) => map.addTilesetImage(ts.name, ts.key));
 
-    // Tiledのデータ内にある「全てのレイヤー」を自動でループして生成・描画する
-    this.tileLayers = []; // 今後レイヤーを操作できるように配列に入れておく
+    this.tileLayers = [];
     map.layers.forEach((layerData) => {
       const layer = map.createLayer(layerData.name, allTilesets, 0, 0);
       if (layer) {
@@ -236,23 +219,19 @@ export default class MainScene extends Phaser.Scene {
 
     this.tiledMap = map;
   }
+
   _drawDistrictPolygons() {
     const w = this.tiledMap.widthInPixels * MAP_SCALE;
     const h = this.tiledMap.heightInPixels * MAP_SCALE;
     const overlay = this.add.rectangle(0, 0, w, h, 0, 0).setOrigin(0).setInteractive();
-    overlay.setDepth(1).on("pointerdown", (p) => this._onMapClicked(p.x, p.y));
+    overlay.setDepth(1).on("pointerup", (p) => this._onMapClicked(p.x, p.y));
+
+    const sizeByType = { islandName: "36px", areaName: "16px", districtName: "8px", spotName: "8px" };
 
     Object.values(this.districts).forEach((d) => {
-      // レイヤーの種類（type）に応じて文字の基本サイズを変える
-      let baseSize = "16px";
-      if (d.type === "islandName") baseSize = "36px";
-      else if (d.type === "areaName") baseSize = "16px";
-      else if (d.type === "districtName") baseSize = "8px";
-      else if (d.type === "spotName") baseSize = "8px";
-
       d.textLabel = this.add
         .text(d.center.x, d.center.y, d.name, {
-          fontSize: baseSize,
+          fontSize: sizeByType[d.type] ?? "16px",
           color: "#ffffff",
           stroke: "#000",
           strokeThickness: 4,
@@ -264,48 +243,29 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  // ズーム倍率に応じて表示するテキストを切り替える
+  _getLodType(zoom) {
+    if (zoom < 1.5) return "islandName";
+    if (zoom < 2.5) return "areaName";
+    if (zoom < 3.5) return "districtName";
+    return "spotName";
+  }
+
   _updateLabelVisibility() {
-    const zoom = this.cameras.main.zoom;
-
+    const lodType = this._getLodType(this.cameras.main.zoom);
     Object.values(this.districts).forEach((d) => {
-      if (!d.textLabel) return;
-
-      let isVisible = false;
-
-      // ここが切り替えの「閾値（しきいち）」です。テストしながら気持ちいい数値に調整してください！
-      if (zoom < 1.5 && d.type === "islandName") {
-        isVisible = true;
-      } else if (zoom >= 1.5 && zoom < 2.5 && d.type === "areaName") {
-        isVisible = true;
-      } else if (zoom >= 2.5 && zoom < 3.5 && d.type === "districtName") {
-        isVisible = true;
-      } else if (zoom >= 3.5 && d.type === "spotName") {
-        isVisible = true;
-      }
-
-      d.textLabel.setVisible(isVisible);
+      if (d.textLabel) d.textLabel.setVisible(d.type === lodType);
     });
   }
 
-  // 小さな陣地（スポットなど）の当たり判定を優先する
   _getDistrictAtPoint(x, y) {
     let hitId = null;
     let highestPriority = 0;
 
-    // レイヤーの種類によって「当たり判定の強さ（優先度）」を決める（数字が大きいほど強い）
-    const priority = {
-      spotName: 4,
-      districtName: 3,
-      areaName: 2,
-      islandName: 1,
-    };
+    const priority = { spotName: 4, districtName: 3, areaName: 2, islandName: 1 };
 
     for (const d of Object.values(this.districts)) {
       if (pointInPolygon({ x, y }, d.polygon)) {
         const p = priority[d.type] || 0;
-
-        // 今見つかっている陣地よりも、新しく見つけた陣地の方が優先度が高ければ（小さければ）上書きする
         if (p > highestPriority) {
           hitId = d.id;
           highestPriority = p;
@@ -320,7 +280,6 @@ export default class MainScene extends Phaser.Scene {
     if (!d || !d.graphics) return;
     d.graphics.clear();
 
-    // alphaが0より大きい（選択中や、チームカラーが乗っている）場合のみ塗りつぶす
     if (alpha > 0) {
       d.graphics.fillStyle(color, alpha);
     }
@@ -333,7 +292,6 @@ export default class MainScene extends Phaser.Scene {
 
     if (alpha > 0) d.graphics.fillPath();
 
-    // 枠線は常に表示するが、選択中は太く、そうでないときは細くする
     d.graphics.lineStyle(2, 0xffffff, 0.4).strokePath();
   }
 
@@ -347,6 +305,7 @@ export default class MainScene extends Phaser.Scene {
       .setStrokeStyle(3, 0x000000);
     this.cameras.main.pan(start.center.x, start.center.y, 600, "Power2");
   }
+
   _syncDistricts(serverDistricts, serverPlayers) {
     Object.entries(serverDistricts).forEach(([districtId, ownerId]) => {
       const d = this.districts[Number(districtId)];
@@ -365,6 +324,7 @@ export default class MainScene extends Phaser.Scene {
       }
     });
   }
+
   _syncPlayers(players) {
     Object.entries(players).forEach(([playerId, data]) => {
       if (playerId === socket.id) return;
@@ -381,6 +341,7 @@ export default class MainScene extends Phaser.Scene {
       }
     });
   }
+
   _initSocket() {
     socket.connect();
     socket.on(SERVER_EVENTS.SYNC_STATE, (state) => {
@@ -396,18 +357,20 @@ export default class MainScene extends Phaser.Scene {
       }
     });
   }
+
   _calcCenter(p) {
     return {
       x: p.reduce((s, v) => s + v.x, 0) / p.length,
       y: p.reduce((s, v) => s + v.y, 0) / p.length,
     };
   }
+
   showLog(message) {
-    window.dispatchEvent(new CustomEvent("NEW_LOG", { detail: message }));
+    emitToReact("NEW_LOG", message);
   }
+
   updateStatusToReact() {
-    const eventName = PHASER_TO_REACT?.STATS_UPDATED || "statsUpdated";
-    window.dispatchEvent(new CustomEvent(eventName, { detail: this.playerStats }));
+    emitToReact(PHASER_TO_REACT.STATS_UPDATED, this.playerStats);
   }
 
   _setupCamera() {
@@ -425,48 +388,33 @@ export default class MainScene extends Phaser.Scene {
 
     this.input.on("pointermove", (p) => {
       if (p.isDown) {
-        // ドラッグ中のカメラ移動処理
         if (p.getDistance() > 3) this._dragMoved = true;
         cam.scrollX -= (p.x - p.prevPosition.x) / cam.zoom;
         cam.scrollY -= (p.y - p.prevPosition.y) / cam.zoom;
       } else {
-        // ドラッグしていない時＝ホバー時の処理
         const worldPoint = cam.getWorldPoint(p.x, p.y);
         const hoveredId = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
-
-        // 下記で追加する _updateHoverText メソッドを呼び出す
         this._updateHoverText(hoveredId);
       }
     });
 
-    // マウスホイールでのズーム機能
     this.input.on("wheel", (pointer, gameObjects, deltaX, deltaY, deltaZ) => {
-      // あきらさん調整済みの感度と限界値！
       const newZoom = cam.zoom - deltaY * 0.0009;
       cam.setZoom(Phaser.Math.Clamp(newZoom, 0.5, 8));
+      this._updateLabelVisibility();
     });
+
     cam.setZoom(1);
-    // ピンチ実装時に追加予定なら今から入れておく
-    // cam.zoom = Phaser.Math.Clamp(newZoom, 0.3, 2.0);
     this._updateLabelVisibility();
   }
 
   _updateHoverText(hoveredId) {
-    const zoom = this.cameras.main.zoom;
+    const lodType = this._getLodType(this.cameras.main.zoom);
 
     Object.values(this.districts).forEach((d) => {
       if (!d.textLabel) return;
-
-      // LODルール：ズームに応じて表示すべきtypeか判定
-      let lodVisible = false;
-      if (zoom < 1.5 && d.type === "islandName") lodVisible = true;
-      else if (zoom >= 1.5 && zoom < 2.5 && d.type === "areaName") lodVisible = true;
-      else if (zoom >= 2.5 && zoom < 3.5 && d.type === "districtName") lodVisible = true;
-      else if (zoom >= 3.5 && d.type === "spotName") lodVisible = true;
-
-      // ホバーしているものは常に表示（LODを無視して強制表示）
       const isHovered = d.id === hoveredId;
-      d.textLabel.setVisible(lodVisible || isHovered);
+      d.textLabel.setVisible(d.type === lodType || isHovered);
       d.textLabel.setScale(isHovered ? 1.2 : 1.0);
     });
   }

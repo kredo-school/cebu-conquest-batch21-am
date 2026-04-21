@@ -25,7 +25,6 @@ export const MAP_CONFIG = {
                 { name: '道A', key: 'dirt_road', path: '/assets/tilesets/[A]Dirt1_pipo.png' }
             ],
             districtLayer: "spotName",
-            // layerName: 'Background'
         }
     }
 };
