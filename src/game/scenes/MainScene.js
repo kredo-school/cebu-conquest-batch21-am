@@ -4,7 +4,7 @@ import { CLIENT_EVENTS, SERVER_EVENTS } from "../../../shared/socketEvents.js";
 import { PHASER_TO_REACT, REACT_TO_PHASER } from "../events/PhaserBridge";
 import { MAP_CONFIG } from "../config/mapConfig";
 
-const MAP_SCALE = 0.5;
+const MAP_SCALE = 0.12;
 
 const COLOR = {
     NEUTRAL: 0x95a5a6,
@@ -184,10 +184,16 @@ export default class MainScene extends Phaser.Scene {
             return map.addTilesetImage(ts.name, ts.key);
         });
 
-        // 配列を使ってレイヤーを生成する（複数タイルセット対応）
-        this.tileLayer = map.createLayer(config.layerName, allTilesets, 0, 0);
+        // Tiledのデータ内にある「全てのレイヤー」を自動でループして生成・描画する
+        this.tileLayers = []; // 今後レイヤーを操作できるように配列に入れておく
+        map.layers.forEach(layerData => {
+            const layer = map.createLayer(layerData.name, allTilesets, 0, 0);
+            if (layer) {
+                layer.setScale(MAP_SCALE);
+                this.tileLayers.push(layer);
+            }
+        });
         
-        if (this.tileLayer) this.tileLayer.setScale(MAP_SCALE);
         this.tiledMap = map;
     }
     _drawDistrictPolygons() {

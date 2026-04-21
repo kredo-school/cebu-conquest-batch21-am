@@ -13559,9 +13559,38 @@
          "visible":true,
          "x":0,
          "y":0
+        }, 
+        {
+         "draworder":"topdown",
+         "id":21,
+         "name":"spot_id",
+         "objects":[
+                {
+                 "height":222.949230582818,
+                 "id":68,
+                 "name":"IT Park",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"13101",
+                         "type":"int",
+                         "value":0
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":319.883678662304,
+                 "x":4128.19580758512,
+                 "y":4320.8530231431
+                }],
+         "opacity":1,
+         "type":"objectgroup",
+         "visible":true,
+         "x":0,
+         "y":0
         }],
- "nextlayerid":21,
- "nextobjectid":64,
+ "nextlayerid":22,
+ "nextobjectid":70,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.12.1",
