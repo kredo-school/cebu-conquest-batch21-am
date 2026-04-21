@@ -1,6 +1,6 @@
 export const MAP_CONFIG = {
     // 'SIMPLE' なら簡易版、 'PRODUCTION' なら本番用を表示
-    USE_MAP: 'production', 
+    USE_MAP: 'PRODUCTION', 
 
     MAPS: {
         SIMPLE: {
@@ -23,7 +23,7 @@ export const MAP_CONFIG = {
                 { name: '草長い', key: 'long_grass', path: '/assets/tilesets/[A]LongGrass_pipo.png' },
                 { name: '道A', key: 'dirt_road', path: '/assets/tilesets/[A]Dirt1_pipo.png' }
             ],
-            layerName: 'Background'
+            // layerName: 'Background'
         }
     }
 };
