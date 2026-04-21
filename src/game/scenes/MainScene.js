@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import socket from "../../socket";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "../../../shared/socketEvents.js";
 import { PHASER_TO_REACT, REACT_TO_PHASER } from "../events/PhaserBridge";
+import { MAP_CONFIG } from "../config/mapConfig";
 
 const MAP_SCALE = 0.5;
 
@@ -53,8 +54,18 @@ export default class MainScene extends Phaser.Scene {
     }
 
     preload() {
-        this.load.image("tiles", "/assets/tilesets/Slates.png");
-        this.load.tilemapTiledJSON("map", "/assets/maps/cebu_map_簡易版.tmj");
+        // 設定ファイルから現在のマップ情報を取得
+        const config = MAP_CONFIG.MAPS[MAP_CONFIG.USE_MAP];
+        
+        // 複数のタイルセットをループで一括ロード
+        if (config.tilesets && config.tilesets.length > 0) {
+            config.tilesets.forEach(ts => {
+                this.load.image(ts.key, ts.path);
+            });
+        }
+
+        // マップデータのロード
+        this.load.tilemapTiledJSON(config.key, config.path);
     }
 
     create() {
@@ -164,11 +175,18 @@ export default class MainScene extends Phaser.Scene {
         });
     }
 
-    // --- 以降の補助メソッドは変更なし（そのまま維持） ---
     _setupTilemap() {
-        const map = this.make.tilemap({ key: "map" });
-        const tileset = map.addTilesetImage("Slates.png", "tiles");
-        this.tileLayer = map.createLayer("タイルレイヤー1", tileset, 0, 0);
+        const config = MAP_CONFIG.MAPS[MAP_CONFIG.USE_MAP];
+        const map = this.make.tilemap({ key: config.key });
+        
+        // 全てのタイルセット画像をマップに追加し、配列に格納する
+        const allTilesets = config.tilesets.map(ts => {
+            return map.addTilesetImage(ts.name, ts.key);
+        });
+
+        // 配列を使ってレイヤーを生成する（複数タイルセット対応）
+        this.tileLayer = map.createLayer(config.layerName, allTilesets, 0, 0);
+        
         if (this.tileLayer) this.tileLayer.setScale(MAP_SCALE);
         this.tiledMap = map;
     }
