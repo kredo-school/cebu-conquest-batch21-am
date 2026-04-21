@@ -66,6 +66,7 @@ export default class MainScene extends Phaser.Scene {
   }
 
   create() {
+    this.cameras.main.setBackgroundColor(0x2471a3);
     this._setupTilemap();
     this._loadDistrictsFromTMJ();
     this._drawDistrictPolygons();
@@ -375,12 +376,6 @@ export default class MainScene extends Phaser.Scene {
 
   _setupCamera() {
     const cam = this.cameras.main;
-    cam.setBounds(
-      0,
-      0,
-      this.tiledMap.widthInPixels * MAP_SCALE,
-      this.tiledMap.heightInPixels * MAP_SCALE,
-    );
 
     this.input.on("pointerdown", () => {
       this._dragMoved = false;
@@ -391,6 +386,7 @@ export default class MainScene extends Phaser.Scene {
         if (p.getDistance() > 3) this._dragMoved = true;
         cam.scrollX -= (p.x - p.prevPosition.x) / cam.zoom;
         cam.scrollY -= (p.y - p.prevPosition.y) / cam.zoom;
+        this._clampCamera();
       } else {
         const worldPoint = cam.getWorldPoint(p.x, p.y);
         const hoveredId = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
@@ -398,14 +394,43 @@ export default class MainScene extends Phaser.Scene {
       }
     });
 
-    this.input.on("wheel", (pointer, gameObjects, deltaX, deltaY, deltaZ) => {
-      const newZoom = cam.zoom - deltaY * 0.0009;
-      cam.setZoom(Phaser.Math.Clamp(newZoom, 0.5, 8));
+    this.input.on("wheel", (_pointer, _gameObjects, _deltaX, deltaY) => {
+      const oldZoom = cam.zoom;
+      const newZoom = Phaser.Math.Clamp(oldZoom - deltaY * 0.0009, 0.5, 8);
+      if (oldZoom === newZoom) return;
+
+      // ビューポート中央のワールド座標を維持してズーム
+      const cx = cam.width / 2;
+      const cy = cam.height / 2;
+      const worldCX = cam.scrollX + cx / oldZoom;
+      const worldCY = cam.scrollY + cy / oldZoom;
+      cam.setZoom(newZoom);
+      cam.scrollX = worldCX - cx / newZoom;
+      cam.scrollY = worldCY - cy / newZoom;
+      this._clampCamera();
       this._updateLabelVisibility();
     });
 
     cam.setZoom(1);
+    this._clampCamera();
     this._updateLabelVisibility();
+  }
+
+  // マップがビューポートより小さければ中央寄せ、大きければ端でクランプ
+  _clampCamera() {
+    const cam = this.cameras.main;
+    const mapW = this.tiledMap.widthInPixels * MAP_SCALE;
+    const mapH = this.tiledMap.heightInPixels * MAP_SCALE;
+    const viewW = cam.width / cam.zoom;
+    const viewH = cam.height / cam.zoom;
+
+    cam.scrollX = mapW > viewW
+      ? Phaser.Math.Clamp(cam.scrollX, 0, mapW - viewW)
+      : (mapW - viewW) / 2;
+
+    cam.scrollY = mapH > viewH
+      ? Phaser.Math.Clamp(cam.scrollY, 0, mapH - viewH)
+      : (mapH - viewH) / 2;
   }
 
   _updateHoverText(hoveredId) {
