@@ -8,7 +8,8 @@ export const MAP_CONFIG = {
             path: '/assets/maps/cebu_map_簡易版.tmj',
             tilesetKey: 'tiles',
             tilesetName: 'Slates.png',
-            layerName: 'タイルレイヤー1'
+            layerName: 'タイルレイヤー1',
+            districtLayer: "districtName",
         },
         PRODUCTION: {
             key: 'map_production',
@@ -23,6 +24,7 @@ export const MAP_CONFIG = {
                 { name: '草長い', key: 'long_grass', path: '/assets/tilesets/[A]LongGrass_pipo.png' },
                 { name: '道A', key: 'dirt_road', path: '/assets/tilesets/[A]Dirt1_pipo.png' }
             ],
+            districtLayer: "spotName",
             // layerName: 'Background'
         }
     }

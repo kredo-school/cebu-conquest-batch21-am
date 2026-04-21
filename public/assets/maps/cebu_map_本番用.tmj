@@ -4063,7 +4063,7 @@
                 {
                  "height":0,
                  "id":1,
-                 "name":"Cebu Mactan",
+                 "name":"Cebu",
                  "opacity":1,
                  "polygon":[
                         {
@@ -4798,7 +4798,7 @@
                 {
                  "height":0,
                  "id":5,
-                 "name":"Bohol Island",
+                 "name":"Bohol",
                  "opacity":1,
                  "polygon":[
                         {
@@ -5345,7 +5345,7 @@
                 {
                  "height":0,
                  "id":6,
-                 "name":"Negros Island",
+                 "name":"Negros",
                  "opacity":1,
                  "polygon":[
                         {
@@ -6413,7 +6413,7 @@
                 {
                  "height":0,
                  "id":20,
-                 "name":"Cebu Mactan",
+                 "name":"Mactan",
                  "opacity":1,
                  "polygon":[
                         {
@@ -6675,7 +6675,7 @@
                 }],
          "opacity":1,
          "type":"objectgroup",
-         "visible":false,
+         "visible":true,
          "x":0,
          "y":0
         }, 
