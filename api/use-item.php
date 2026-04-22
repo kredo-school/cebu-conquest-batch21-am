@@ -1,48 +1,47 @@
 <?php
 // api/use-item.php
-header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Origin: http://localhost:5173");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Content-Type: application/json; charset=UTF-8");
+header("X-Content-Type-Options: nosniff");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
+
+// HTTPメソッド制限
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['status' => 'error', 'message' => 'Method Not Allowed']);
+    exit;
+}
 
 // 共通設定の読み込み
 require_once __DIR__ . '/jwt_helper.php';
 require_once __DIR__ . '/../config/database.php';
 
-// JWT認証チェック (検問)
+// JWT認証チェック
 $headers = getallheaders();
-$authHeader = $headers['Authorization'] ?? '';
+$authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
 
-if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-    $jwt = $matches[1];
-    $userData = validateJWT($jwt);
-    
-    if (!$userData) {
-        http_response_code(401);
-        echo json_encode(['status' => 'error', 'message' => '無効なトークンです']);
-        exit;
-    }
-} else {
+if (!preg_match('/Bearer\s(\S+)/', $authHeader, $matches) || !($userData = validateJWT($matches[1]))) {
     http_response_code(401);
-    echo json_encode(['status' => 'error', 'message' => '認証が必要です']);
+    echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
     exit;
 }
 
-// JWTから本人のユーザーIDを取得
+// ★最重要：JWTから取得した「本人のID」を固定で使用する
 $userId = (int)$userData['user_id'];
 
 try {
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
 
-    if (empty($data['user_id']) || empty($data['item_id'])) {
-        echo json_encode(['status' => 'error', 'message' => 'There is insufficient data']);//データが不足しています
+    if (empty($data['item_id'])) {
+        echo json_encode(['status' => 'error', 'message' => 'There is insufficient data']);
         exit();
     }
 
-    $userId = (int)$data['user_id'];
+    // $userId = (int)$data['user_id'];
     $itemId = (int)$data['item_id'];
 
     $pdo->beginTransaction();

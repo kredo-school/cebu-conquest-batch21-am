@@ -25,3 +25,6 @@ yarn-error.log*
 .env
 .env.*
 *.local
+
+# DB接続情報と秘密鍵をGit管理から外す
+config/database.php

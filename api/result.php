@@ -1,10 +1,18 @@
 <?php
-header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Origin: http://localhost:5173");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Content-Type: application/json; charset=UTF-8");
+header("X-Content-Type-Options: nosniff");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
+
+// HTTPメソッド制限（POST以外を405で弾く）
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['status' => 'error', 'message' => 'Method Not Allowed. This endpoint requires POST.']);
+    exit;
+}
 
 // 共通のデータベース設定を読み込む
 require_once __DIR__ . '/jwt_helper.php';
@@ -39,6 +47,13 @@ try {
     $loserId     = (int)$data['loser_id'];
     $winnerScore = (int)$data['winner_score'];
     $loserScore  = (int)$data['loser_score'];
+
+    // 本人確認（ログイン中のユーザーが勝者か敗者のどちらかであること）
+    if ($currentUserId !== $winnerId && $currentUserId !== $loserId) {
+        http_response_code(403);
+        echo json_encode(['status' => 'error', 'message' => 'Forbidden: Match data mismatch']);
+        exit;
+    }
 
     // --- 不正スコアの検証ロジック ---
     // セブ島の全スポット数は27なので、合計がそれ以上になるのは不正なデータ

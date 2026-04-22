@@ -8,7 +8,7 @@ $user = 'root';
 $pass = ''; // XAMPPのデフォルトは空欄
 
 // JWT生成用の秘密鍵
-$jwt_secret = 'CEBU_CONQUEST_TEAM_SECRET_2026_PROD';
+$jwt_secret = 'CEBU_CONQUEST_TEAM_SECRET_2026';
 
 try {
     // PDOインスタンスを作成して返す
