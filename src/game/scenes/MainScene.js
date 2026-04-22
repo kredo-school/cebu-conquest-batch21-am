@@ -3,6 +3,7 @@ import socket from "../../socket";
 import { SERVER_EVENTS } from "../../../shared/socketEvents.js";
 import { PHASER_TO_REACT, REACT_TO_PHASER, emitToReact } from "../events/PhaserBridge";
 import { MAP_CONFIG } from "../config/mapConfig";
+import ZoomManager from "./ZoomManager";
 
 const MAP_SCALE = 0.12;
 
@@ -67,6 +68,7 @@ export default class MainScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor(0x2471a3);
+    this.zoomManager = new ZoomManager();
     this._setupTilemap();
     this._loadDistrictsFromTMJ();
     this._drawDistrictPolygons();
@@ -74,6 +76,10 @@ export default class MainScene extends Phaser.Scene {
     this._initSocket();
     this._setupReactListeners();
     this.updateStatusToReact();
+  }
+
+  update() {
+    this.zoomManager.tick(this.cameras.main.zoom, this.districts);
   }
 
   shutdown() {
@@ -249,20 +255,6 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  _getLodType(zoom) {
-    if (zoom < 1.5) return "islandName";
-    if (zoom < 2.5) return "areaName";
-    if (zoom < 3.5) return "districtName";
-    return "spotName";
-  }
-
-  _updateLabelVisibility() {
-    const lodType = this._getLodType(this.cameras.main.zoom);
-    Object.values(this.districts).forEach((d) => {
-      if (d.textLabel) d.textLabel.setVisible(d.type === lodType);
-    });
-  }
-
   _getDistrictAtPoint(x, y) {
     let hitId = null;
     let highestPriority = 0;
@@ -420,7 +412,6 @@ export default class MainScene extends Phaser.Scene {
       cam.scrollY = worldY - pointer.y / newZoom;
 
       this._clampCamera();
-      this._updateLabelVisibility();
 
       // ブラウザのデフォルトズーム（ページ全体拡大）を防止
       if (isPinch && event?.preventDefault) {
@@ -430,7 +421,6 @@ export default class MainScene extends Phaser.Scene {
 
     cam.setZoom(1);
     this._clampCamera();
-    this._updateLabelVisibility();
   }
 
   // マップがビューポートより小さければ中央寄せ、大きければ端でクランプ
@@ -449,13 +439,6 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _updateHoverText(hoveredId) {
-    const lodType = this._getLodType(this.cameras.main.zoom);
-
-    Object.values(this.districts).forEach((d) => {
-      if (!d.textLabel) return;
-      const isHovered = d.id === hoveredId;
-      d.textLabel.setVisible(d.type === lodType || isHovered);
-      d.textLabel.setScale(isHovered ? 1.2 : 1.0);
-    });
+    this.zoomManager.setHover(hoveredId, this.districts);
   }
 }
