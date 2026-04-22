@@ -1,168 +1,245 @@
 import { create } from 'zustand';
 import socket from './socket';
 
+// 🚀 【なお仕様】ID 11101系（27スポット）完全移行 ＆ バフカード定義
 const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
-  101: { name: "セブ・マンゴー", effect: "ATK +10%" },
-  102: { name: "サン・ペドロの祈り", effect: "DEF +10%" },
-  103: { name: "レチョン・パワー", effect: "HP回復 +5" },
-  104: { name: "ITパークの知恵", effect: "AP消費 -2" },
-  105: { name: "マゼラン_クロス", effect: "信仰力 +0.2" },
+  11101: { name: "絶品特製チチャロン", effect: "ATK +15%" },
+  11102: { name: "夜明けのエナジードリンク", effect: "AP回復速度UP" },
+  11103: { name: "サン・ペドロの守護石", effect: "DEF +20" },
+  11104: { name: "ITパークの光回線", effect: "命中率UP" },
+  11105: { name: "セブ・ゴールド・マンゴー", effect: "全ステータス +5%" },
+  // 🚀 占領後にカードが出るように 11119 と 11120 を追加！
+  11119: { name: "マリン・バースト", effect: "ATK +10" },
+  11120: { name: "ヘリテージ・スパイス", effect: "DEF +10" },
+  // ※なおさんのリストに合わせて順次拡張してください
 };
 
 const GODS_DATA = [
-  { id: 1, name: "戦神 ラプパプ", bonus: "初期攻撃力 ATK +20", item: "古びた剣" },
-  { id: 2, name: "豊穣の女神 セブナ", bonus: "初期スタミナ AP +30", item: "マンゴーの種" },
-  { id: 3, name: "知恵の神 クレド", bonus: "毎ターンAP回復 +5", item: "光るUSB" },
+  { id: 1, name: "戦神 ラプパプ", bonus: "ATK +20", item: "古びた剣" },
+  { id: 2, name: "豊穣の女神 セブナ", bonus: "MAX AP +30", item: "マンゴーの種" },
+  { id: 3, name: "知恵の神 クレド", bonus: "毎ターンAP回復", item: "光るUSB" },
 ];
 
+const API_BASE = "http://localhost/cebu-conquest/cebu-conquest-batch21-am/api"; 
+
 interface GameState {
-  hp: number; stamina: number; blessing: number;
-  atk: number; def: number;
-  turn: number; maxTurn: number;
-  logs: string[]; players: Record<string, any>;
+  token: string | null;
+  isAuthenticated: boolean;
+  hp: number;
+  maxHp: number;
+  stamina: number;
+  maxStamina: number;
+  blessing: number;
+  atk: number; 
+  def: number;
+  turn: number; 
+  maxTurn: number;
+  logs: string[]; 
+  players: Record<string, any>;
   districts: Record<string, string>;
   currentDistrictName: string;
   selectedDistrictId: number | null;
   playerName: string;
-  myId: string; myTeam: string;
-  isMyTurn: boolean; turnOwner: string;
-  isGameOver: boolean; isSubmitted: boolean;
-  isAuthenticated: boolean;
+  myId: string; 
+  myTeam: string; 
+  isMyTurn: boolean; 
+  turnOwner: string;
+  isGameOver: boolean; 
+  isSubmitted: boolean;
   selectedGodId: number | null;
   godsList: typeof GODS_DATA;
-  selectGod: (id: number) => void;
-  resultData: { winnerName: string; scores: Record<string, number>; occupiedTerritories: number; mvp: string; } | null;
+  resultData: any | null;
   predictionModalOpen: boolean;
   targetDistrictInfo: { id: number; name: string; enemyDef: number } | null;
+  activeBuffs: { id: number; name: string; effect: string }[];
+
+  login: (username: string, password?: string) => Promise<boolean>;
+  logout: () => void;
+  nextTurn: () => void; 
+  selectGod: (id: number) => void; 
+  setPlayerName: (name: string) => void; 
+  authenticatedFetch: (url: string, options?: RequestInit) => Promise<any>;
   openPrediction: (id: number, name: string) => void;
   closePrediction: () => void;
-  // 🚀 型を明示的に指定
-  setModal: (open: boolean, district?: { id: number; name: string } | null) => void;
-  activeBuffs: { id: number; name: string; effect: string }[];
   updateBuffs: () => void;
   setStatus: (status: Partial<GameState>) => void;
   syncServerState: (data: any, myId: string) => void;
-  setPlayerName: (name: string) => void;
-  login: (username: string) => Promise<boolean>;
-  damage: (amount: number) => void;
-  addLog: (text: string) => void;
-  resetGame: () => void;
-  setIsSubmitted: (val: boolean) => void;
-  nextTurn: () => void; 
   attack: (targetId: number) => void;
-  defense: () => void;
+  defend: () => void; 
   stay: () => void;
   escape: () => void;
   endTurn: () => void; 
+  addLog: (text: string) => void;
+  resetGame: () => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
-  hp: 100, stamina: 100, blessing: 1.0, atk: 50, def: 40,
+  token: typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null,
+  isAuthenticated: !!(typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null),
+  hp: 100, maxHp: 100,
+  stamina: 100, maxStamina: 100,
+  blessing: 1.0, atk: 50, def: 40,
   turn: 0, maxTurn: 10,
-  logs: ["🌞 戦場へようこそ。出撃地点を選択してください。"],
+  logs: ["🌞 ミッション開始。出撃地点を選択してください。"],
   players: {}, districts: {},
   currentDistrictName: "地点未選択", selectedDistrictId: null,
-  playerName: "", myId: "", myTeam: "red",
+  playerName: "", myId: "",
+  myTeam: "Explorer", 
   isMyTurn: true, turnOwner: "YOU",
-  isGameOver: false, isSubmitted: false, isAuthenticated: false,
-  activeBuffs: [],
+  isGameOver: false, isSubmitted: false,
   selectedGodId: null,
   godsList: GODS_DATA,
   resultData: null,
   predictionModalOpen: false,
   targetDistrictInfo: null,
+  activeBuffs: [],
 
-  openPrediction: (id: number, name: string) => {
-    set({ predictionModalOpen: true, targetDistrictInfo: { id: Number(id), name, enemyDef: 40 } });
-  },
-
-  closePrediction: () => set({ predictionModalOpen: false, targetDistrictInfo: null }),
-
-  // 🚀 引数に型を追加してエラーを解消
-  setModal: (open: boolean, district: { id: number; name: string } | null = null) => {
-    if (open && district) {
-      get().openPrediction(district.id, district.name);
-    } else {
-      get().closePrediction();
+  login: async (username, password = "password123") => {
+    try {
+      const res = await fetch(`${API_BASE}/login.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const json = await res.json();
+      if (json.status === 'success') {
+        const { token, user } = json.data;
+        localStorage.setItem('cebu_token', token);
+        set({
+          token,
+          isAuthenticated: true,
+          playerName: user.username,
+          myTeam: user.team || "Blue Team", 
+          hp: user.current_hp || 100,
+          maxHp: user.max_hp || 100,
+          atk: user.atk || 100,
+          def: user.def || 100,
+          stamina: user.stamina || 100,
+          maxStamina: user.max_hp || 100,
+        });
+        get().addLog(`🔐 認証完了。コマンダー ${user.username} ログイン。`);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      get().addLog("❌ サーバー接続失敗");
+      return false;
     }
   },
 
-  login: async (username: string) => {
-    set({ isAuthenticated: true, playerName: username, turn: 0, isMyTurn: true });
-    return true; 
+  logout: () => {
+    localStorage.removeItem('cebu_token');
+    set({ token: null, isAuthenticated: false });
+    window.location.reload();
+  },
+
+  nextTurn: () => {
+    const nextT = get().turn + 1;
+    set({ turn: nextT });
+    get().addLog(`⏩ ターン進行: Turn ${nextT}`);
   },
 
   selectGod: (id: number) => {
     const god = GODS_DATA.find(g => g.id === id);
-    if (god) {
-      set((state) => ({ 
-        selectedGodId: id,
-        atk: id === 1 ? state.atk + 20 : state.atk,
-        stamina: id === 2 ? state.stamina + 30 : state.stamina
-      }));
-      get().addLog(`🙏 守護神：[${god.name}] の加護を受けました。(${god.bonus})`);
-    }
+    if (!god) return;
+    set((state) => ({
+      selectedGodId: id,
+      atk: id === 1 ? state.atk + 20 : state.atk,
+      stamina: id === 2 ? state.stamina + 30 : state.stamina,
+    }));
+    get().addLog(`✨ ${god.name}の加護を得た！`);
   },
 
   setPlayerName: (name) => set({ playerName: name }),
 
-  nextTurn: () => {
-    set((state) => ({ turn: state.turn + 1, isMyTurn: false, isSubmitted: false, selectedDistrictId: null }));
+  authenticatedFetch: async (url, options = {}) => {
+    const { token } = get();
+    const headers = { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}), ...options.headers };
+    const res = await fetch(`${API_BASE}/${url}`, { ...options, headers });
+    return res.json();
+  },
+
+  openPrediction: (id, name) => {
+    set({ 
+      predictionModalOpen: true, 
+      selectedDistrictId: Number(id), 
+      targetDistrictInfo: { id: Number(id), name, enemyDef: 40 } 
+    });
+  },
+
+  closePrediction: () => set({ predictionModalOpen: false, targetDistrictInfo: null }),
+
+  // 🚀 【けい仕様ガード】サーバーからの Turn 0 を無視して戦闘モードを維持
+  syncServerState: (data, myId) => {
+    if (!data) return;
+    const myPlayerData = data.players?.[myId];
+    
+    set((state) => {
+      const isAlreadyOnMap = !!myPlayerData?.districtId;
+      let safeTurn = data.turn;
+      
+      // 出撃済みなら、サーバーから Turn 0 が来ても 1 以上を維持（DEPLOYボタン復活を防ぐ）
+      if (isAlreadyOnMap && data.turn === 0) {
+        safeTurn = state.turn > 0 ? state.turn : 1; 
+      }
+
+      const isMe = data.turnOwnerId === myId;
+      return {
+        ...state,
+        myId: myId,
+        hp: myPlayerData?.hp ?? state.hp,
+        stamina: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.stamina,
+        districts: data.districts ?? state.districts,
+        turn: safeTurn,
+        isMyTurn: safeTurn === 0 ? true : isMe,
+        turnOwner: isMe ? "YOU" : (data.turnOwnerName || "ENEMY"),
+        isSubmitted: isMe ? false : state.isSubmitted 
+      };
+    });
+    
+    window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: data.players } }));
+    get().updateBuffs(); // 🚀 ここでバフカードを更新！
   },
 
   updateBuffs: () => {
     const { districts, myId } = get();
+    // 自分が所有している地区のIDを数値リスト化
     const myDistrictIds = Object.entries(districts)
       .filter(([_, ownerId]) => ownerId === myId)
-      .map(([id, _]) => Number(id));
-    const buffs = myDistrictIds.filter(id => SPECIALTY_DATA[id]).map(id => ({ id, ...SPECIALTY_DATA[id] }));
+      .map(([id, _]) => Number(id)); 
+    
+    // SPECIALTY_DATAにあるバフだけを抽出
+    const buffs = myDistrictIds
+      .filter(id => SPECIALTY_DATA[id])
+      .map(id => ({ id, ...SPECIALTY_DATA[id] }));
+    
     set({ activeBuffs: buffs });
   },
 
-  setStatus: (newStatus) => set((state) => ({ ...state, ...newStatus })),
-
-  syncServerState: (data, myId) => {
-    if (!data) return;
-    if (data.status === 'finished' || data.isGameOver) {
-      set({ isGameOver: true, resultData: { winnerName: data.winnerName || "UNKNOWN", scores: data.scores || {}, occupiedTerritories: Object.values(data.districts || {}).filter(id => id === myId).length, mvp: data.mvp || "No Data" } });
-      return;
-    }
-    const isMe = data.turnOwnerId === myId;
-    const myPlayerData = data.players?.[myId];
-    set((state) => ({
-      ...state,
-      myId: myId,
-      hp: myPlayerData?.hp ?? state.hp,
-      stamina: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.stamina,
-      atk: myPlayerData?.atk ?? state.atk,
-      def: myPlayerData?.def ?? state.def,
-      blessing: myPlayerData?.faith ?? state.blessing,
-      turn: data.turn ?? state.turn,
-      districts: data.districts ?? state.districts,
-      isMyTurn: data.turn === 0 ? true : isMe,
-      turnOwner: isMe ? "YOU" : (data.turnOwnerName || "ENEMY"),
-      isSubmitted: isMe ? false : state.isSubmitted 
-    }));
-    window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: data.players } }));
-    get().updateBuffs();
-  },
-
-  attack: (targetId: number) => {
-    const { isGameOver, isMyTurn, stamina } = get();
-    if (isGameOver || !isMyTurn || stamina < 30) return;
+  attack: (targetId) => {
+    const { stamina, isMyTurn } = get();
+    if (!isMyTurn || stamina < 5) return;
     socket.emit("ACTION_SUBMIT", { type: 'attack', targetId: Number(targetId) });
-    get().addLog(`⚔️ 地区 ${targetId} 攻撃指令！ (AP-30)`);
+    get().addLog(`⚔️ 地区 ${targetId} 攻撃指令！`);
     get().closePrediction();
   },
 
-  stay: () => { if (!get().isMyTurn) return; socket.emit("ACTION_SUBMIT", { type: 'stay' }); get().addLog("🧘 休息 (AP回復)"); },
-  defense: () => { if (!get().isMyTurn || get().stamina < 10) return; socket.emit("ACTION_SUBMIT", { type: 'defend' }); get().addLog("🛡️ 防御！ (AP-10)"); },
-  escape: () => { if (!get().isMyTurn) return; socket.emit("ACTION_SUBMIT", { type: 'escape' }); get().addLog("🏃 撤退中..."); },
-  endTurn: () => { if (!get().isMyTurn) return; socket.emit("TURN_END_SUBMIT"); set({ isMyTurn: false, isSubmitted: true }); get().addLog("⌛ ターンを終了しました。"); },
-  damage: (amount) => set({ hp: Math.max(0, get().hp - amount) }),
-  resetGame: () => window.location.reload(),
-  setIsSubmitted: (val) => set({ isSubmitted: val }),
+  defend: () => { socket.emit("ACTION_SUBMIT", { type: 'defend' }); get().addLog("🛡️ 防御。"); },
+  stay: () => { socket.emit("ACTION_SUBMIT", { type: 'stay' }); get().addLog("🧘 休息。"); },
+  escape: () => { socket.emit("ACTION_SUBMIT", { type: 'escape' }); get().addLog("🏃 撤退。"); },
+  endTurn: () => { socket.emit("ACTION_SUBMIT", { type: 'turn_end' }); set({ isMyTurn: false, isSubmitted: true }); },
+  setStatus: (newStatus) => set((state) => ({ ...state, ...newStatus })),
   addLog: (text) => set((state) => ({ logs: [text, ...state.logs].slice(0, 10) })),
+  resetGame: () => window.location.reload(),
 }));
+
+// 🚀 サーバーからの実況（GAME_LOG）やエラー通知をリアルタイムに拾う
+socket.on('GAME_LOG', (msg: string) => {
+  useGameStore.getState().addLog(`🛰️ SERVER: ${msg}`);
+});
+
+socket.on('ERROR', (msg: string) => {
+  useGameStore.getState().addLog(`⚠️ SERVER: ${msg}`);
+});
 
 if (typeof window !== 'undefined') { (window as any).useGameStore = useGameStore; }

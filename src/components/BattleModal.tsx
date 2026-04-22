@@ -10,23 +10,29 @@ export const BattleModal: React.FC = () => {
 
   if (!predictionModalOpen || !targetDistrictInfo) return null;
 
+  // 🚀 計算ロジック
   const finalAtk = atk * blessing;
   const enemyDef = targetDistrictInfo.enemyDef || 40;
   const winRate = (finalAtk / (finalAtk + enemyDef)) * 100;
 
-  // 🚀 staminaを引数として受け取るように修正してエラーを解消
-  const getBtnStyle = (bg: string, canClick: boolean) => ({
+  // 🚀 サーバーのAP消費量(5)に合わせて判定を修正
+  const AP_COST = 5;
+  const canAttack = stamina >= AP_COST;
+
+  const getBtnStyle = (bg: string, canClick: boolean): React.CSSProperties => ({
     flex: 1,
     padding: '14px',
-    background: bg,
+    background: canClick ? bg : '#7f8c8d',
     color: '#fff',
     border: 'none',
     borderRadius: '12px',
     cursor: canClick ? 'pointer' : 'not-allowed',
     fontWeight: 'bold',
     fontSize: '16px',
-    boxShadow: '0 4px 0 rgba(0,0,0,0.2)'
-  } as React.CSSProperties);
+    boxShadow: canClick ? '0 4px 0 rgba(0,0,0,0.2)' : 'none',
+    transition: '0.2s all',
+    opacity: canClick ? 1 : 0.7
+  });
 
   return (
     <div style={overlayStyle}>
@@ -57,12 +63,13 @@ export const BattleModal: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+          {/* 🚀 APコストを 5 に修正 */}
           <button 
             onClick={() => attack(targetDistrictInfo.id)} 
-            disabled={stamina < 30}
-            style={getBtnStyle(stamina >= 30 ? '#e74c3c' : '#7f8c8d', stamina >= 30)}
+            disabled={!canAttack}
+            style={getBtnStyle('#e74c3c', canAttack)}
           >
-            {stamina >= 30 ? '🔥 攻撃開始 (-30)' : 'AP不足'}
+            {canAttack ? `🔥 攻撃開始 (-${AP_COST})` : 'AP不足'}
           </button>
           
           <button onClick={closePrediction} style={getBtnStyle('#95a5a6', true)}>
@@ -74,7 +81,45 @@ export const BattleModal: React.FC = () => {
   );
 };
 
-const overlayStyle: React.CSSProperties = { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 };
-const modalStyle: React.CSSProperties = { background: '#fff', padding: '30px', borderRadius: '25px', border: '6px solid #2c3e50', width: '340px', textAlign: 'center', boxShadow: '0 15px 40px rgba(0,0,0,0.5)' };
-const infoBoxStyle: React.CSSProperties = { background: '#f8f9fa', padding: '15px', borderRadius: '12px', textAlign: 'left', margin: '15px 0', fontSize: '14px', border: '1px solid #ddd' };
-const resultStyle: React.CSSProperties = { margin: '20px 0', padding: '15px', border: '2px solid #e74c3c', borderRadius: '18px', background: '#fff5f5' };
+// スタイル定義（確実に最前面に出るよう zIndex を調整）
+const overlayStyle: React.CSSProperties = { 
+  position: 'fixed', 
+  top: 0, 
+  left: 0, 
+  width: '100vw', 
+  height: '100vh', 
+  background: 'rgba(0,0,0,0.85)', 
+  display: 'flex', 
+  justifyContent: 'center', 
+  alignItems: 'center', 
+  zIndex: 10001 // PhaserGame(1000)やHUD(1000)より高く設定
+};
+
+const modalStyle: React.CSSProperties = { 
+  background: '#fff', 
+  padding: '30px', 
+  borderRadius: '25px', 
+  border: '6px solid #2c3e50', 
+  width: '340px', 
+  textAlign: 'center', 
+  boxShadow: '0 15px 40px rgba(0,0,0,0.5)',
+  pointerEvents: 'auto' 
+};
+
+const infoBoxStyle: React.CSSProperties = { 
+  background: '#f8f9fa', 
+  padding: '15px', 
+  borderRadius: '12px', 
+  textAlign: 'left', 
+  margin: '15px 0', 
+  fontSize: '14px', 
+  border: '1px solid #ddd' 
+};
+
+const resultStyle: React.CSSProperties = { 
+  margin: '20px 0', 
+  padding: '15px', 
+  border: '2px solid #e74c3c', 
+  borderRadius: '18px', 
+  background: '#fff5f5' 
+};

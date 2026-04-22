@@ -2,24 +2,26 @@ import React from 'react';
 import { useGameStore } from '../store';
 
 export const GameOverView: React.FC = () => {
-  // 🔴 判定に必要な情報を Store からすべて取得
-  const { isGameOver, districts, myId, hp, resetGame } = useGameStore();
+  // 🚀 Storeからサーバー確定の勝敗データを取得
+  const { isGameOver, resultData, myId, resetGame } = useGameStore();
 
-  if (!isGameOver) return null;
+  if (!isGameOver || !resultData) return null;
 
   // --- ⚔️ 勝敗判定ロジック ---
-  const myCores = Object.values(districts).filter(ownerId => ownerId === myId).length;
-  const totalOccupied = Object.values(districts).filter(ownerId => ownerId !== null).length;
-  const enemyCores = totalOccupied - myCores;
+  // resultData.winnerName または winnerId を使用して判定
+  const isWin = resultData.winnerName === useGameStore.getState().playerName || 
+                Object.keys(resultData.scores).find(id => id === myId && resultData.winnerName === "YOU");
+  
+  // 自分のスコアと敵のスコアを抽出
+  const myScore = resultData.scores[myId] || 0;
+  const enemyScore = Object.entries(resultData.scores)
+    .filter(([id]) => id !== myId)
+    .reduce((sum, [_, score]) => sum + (score as number), 0);
 
-  // 敗北条件：HPが0、または地区数が敵より少ない
-  const isDeath = hp <= 0;
-  const isWin = !isDeath && myCores > enemyCores;
-
-  // 結果に応じたスタイル設定
-  const themeColor = isWin ? '#f1c40f' : '#ff0000'; // 勝てば金、負ければ赤
-  const bgColor = isWin ? '#0f172a' : '#ffffff';  // 勝てば宇宙（紺）、負ければ白
-  const textColor = isWin ? '#ffffff' : '#000000';
+  // 結果に応じたスタイル設定 (タクティカルなダークテーマを維持)
+  const themeColor = isWin ? '#f1c40f' : '#e74c3c'; // 勝てば金、負ければ警告赤
+  const bgColor = '#0f172a'; // 常に宇宙（紺）ベースで没入感を出す
+  const textColor = '#ffffff';
 
   return (
     <div style={{
@@ -28,58 +30,83 @@ export const GameOverView: React.FC = () => {
       backgroundColor: bgColor,
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
-      zIndex: 9999,
-      animation: 'fadeIn 1.5s ease-in-out',
+      zIndex: 20000, // 全てのUI（モーダル含む）の最前面へ
+      animation: 'fadeIn 1s ease-in-out',
       color: textColor,
       textAlign: 'center',
-      fontFamily: 'sans-serif'
+      fontFamily: 'Orbitron, sans-serif',
+      backgroundImage: `radial-gradient(circle at center, ${themeColor}22 0%, ${bgColor} 70%)`
     }}>
       <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes scanline { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
       `}</style>
 
-      <h1 style={{ color: themeColor, fontSize: '64px', fontWeight: 'bold', marginBottom: '10px' }}>
+      {/* 🚀 スキャンライン演出（TVノイズ風） */}
+      <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06))', backgroundSize: '100% 4px, 3px 100%', pointerEvents: 'none' }} />
+
+      <h1 style={{ 
+        color: themeColor, 
+        fontSize: '72px', 
+        fontWeight: '900', 
+        marginBottom: '10px',
+        letterSpacing: '8px',
+        textShadow: `0 0 20px ${themeColor}`
+      }}>
         {isWin ? '🏆 MISSION COMPLETE' : '🚨 MISSION FAILED'}
       </h1>
       
-      <p style={{ fontSize: '24px', marginBottom: '20px' }}>
-        {isDeath ? 'コマンダーの生命反応が消失。' : `作戦終了。領地の確保を完了。`}
+      <p style={{ fontSize: '24px', marginBottom: '30px', opacity: 0.8 }}>
+        {isWin ? 'セブ島の制圧に成功。全エリアを支配下に置きました。' : '作戦失敗。コマンダーは直ちに撤退してください。'}
       </p>
 
-      {/* 📊 戦績スコアの表示 */}
+      {/* 📊 戦績スコア ＆ MVP表示 */}
       <div style={{ 
-        background: isWin ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', 
-        padding: '20px 40px', borderRadius: '15px', marginBottom: '40px' 
+        background: 'rgba(255,255,255,0.05)', 
+        padding: '30px 60px', 
+        borderRadius: '20px', 
+        border: `1px solid ${themeColor}55`,
+        marginBottom: '40px',
+        boxShadow: `0 0 30px ${themeColor}22`
       }}>
-        <div style={{ fontSize: '18px', opacity: 0.8 }}>FINAL SCORE</div>
-        <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
-          YOU: {myCores} <span style={{ color: themeColor }}>VS</span> ENEMY: {enemyCores}
+        <div style={{ fontSize: '14px', color: themeColor, marginBottom: '10px', letterSpacing: '2px' }}>FINAL DOMINATION</div>
+        <div style={{ fontSize: '48px', fontWeight: 'bold', marginBottom: '15px' }}>
+          {myScore} <span style={{ fontSize: '24px', opacity: 0.5 }}>VS</span> {enemyScore}
+        </div>
+        
+        {/* 🚀 MVPの表示（盛り上がりポイント！） */}
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '15px' }}>
+          <span style={{ fontSize: '14px', opacity: 0.6 }}>BATTLE MVP: </span>
+          <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#f1c40f' }}>
+            {resultData.mvp || "Calculating..."}
+          </span>
         </div>
       </div>
 
       <button 
-        onClick={() => {
-          resetGame(); // Storeをリセット
-          window.location.reload(); // ページをリロードしてPhaserも初期化
-        }}
+        onClick={() => resetGame()} 
         style={{
-          padding: '15px 50px',
+          padding: '18px 60px',
           fontSize: '20px',
           background: themeColor,
-          color: isWin ? '#000' : '#fff',
+          color: '#000',
           border: 'none',
-          borderRadius: '50px',
+          borderRadius: '4px',
           cursor: 'pointer',
           fontWeight: 'bold',
-          boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
-          transition: 'transform 0.2s'
+          boxShadow: `0 0 20px ${themeColor}66`,
+          transition: '0.3s',
+          letterSpacing: '2px'
         }}
+        onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+        onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
       >
-        RE-DEPLOY (再起動)
+        RE-DEPLOY (再出撃)
       </button>
+
+      <div style={{ marginTop: '30px', fontSize: '12px', opacity: 0.4 }}>
+        CEBU CONQUEST PROTOCOL v1.0 - DISCONNECTED
+      </div>
     </div>
   );
 };
