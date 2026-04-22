@@ -7,8 +7,10 @@ import { BuffCards } from './BuffCards';
 export const Sidebar: React.FC = () => {
   const { 
     hp, stamina, blessing, turn, logs, 
-    attack, defense, stay, escape,
-    endTurn, // 🚀 Storeからターン終了関数を取得
+    attack, 
+    defend, // 🚀 defense から defend に修正：image_3cc7b8 のエラー解消
+    stay, escape,
+    endTurn,
     selectedDistrictId, playerName,
     isMyTurn, isSubmitted,
     selectedGodId, godsList 
@@ -28,7 +30,7 @@ export const Sidebar: React.FC = () => {
     borderRadius: '8px', border: '2px solid #000', fontWeight: 'bold', 
     cursor: disabled ? 'not-allowed' : 'pointer',
     padding: '10px 5px', background: disabled ? '#bdc3c7' : bgColor, 
-    color: disabled ? '#fff' : '#fff', fontSize: '11px', transition: 'all 0.2s',
+    color: '#fff', fontSize: '11px', transition: 'all 0.2s',
     opacity: disabled ? 0.7 : 1,
     boxShadow: disabled ? 'none' : '0 3px 0 #000',
     width: '100%',
@@ -53,7 +55,7 @@ export const Sidebar: React.FC = () => {
         {/* 左カラム：ステータス ＆ ログ */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
           <div style={{ ...sectionStyle, background: '#ffadad', color: '#900' }}>❤️ HP: {hp}</div>
-          <div style={{ ...sectionStyle, background: stamina < 30 ? '#e74c3c' : '#92d050', color: stamina < 30 ? '#fff' : '#000' }}>
+          <div style={{ ...sectionStyle, background: stamina < 10 ? '#e74c3c' : '#92d050', color: stamina < 10 ? '#fff' : '#000' }}>
             🔋 AP: {stamina}
           </div>
           <div style={{ ...sectionStyle, background: '#ffe699' }}>✨ Blessing: {blessing.toFixed(1)}</div>
@@ -71,20 +73,22 @@ export const Sidebar: React.FC = () => {
         <div style={{ width: '130px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#fff', textAlign: 'center' }}>COMMANDS</div>
           
+          {/* ⚔️ Attack: サーバー側のコスト 5 に合わせて表示と条件を修正  */}
           <button 
             onClick={() => selectedDistrictId && attack(selectedDistrictId)} 
-            disabled={isCommandDisabled || !selectedDistrictId || stamina < 30} 
-            style={buttonStyle(isCommandDisabled || !selectedDistrictId || stamina < 30, '#c0392b')}
+            disabled={isCommandDisabled || !selectedDistrictId || stamina < 5} 
+            style={buttonStyle(isCommandDisabled || !selectedDistrictId || stamina < 5, '#c0392b')}
           >
-            ⚔️ Attack (30)
+            ⚔️ Attack (5)
           </button>
           
+          {/* 🛡️ Defense: defend() に修正 */}
           <button 
-            onClick={() => defense()} 
-            disabled={isCommandDisabled || stamina < 10} 
-            style={buttonStyle(isCommandDisabled || stamina < 10, '#34495e')}
+            onClick={() => defend()} 
+            disabled={isCommandDisabled} 
+            style={buttonStyle(isCommandDisabled, '#34495e')}
           >
-            🛡️ Defense (10)
+            🛡️ Defense (0)
           </button>
           
           <button 
@@ -103,7 +107,7 @@ export const Sidebar: React.FC = () => {
             🏃 Escape
           </button>
 
-          {/* 🚀 ターン終了ボタン：APを使い切るか、戦略的に止めたい時に押す */}
+          {/* 🚀 ターン終了ボタン */}
           <div style={{ borderTop: '2px dashed rgba(255,255,255,0.5)', marginTop: '5px', paddingTop: '10px' }}>
             <button 
               onClick={() => {
@@ -133,7 +137,6 @@ export const Sidebar: React.FC = () => {
                 alert("出撃地点を選択してください！");
                 return;
             }
-            // 🚀 以前の定義（101系ID）をPhaserとサーバーへ送信
             window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, { detail: { districtId: selectedDistrictId } }));
             socket.emit("READY_TO_START", { 
                 username: playerName, 
