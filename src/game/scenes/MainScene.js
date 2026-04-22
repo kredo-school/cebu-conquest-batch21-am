@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import socket from "../../socket";
-import { SERVER_EVENTS } from "../../../shared/socketEvents.js";
+import { CLIENT_EVENTS, SERVER_EVENTS } from "../../../shared/socketEvents.js";
 import { PHASER_TO_REACT, REACT_TO_PHASER, emitToReact } from "../events/PhaserBridge";
 import { MAP_CONFIG } from "../config/mapConfig";
 import ZoomManager from "./ZoomManager";
@@ -153,7 +153,7 @@ export default class MainScene extends Phaser.Scene {
 
       if (isMyTerritory) {
         this.showLog(`🚚 移動: ${this.districts[id].name}`);
-        socket.emit("ACTION_SUBMIT", { type: "move", targetId });
+        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: "move", targetId });
         this._placePlayer(targetId);
       } else {
         this.showLog(`🎯 攻撃: ${this.districts[id].name}`);
@@ -369,10 +369,37 @@ export default class MainScene extends Phaser.Scene {
 
   _initSocket() {
     socket.connect();
+
     socket.on(SERVER_EVENTS.SYNC_STATE, (s) => {
       if (!s) return;
       this._syncDistricts(s.districts, s.players);
       this._syncPlayers(s.players);
+    });
+
+    socket.on(SERVER_EVENTS.GAME_START, (s) => {
+      if (!s) return;
+      if (s.districts && s.players) {
+        this._syncDistricts(s.districts, s.players);
+        this._syncPlayers(s.players);
+      }
+    });
+
+    socket.on(SERVER_EVENTS.TURN_START, (data) => {
+      emitToReact(PHASER_TO_REACT.TURN_START, data ?? {});
+      const msg =
+        data?.currentPlayerId === socket.id
+          ? "🎯 あなたのターンです！"
+          : `⏳ ${data?.currentPlayerName || "相手"}のターンです`;
+      this.showLog(msg);
+    });
+
+    socket.on(SERVER_EVENTS.ACTION_RESULT, (data) => {
+      if (!data) return;
+      if (data.stats) {
+        Object.assign(this.playerStats, data.stats);
+        this.updateStatusToReact();
+      }
+      if (data.message) this.showLog(data.message);
     });
   }
 
@@ -381,7 +408,7 @@ export default class MainScene extends Phaser.Scene {
   }
 
   showLog(message) {
-    emitToReact("NEW_LOG", message);
+    emitToReact(PHASER_TO_REACT.GAME_LOG, message);
   }
 
   updateStatusToReact() {
