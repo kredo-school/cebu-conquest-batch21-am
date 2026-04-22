@@ -95,7 +95,35 @@ export default class MainScene extends Phaser.Scene {
 
   _setupReactListeners() {
     const handlers = [
-      { event: "ACTION_STAY", handler: () => this.showLog("🧘 休息中...") },
+      {
+        event: REACT_TO_PHASER.COMMAND_STAY,
+        handler: () => {
+          this.showLog("🧘 休息中...");
+          socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: "stay" });
+        },
+      },
+      {
+        event: REACT_TO_PHASER.COMMAND_ATTACK,
+        handler: (e) => {
+          const targetId = e.detail?.targetId;
+          if (!targetId) return;
+          socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: "attack", targetId: String(targetId) });
+        },
+      },
+      {
+        event: REACT_TO_PHASER.COMMAND_ESCAPE,
+        handler: () => {
+          socket.emit(CLIENT_EVENTS.ACTION_ESCAPE);
+          this.showLog("🏃 逃走中...");
+        },
+      },
+      {
+        event: REACT_TO_PHASER.COMMAND_DEFEND,
+        handler: () => {
+          socket.emit(CLIENT_EVENTS.ACTION_DEFEND);
+          this.showLog("🛡️ 防御中...");
+        },
+      },
       {
         event: "MAP_REPAINT",
         handler: (e) => {
