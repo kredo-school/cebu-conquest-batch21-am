@@ -3,6 +3,7 @@ import socket from "../../socket";
 import { SERVER_EVENTS } from "../../../shared/socketEvents.js";
 import { PHASER_TO_REACT, REACT_TO_PHASER, emitToReact } from "../events/PhaserBridge";
 import { MAP_CONFIG } from "../config/mapConfig";
+import ZoomManager from "./ZoomManager";
 
 const MAP_SCALE = 0.5; // マップサイズに合わせて調整
 
@@ -76,14 +77,50 @@ export default class MainScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor(0x2471a3);
-    this._setupTilemap();         // 🚀 多レイヤー対応版
-    this._loadDistrictsFromTMJ();  // 🚀 全レイヤー（island, area...）一括ロード版
-    this._drawDistrictPolygons(); // 🚀 LOD（ズーム連動文字）対応版
-    this._setupCamera();          // 🚀 境界固定・中心ズーム版
+    this.zoomManager = new ZoomManager();
+    this._setupTilemap();
+    this._loadDistrictsFromTMJ();
+    this._drawDistrictPolygons();
+    this._setupCamera();
     this._initSocket();
     this._setupReactListeners();
   }
 
+  update() {
+    this.zoomManager.tick(this.cameras.main.zoom, this.districts);
+  }
+
+  shutdown() {
+    this._reactListeners?.forEach(({ event, handler }) =>
+      window.removeEventListener(event, handler),
+    );
+  }
+
+  _setupReactListeners() {
+    const handlers = [
+      { event: "ACTION_STAY", handler: () => this.showLog("🧘 休息中...") },
+      {
+        event: "MAP_REPAINT",
+        handler: (e) => {
+          if (e.detail.districts && e.detail.players) {
+            this._syncDistricts(e.detail.districts, e.detail.players);
+          }
+        },
+      },
+      {
+        event: REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM,
+        handler: (e) => this.confirmDeployment(Number(e.detail.districtId)),
+      },
+    ];
+    handlers.forEach(({ event, handler }) => window.addEventListener(event, handler));
+    this._reactListeners = handlers;
+  }
+
+  _onMapClicked(x, y) {
+    if (this._dragMoved) return;
+    const worldPoint = this.cameras.main.getWorldPoint(x, y);
+    const id = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
+    if (!id) return;
   // --- [新機能] ズーム連動（LOD）およびカメラ制御ロジック ---
   _setupCamera() {
     const cam = this.cameras.main;
@@ -182,6 +219,12 @@ export default class MainScene extends Phaser.Scene {
     const id = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
     if (!id) return;
 
+    const sizeByType = {
+      islandName: "36px",
+      areaName: "16px",
+      districtName: "8px",
+      spotName: "8px",
+    };
     const store = window.useGameStore?.getState();
     if (!store) return;
 
@@ -220,6 +263,42 @@ export default class MainScene extends Phaser.Scene {
     }
   }
 
+  _getDistrictAtPoint(x, y) {
+    let hitId = null;
+    let highestPriority = 0;
+
+    const priority = { spotName: 4, districtName: 3, areaName: 2, islandName: 1 };
+
+    for (const d of Object.values(this.districts)) {
+      if (pointInPolygon({ x, y }, d.polygon)) {
+        const p = priority[d.type] || 0;
+        if (p > highestPriority) {
+          hitId = d.id;
+          highestPriority = p;
+        }
+      }
+    }
+
+    return hitId;
+  }
+
+  _redrawDistrict(d, color, alpha = 0) {
+    if (!d || !d.graphics) return;
+    d.graphics.clear();
+
+    if (alpha > 0) {
+      d.graphics.fillStyle(color, alpha);
+    }
+
+    d.graphics.beginPath();
+    d.polygon.forEach((p, i) =>
+      i === 0 ? d.graphics.moveTo(p.x, p.y) : d.graphics.lineTo(p.x, p.y),
+    );
+    d.graphics.closePath();
+
+    if (alpha > 0) d.graphics.fillPath();
+
+    d.graphics.lineStyle(2, 0xffffff, 0.4).strokePath();
   // --- その他の維持機能（ズーム連動表示切り替え） ---
   _getLodType(zoom) {
     if (zoom < 1.5) return "islandName";
@@ -312,6 +391,57 @@ export default class MainScene extends Phaser.Scene {
         const p = priority[d.type] || 0;
         if (p > highP) { hitId = d.id; highP = p; }
       }
+    });
+
+    this.input.on("wheel", (pointer, _gameObjects, _deltaX, deltaY, _deltaZ, event) => {
+      // 🍎 ピンチジェスチャ判定：タッチパッドのピンチ時は ctrlKey が true になる
+      const isPinch = event?.ctrlKey === true;
+
+      // ピンチは感度高め、通常ホイールは感度控えめに調整
+      const zoomSpeed = isPinch ? 0.1 : 0.001;
+
+      const oldZoom = cam.zoom;
+      const newZoom = Phaser.Math.Clamp(oldZoom - deltaY * zoomSpeed, 0.5, 8);
+      if (oldZoom === newZoom) return;
+
+      // カーソル下のワールド座標を固定してズーム
+      const worldX = cam.scrollX + pointer.x / oldZoom;
+      const worldY = cam.scrollY + pointer.y / oldZoom;
+
+      cam.setZoom(newZoom);
+
+      cam.scrollX = worldX - pointer.x / newZoom;
+      cam.scrollY = worldY - pointer.y / newZoom;
+
+      this._clampCamera();
+
+      // ブラウザのデフォルトズーム（ページ全体拡大）を防止
+      if (isPinch && event?.preventDefault) {
+        event.preventDefault();
+      }
+    });
+
+    cam.setZoom(1);
+    this._clampCamera();
+  }
+
+  // マップがビューポートより小さければ中央寄せ、大きければ端でクランプ
+  _clampCamera() {
+    const cam = this.cameras.main;
+    const mapW = this.tiledMap.widthInPixels * MAP_SCALE;
+    const mapH = this.tiledMap.heightInPixels * MAP_SCALE;
+    const viewW = cam.width / cam.zoom;
+    const viewH = cam.height / cam.zoom;
+
+    cam.scrollX =
+      mapW > viewW ? Phaser.Math.Clamp(cam.scrollX, 0, mapW - viewW) : (mapW - viewW) / 2;
+
+    cam.scrollY =
+      mapH > viewH ? Phaser.Math.Clamp(cam.scrollY, 0, mapH - viewH) : (mapH - viewH) / 2;
+  }
+
+  _updateHoverText(hoveredId) {
+    this.zoomManager.setHover(hoveredId, this.districts);
     }
     return hitId;
   }
