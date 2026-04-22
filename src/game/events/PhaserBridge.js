@@ -6,6 +6,7 @@ export const PHASER_TO_REACT = {
   GAME_LOG:          'gameLog',
   PLAYER_MOVED:      'phaser:playerMoved',
   BATTLE_RESULT:     'phaser:battleResult',
+  TURN_START:        'phaser:turnStart',
 };
 
 // ─── React → Phaser ───────────────────────────
