@@ -1,30 +1,45 @@
--- 1. 既存テーブルのクリーンアップ（依存関係を考慮して子テーブルから削除）
+-- ==========================================
+-- 1. テーブルの初期化
+-- ==========================================
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS gods; -- itemsを参照しているため先に削除
-DROP TABLE IF EXISTS user_items;
-DROP TABLE IF EXISTS occupations;
-DROP TABLE IF EXISTS match_results;
-DROP TABLE IF EXISTS items;
-DROP TABLE IF EXISTS spots;
-DROP TABLE IF EXISTS areas;
-DROP TABLE IF EXISTS islands;
-DROP TABLE IF EXISTS users;
+TRUNCATE TABLE islands;
+TRUNCATE TABLE areas;
+TRUNCATE TABLE spots;
+TRUNCATE TABLE items;
+TRUNCATE TABLE gods;
 SET FOREIGN_KEY_CHECKS = 1;
 
--- 2. テーブル作成 (依存関係のない親テーブルから作成)
+-- ==========================================
+-- 2. 島・エリア登録 (新しいCSVのID体系 11, 13, 14, 15, 16 に準拠)
+-- ==========================================
+INSERT INTO islands (id, name) VALUES (1000, 'Cebu・Mactan');
 
---  島マスター (islands)
-CREATE TABLE IF NOT EXISTS islands (
-    id INT PRIMARY KEY COMMENT '島ID (1000, 2000, 3000など)',
-    name VARCHAR(100) NOT NULL COMMENT '島名',
-    description TEXT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO areas (id, island_id, name) VALUES
+(11, 1000, 'North'),
+(13, 1000, 'Core (Cebu City)'),
+(14, 1000, 'South (Heritage)'),
+(15, 1000, 'South (Adventure)'),
+(16, 1000, 'Mactan Island');
+
+-- ==========================================
+-- 3. 神様登録 (画像名: god-xxx.jpg / 名前: Garry, Quisie, Shem)
+-- ==========================================
+INSERT INTO gods (name, atk_bonus, stamina_bonus, ap_regen_bonus, start_item_id, image_url, description) VALUES
+('Garry', 20, 0, 0, 1, 'assets/images/gods/Garry.jpg', '戦いの神。初期攻撃力+20'),
+('Quisie', 0, 30, 0, 2, 'assets/images/gods/Quisie.jpg', '大地の女神。初期スタミナ+30'),
+('Shem', 0, 0, 5, 3, 'assets/images/gods/Shem.jpg', '知識 of 神。毎ターンのAP回復量+5');
+
+-- 神様の初期アイテム (spotsに紐づかないマスターアイテム)
+INSERT INTO items (id, spot_id, name, buff_target, buff_type, buff_value, description) VALUES
+(1, NULL, 'Garryの短剣', 'attack', 'flat', 5, '初期アイテム'),
+(2, NULL, 'Quisieの果実', 'stamina', 'flat', 10, '初期アイテム'),
+(3, NULL, 'Shemの古文書', 'ap_regen', 'flat', 2, '初期アイテム');
 
 --  エリアマスター (areas)
-CREATE TABLE IF NOT EXISTS areas (
-    id INT PRIMARY KEY COMMENT 'エリアID (11, 12, 13など)',
+CREATE TABLE areas (
+    id INT PRIMARY KEY,
     island_id INT,
-    name VARCHAR(100) NOT NULL COMMENT 'エリア名',
+    name VARCHAR(100) NOT NULL,
     FOREIGN KEY (island_id) REFERENCES islands(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -53,14 +68,14 @@ CREATE TABLE spots (
     map_y FLOAT NULL,
     capture_cost INT DEFAULT 15,
     drop_item_id INT,
-    FOREIGN KEY (island_id) REFERENCES islands(id) ON DELETE SET NULL, -- 追加
-    FOREIGN KEY (area_id) REFERENCES areas(id) ON DELETE SET NULL    -- 追加
+    FOREIGN KEY (island_id) REFERENCES islands(id) ON DELETE SET NULL,
+    FOREIGN KEY (area_id) REFERENCES areas(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- アイテムマスター (spotsを参照)
 CREATE TABLE items (
     id INT PRIMARY KEY,
-    spot_id INT NULL, -- NULLを許容（神の初期アイテム等はスポットに紐づかないため）
+    spot_id INT NULL,
     name VARCHAR(100) NOT NULL,
     buff_target VARCHAR(50),
     buff_type VARCHAR(50),
@@ -124,11 +139,11 @@ INSERT INTO islands (id, name) VALUES
 
 -- エリアの初期データ
 INSERT INTO areas (id, island_id, name) VALUES
-(11, 1000, 'North: Azure Coast'),
-(12, 1000, 'Central-North: Industrial Ridge'),
-(13, 1000, 'Core: Metro Cebu'),
-(14, 1000, 'South: Emerald Tropics'), -- 南部用に追加
-(16, 1000, 'Mactan Island');
+(11, 1000, 'North (北部)'),
+(13, 1000, 'Core (セブ市街地)'),
+(14, 1000, 'South Heritage (南部歴史)'),
+(15, 1000, 'South Adventure (南部自然)'),
+(16, 1000, 'Mactan (マクタン島)');
 
 -- ==========================================
 -- 【CSVデータ投入】スポット登録 (全27スポット)
@@ -170,13 +185,6 @@ INSERT INTO spots (island_id, area_id, district_id, id, name, map_x, map_y, capt
 (1000, 14, 144, 14401, 'シマラ教会', 310, 910, 20, 144011),
 (1000, 14, 145, 14501, 'カルカル（靴の街）', 360, 760, 15, 145011);
 
--- ==========================================
--- 2. 神の初期アイテム登録 (itemsテーブル: 7カラム)
--- ==========================================
-INSERT INTO items (id, spot_id, name, buff_target, buff_type, buff_value, description) VALUES
-(1, NULL, 'ラプラプの短剣', 'attack', 'flat', 5, '戦神の加護を受けた短剣。'),
-(2, NULL, 'セブナの果実', 'stamina', 'flat', 10, '豊穣の女神が育てた奇跡の果実。'),
-(3, NULL, 'クレドの古文書', 'ap_regen', 'flat', 2, '知恵の神が記した魔導書。');
 
 -- ==========================================
 -- 【CSVデータ投入】アイテム登録 (全27アイテム)
@@ -210,12 +218,6 @@ INSERT INTO items (id, spot_id, name, buff_target, buff_type, buff_value, descri
 (143021, 14302, 'イワシの群れの銀鱗', 'DROP_RATE', 'add_percent', 30, '【きらめく幸運】アイテム発見率が30%アップする'),
 (144011, 14401, '奇跡の祈りキャンドル', 'DEF', 'add_percent', 40, '【祈りの光】守護の力が宿り、防御力が40%アップする'),
 (145011, 14501, '絶品特製チチャロン', 'ATK', 'add_value', 20, '【至福の背徳感】エネルギーが溢れ、攻撃力が20アップする');
-
--- 神様データの投入 (アイテムが登録された後なので成功します)
-INSERT INTO gods (name, atk_bonus, stamina_bonus, ap_regen_bonus, start_item_id, image_url, description) VALUES
-('戦神ラプラプ', 20, 0, 0, 1, 'assets/images/gods/Garry.jpg', '戦いの神。初期攻撃力を20増加させる。'),
-('豊穣の女神セブナ', 0, 30, 0, 2, 'assets/images/gods/Quisie.jpg', '大地の女神。初期スタミナを30増加させる。'),
-('知恵の神クレド', 0, 0, 5, 3, 'assets/images/gods/Shem.jpg', '知識の神。毎ターンのAP回復量を5増加させる。');
 
 -- occupationsテーブルの検索を高速化（占領状況の確認やランキング用）
 CREATE INDEX idx_occupations_user_id ON occupations(user_id);
