@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Cebu Conquest "FULL_SYNC_V7" Import Script
  * 役割: ゲームに必要な全6テーブルの作成 + CSVデータのインポート
@@ -7,6 +8,14 @@
 header("Content-Type: text/plain; charset=UTF-8");
 require_once __DIR__ . '/../config/database.php';
 
+// --- 設定エリア: チームメンバーが変更しやすいように冒頭に集約 ---
+$csv_dir = __DIR__ . '/../';
+$spots_file = $csv_dir . 'GI-Project_ID管理シート - Spots.csv';
+$items_file = $csv_dir . 'GI-Project_ID管理シート - Items.csv';
+
+// 【重要】ユーザーデータを消したくない場合は false にする
+$reset_user_data = false;
+
 try {
     echo "=========================================\n";
     echo "🚀 DATABASE FULL SYNC: VERSION 7\n";
@@ -14,14 +23,22 @@ try {
 
     // 1. 全リセット（古いテーブルやterritoriesも一掃）
     $pdo->exec("SET FOREIGN_KEY_CHECKS = 0;");
-    $tables = ['user_items', 'occupations', 'match_results', 'items', 'spots', 'territories'];
-    foreach ($tables as $table) {
+
+    // 1. テーブル削除（ユーザー合意に基づき users, match_results を除外可能に）
+    $tables = ['user_items', 'occupations', 'items', 'spots', 'territories'];
+    if ($is_hard_reset) {
+        $tables[] = 'match_results';
+        $tables[] = 'users';
+        echo "⚠️  FULL RESET mode: User data will be deleted.\n";
+    }
+
+    foreach ($tables_to_drop as $table) {
         $pdo->exec("DROP TABLE IF EXISTS $table");
         echo "🗑️  Deleted old table: $table\n";
     }
 
     // 2. 全テーブルの新規作成（設計図）
-    
+
     // スポット
     $pdo->exec("CREATE TABLE spots (
         id INT PRIMARY KEY,
@@ -94,43 +111,42 @@ try {
     echo "✅ All 6 tables created successfully.\n\n";
 
     // 3. CSVデータのインポート
-    $spotsFile = __DIR__ . '/../GI-Project_ID管理シート - Spots.csv';
-    $itemsFile = __DIR__ . '/../GI-Project_ID管理シート - Items.csv';
-
-    if (file_exists($spotsFile)) {
-        $content = mb_convert_encoding(file_get_contents($spotsFile), 'UTF-8', 'auto');
-        $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
-        $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $content));
-        array_shift($lines);
-        $stmt = $pdo->prepare("INSERT INTO spots (island_id, area_id, district_id, id, name, map_x, map_y, capture_cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $sCount = 0;
-        foreach ($lines as $line) {
-            $data = str_getcsv($line);
-            if (count($data) < 5) continue;
-            $stmt->execute([ (int)$data[0], (int)$data[1], (int)$data[2], (int)$data[3], trim($data[4]), (float)$data[5], (float)$data[6], (int)$data[7] ]);
-            $sCount++;
-        }
-        echo "✅ Spots imported: $sCount\n";
-    }
-
-    if (file_exists($itemsFile)) {
-        $content = mb_convert_encoding(file_get_contents($itemsFile), 'UTF-8', 'auto');
-        $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
-        $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $content));
-        array_shift($lines);
-        $stmt = $pdo->prepare("INSERT INTO items (id, spot_id, name, buff_target, buff_type, buff_value, description) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $iCount = 0;
-        foreach ($lines as $line) {
-            $data = str_getcsv($line);
-            if (count($data) < 8) continue;
-            $stmt->execute([ (int)$data[7], (int)$data[2], trim($data[3]), trim($data[8]), trim($data[9]), (int)$data[10], trim($data[11]) ]);
-            $iCount++;
-        }
-        echo "✅ Items imported: $iCount\n";
-    }
+    importCsv($pdo, $spots_file, "INSERT INTO spots (island_id, area_id, district_id, id, name, map_x, map_y, capture_cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 8);
+    importCsv($pdo, $items_file, "INSERT INTO items (id, spot_id, name, buff_target, buff_type, buff_value, description) VALUES (?, ?, ?, ?, ?, ?, ?)", [7, 2, 3, 8, 9, 10, 11]);
 
     echo "\n🏆 ALL SYSTEMS READY. HAPPY CODING!\n";
-
 } catch (Exception $e) {
     echo "\n❌ Error: " . $e->getMessage() . "\n";
+}
+
+// 共通インポート関数（メンテナンス性向上）
+function importCsv($pdo, $file, $sql, $mapping)
+{
+    if (!file_exists($file)) {
+        echo "❌ Skip: File not found -> " . basename($file) . "\n";
+        return;
+    }
+
+    $content = mb_convert_encoding(file_get_contents($file), 'UTF-8', 'auto');
+    $content = preg_replace('/^\xEF\xBB\xBF/', '', $content); // BOM削除
+    $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $content));
+    array_shift($lines); // ヘッダー除去
+
+    $stmt = $pdo->prepare($sql);
+    $count = 0;
+    foreach ($lines as $line) {
+        $data = str_getcsv($line);
+        if (count($data) < 5) continue;
+
+        $params = [];
+        if (is_array($mapping)) {
+            foreach ($mapping as $idx) $params[] = trim($data[$idx] ?? '');
+        } else {
+            for ($i = 0; $i < $mapping; $i++) $params[] = trim($data[$i] ?? '');
+        }
+
+        $stmt->execute($params);
+        $count++;
+    }
+    echo "✅ Imported " . basename($file) . ": $count records.\n";
 }
