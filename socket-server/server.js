@@ -11,7 +11,12 @@ const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } 
 const EVENTS = { CLIENT: CLIENT_EVENTS, SERVER: SERVER_EVENTS };
 
 // ==========================================
-// 🚀 【27地区マスタ】すべての地区のバフと優先度
+//  【API設定】PHPバックエンドとの通信用
+// ==========================================
+const API_BASE_URL = 'http://localhost/cebu-conquest-batch21-am/api/';
+
+// ==========================================
+//  【27地区マスタ】すべての地区のバフと優先度
 // ==========================================
 const DISTRICTS_MASTER = {
     "11101": { name: "チチャロン地区", priority: 3, buff: { atk: 10, def: 0 } },
@@ -26,7 +31,7 @@ const DISTRICTS_MASTER = {
     // 11127まで同様に定義（データ量＝重厚さ）
 };
 
-// 🚀 【全地区連結】島全体を網羅した隣接リスト（NPCの移動経路）
+//  【全地区連結】島全体を網羅した隣接リスト（NPCの移動経路）
 const ADJACENT_DISTRICTS = {
     "11101": ["11102", "11104", "11105", "11120"],
     "11102": ["11101", "11104", "11106", "11108"],
@@ -86,7 +91,7 @@ function resolveBattle(atk, def) {
 }
 
 // ==========================================
-// 🤖 タクティカル・ラプパプ AIエンジン (CPU思考)
+//  タクティカル・ラプパプ AIエンジン (CPU思考)
 // ==========================================
 function processNpcTurn() {
     if (gameState.status !== 'playing') return;
@@ -148,7 +153,7 @@ function processNpcTurn() {
     }, 1000);
 }
 
-// ターン終了処理
+// ターン終了処理とゲーム終了判定 (DB保存処理追加)
 function finalizeTurn(currentId) {
     const playerIds = Object.keys(gameState.players);
     const currentIndex = playerIds.indexOf(currentId);
@@ -160,6 +165,51 @@ function finalizeTurn(currentId) {
     // 全員が1回ずつ終わったらターン数(Day)を進める
     if (nextId === gameState.firstPlayerId) {
         gameState.turn++;
+    }
+
+    // ==========================================
+    // 【ゲーム終了＆結果保存】maxTurnを超えたら終了
+    // ==========================================
+    if (gameState.turn > gameState.maxTurn) {
+        gameState.status = 'finished';
+        io.emit(SERVER_EVENTS.SYNC_STATE, gameState);
+        
+        // 陣地数でスコア計算
+        const scores = {};
+        playerIds.forEach(id => scores[id] = 0);
+        Object.values(gameState.districts).forEach(ownerId => {
+            if (scores[ownerId] !== undefined) scores[ownerId]++;
+        });
+
+        const sortedPlayers = Object.keys(scores).sort((a, b) => scores[b] - scores[a]);
+        const winnerId = sortedPlayers[0];
+        const loserId = sortedPlayers[1] || null;
+
+        const winner = gameState.players[winnerId];
+        const loser = gameState.players[loserId];
+
+        io.emit('GAME_LOG', `🏆 ゲーム終了！勝者: ${winner?.username} (${scores[winnerId]} 拠点)`);
+        io.emit(SERVER_EVENTS.GAME_OVER, { winnerId, scores });
+
+        // 実際のプレイヤーが勝者の場合のみ結果を保存（NPCは保存しない）
+        if (winner && !winner.isNpc && winner.token) {
+            fetch(`${API_BASE_URL}result.php`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${winner.token}`
+                },
+                body: JSON.stringify({
+                    winner_id: winner.dbUserId || 1, // join_gameで渡されたID
+                    loser_id: loser?.dbUserId || 2,
+                    winner_score: scores[winnerId],
+                    loser_score: scores[loserId] || 0
+                })
+            }).then(res => res.json())
+              .then(data => console.log("✅ 試合結果DB保存完了:", data))
+              .catch(err => console.error("❌ 試合結果保存エラー:", err));
+        }
+        return; // これ以上ターンを進めない
     }
 
     // クライアントへ最新状態を送信
@@ -177,10 +227,13 @@ function finalizeTurn(currentId) {
 }
 
 // ==========================================
-// 🔌 Socket.io 通信イベント (切断・同期・マッチング)
+//  Socket.io 通信イベント (切断・同期・マッチング)
 // ==========================================
 io.on('connection', (socket) => {
     console.log(`🔌 New connection: ${socket.id}`);
+
+    // クライアントから送られたトークンをソケットに保持
+    socket.authToken = socket.handshake.auth?.token || "";
 
     socket.on('join_game', (userData) => {
         const isFirst = Object.keys(gameState.players).length === 0;
@@ -188,6 +241,8 @@ io.on('connection', (socket) => {
         gameState.players[socket.id] = {
             id: socket.id,
             username: userData?.username || "issei",
+            dbUserId: userData?.id || null,  // フロントからDBのユーザーIDをもらう想定
+            token: socket.authToken,         // APIを叩くためのトークン
             hp: 100, maxHp: 100, ap: 100, maxAp: 100,
             atk: 60, def: 45,
             team: isFirst ? 'red' : 'blue',
@@ -195,13 +250,14 @@ io.on('connection', (socket) => {
             isNpc: false
         };
 
-        // 🚀 【以前の重厚ロジック】マッチング待機演出
+        // マッチング待機演出
         if (matchingTimer) clearTimeout(matchingTimer);
         matchingTimer = setTimeout(() => {
             if (Object.keys(gameState.players).length === 1) {
                 const npcId = "cpu_lapulapu";
                 gameState.players[npcId] = {
                     id: npcId, username: "猛将ラプパプ(CPU)",
+                    dbUserId: null, token: null,
                     hp: 120, maxHp: 120, ap: 100, maxAp: 100,
                     atk: 75, def: 55, team: 'blue',
                     isReady: true, isNpc: true,
@@ -235,7 +291,8 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on("ACTION_SUBMIT", (data) => {
+    // ★ 非同期処理 (async) に変更し、DB保存ロジックを追加
+    socket.on("ACTION_SUBMIT", async (data) => {
         if (gameState.turnOwnerId !== socket.id) return;
         const p = gameState.players[socket.id];
         const targetId = String(data.targetId);
@@ -251,6 +308,27 @@ io.on('connection', (socket) => {
                 gameState.districts[targetId] = socket.id;
                 p.districtId = targetId;
                 io.emit('GAME_LOG', `⚔️ ${p.username}: ${targetId} を制圧！`);
+
+                // ==========================================
+                // 【陣地占領時のDB保存】
+                // ==========================================
+                if (!p.isNpc && p.token) {
+                    try {
+                        const response = await fetch(`${API_BASE_URL}capture.php`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${p.token}`
+                            },
+                            body: JSON.stringify({ territory_id: parseInt(targetId) })
+                        });
+                        const dbResult = await response.json();
+                        console.log(`✅ [DB] 陣地 ${targetId} 制圧記録:`, dbResult.message || dbResult);
+                    } catch (err) {
+                        console.error("❌ [DB] 陣地保存失敗:", err);
+                    }
+                }
+
             } else {
                 p.hp -= 20;
                 io.emit('GAME_LOG', `❌ ${p.username}: ${targetId} への攻撃に失敗。`);
@@ -267,7 +345,7 @@ io.on('connection', (socket) => {
         finalizeTurn(socket.id);
     });
 
-    // 🚀 【以前の鉄壁ロジック】プレイヤー切断時のクリーンアップ
+    // プレイヤー切断時のクリーンアップ
     socket.on('disconnect', () => {
         console.log(`❌ Disconnected: ${socket.id}`);
         delete gameState.players[socket.id];
@@ -287,7 +365,7 @@ io.on('connection', (socket) => {
     });
 });
 
-// 🚀 【以前の鉄壁ロジック】1秒ごとの強制同期（ハートビート）
+// 1秒ごとの強制同期（ハートビート）
 setInterval(() => {
     if (Object.keys(gameState.players).length > 0) {
         io.emit(SERVER_EVENTS.SYNC_STATE, gameState);
