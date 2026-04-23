@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useGameStore } from '../store';
+import { REACT_TO_PHASER } from '../game/events/PhaserBridge'; // 🚀 定数を使うためにインポート
 
 export const ActionPanel: React.FC = () => {
   // 💡 storeからデータを取得
@@ -11,24 +12,26 @@ export const ActionPanel: React.FC = () => {
   // アクション関数
   const attack = useGameStore(state => state.attack);
   const stay = useGameStore(state => state.stay);
-  const defend = useGameStore(state => state.defend); // 防御アクションも追加
+  const defend = useGameStore(state => state.defend);
   const endTurn = useGameStore(state => state.endTurn);
 
-  // Phaserからの地区選択イベントを監視
-  useEffect(() => {
-    const handleDistrictSelect = (e: any) => {
-      useGameStore.setState({ selectedDistrictId: e.detail });
-    };
-    window.addEventListener('DISTRICT_SELECTED', handleDistrictSelect);
-    return () => window.removeEventListener('DISTRICT_SELECTED', handleDistrictSelect);
-  }, []);
+  // 🚀 【修正】以前ここにあった 'DISTRICT_SELECTED' リスナーは不要なので削除しました。
+  // Phaser側のMainSceneが直接 store.setStatus を叩くようになったためです。
 
   // 出撃確定処理 (Turn 0)
   const handleDeploy = () => {
     if (!selectedDistrictId) return;
-    window.dispatchEvent(new CustomEvent('COMMAND_DEPLOY_CONFIRM', { detail: { districtId: selectedDistrictId } }));
+
+    // 🚀 【最優先修正】イベント名を 'react:confirmDeployment' に一致させました
+    // 定数 REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM を使用することで確実に届けます
+    window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, { 
+      detail: { districtId: selectedDistrictId } 
+    }));
+
     useGameStore.getState().nextTurn();
   };
+
+  // --- 以下、描画ロジック ---
 
   // ⭐️ [Turn 0] 初期配置フェーズ
   if (turn === 0) {
@@ -57,19 +60,16 @@ export const ActionPanel: React.FC = () => {
     );
   }
 
-  // ⭐️ [Turn 1以降] 自分のターン：スタミナの限り連続で行動可能
-  // サーバーの消費AP(5)に合わせてチェック
+  // ⭐️ [Turn 1以降] 自分のターン
   const canAttack = selectedDistrictId && stamina >= 5;
 
   return (
     <div style={panelContainerStyle}>
-      {/* 選択中の地区情報 */}
       <div style={{ color: '#f1c40f', fontSize: '12px', marginBottom: '8px', fontWeight: 'bold' }}>
         {selectedDistrictId ? `選択中: エリア ${selectedDistrictId}` : '攻撃先を選んでください'}
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px', width: '100%' }}>
-        {/* ⚔️ Attack: AP 5消費 (サーバーのロジックに合わせました) */}
         <button 
           onClick={() => selectedDistrictId && attack(selectedDistrictId)} 
           disabled={!canAttack}
@@ -78,16 +78,13 @@ export const ActionPanel: React.FC = () => {
           ⚔️ 攻撃 (5)
         </button>
 
-        {/* 🛡️ Defend: AP 0消費 (防御を固める) */}
         <button 
           onClick={defend} 
-          disabled={stamina < 0} // 基本いつでも可能
           style={btnStyle('#3498db', false)}
         >
           🛡️ 防御 (0)
         </button>
 
-        {/* 🧘 Stay: AP大幅回復 */}
         <button 
           onClick={stay} 
           style={btnStyle('#27ae60', false)}
@@ -96,7 +93,6 @@ export const ActionPanel: React.FC = () => {
         </button>
       </div>
 
-      {/* 🚀 ターン終了ボタン：これを押すまで手番は終わらない！ */}
       <button 
         onClick={() => endTurn()} 
         style={endTurnBtnStyle}
@@ -107,7 +103,7 @@ export const ActionPanel: React.FC = () => {
   );
 };
 
-// --- スタイル定義 ---
+// --- スタイル定義（変更なし） ---
 const panelContainerStyle: React.CSSProperties = { 
   display: 'flex', 
   flexDirection: 'column', 
@@ -120,7 +116,6 @@ const panelContainerStyle: React.CSSProperties = {
   border: '1px solid rgba(255,255,255,0.1)'
 };
 
-// 💡 ポイント：disabledの状態を受け取って、opacityとgrayscaleを適用
 const btnStyle = (bg: string, disabled: boolean): React.CSSProperties => ({ 
   padding: '12px 8px', 
   background: bg, 
@@ -129,9 +124,8 @@ const btnStyle = (bg: string, disabled: boolean): React.CSSProperties => ({
   borderRadius: '8px', 
   cursor: disabled ? 'not-allowed' : 'pointer', 
   fontWeight: 'bold', 
-  flex: '1 1 45%', // 2列に並びやすく調整
+  flex: '1 1 45%',
   transition: '0.3s all ease',
-  // 🚀 グレーアウト演出
   opacity: disabled ? 0.4 : 1,
   filter: disabled ? 'grayscale(100%)' : 'none',
   transform: disabled ? 'scale(0.95)' : 'none',

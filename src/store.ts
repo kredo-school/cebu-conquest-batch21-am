@@ -8,14 +8,12 @@ const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   11103: { name: "サン・ペドロの守護石", effect: "DEF +20" },
   11104: { name: "ITパークの光回線", effect: "命中率UP" },
   11105: { name: "セブ・ゴールド・マンゴー", effect: "全ステータス +5%" },
-  // 🚀 占領後にカードが出るように 11119 と 11120 を追加！
   11119: { name: "マリン・バースト", effect: "ATK +10" },
   11120: { name: "ヘリテージ・スパイス", effect: "DEF +10" },
-  // ※なおさんのリストに合わせて順次拡張してください
 };
 
 const GODS_DATA = [
-  { id: 1, name: "戦神 ラプパプ", bonus: "ATK +20", item: "古びた剣" },
+  { id: 1, name: "戦神 ラプラプ", bonus: "ATK +20", item: "古びた剣" },
   { id: 2, name: "豊穣の女神 セブナ", bonus: "MAX AP +30", item: "マンゴーの種" },
   { id: 3, name: "知恵の神 クレド", bonus: "毎ターンAP回復", item: "光るUSB" },
 ];
@@ -35,7 +33,8 @@ interface GameState {
   turn: number; 
   maxTurn: number;
   logs: string[]; 
-  players: Record<string, any>;
+  roomId: string;         // 🚀 修正：App.tsxのエラー解消用に追加
+  players: any[];         // 🚀 修正：RecordからArrayに変更（LobbyView用）
   districts: Record<string, string>;
   currentDistrictName: string;
   selectedDistrictId: number | null;
@@ -81,7 +80,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   blessing: 1.0, atk: 50, def: 40,
   turn: 0, maxTurn: 10,
   logs: ["🌞 ミッション開始。出撃地点を選択してください。"],
-  players: {}, districts: {},
+  roomId: '',             // 🚀 初期値追加
+  players: [],            // 🚀 初期値を空配列に
+  districts: {},
   currentDistrictName: "地点未選択", selectedDistrictId: null,
   playerName: "", myId: "",
   myTeam: "Explorer", 
@@ -169,16 +170,21 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   closePrediction: () => set({ predictionModalOpen: false, targetDistrictInfo: null }),
 
-  // 🚀 【けい仕様ガード】サーバーからの Turn 0 を無視して戦闘モードを維持
   syncServerState: (data, myId) => {
     if (!data) return;
-    const myPlayerData = data.players?.[myId];
+    
+    // 🚀 修正：サーバーからの players がオブジェクトなら配列に変換、配列ならそのままセット
+    const rawPlayers = data.players ?? {};
+    const playersArray = Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers);
+    
+    // 自分のデータを特定（配列から検索、またはオブジェクトから取得）
+    const myPlayerData = Array.isArray(rawPlayers) 
+      ? rawPlayers.find(p => p.id === myId)
+      : rawPlayers[myId];
     
     set((state) => {
       const isAlreadyOnMap = !!myPlayerData?.districtId;
       let safeTurn = data.turn;
-      
-      // 出撃済みなら、サーバーから Turn 0 が来ても 1 以上を維持（DEPLOYボタン復活を防ぐ）
       if (isAlreadyOnMap && data.turn === 0) {
         safeTurn = state.turn > 0 ? state.turn : 1; 
       }
@@ -187,28 +193,31 @@ export const useGameStore = create<GameState>((set, get) => ({
       return {
         ...state,
         myId: myId,
+        roomId: data.roomId ?? state.roomId, // 🚀 roomId 同期
         hp: myPlayerData?.hp ?? state.hp,
+        maxHp: myPlayerData?.maxHp ?? state.maxHp,
         stamina: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.stamina,
+        atk: myPlayerData?.atk ?? state.atk,
+        def: myPlayerData?.def ?? state.def,
         districts: data.districts ?? state.districts,
+        players: playersArray, // 🚀 常に配列として保存
         turn: safeTurn,
-        isMyTurn: safeTurn === 0 ? true : isMe,
+        isMyTurn: isMe,
         turnOwner: isMe ? "YOU" : (data.turnOwnerName || "ENEMY"),
         isSubmitted: isMe ? false : state.isSubmitted 
       };
     });
     
     window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: data.players } }));
-    get().updateBuffs(); // 🚀 ここでバフカードを更新！
+    get().updateBuffs();
   },
 
   updateBuffs: () => {
     const { districts, myId } = get();
-    // 自分が所有している地区のIDを数値リスト化
     const myDistrictIds = Object.entries(districts)
       .filter(([_, ownerId]) => ownerId === myId)
       .map(([id, _]) => Number(id)); 
     
-    // SPECIALTY_DATAにあるバフだけを抽出
     const buffs = myDistrictIds
       .filter(id => SPECIALTY_DATA[id])
       .map(id => ({ id, ...SPECIALTY_DATA[id] }));
@@ -224,8 +233,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     get().closePrediction();
   },
 
-  defend: () => { socket.emit("ACTION_SUBMIT", { type: 'defend' }); get().addLog("🛡️ 防御。"); },
-  stay: () => { socket.emit("ACTION_SUBMIT", { type: 'stay' }); get().addLog("🧘 休息。"); },
+  defend: () => { 
+    socket.emit("ACTION_SUBMIT", { type: 'defend' }); 
+    get().addLog("🛡️ 防御。"); 
+  },
+
+  stay: () => { 
+    const { isMyTurn } = get();
+    if (!isMyTurn) return;
+    socket.emit("ACTION_SUBMIT", { type: 'stay' }); 
+    get().addLog("🧘 休息。"); 
+    window.dispatchEvent(new CustomEvent('ACTION_STAY'));
+  },
+
   escape: () => { socket.emit("ACTION_SUBMIT", { type: 'escape' }); get().addLog("🏃 撤退。"); },
   endTurn: () => { socket.emit("ACTION_SUBMIT", { type: 'turn_end' }); set({ isMyTurn: false, isSubmitted: true }); },
   setStatus: (newStatus) => set((state) => ({ ...state, ...newStatus })),
@@ -233,7 +253,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   resetGame: () => window.location.reload(),
 }));
 
-// 🚀 サーバーからの実況（GAME_LOG）やエラー通知をリアルタイムに拾う
+// サーバーからの実況通知
 socket.on('GAME_LOG', (msg: string) => {
   useGameStore.getState().addLog(`🛰️ SERVER: ${msg}`);
 });

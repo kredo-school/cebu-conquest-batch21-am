@@ -5,20 +5,21 @@ import { PHASER_TO_REACT, REACT_TO_PHASER, emitToReact } from "../events/PhaserB
 import { MAP_CONFIG } from "../config/mapConfig";
 import ZoomManager from "./ZoomManager";
 
-const MAP_SCALE = 0.5;
+const MAP_SCALE = 0.5; 
 
 const COLOR = {
   NEUTRAL: 0x95a5a6,
   HIGHLIGHT: 0xffff00,
-  PLAYER_DOT: 0xf1c40f,
-  ENEMY_DOT: 0xffffff,
-  TEAM_RED: 0xff4d4d,
-  TEAM_BLUE: 0x00ffff,
+  PLAYER_DOT: 0xf1c40f, // 自分：黄
+  ENEMY_DOT: 0xffffff,  // 🚀 NPC：白（黒枠付きで視認性最大）
+  TEAM_RED: 0xff4d4d,   // 赤（issei領土）
+  TEAM_BLUE: 0x00ffff,  // 青（NPC領土）
 };
 
+// 🚀 ID正規化ロジック
 const normalizeId = (id) => {
   if (!id) return null;
-  const nameMap = {
+  const nameMap = { 
     "アドベンチャーゾーン": 11101, "マンゴー地区": 11102, "エナジー地区": 11103,
     "コータル・トレードゾーン": 11104, "アドベンチャー地区": 11105,
     "ショッピング・商業特区": 11112, "ダウンタウン・港湾地区": 11113,
@@ -61,6 +62,7 @@ export default class MainScene extends Phaser.Scene {
     this.currentDistrictId = null;
     this._dragMoved = false;
     this.isSelectionMode = true;
+    this._reactListeners = [];
   }
 
   preload() {
@@ -87,14 +89,17 @@ export default class MainScene extends Phaser.Scene {
     this.zoomManager.tick(this.cameras.main.zoom, this.districts);
   }
 
-  shutdown() {
-    this._reactListeners?.forEach(({ event, handler }) =>
-      window.removeEventListener(event, handler),
-    );
-  }
-
+  // 🚀 リスナー統合版（重複を削除してクリーンアップ）
   _setupReactListeners() {
     const handlers = [
+      {
+        event: REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM,
+        handler: (e) => {
+          this.isSelectionMode = false;
+          this.currentDistrictId = normalizeId(e.detail.districtId);
+          this._placePlayer(this.currentDistrictId);
+        },
+      },
       {
         event: REACT_TO_PHASER.COMMAND_STAY,
         handler: () => {
@@ -131,63 +136,46 @@ export default class MainScene extends Phaser.Scene {
             this._syncDistricts(e.detail.districts, e.detail.players);
           }
         },
-      },
-      {
-        event: REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM,
-        handler: (e) => {
-          this.isSelectionMode = false;
-          this.currentDistrictId = normalizeId(e.detail.districtId);
-          this._placePlayer(this.currentDistrictId);
-        },
-      },
+      }
     ];
+
     handlers.forEach(({ event, handler }) => window.addEventListener(event, handler));
     this._reactListeners = handlers;
   }
 
-  _onMapClicked(x, y) {
-    if (this._dragMoved) return;
-    const worldPoint = this.cameras.main.getWorldPoint(x, y);
-    const id = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
-    if (!id) return;
+  shutdown() {
+    this._reactListeners?.forEach(({ event, handler }) =>
+      window.removeEventListener(event, handler),
+    );
+  }
 
-    const store = window.useGameStore?.getState();
-    if (!store) return;
-
-    if (this.isSelectionMode) {
-      Object.values(this.districts).forEach((d) => this._redrawDistrict(d, COLOR.NEUTRAL));
-      this._redrawDistrict(this.districts[id], COLOR.HIGHLIGHT, 0.8);
-      store.setStatus({ selectedDistrictId: id, currentDistrictName: this.districts[id].name });
-    } else {
-      if (!store.isMyTurn) return;
-      const myPos = String(this.currentDistrictId);
-      const targetId = String(id);
-      const neighbors = ADJACENCY[myPos] || [];
-
-      if (targetId === myPos) return;
-
-      if (!neighbors.includes(targetId)) {
-        this.showLog("⚠️ 隣接していない地区には行動できません。");
-        return;
+  _initSocket() {
+    socket.connect();
+    socket.on(SERVER_EVENTS.SYNC_STATE, (s) => {
+      if (!s) return;
+      this._syncDistricts(s.districts, s.players);
+      this._syncPlayers(s.players);
+    });
+    socket.on(SERVER_EVENTS.GAME_START, (s) => {
+      if (!s) return;
+      if (s.districts && s.players) {
+        this._syncDistricts(s.districts, s.players);
+        this._syncPlayers(s.players);
       }
-
-      const myTeamStr = (store.myTeam || "").toLowerCase();
-      const targetOwnerStr = (this.districts[id].owner || "neutral").toLowerCase();
-      const isMyTerritory =
-        targetOwnerStr !== "neutral" &&
-        (targetOwnerStr.includes(myTeamStr) ||
-          targetOwnerStr.includes("issei") ||
-          targetOwnerStr.includes("red"));
-
-      if (isMyTerritory) {
-        this.showLog(`🚚 移動: ${this.districts[id].name}`);
-        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: "move", targetId });
-        this._placePlayer(targetId);
-      } else {
-        this.showLog(`🎯 攻撃: ${this.districts[id].name}`);
-        store.openPrediction(targetId, this.districts[id].name);
+    });
+    socket.on(SERVER_EVENTS.TURN_START, (data) => {
+      emitToReact(PHASER_TO_REACT.TURN_START, data ?? {});
+      const msg = data?.currentPlayerId === socket.id ? "🎯 あなたのターンです！" : `⏳ ${data?.currentPlayerName || "相手"}のターンです`;
+      this.showLog(msg);
+    });
+    socket.on(SERVER_EVENTS.ACTION_RESULT, (data) => {
+      if (!data) return;
+      if (data.stats) {
+        Object.assign(this.playerStats, data.stats);
+        this.updateStatusToReact();
       }
-    }
+      if (data.message) this.showLog(data.message);
+    });
   }
 
   _setupTilemap() {
@@ -208,23 +196,16 @@ export default class MainScene extends Phaser.Scene {
       const objectLayer = this.tiledMap.getObjectLayer(layerName);
       if (!objectLayer) return;
       objectLayer.objects.forEach((obj) => {
-        const districtId = normalizeId(parseInt(obj.name, 10) || obj.id);
+        const districtId = normalizeId(obj.name || obj.id);
         const poly = (obj.polygon || []).map((p) => ({
           x: (obj.x + p.x) * MAP_SCALE,
           y: (obj.y + p.y) * MAP_SCALE,
         }));
         if (poly.length === 0) return;
         this.districts[districtId] = {
-          id: districtId,
-          name: obj.name,
-          type: layerName,
-          polygon: poly,
-          center: {
-            x: poly.reduce((s, v) => s + v.x, 0) / poly.length,
-            y: poly.reduce((s, v) => s + v.y, 0) / poly.length,
-          },
-          owner: "neutral",
-          graphics: this.add.graphics().setDepth(2),
+          id: districtId, name: obj.name, type: layerName, polygon: poly,
+          center: { x: poly.reduce((s, v) => s + v.x, 0) / poly.length, y: poly.reduce((s, v) => s + v.y, 0) / poly.length },
+          owner: "neutral", graphics: this.add.graphics().setDepth(2),
         };
         this._redrawDistrict(this.districts[districtId], COLOR.NEUTRAL, 0);
       });
@@ -239,27 +220,15 @@ export default class MainScene extends Phaser.Scene {
 
     const sizeByType = { islandName: "36px", areaName: "18px", districtName: "12px", spotName: "10px" };
     Object.values(this.districts).forEach((d) => {
-      d.textLabel = this.add
-        .text(d.center.x, d.center.y, d.name, {
-          fontSize: sizeByType[d.type] ?? "16px",
-          color: "#ffffff",
-          stroke: "#000",
-          strokeThickness: 4,
-          fontStyle: "bold",
-        })
-        .setOrigin(0.5)
-        .setDepth(3)
-        .setVisible(false);
+      d.textLabel = this.add.text(d.center.x, d.center.y, d.name, {
+        fontSize: sizeByType[d.type] ?? "16px", color: "#ffffff", stroke: "#000", strokeThickness: 4, fontStyle: "bold",
+      }).setOrigin(0.5).setDepth(3).setVisible(false);
     });
   }
 
   _setupCamera() {
     const cam = this.cameras.main;
-
-    this.input.on("pointerdown", () => {
-      this._dragMoved = false;
-    });
-
+    this.input.on("pointerdown", () => { this._dragMoved = false; });
     this.input.on("pointermove", (p) => {
       if (p.isDown) {
         if (p.getDistance() > 3) this._dragMoved = true;
@@ -272,32 +241,22 @@ export default class MainScene extends Phaser.Scene {
         this._updateHoverText(hoveredId);
       }
     });
-
-    this.input.on("wheel", (pointer, _gameObjects, _deltaX, deltaY, _deltaZ, event) => {
+    this.input.on("wheel", (pointer, _objs, _dx, deltaY, _dz, event) => {
       const isPinch = event?.ctrlKey === true;
       const zoomSpeed = isPinch ? 0.1 : 0.001;
-
       const oldZoom = cam.zoom;
       const newZoom = Phaser.Math.Clamp(oldZoom - deltaY * zoomSpeed, 0.5, 8);
       if (oldZoom === newZoom) return;
-
       const worldX = cam.scrollX + pointer.x / oldZoom;
       const worldY = cam.scrollY + pointer.y / oldZoom;
-
       cam.setZoom(newZoom);
-
       cam.scrollX = worldX - pointer.x / newZoom;
       cam.scrollY = worldY - pointer.y / newZoom;
-
       this._clampCamera();
-
-      if (isPinch && event?.preventDefault) {
-        event.preventDefault();
-      }
+      this._updateLabelVisibility();
+      if (isPinch && event?.preventDefault) event.preventDefault();
     });
-
-    cam.setZoom(1);
-    this._clampCamera();
+    cam.setZoom(1); this._clampCamera();
   }
 
   _clampCamera() {
@@ -306,25 +265,53 @@ export default class MainScene extends Phaser.Scene {
     const mapH = this.tiledMap.heightInPixels * MAP_SCALE;
     const viewW = cam.width / cam.zoom;
     const viewH = cam.height / cam.zoom;
+    cam.scrollX = mapW > viewW ? Phaser.Math.Clamp(cam.scrollX, 0, mapW - viewW) : (mapW - viewW) / 2;
+    cam.scrollY = mapH > viewH ? Phaser.Math.Clamp(cam.scrollY, 0, mapH - viewH) : (mapH - viewH) / 2;
+  }
 
-    cam.scrollX =
-      mapW > viewW ? Phaser.Math.Clamp(cam.scrollX, 0, mapW - viewW) : (mapW - viewW) / 2;
+  _onMapClicked(x, y) {
+    if (this._dragMoved) return;
+    const worldPoint = this.cameras.main.getWorldPoint(x, y);
+    const id = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
+    if (!id) return;
+    const store = window.useGameStore?.getState();
+    if (!store) return;
 
-    cam.scrollY =
-      mapH > viewH ? Phaser.Math.Clamp(cam.scrollY, 0, mapH - viewH) : (mapH - viewH) / 2;
+    if (this.isSelectionMode) {
+      Object.values(this.districts).forEach((d) => this._redrawDistrict(d, COLOR.NEUTRAL));
+      this._redrawDistrict(this.districts[id], COLOR.HIGHLIGHT, 0.8);
+      store.setStatus({ selectedDistrictId: id, currentDistrictName: this.districts[id].name });
+    } else {
+      if (!store.isMyTurn) return;
+      const myPos = String(this.currentDistrictId);
+      const targetId = String(id);
+      if (targetId === myPos) return;
+      if (!(ADJACENCY[myPos] || []).includes(targetId)) {
+        this.showLog("⚠️ 隣接していない地区には行動できません。");
+        return;
+      }
+      const myTeam = (store.myTeam || "").toLowerCase();
+      const targetOwner = (this.districts[id].owner || "neutral").toLowerCase();
+      const isMyTerritory = targetOwner !== "neutral" && (targetOwner.includes(myTeam) || targetOwner.includes("issei") || targetOwner.includes("red"));
+
+      if (isMyTerritory) {
+        this.showLog(`🚚 移動: ${this.districts[id].name}`);
+        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: "move", targetId });
+        this._placePlayer(targetId);
+      } else {
+        this.showLog(`🎯 攻撃: ${this.districts[id].name}`);
+        store.openPrediction(targetId, this.districts[id].name);
+      }
+    }
   }
 
   _getDistrictAtPoint(x, y) {
-    let hitId = null;
-    let highestPriority = 0;
+    let hitId = null; let highestPriority = 0;
     const priority = { spotName: 4, districtName: 3, areaName: 2, islandName: 1 };
     for (const d of Object.values(this.districts)) {
       if (pointInPolygon({ x, y }, d.polygon)) {
         const p = priority[d.type] || 0;
-        if (p > highestPriority) {
-          hitId = d.id;
-          highestPriority = p;
-        }
+        if (p > highestPriority) { hitId = d.id; highestPriority = p; }
       }
     }
     return hitId;
@@ -335,9 +322,7 @@ export default class MainScene extends Phaser.Scene {
     d.graphics.clear();
     if (alpha > 0) d.graphics.fillStyle(color, alpha);
     d.graphics.beginPath();
-    d.polygon.forEach((p, i) =>
-      i === 0 ? d.graphics.moveTo(p.x, p.y) : d.graphics.lineTo(p.x, p.y),
-    );
+    d.polygon.forEach((p, i) => i === 0 ? d.graphics.moveTo(p.x, p.y) : d.graphics.lineTo(p.x, p.y));
     d.graphics.closePath();
     if (alpha > 0) d.graphics.fillPath();
     d.graphics.lineStyle(2, 0xffffff, 0.4).strokePath();
@@ -347,10 +332,7 @@ export default class MainScene extends Phaser.Scene {
     const d = this.districts[normalizeId(id)];
     if (!d) return;
     if (this.player) this.player.destroy();
-    this.player = this.add
-      .circle(d.center.x, d.center.y, 20, COLOR.PLAYER_DOT)
-      .setDepth(1000)
-      .setStrokeStyle(5, 0x000000);
+    this.player = this.add.circle(d.center.x, d.center.y, 20, COLOR.PLAYER_DOT).setDepth(1000).setStrokeStyle(5, 0x000000);
     this.cameras.main.pan(d.center.x, d.center.y, 600, "Power2");
   }
 
@@ -360,82 +342,54 @@ export default class MainScene extends Phaser.Scene {
       if (!d || !serverPlayers[ownerId]) return;
       const team = serverPlayers[ownerId].team.toLowerCase();
       d.owner = team;
-      const col =
-        team.includes("red") || team.includes("issei") ? COLOR.TEAM_RED : COLOR.TEAM_BLUE;
+      const col = team.includes("red") || team.includes("issei") ? COLOR.TEAM_RED : COLOR.TEAM_BLUE;
       this._redrawDistrict(d, col, 0.7);
     });
   }
 
   _syncPlayers(players) {
-    Object.values(this.otherPlayers).forEach((p) => {
-      if (p.dot) p.dot.destroy();
-    });
+    Object.values(this.otherPlayers).forEach((p) => { if (p.dot) p.dot.destroy(); });
     this.otherPlayers = {};
-
     Object.entries(players).forEach(([playerId, data]) => {
       const rawId = data.districtId || data.currentDistrict || data.pos;
       const dId = normalizeId(rawId);
-
       if (playerId === socket.id) {
         this.currentDistrictId = dId;
         this._placePlayer(dId);
         this.isSelectionMode = false;
         return;
       }
-
       const d = this.districts[dId];
       if (d && d.center) {
         this.otherPlayers[playerId] = {
-          dot: this.add
-            .circle(d.center.x, d.center.y, 16, COLOR.ENEMY_DOT)
-            .setDepth(900)
-            .setStrokeStyle(5, 0x000000),
+          dot: this.add.circle(d.center.x, d.center.y, 16, COLOR.ENEMY_DOT).setDepth(900).setStrokeStyle(5, 0x000000),
         };
       }
     });
   }
 
-  _initSocket() {
-    socket.connect();
+  _getLodType(zoom) {
+    if (zoom < 1.5) return "islandName";
+    if (zoom < 2.5) return "areaName";
+    if (zoom < 3.5) return "districtName";
+    return "spotName";
+  }
 
-    socket.on(SERVER_EVENTS.SYNC_STATE, (s) => {
-      if (!s) return;
-      this._syncDistricts(s.districts, s.players);
-      this._syncPlayers(s.players);
-    });
-
-    socket.on(SERVER_EVENTS.GAME_START, (s) => {
-      if (!s) return;
-      if (s.districts && s.players) {
-        this._syncDistricts(s.districts, s.players);
-        this._syncPlayers(s.players);
-      }
-    });
-
-    socket.on(SERVER_EVENTS.TURN_START, (data) => {
-      emitToReact(PHASER_TO_REACT.TURN_START, data ?? {});
-      const msg =
-        data?.currentPlayerId === socket.id
-          ? "🎯 あなたのターンです！"
-          : `⏳ ${data?.currentPlayerName || "相手"}のターンです`;
-      this.showLog(msg);
-    });
-
-    socket.on(SERVER_EVENTS.ACTION_RESULT, (data) => {
-      if (!data) return;
-      if (data.stats) {
-        Object.assign(this.playerStats, data.stats);
-        this.updateStatusToReact();
-      }
-      if (data.message) this.showLog(data.message);
-    });
+  _updateLabelVisibility() {
+    const lod = this._getLodType(this.cameras.main.zoom);
+    Object.values(this.districts).forEach(d => { if(d.textLabel) d.textLabel.setVisible(d.type === lod); });
   }
 
   _updateHoverText(hoveredId) {
-    this.zoomManager.setHover(hoveredId, this.districts);
+    const lod = this._getLodType(this.cameras.main.zoom);
+    Object.values(this.districts).forEach(d => {
+      if(d.textLabel) d.textLabel.setVisible(d.type === lod || d.id === hoveredId);
+    });
+    if (this.zoomManager) this.zoomManager.setHover(hoveredId, this.districts);
   }
 
   showLog(message) {
+    if (!message) return;
     emitToReact(PHASER_TO_REACT.GAME_LOG, message);
   }
 
