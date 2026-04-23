@@ -1,12 +1,23 @@
 <?php
 
-// CORS対策 (ローカル開発環境用) React(Vite)からのアクセスを許可
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization"); // Authorizationを許可に追加！
+// CORS対策
+header("Access-Control-Allow-Origin: http://localhost:5173");
+header("Access-Control-Allow-Methods: GET, OPTIONS"); // 取得専用なのでGET
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Content-Type: application/json; charset=UTF-8");
+header("X-Content-Type-Options: nosniff");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
+
+// HTTPメソッド制限（GET以外を405で弾く）
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405);
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Method Not Allowed. This endpoint requires GET.'
+    ]);
+    exit;
+}
 
 // ここで共通のデータベース設定を読み込む
 require_once __DIR__ . '/jwt_helper.php';
@@ -55,7 +66,7 @@ try {
     $items = $stmtI->fetchAll(PDO::FETCH_ASSOC);
 
     // 数値を正しく (int) にキャストしてフロントエンドが扱いやすくする
-    $formattedTerritories = array_map(function($s) {
+    $formattedTerritories = array_map(function ($s) {
         return [
             'id'           => (int)$s['id'],
             'name'         => $s['name'],
@@ -83,16 +94,33 @@ try {
         ];
     }, $items);
 
-    //3.レスポンスの構築
-echo json_encode([
-    'status' => 'success',
-    'data'   => [ // dataキーで包む
-        'territories' => $formattedTerritories,
-        'items'       => $formattedItems,
-        'gods'        => []
-    ]
-], JSON_UNESCAPED_UNICODE);
+    // 3.4柱の神データの取得
+    $stmtG = $pdo->query("SELECT * FROM gods"); // テーブル名は gods と仮定
+    $gods = $stmtG->fetchAll(PDO::FETCH_ASSOC);
 
+    $formattedGods = array_map(function ($g) {
+return [
+            'id'             => (int)$g['id'],
+            'name'           => $g['name'],
+            'atk_bonus'      => (int)$g['atk_bonus'],      // 戦神ラプラプ用 (ATK+20)
+            'stamina_bonus'  => (int)$g['stamina_bonus'],  // 豊穣の女神セブナ用 (AP+30)
+            'ap_regen_bonus' => (int)$g['ap_regen_bonus'], // 知恵の神クレド用 (毎ターンAP+5)
+            'start_item_id'  => (int)$g['start_item_id'],
+            'image_url'      => $g['image_url'],           // icon_urlからimage_urlに変更
+            'description'    => $g['description']
+        ];
+    }, $gods);
+
+    //4.レスポンスの構築
+    echo json_encode([
+        'status' => 'success',
+        'data'   => [ // dataキーで包む
+            'territories' => $formattedTerritories,
+            'items'       => $formattedItems,
+            'gods'        => $formattedGods
+        ]
+    ], JSON_UNESCAPED_UNICODE);
+    
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode([

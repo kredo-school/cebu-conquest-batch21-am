@@ -1,12 +1,49 @@
--- Cebu Conquest Database Schema (2026-04-15 Final Version)
--- 役割: アップロードされた最新CSVデータに基づくテーブル構築と初期データ投入
-
--- 外部キー制約を一時的に無効化してリセット
+-- ==========================================
+-- 1. テーブルの初期化
+-- ==========================================
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS user_items, occupations, match_results, items, spots, users;
+TRUNCATE TABLE islands;
+TRUNCATE TABLE areas;
+TRUNCATE TABLE spots;
+TRUNCATE TABLE items;
+TRUNCATE TABLE gods;
 SET FOREIGN_KEY_CHECKS = 1;
 
--- 1. ユーザーテーブル (users)
+-- ==========================================
+-- 2. 島・エリア登録 (新しいCSVのID体系 11, 13, 14, 15, 16 に準拠)
+-- ==========================================
+INSERT INTO islands (id, name) VALUES (1000, 'Cebu・Mactan');
+
+INSERT INTO areas (id, island_id, name) VALUES
+(11, 1000, 'North'),
+(13, 1000, 'Core (Cebu City)'),
+(14, 1000, 'South (Heritage)'),
+(15, 1000, 'South (Adventure)'),
+(16, 1000, 'Mactan Island');
+
+-- ==========================================
+-- 3. 神様登録 (画像名: god-xxx.jpg / 名前: Garry, Quisie, Shem)
+-- ==========================================
+INSERT INTO gods (name, atk_bonus, stamina_bonus, ap_regen_bonus, start_item_id, image_url, description) VALUES
+('Garry', 20, 0, 0, 1, 'assets/images/gods/Garry.jpg', '戦いの神。初期攻撃力+20'),
+('Quisie', 0, 30, 0, 2, 'assets/images/gods/Quisie.jpg', '大地の女神。初期スタミナ+30'),
+('Shem', 0, 0, 5, 3, 'assets/images/gods/Shem.jpg', '知識 of 神。毎ターンのAP回復量+5');
+
+-- 神様の初期アイテム (spotsに紐づかないマスターアイテム)
+INSERT INTO items (id, spot_id, name, buff_target, buff_type, buff_value, description) VALUES
+(1, NULL, 'Garryの短剣', 'attack', 'flat', 5, '初期アイテム'),
+(2, NULL, 'Quisieの果実', 'stamina', 'flat', 10, '初期アイテム'),
+(3, NULL, 'Shemの古文書', 'ap_regen', 'flat', 2, '初期アイテム');
+
+--  エリアマスター (areas)
+CREATE TABLE areas (
+    id INT PRIMARY KEY,
+    island_id INT,
+    name VARCHAR(100) NOT NULL,
+    FOREIGN KEY (island_id) REFERENCES islands(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ユーザーテーブル
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
@@ -20,23 +57,25 @@ CREATE TABLE users (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 2. スポットマスター (spots)
+-- スポットマスター (島とエリアに紐付け)
 CREATE TABLE spots (
-    id INT PRIMARY KEY, -- spot_id (PK)
+    id INT PRIMARY KEY,
     island_id INT,
     area_id INT,
     district_id INT,
     name VARCHAR(100) NOT NULL,
     map_x FLOAT NULL,
     map_y FLOAT NULL,
-    capture_cost INT DEFAULT 10,
-    drop_item_id INT -- drop_item_id (FK)
+    capture_cost INT DEFAULT 15,
+    drop_item_id INT,
+    FOREIGN KEY (island_id) REFERENCES islands(id) ON DELETE SET NULL,
+    FOREIGN KEY (area_id) REFERENCES areas(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 3. アイテムマスター (items)
+-- アイテムマスター (spotsを参照)
 CREATE TABLE items (
-    id INT PRIMARY KEY, -- drop_item_id
-    spot_id INT,
+    id INT PRIMARY KEY,
+    spot_id INT NULL,
     name VARCHAR(100) NOT NULL,
     buff_target VARCHAR(50),
     buff_type VARCHAR(50),
@@ -45,7 +84,7 @@ CREATE TABLE items (
     FOREIGN KEY (spot_id) REFERENCES spots(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 4. 占領状況 (occupations)
+-- 占領状況
 CREATE TABLE occupations (
     spot_id INT PRIMARY KEY,
     user_id INT,
@@ -54,7 +93,7 @@ CREATE TABLE occupations (
     FOREIGN KEY (spot_id) REFERENCES spots(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 5. ユーザー所持アイテム (user_items)
+-- ユーザー所持アイテム
 CREATE TABLE user_items (
     user_id INT,
     item_id INT,
@@ -64,15 +103,47 @@ CREATE TABLE user_items (
     FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 6. 対戦結果履歴 (match_results)
+-- 対戦結果履歴
 CREATE TABLE match_results (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT,
-    score INT DEFAULT 0,
-    spots_count INT DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    user_id INT NOT NULL, 
+    score INT DEFAULT 0 COMMENT '獲得スコア（累計用）',
+    spots_count INT DEFAULT 0 COMMENT '最終占有地区数',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 神様の情報 (itemsを参照)
+CREATE TABLE gods (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    atk_bonus INT DEFAULT 0,
+    stamina_bonus INT DEFAULT 0,
+    ap_regen_bonus INT DEFAULT 0,
+    start_item_id INT,
+    image_url VARCHAR(255),
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (start_item_id) REFERENCES items(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ==========================================
+-- 3. データ投入
+-- ==========================================
+
+-- 島の初期データ
+INSERT INTO islands (id, name) VALUES
+(1000, 'セブ島・マクタン島'),
+(2000, 'ネグロス島'),
+(3000, 'ボホール島');
+
+-- エリアの初期データ
+INSERT INTO areas (id, island_id, name) VALUES
+(11, 1000, 'North (北部)'),
+(13, 1000, 'Core (セブ市街地)'),
+(14, 1000, 'South Heritage (南部歴史)'),
+(15, 1000, 'South Adventure (南部自然)'),
+(16, 1000, 'Mactan (マクタン島)');
 
 -- ==========================================
 -- 【CSVデータ投入】スポット登録 (全27スポット)
@@ -114,6 +185,7 @@ INSERT INTO spots (island_id, area_id, district_id, id, name, map_x, map_y, capt
 (1000, 14, 144, 14401, 'シマラ教会', 310, 910, 20, 144011),
 (1000, 14, 145, 14501, 'カルカル（靴の街）', 360, 760, 15, 145011);
 
+
 -- ==========================================
 -- 【CSVデータ投入】アイテム登録 (全27アイテム)
 -- ==========================================
@@ -146,3 +218,13 @@ INSERT INTO items (id, spot_id, name, buff_target, buff_type, buff_value, descri
 (143021, 14302, 'イワシの群れの銀鱗', 'DROP_RATE', 'add_percent', 30, '【きらめく幸運】アイテム発見率が30%アップする'),
 (144011, 14401, '奇跡の祈りキャンドル', 'DEF', 'add_percent', 40, '【祈りの光】守護の力が宿り、防御力が40%アップする'),
 (145011, 14501, '絶品特製チチャロン', 'ATK', 'add_value', 20, '【至福の背徳感】エネルギーが溢れ、攻撃力が20アップする');
+
+-- occupationsテーブルの検索を高速化（占領状況の確認やランキング用）
+CREATE INDEX idx_occupations_user_id ON occupations(user_id);
+CREATE INDEX idx_occupations_spot_id ON occupations(spot_id);
+
+-- user_itemsテーブルの検索を高速化（アイテム所持チェック用）
+CREATE INDEX idx_user_items_user_id ON user_items(user_id);
+
+-- itemsテーブルの検索を高速化（master-data.phpでの結合用）
+CREATE INDEX idx_items_spot_id ON items(spot_id);
