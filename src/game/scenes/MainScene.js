@@ -4,6 +4,7 @@ import { CLIENT_EVENTS, SERVER_EVENTS } from "../../../shared/socketEvents.js";
 import { PHASER_TO_REACT, REACT_TO_PHASER, emitToReact } from "../events/PhaserBridge";
 import { MAP_CONFIG } from "../config/mapConfig";
 import ZoomManager from "./ZoomManager";
+import SoundManager from "../SoundManager";
 
 const MAP_SCALE = 0.5;
 
@@ -57,6 +58,8 @@ export default class MainScene extends Phaser.Scene {
     this.isSelectionMode = true;
     this._reactListeners = [];
     this._myTeam = null;
+    this._pendingTargetId = null;
+    this._avatarKey = 'avatar-default';
   }
 
   preload() {
@@ -65,6 +68,15 @@ export default class MainScene extends Phaser.Scene {
       config.tilesets.forEach((ts) => this.load.image(ts.key, ts.path));
     }
     this.load.tilemapTiledJSON(config.key, config.path);
+    this.load.image('avatar-default', '/assets/images/gods/John.png');
+
+    // BGM（game view 中に使うもののみ）
+    this.load.audio('bgm_map',    '/assets/audio/bgm/bgm_map.mp3');
+    this.load.audio('bgm_battle', '/assets/audio/bgm/bgm_battle.mp3');
+    // SE
+    this.load.audio('se_click',   '/assets/audio/se/se_click.mp3');
+    this.load.audio('se_move',    '/assets/audio/se/se_move.mp3');
+    this.load.audio('se_capture', '/assets/audio/se/se_capture.mp3');
   }
 
   create() {
@@ -76,11 +88,15 @@ export default class MainScene extends Phaser.Scene {
     this._setupCamera();
     this._initSocket();
     this._setupReactListeners();
+    this._setupKeyboard();
     this.updateStatusToReact();
+    SoundManager.setScene(this);
+    SoundManager.playBgm('map');
   }
 
   update() {
     this.zoomManager.tick(this.cameras.main.zoom, this.districts);
+    this._handleCameraKeyboard();
   }
 
   // 🚀 リスナー統合版（重複を削除してクリーンアップ）
@@ -92,6 +108,7 @@ export default class MainScene extends Phaser.Scene {
           this.isSelectionMode = false;
           this.currentDistrictId = normalizeId(e.detail.districtId);
           this._placePlayer(this.currentDistrictId);
+          SoundManager.playSe('move');
         },
       },
       {
@@ -107,6 +124,7 @@ export default class MainScene extends Phaser.Scene {
           const targetId = e.detail?.targetId;
           if (!targetId) return;
           socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: "attack", targetId: String(targetId) });
+          SoundManager.playBgm('battle');
         },
       },
       {
@@ -141,6 +159,7 @@ export default class MainScene extends Phaser.Scene {
     this._reactListeners?.forEach(({ event, handler }) =>
       window.removeEventListener(event, handler),
     );
+    SoundManager.clearScene();
   }
 
   _initSocket() {
@@ -172,6 +191,8 @@ export default class MainScene extends Phaser.Scene {
         this.updateStatusToReact();
       }
       if (data.message) this.showLog(data.message);
+      // バトル結果受信後、マップBGMへ戻す（2秒の余韻を持たせる）
+      this.time.delayedCall(2000, () => SoundManager.playBgm('map'));
     });
   }
 
@@ -188,39 +209,37 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _loadDistrictsFromTMJ() {
-  const targetLayers = ["islandName", "areaName", "districtName", "spotName"];
-  targetLayers.forEach((layerName) => {
-    const objectLayer = this.tiledMap.getObjectLayer(layerName);
-    if (!objectLayer) return;
-    objectLayer.objects.forEach((obj) => {
+    const targetLayers = ["islandName", "areaName", "districtName", "spotName"];
+    targetLayers.forEach((layerName) => {
+      const objectLayer = this.tiledMap.getObjectLayer(layerName);
+      if (!objectLayer) return;
+      objectLayer.objects.forEach((obj) => {
+        const rawId = obj.properties?.[0]?.name ?? obj.id;
+        const districtId = normalizeId(rawId);
+        if (!districtId) return;
 
-      // ✅ properties[0].name が "11101" などの文字列ID
-      const rawId = obj.properties?.[0]?.name ?? obj.id;
-      const districtId = normalizeId(rawId);
-      if (!districtId) return;
+        const poly = (obj.polygon || []).map((p) => ({
+          x: (obj.x + p.x) * MAP_SCALE,
+          y: (obj.y + p.y) * MAP_SCALE,
+        }));
+        if (poly.length === 0) return;
 
-      const poly = (obj.polygon || []).map((p) => ({
-        x: (obj.x + p.x) * MAP_SCALE,
-        y: (obj.y + p.y) * MAP_SCALE,
-      }));
-      if (poly.length === 0) return;
-
-      this.districts[districtId] = {
-        id: districtId,
-        name: obj.name,       // 表示名（日本語）はobj.nameのまま
-        type: layerName,
-        polygon: poly,
-        center: {
-          x: poly.reduce((s, v) => s + v.x, 0) / poly.length,
-          y: poly.reduce((s, v) => s + v.y, 0) / poly.length,
-        },
-        owner: "neutral",
-        graphics: this.add.graphics().setDepth(2),
-      };
-      this._redrawDistrict(this.districts[districtId], COLOR.NEUTRAL, 0);
+        this.districts[districtId] = {
+          id: districtId,
+          name: obj.name,
+          type: layerName,
+          polygon: poly,
+          center: {
+            x: poly.reduce((s, v) => s + v.x, 0) / poly.length,
+            y: poly.reduce((s, v) => s + v.y, 0) / poly.length,
+          },
+          owner: "neutral",
+          graphics: this.add.graphics().setDepth(2),
+        };
+        this._redrawDistrict(this.districts[districtId], COLOR.NEUTRAL, 0);
+      });
     });
-  });
-}
+  }
 
   _drawDistrictPolygons() {
     const w = this.tiledMap.widthInPixels * MAP_SCALE;
@@ -305,6 +324,7 @@ export default class MainScene extends Phaser.Scene {
 
     if (this.isSelectionMode) {
       // 選択モード：スポーン地点を選ぶフェーズ
+      SoundManager.playSe('click');
       Object.values(this.districts).forEach((d) => this._redrawDistrict(d, COLOR.NEUTRAL));
       this._redrawDistrict(this.districts[id], COLOR.HIGHLIGHT, 0.8);
 
@@ -323,6 +343,9 @@ export default class MainScene extends Phaser.Scene {
         this.showLog("⚠️ 隣接していない地区には行動できません。");
         return;
       }
+
+      SoundManager.playSe('click');
+      this._pendingTargetId = id;
 
       // オーナー判定：サーバーが返す "red" | "blue" だけで比較
       const targetOwner = (this.districts[id]?.owner ?? "neutral").toLowerCase();
@@ -379,10 +402,15 @@ export default class MainScene extends Phaser.Scene {
     const d = this.districts[normalizeId(id)];
     if (!d) return;
     if (this.player) this.player.destroy();
+
+    // John.png は 1306×816 の横長カード画像。中央正方形（816×816）を切り出して 48×48 に表示。
+    const cropX = Math.floor((1306 - 816) / 2); // 245
     this.player = this.add
-      .circle(d.center.x, d.center.y, 20, COLOR.PLAYER_DOT)
-      .setDepth(1000)
-      .setStrokeStyle(5, 0x000000);
+      .image(d.center.x, d.center.y, this._avatarKey)
+      .setCrop(cropX, 0, 816, 816)
+      .setDisplaySize(48, 48)
+      .setDepth(1000);
+
     this.cameras.main.pan(d.center.x, d.center.y, 600, "Power2");
   }
 
@@ -391,6 +419,10 @@ export default class MainScene extends Phaser.Scene {
       const d = this.districts[normalizeId(dId)];
       if (!d || !serverPlayers[ownerId]) return;
       const team = serverPlayers[ownerId].team?.toLowerCase();
+      // 自分の陣地として新たに確定したとき SE を鳴らす
+      if (!this.isSelectionMode && this._myTeam && team === this._myTeam && d.owner !== this._myTeam) {
+        SoundManager.playSe('capture');
+      }
       d.owner = team ?? "neutral";
       const col =
         team === "red" ? COLOR.TEAM_RED : team === "blue" ? COLOR.TEAM_BLUE : COLOR.NEUTRAL;
@@ -428,25 +460,17 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  _getLodType(zoom) {
-    if (zoom < 1.5) return "islandName";
-    if (zoom < 2.5) return "areaName";
-    if (zoom < 3.5) return "districtName";
-    return "spotName";
-  }
-
   _updateLabelVisibility() {
-    const lod = this._getLodType(this.cameras.main.zoom);
+    // ZoomManager に LOD 判定を委譲（ロジック重複を排除）
+    const zoom = this.cameras.main.zoom;
+    const lod = this.zoomManager.getLodType(zoom);
     Object.values(this.districts).forEach((d) => {
       if (d.textLabel) d.textLabel.setVisible(d.type === lod);
     });
   }
 
   _updateHoverText(hoveredId) {
-    const lod = this._getLodType(this.cameras.main.zoom);
-    Object.values(this.districts).forEach((d) => {
-      if (d.textLabel) d.textLabel.setVisible(d.type === lod || d.id === hoveredId);
-    });
+    // ラベル更新は ZoomManager に一本化（二重更新を排除）
     if (this.zoomManager) this.zoomManager.setHover(hoveredId, this.districts);
   }
 
@@ -457,5 +481,100 @@ export default class MainScene extends Phaser.Scene {
 
   updateStatusToReact() {
     emitToReact(PHASER_TO_REACT.STATS_UPDATED, this.playerStats);
+  }
+
+  // ─── キーボード操作 ───────────────────────────
+
+  _setupKeyboard() {
+    // 矢印キー（常時カメラパン用）
+    this.cursors = this.input.keyboard.createCursorKeys();
+
+    // WASDキー（選択フェーズ：カメラパン／プレイフェーズ：行動キー）
+    this.wasdKeys = this.input.keyboard.addKeys({
+      up:    Phaser.Input.Keyboard.KeyCodes.W,
+      down:  Phaser.Input.Keyboard.KeyCodes.S,
+      left:  Phaser.Input.Keyboard.KeyCodes.A,
+      right: Phaser.Input.Keyboard.KeyCodes.D,
+    });
+
+    // 行動キー（プレイフェーズのみ有効）
+    this.input.keyboard.on('keydown-SPACE', () => this._handleKeyAction('stay'));
+    this.input.keyboard.on('keydown-S',     () => this._handleKeyAction('stay'));
+    this.input.keyboard.on('keydown-A',     () => this._handleKeyAction('attack'));
+    this.input.keyboard.on('keydown-D',     () => this._handleKeyAction('defend'));
+    this.input.keyboard.on('keydown-E',     () => this._handleKeyAction('escape'));
+
+    // ズームキー（=／+：ズームイン、-：ズームアウト、0：リセット）
+    this.input.keyboard.on('keydown', (ev) => {
+      const focused = document.activeElement;
+      if (focused?.tagName === 'INPUT' || focused?.tagName === 'TEXTAREA') return;
+      if (ev.key === '=' || ev.key === '+') this._keyZoom(1);
+      else if (ev.key === '-') this._keyZoom(-1);
+      else if (ev.key === '0') this._keyZoomReset();
+    });
+  }
+
+  _handleCameraKeyboard() {
+    const focused = document.activeElement;
+    if (focused?.tagName === 'INPUT' || focused?.tagName === 'TEXTAREA') return;
+
+    const cam = this.cameras.main;
+    const speed = 8 / cam.zoom;
+    let moved = false;
+
+    if (this.cursors.left.isDown)       { cam.scrollX -= speed; moved = true; }
+    else if (this.cursors.right.isDown) { cam.scrollX += speed; moved = true; }
+    if (this.cursors.up.isDown)         { cam.scrollY -= speed; moved = true; }
+    else if (this.cursors.down.isDown)  { cam.scrollY += speed; moved = true; }
+
+    // WASDはスポーン地点選択フェーズ中のみカメラパンに使う
+    if (this.isSelectionMode) {
+      if (this.wasdKeys.left.isDown)       { cam.scrollX -= speed; moved = true; }
+      else if (this.wasdKeys.right.isDown) { cam.scrollX += speed; moved = true; }
+      if (this.wasdKeys.up.isDown)         { cam.scrollY -= speed; moved = true; }
+      else if (this.wasdKeys.down.isDown)  { cam.scrollY += speed; moved = true; }
+    }
+
+    if (moved) this._clampCamera();
+  }
+
+  _handleKeyAction(type) {
+    const focused = document.activeElement;
+    if (focused?.tagName === 'INPUT' || focused?.tagName === 'TEXTAREA') return;
+    if (this.isSelectionMode) return;
+
+    switch (type) {
+      case 'stay':
+        window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_STAY));
+        break;
+      case 'attack':
+        if (this._pendingTargetId != null) {
+          window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_ATTACK, {
+            detail: { targetId: this._pendingTargetId },
+          }));
+        } else {
+          this.showLog('⚠️ 攻撃対象を先にタップして選択してください');
+        }
+        break;
+      case 'defend':
+        window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_DEFEND));
+        break;
+      case 'escape':
+        window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_ESCAPE));
+        break;
+    }
+  }
+
+  _keyZoom(dir) {
+    const cam = this.cameras.main;
+    cam.setZoom(Phaser.Math.Clamp(cam.zoom + dir * 0.5, 0.5, 8));
+    this._clampCamera();
+    this._updateLabelVisibility();
+  }
+
+  _keyZoomReset() {
+    this.cameras.main.setZoom(1);
+    this._clampCamera();
+    this._updateLabelVisibility();
   }
 }

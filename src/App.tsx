@@ -16,6 +16,7 @@ import { BattleModal } from './components/BattleModal';
 // 🔴 ブリッジ定数とイベント定数
 import { PHASER_TO_REACT, REACT_TO_PHASER } from './game/events/PhaserBridge';
 import { SERVER_EVENTS } from '../shared/socketEvents.js';
+import SoundManager from './game/SoundManager';
 
 const App: React.FC = () => {
   const { 
@@ -29,6 +30,12 @@ const App: React.FC = () => {
   // 🚀 修正：'waiting' を 'lobby' に変更
   const [view, setView] = useState<'title' | 'login' | 'lobby' | 'game'>('title');
   const [playerName, setLocalPlayerName] = useState('');
+
+  // view 変化に応じた BGM 切り替え（game 画面は MainScene.create() が担当）
+  useEffect(() => {
+    const bgmKey: Record<string, string> = { title: 'title', login: 'lobby', lobby: 'lobby' };
+    if (bgmKey[view]) SoundManager.playBgm(bgmKey[view]);
+  }, [view]);
 
   useEffect(() => {
     (window as any).useGameStore = useGameStore;
