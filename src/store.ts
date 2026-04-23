@@ -13,7 +13,7 @@ const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
 };
 
 const GODS_DATA = [
-  { id: 1, name: "戦神 ラプパプ", bonus: "ATK +20", item: "古びた剣" },
+  { id: 1, name: "戦神 ラプラプ", bonus: "ATK +20", item: "古びた剣" },
   { id: 2, name: "豊穣の女神 セブナ", bonus: "MAX AP +30", item: "マンゴーの種" },
   { id: 3, name: "知恵の神 クレド", bonus: "毎ターンAP回復", item: "光るUSB" },
 ];
@@ -33,7 +33,8 @@ interface GameState {
   turn: number; 
   maxTurn: number;
   logs: string[]; 
-  players: Record<string, any>;
+  roomId: string;         // 🚀 修正：App.tsxのエラー解消用に追加
+  players: any[];         // 🚀 修正：RecordからArrayに変更（LobbyView用）
   districts: Record<string, string>;
   currentDistrictName: string;
   selectedDistrictId: number | null;
@@ -79,7 +80,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   blessing: 1.0, atk: 50, def: 40,
   turn: 0, maxTurn: 10,
   logs: ["🌞 ミッション開始。出撃地点を選択してください。"],
-  players: {}, districts: {},
+  roomId: '',             // 🚀 初期値追加
+  players: [],            // 🚀 初期値を空配列に
+  districts: {},
   currentDistrictName: "地点未選択", selectedDistrictId: null,
   playerName: "", myId: "",
   myTeam: "Explorer", 
@@ -167,16 +170,21 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   closePrediction: () => set({ predictionModalOpen: false, targetDistrictInfo: null }),
 
-  // 🚀 【修正箇所】同期ロジックの強化
   syncServerState: (data, myId) => {
     if (!data) return;
-    const myPlayerData = data.players?.[myId];
+    
+    // 🚀 修正：サーバーからの players がオブジェクトなら配列に変換、配列ならそのままセット
+    const rawPlayers = data.players ?? {};
+    const playersArray = Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers);
+    
+    // 自分のデータを特定（配列から検索、またはオブジェクトから取得）
+    const myPlayerData = Array.isArray(rawPlayers) 
+      ? rawPlayers.find(p => p.id === myId)
+      : rawPlayers[myId];
     
     set((state) => {
       const isAlreadyOnMap = !!myPlayerData?.districtId;
       let safeTurn = data.turn;
-      
-      // 出撃済みなら、サーバーから Turn 0 が来ても 1 以上を維持
       if (isAlreadyOnMap && data.turn === 0) {
         safeTurn = state.turn > 0 ? state.turn : 1; 
       }
@@ -185,13 +193,14 @@ export const useGameStore = create<GameState>((set, get) => ({
       return {
         ...state,
         myId: myId,
+        roomId: data.roomId ?? state.roomId, // 🚀 roomId 同期
         hp: myPlayerData?.hp ?? state.hp,
-        maxHp: myPlayerData?.maxHp ?? state.maxHp, // max系も同期
+        maxHp: myPlayerData?.maxHp ?? state.maxHp,
         stamina: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.stamina,
-        atk: myPlayerData?.atk ?? state.atk, // 🚀 ステータス同期を追加
-        def: myPlayerData?.def ?? state.def, // 🚀 ステータス同期を追加
+        atk: myPlayerData?.atk ?? state.atk,
+        def: myPlayerData?.def ?? state.def,
         districts: data.districts ?? state.districts,
-        players: data.players ?? state.players,
+        players: playersArray, // 🚀 常に配列として保存
         turn: safeTurn,
         isMyTurn: isMe,
         turnOwner: isMe ? "YOU" : (data.turnOwnerName || "ENEMY"),
@@ -199,7 +208,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       };
     });
     
-    // Phaser側にマップの再描画を通知
     window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: data.players } }));
     get().updateBuffs();
   },
@@ -230,15 +238,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     get().addLog("🛡️ 防御。"); 
   },
 
-  // 🚀 【修正箇所】Phaser側のログ表示と連動
   stay: () => { 
     const { isMyTurn } = get();
     if (!isMyTurn) return;
-
     socket.emit("ACTION_SUBMIT", { type: 'stay' }); 
     get().addLog("🧘 休息。"); 
-
-    // 🚀 Phaser側に「休息中...」とログを出させる
     window.dispatchEvent(new CustomEvent('ACTION_STAY'));
   },
 
