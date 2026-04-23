@@ -8,32 +8,35 @@
 header("Content-Type: text/plain; charset=UTF-8");
 require_once __DIR__ . '/../config/database.php';
 
+// パス設定
 $csv_dir = __DIR__ . '/../';
 $spots_file = $csv_dir . 'GI-Project_ID管理シート - Spots.csv';
 $items_file = $csv_dir . 'GI-Project_ID管理シート - Items.csv';
 
 try {
     echo "=========================================\n";
-    echo "🚀 DATABASE FULL SYNC: VERSION 13 (NO MORE 1701)\n";
+    echo "🚀 DATABASE FULL SYNC: VERSION 13 (FIXED)\n";
     echo "=========================================\n\n";
 
-    // --- 1. 制約の無効化 (まずはチェックを外す) ---
+    // --- 1. 制約の無効化 (まずチェックを外す) ---
     $pdo->exec("SET FOREIGN_KEY_CHECKS = 0;");
 
     // --- 2. 徹底掃除 (TRUNCATE は親テーブルに使えないので DELETE を使います) ---
-    // これが今回のエラーを解決するための最大のポイントです
+    // これが今回の #1701 エラーを解決するための最大のポイントです
     $tables = ['user_items', 'occupations', 'items', 'spots', 'match_results', 'areas', 'islands', 'gods', 'users'];
     foreach ($tables as $table) {
-        // DELETE FROM ならば親子関係があっても掃除可能です
+        // DELETE FROM ならば親子関係があっても制約無視(0)の状態なら確実に掃除可能です
         $pdo->exec("DELETE FROM $table");
         echo "🧹 Cleared data (DELETE): $table\n";
     }
 
-    // --- 3. 全テーブルの作成 (なおさんの Gods 設計を 100% 復活) ---
-
+    // --- 3. 全テーブルの作成 (なおさんの設計を100%維持・復活) ---
+    
+    // 島・エリア
     $pdo->exec("CREATE TABLE IF NOT EXISTS islands (id INT PRIMARY KEY, name VARCHAR(100)) ENGINE=InnoDB;");
     $pdo->exec("CREATE TABLE IF NOT EXISTS areas (id INT PRIMARY KEY, island_id INT, name VARCHAR(100)) ENGINE=InnoDB;");
 
+    // スポット
     $pdo->exec("CREATE TABLE IF NOT EXISTS spots (
         id INT PRIMARY KEY,
         island_id INT NOT NULL,
@@ -46,6 +49,7 @@ try {
         drop_item_id INT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
+    // アイテム
     $pdo->exec("CREATE TABLE IF NOT EXISTS items (
         id INT PRIMARY KEY,
         spot_id INT NULL, 
@@ -56,7 +60,7 @@ try {
         description TEXT
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-    // 神様テーブル (atk_bonus, stamina_bonus, ap_regen_bonus, description 全て復活)
+    // 神様 (atk_bonus, stamina_bonus, ap_regen_bonus, description など全カラムを完全に維持)
     $pdo->exec("CREATE TABLE IF NOT EXISTS gods (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(50) NOT NULL,
@@ -69,6 +73,7 @@ try {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
+    // ユーザー
     $pdo->exec("CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) NOT NULL UNIQUE,
@@ -82,6 +87,7 @@ try {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
+    // 占領状況
     $pdo->exec("CREATE TABLE IF NOT EXISTS occupations (
         spot_id INT PRIMARY KEY,
         user_id INT,
@@ -102,7 +108,7 @@ try {
     $pdo->exec("SET FOREIGN_KEY_CHECKS = 1;");
     echo "✅ Tables and Gods structure are restored.\n\n";
 
-    // --- 5. CSVインポート (新しい列番号に対応) ---
+    // --- 5. CSVインポート (最新の列番号に正確にマッピング) ---
 
     // Spots: [isl(0), area(1), dist(2), spot_id(3), name(4), x(5), y(6), cost(7), item(8)]
     importCsv($pdo, $spots_file, "INSERT INTO spots (island_id, area_id, district_id, id, name, map_x, map_y, capture_cost, drop_item_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [0, 1, 2, 3, 4, 5, 6, 7, 8]);
@@ -116,6 +122,9 @@ try {
     echo "\n❌ Error: " . $e->getMessage() . "\n";
 }
 
+/**
+ * 共通インポート関数
+ */
 function importCsv($pdo, $file, $sql, $mapping) {
     if (!file_exists($file)) return;
     $content = mb_convert_encoding(file_get_contents($file), 'UTF-8', 'auto');
