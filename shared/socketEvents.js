@@ -13,6 +13,7 @@ export const CLIENT_EVENTS = {
 // サーバー → クライアント
 export const SERVER_EVENTS = {
   SYNC_STATE:        "syncState",
+  GAME_START:        "gameStart",
   PLAYER_MOVED:      "playerMoved",
   TERRITORY_UPDATED: "territoryUpdated",
   BATTLE_RESULT:     "battleResult",

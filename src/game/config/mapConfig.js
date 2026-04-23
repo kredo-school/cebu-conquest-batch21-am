@@ -22,7 +22,8 @@ export const MAP_CONFIG = {
                 { name: '花', key: 'flower', path: '/assets/tilesets/[A]Flower_pipo.png' },
                 { name: '草', key: 'grass', path: '/assets/tilesets/[A]Grass4_pipo.png' },
                 { name: '草長い', key: 'long_grass', path: '/assets/tilesets/[A]LongGrass_pipo.png' },
-                { name: '道A', key: 'dirt_road', path: '/assets/tilesets/[A]Dirt1_pipo.png' }
+                { name: '道A', key: 'dirt_road', path: '/assets/tilesets/[A]Dirt1_pipo.png' },
+                { name: '水(暗い青)', key: 'water_dark', path: '/assets/tilesets/[A]Water1_pipo.png' }
             ],
             districtLayer: "spotName",
         }
