@@ -1,13 +1,18 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useGameStore } from '../store';
+import SoundManager from '../game/SoundManager';
 
 interface LobbyViewProps {
   roomId: string;
   players: any[];
 }
 
-export const LobbyView: React.FC<LobbyViewProps> = ({ roomId, players }) => {
-  const setView = useGameStore((state) => (state as any).setView); // 画面遷移用
+export const LobbyView: React.FC<LobbyViewProps> = ({ roomId: _roomId, players }) => {
+  const setView = useGameStore((state) => (state as any).setView);
+
+  useEffect(() => {
+    SoundManager.playBgm('lobby');
+  }, []);
 
   return (
     <div className="bg-slate-950 font-body text-slate-200 antialiased overflow-hidden h-screen flex flex-col relative">
@@ -112,8 +117,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({ roomId, players }) => {
                   <div className="absolute inset-0 bg-primary/10 mix-blend-overlay"></div>
                 </div>
               </div>
-              <button 
-                onClick={() => setView('selection')} 
+              <button
+                onClick={() => { SoundManager.playSe('click'); setView('selection'); }}
                 className="w-full bg-slate-800 hover:bg-slate-700 text-white font-black py-4 rounded-xl border border-slate-700 transition-all active:scale-95 uppercase text-xl shadow-lg"
               >
                 Choose God
