@@ -60,3 +60,22 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.material-symbols-outlined {
+    font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 48;
+}
+
+.tropical-flare {
+    background: radial-gradient(circle at center, rgba(249, 115, 22, 0.4) 0%, rgba(249, 115, 22, 0) 70%);
+}
+
+.island-silhouette {
+    background-image: linear-gradient(to top, #020617 20%, transparent 100%), 
+                      url('https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?auto=format&fit=crop&q=80&w=2000');
+    background-size: cover;
+    background-position: center bottom;
+}

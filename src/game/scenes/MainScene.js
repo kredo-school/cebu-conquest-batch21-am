@@ -4,21 +4,19 @@ import { SERVER_EVENTS } from "../../../shared/socketEvents.js";
 import { PHASER_TO_REACT, REACT_TO_PHASER, emitToReact } from "../events/PhaserBridge";
 import { MAP_CONFIG } from "../config/mapConfig";
 
-const MAP_SCALE = 0.5; // マップサイズに合わせて調整
+const MAP_SCALE = 0.5; 
 
 const COLOR = {
   NEUTRAL: 0x95a5a6,
   HIGHLIGHT: 0xffff00,
   PLAYER_DOT: 0xf1c40f, // 自分：黄
-  ENEMY_DOT: 0xffffff,  // 🚀 NPC：白（絶対に見えるように黒枠を付ける）
+  ENEMY_DOT: 0xffffff,  // 🚀 NPC：白（黒枠付きで視認性最大）
   TEAM_RED: 0xff4d4d,   // 赤（issei領土）
   TEAM_BLUE: 0x00ffff,  // 青（NPC領土）
 };
 
-// 🚀 【600行時代の最強ロジック】名前・ID・文字列をすべて 111xx 形式にねじ伏せる関数
 const normalizeId = (id) => {
   if (!id) return null;
-  // 地区名からIDへのマッピング（サーバーが名前で送ってきても大丈夫なように）
   const nameMap = { 
     "アドベンチャーゾーン": 11101, "マンゴー地区": 11102, "エナジー地区": 11103,
     "コータル・トレードゾーン": 11104, "アドベンチャー地区": 11105,
@@ -28,10 +26,9 @@ const normalizeId = (id) => {
   if (nameMap[id]) return nameMap[id];
   const n = Number(id);
   if (isNaN(n)) return id;
-  return n < 1000 ? n + 11100 : n; // 3桁IDを5桁に補正
+  return n < 1000 ? n + 11100 : n;
 };
 
-// 🚀 新しい地図配置に基づいた接続リスト（Day 10まで対応）
 const ADJACENCY = {
   "11101": ["11102", "11104", "11105", "11120"],
   "11102": ["11101", "11104", "11106", "11108"],
@@ -66,7 +63,6 @@ export default class MainScene extends Phaser.Scene {
   }
 
   preload() {
-    // 🚀 MAP_CONFIG からの設定読み込みを完全維持
     const config = MAP_CONFIG.MAPS[MAP_CONFIG.USE_MAP];
     if (config.tilesets?.length > 0) {
       config.tilesets.forEach((ts) => this.load.image(ts.key, ts.path));
@@ -76,102 +72,32 @@ export default class MainScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor(0x2471a3);
-    this._setupTilemap();         // 🚀 多レイヤー対応版
-    this._loadDistrictsFromTMJ();  // 🚀 全レイヤー（island, area...）一括ロード版
-    this._drawDistrictPolygons(); // 🚀 LOD（ズーム連動文字）対応版
-    this._setupCamera();          // 🚀 境界固定・中心ズーム版
+    this._setupTilemap();
+    this._loadDistrictsFromTMJ();
+    this._drawDistrictPolygons();
+    this._setupCamera();
     this._initSocket();
     this._setupReactListeners();
   }
 
-  // --- [新機能] ズーム連動（LOD）およびカメラ制御ロジック ---
-  _setupCamera() {
-    const cam = this.cameras.main;
-    this.input.on("pointermove", (p) => {
-      if (p.isDown) {
-        if (p.getDistance() > 3) this._dragMoved = true;
-        cam.scrollX -= (p.x - p.prevPosition.x) / cam.zoom;
-        cam.scrollY -= (p.y - p.prevPosition.y) / cam.zoom;
-        this._clampCamera(); // 🚀 画面外に行かない機能
-      } else {
-        const worldPoint = cam.getWorldPoint(p.x, p.y);
-        const hoveredId = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
-        this._updateHoverText(hoveredId); // 🚀 ホバー強調機能
-      }
+  // 🚀 指摘のあったバグ修正（リスナーの統合）
+  _setupReactListeners() {
+    // 1. 出撃の確定
+    window.addEventListener(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, (e) => {
+      this.isSelectionMode = false;
+      this.currentDistrictId = normalizeId(e.detail.districtId);
+      this._placePlayer(this.currentDistrictId);
     });
 
-    this.input.on("wheel", (ptr, gameObj, dx, dy) => {
-      const oldZoom = cam.zoom;
-      const newZoom = Phaser.Math.Clamp(oldZoom - dy * 0.001, 0.5, 5);
-      if (oldZoom === newZoom) return;
-
-      // 🚀 マウス位置を中心にしたスムーズなズーム
-      const cx = cam.width / 2; const cy = cam.height / 2;
-      const worldCX = cam.scrollX + cx / oldZoom; const worldCY = cam.scrollY + cy / oldZoom;
-      cam.setZoom(newZoom);
-      cam.scrollX = worldCX - cx / newZoom; cam.scrollY = worldCY - cy / newZoom;
-      
-      this._clampCamera();
-      this._updateLabelVisibility(); // 🚀 ズームに合わせて文字を出す
+    // 2. 休息ログの表示（指摘のあった修正）
+    window.addEventListener("ACTION_STAY", () => {
+      this.showLog("🧘 休息中...");
     });
 
-    cam.setZoom(1); this._clampCamera(); this._updateLabelVisibility();
-  }
-
-  _clampCamera() {
-    const cam = this.cameras.main;
-    const mapW = this.tiledMap.widthInPixels * MAP_SCALE;
-    const mapH = this.tiledMap.heightInPixels * MAP_SCALE;
-    const viewW = cam.width / cam.zoom; const viewH = cam.height / cam.zoom;
-    cam.scrollX = mapW > viewW ? Phaser.Math.Clamp(cam.scrollX, 0, mapW - viewW) : (mapW - viewW) / 2;
-    cam.scrollY = mapH > viewH ? Phaser.Math.Clamp(cam.scrollY, 0, mapH - viewH) : (mapH - viewH) / 2;
-  }
-
-  // --- [新機能] 多階層レイヤー対応（islandName, areaName...） ---
-  _loadDistrictsFromTMJ() {
-    const targetLayers = ["islandName", "areaName", "districtName", "spotName"];
-    targetLayers.forEach((layerName) => {
-      const objectLayer = this.tiledMap.getObjectLayer(layerName);
-      if (!objectLayer) return;
-      objectLayer.objects.forEach((obj) => {
-        let districtId = normalizeId(parseInt(obj.name, 10) || obj.id);
-        const poly = (obj.polygon || []).map((p) => ({ x: (obj.x + p.x) * MAP_SCALE, y: (obj.y + p.y) * MAP_SCALE }));
-        if (poly.length === 0) return;
-
-        this.districts[districtId] = {
-          id: districtId, name: obj.name, type: layerName, polygon: poly,
-          center: { x: poly.reduce((s, v) => s + v.x, 0) / poly.length, y: poly.reduce((s, v) => s + v.y, 0) / poly.length },
-          owner: "neutral", graphics: this.add.graphics().setDepth(2)
-        };
-        this._redrawDistrict(this.districts[districtId], COLOR.NEUTRAL, 0);
-      });
-    });
-  }
-
-  // --- [600行時代の最強ロジック] NPC同期 & 隣接・チーム判定 ---
-  _syncPlayers(players) {
-    Object.values(this.otherPlayers).forEach(p => { if (p.dot) p.dot.destroy(); });
-    this.otherPlayers = {};
-
-    Object.entries(players).forEach(([playerId, data]) => {
-      // 🚀 ここが「長い行」の正体！ districtId, currentDistrict, pos のどれが来ても対応
-      const rawId = data.districtId || data.currentDistrict || data.pos;
-      const dId = normalizeId(rawId);
-
-      if (playerId === socket.id) {
-        this.currentDistrictId = dId;
-        this._placePlayer(dId);
-        this.isSelectionMode = false;
-        return;
-      }
-
-      const d = this.districts[dId];
-      if (d && d.center) {
-        // 🚀 NPC：白丸＋黒枠（Depth 900：地図レイヤーより必ず上）
-        this.otherPlayers[playerId] = { 
-          dot: this.add.circle(d.center.x, d.center.y, 16, COLOR.ENEMY_DOT)
-            .setDepth(900).setStrokeStyle(5, 0x000000) 
-        };
+    // 3. マップの再描画命令
+    window.addEventListener("MAP_REPAINT", (e) => {
+      if (e.detail.districts && e.detail.players) {
+        this._syncDistricts(e.detail.districts, e.detail.players);
       }
     });
   }
@@ -197,13 +123,11 @@ export default class MainScene extends Phaser.Scene {
 
       if (targetId === myPos) return;
 
-      // 🚀 隣接制限
       if (!neighbors.includes(targetId)) {
         this.showLog("⚠️ 隣接していない地区には行動できません。");
         return;
       }
 
-      // 🚀 チーム判定（issei, redなどを考慮）
       const myTeamStr = (store.myTeam || "").toLowerCase();
       const targetOwnerStr = (this.districts[id].owner || "neutral").toLowerCase();
       const isMyTerritory = targetOwnerStr !== "neutral" && 
@@ -220,31 +144,87 @@ export default class MainScene extends Phaser.Scene {
     }
   }
 
-  // --- その他の維持機能（ズーム連動表示切り替え） ---
-  _getLodType(zoom) {
-    if (zoom < 1.5) return "islandName";
-    if (zoom < 2.5) return "areaName";
-    if (zoom < 3.5) return "districtName";
-    return "spotName";
-  }
+  _syncPlayers(players) {
+    Object.values(this.otherPlayers).forEach(p => { if (p.dot) p.dot.destroy(); });
+    this.otherPlayers = {};
 
-  _updateLabelVisibility() {
-    const lodType = this._getLodType(this.cameras.main.zoom);
-    Object.values(this.districts).forEach((d) => {
-      if (d.textLabel) d.textLabel.setVisible(d.type === lodType);
+    Object.entries(players).forEach(([playerId, data]) => {
+      const rawId = data.districtId || data.currentDistrict || data.pos;
+      const dId = normalizeId(rawId);
+
+      if (playerId === socket.id) {
+        this.currentDistrictId = dId;
+        this._placePlayer(dId);
+        this.isSelectionMode = false;
+        return;
+      }
+
+      const d = this.districts[dId];
+      if (d && d.center) {
+        this.otherPlayers[playerId] = { 
+          dot: this.add.circle(d.center.x, d.center.y, 16, COLOR.ENEMY_DOT)
+            .setDepth(900).setStrokeStyle(5, 0x000000) 
+        };
+      }
     });
   }
 
-  _updateHoverText(hoveredId) {
-    const lodType = this._getLodType(this.cameras.main.zoom);
-    Object.values(this.districts).forEach((d) => {
-      if (!d.textLabel) return;
-      d.textLabel.setVisible(d.type === lodType || d.id === hoveredId);
-      d.textLabel.setScale(d.id === hoveredId ? 1.2 : 1.0);
+  _setupCamera() {
+    const cam = this.cameras.main;
+    this.input.on("pointermove", (p) => {
+      if (p.isDown) {
+        if (p.getDistance() > 3) this._dragMoved = true;
+        cam.scrollX -= (p.x - p.prevPosition.x) / cam.zoom;
+        cam.scrollY -= (p.y - p.prevPosition.y) / cam.zoom;
+        this._clampCamera();
+      } else {
+        const worldPoint = cam.getWorldPoint(p.x, p.y);
+        const hoveredId = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
+        this._updateHoverText(hoveredId);
+      }
+    });
+    this.input.on("wheel", (ptr, gameObj, dx, dy) => {
+      const oldZoom = cam.zoom;
+      const newZoom = Phaser.Math.Clamp(oldZoom - dy * 0.001, 0.5, 5);
+      if (oldZoom === newZoom) return;
+      const cx = cam.width / 2; const cy = cam.height / 2;
+      const worldCX = cam.scrollX + cx / oldZoom; const worldCY = cam.scrollY + cy / oldZoom;
+      cam.setZoom(newZoom);
+      cam.scrollX = worldCX - cx / newZoom; cam.scrollY = worldCY - cy / newZoom;
+      this._clampCamera();
+      this._updateLabelVisibility();
+    });
+    cam.setZoom(1); this._clampCamera(); this._updateLabelVisibility();
+  }
+
+  _clampCamera() {
+    const cam = this.cameras.main;
+    const mapW = this.tiledMap.widthInPixels * MAP_SCALE;
+    const mapH = this.tiledMap.heightInPixels * MAP_SCALE;
+    const viewW = cam.width / cam.zoom; const viewH = cam.height / cam.zoom;
+    cam.scrollX = mapW > viewW ? Phaser.Math.Clamp(cam.scrollX, 0, mapW - viewW) : (mapW - viewW) / 2;
+    cam.scrollY = mapH > viewH ? Phaser.Math.Clamp(cam.scrollY, 0, mapH - viewH) : (mapH - viewH) / 2;
+  }
+
+  _loadDistrictsFromTMJ() {
+    const targetLayers = ["islandName", "areaName", "districtName", "spotName"];
+    targetLayers.forEach((layerName) => {
+      const objectLayer = this.tiledMap.getObjectLayer(layerName);
+      if (!objectLayer) return;
+      objectLayer.objects.forEach((obj) => {
+        let districtId = normalizeId(parseInt(obj.name, 10) || obj.id);
+        const poly = (obj.polygon || []).map((p) => ({ x: (obj.x + p.x) * MAP_SCALE, y: (obj.y + p.y) * MAP_SCALE }));
+        if (poly.length === 0) return;
+        this.districts[districtId] = {
+          id: districtId, name: obj.name, type: layerName, polygon: poly,
+          center: { x: poly.reduce((s, v) => s + v.x, 0) / poly.length, y: poly.reduce((s, v) => s + v.y, 0) / poly.length },
+          owner: "neutral", graphics: this.add.graphics().setDepth(2)
+        };
+        this._redrawDistrict(this.districts[districtId], COLOR.NEUTRAL, 0);
+      });
     });
   }
 
-  // --- 補助メソッド ---
   _setupTilemap() {
     const config = MAP_CONFIG.MAPS[MAP_CONFIG.USE_MAP];
     const map = this.make.tilemap({ key: config.key });
@@ -315,13 +295,19 @@ export default class MainScene extends Phaser.Scene {
     }
     return hitId;
   }
-  showLog(m) { emitToReact("NEW_LOG", m); }
-  updateStatusToReact() { emitToReact(PHASER_TO_REACT.STATS_UPDATED, this.playerStats); }
-  _setupReactListeners() {
-    window.addEventListener(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, (e) => {
-      this.isSelectionMode = false;
-      this.currentDistrictId = normalizeId(e.detail.districtId);
-      this._placePlayer(this.currentDistrictId);
-    });
+  _getLodType(zoom) {
+    if (zoom < 1.5) return "islandName";
+    if (zoom < 2.5) return "areaName";
+    if (zoom < 3.5) return "districtName";
+    return "spotName";
   }
+  _updateLabelVisibility() {
+    const lod = this._getLodType(this.cameras.main.zoom);
+    Object.values(this.districts).forEach(d => { if(d.textLabel) d.textLabel.setVisible(d.type === lod); });
+  }
+  _updateHoverText(hid) {
+    const lod = this._getLodType(this.cameras.main.zoom);
+    Object.values(this.districts).forEach(d => { if(d.textLabel) d.textLabel.setVisible(d.type === lod || d.id === hid); });
+  }
+  showLog(m) { emitToReact("NEW_LOG", m); }
 }

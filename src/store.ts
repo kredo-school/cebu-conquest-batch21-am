@@ -8,10 +8,8 @@ const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   11103: { name: "サン・ペドロの守護石", effect: "DEF +20" },
   11104: { name: "ITパークの光回線", effect: "命中率UP" },
   11105: { name: "セブ・ゴールド・マンゴー", effect: "全ステータス +5%" },
-  // 🚀 占領後にカードが出るように 11119 と 11120 を追加！
   11119: { name: "マリン・バースト", effect: "ATK +10" },
   11120: { name: "ヘリテージ・スパイス", effect: "DEF +10" },
-  // ※なおさんのリストに合わせて順次拡張してください
 };
 
 const GODS_DATA = [
@@ -169,7 +167,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   closePrediction: () => set({ predictionModalOpen: false, targetDistrictInfo: null }),
 
-  // 🚀 【けい仕様ガード】サーバーからの Turn 0 を無視して戦闘モードを維持
+  // 🚀 【修正箇所】同期ロジックの強化
   syncServerState: (data, myId) => {
     if (!data) return;
     const myPlayerData = data.players?.[myId];
@@ -178,7 +176,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       const isAlreadyOnMap = !!myPlayerData?.districtId;
       let safeTurn = data.turn;
       
-      // 出撃済みなら、サーバーから Turn 0 が来ても 1 以上を維持（DEPLOYボタン復活を防ぐ）
+      // 出撃済みなら、サーバーから Turn 0 が来ても 1 以上を維持
       if (isAlreadyOnMap && data.turn === 0) {
         safeTurn = state.turn > 0 ? state.turn : 1; 
       }
@@ -188,27 +186,30 @@ export const useGameStore = create<GameState>((set, get) => ({
         ...state,
         myId: myId,
         hp: myPlayerData?.hp ?? state.hp,
+        maxHp: myPlayerData?.maxHp ?? state.maxHp, // max系も同期
         stamina: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.stamina,
+        atk: myPlayerData?.atk ?? state.atk, // 🚀 ステータス同期を追加
+        def: myPlayerData?.def ?? state.def, // 🚀 ステータス同期を追加
         districts: data.districts ?? state.districts,
+        players: data.players ?? state.players,
         turn: safeTurn,
-        isMyTurn: safeTurn === 0 ? true : isMe,
+        isMyTurn: isMe,
         turnOwner: isMe ? "YOU" : (data.turnOwnerName || "ENEMY"),
         isSubmitted: isMe ? false : state.isSubmitted 
       };
     });
     
+    // Phaser側にマップの再描画を通知
     window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: data.players } }));
-    get().updateBuffs(); // 🚀 ここでバフカードを更新！
+    get().updateBuffs();
   },
 
   updateBuffs: () => {
     const { districts, myId } = get();
-    // 自分が所有している地区のIDを数値リスト化
     const myDistrictIds = Object.entries(districts)
       .filter(([_, ownerId]) => ownerId === myId)
       .map(([id, _]) => Number(id)); 
     
-    // SPECIALTY_DATAにあるバフだけを抽出
     const buffs = myDistrictIds
       .filter(id => SPECIALTY_DATA[id])
       .map(id => ({ id, ...SPECIALTY_DATA[id] }));
@@ -224,8 +225,23 @@ export const useGameStore = create<GameState>((set, get) => ({
     get().closePrediction();
   },
 
-  defend: () => { socket.emit("ACTION_SUBMIT", { type: 'defend' }); get().addLog("🛡️ 防御。"); },
-  stay: () => { socket.emit("ACTION_SUBMIT", { type: 'stay' }); get().addLog("🧘 休息。"); },
+  defend: () => { 
+    socket.emit("ACTION_SUBMIT", { type: 'defend' }); 
+    get().addLog("🛡️ 防御。"); 
+  },
+
+  // 🚀 【修正箇所】Phaser側のログ表示と連動
+  stay: () => { 
+    const { isMyTurn } = get();
+    if (!isMyTurn) return;
+
+    socket.emit("ACTION_SUBMIT", { type: 'stay' }); 
+    get().addLog("🧘 休息。"); 
+
+    // 🚀 Phaser側に「休息中...」とログを出させる
+    window.dispatchEvent(new CustomEvent('ACTION_STAY'));
+  },
+
   escape: () => { socket.emit("ACTION_SUBMIT", { type: 'escape' }); get().addLog("🏃 撤退。"); },
   endTurn: () => { socket.emit("ACTION_SUBMIT", { type: 'turn_end' }); set({ isMyTurn: false, isSubmitted: true }); },
   setStatus: (newStatus) => set((state) => ({ ...state, ...newStatus })),
@@ -233,7 +249,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   resetGame: () => window.location.reload(),
 }));
 
-// 🚀 サーバーからの実況（GAME_LOG）やエラー通知をリアルタイムに拾う
+// サーバーからの実況通知
 socket.on('GAME_LOG', (msg: string) => {
   useGameStore.getState().addLog(`🛰️ SERVER: ${msg}`);
 });
