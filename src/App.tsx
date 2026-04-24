@@ -15,6 +15,7 @@ import { BattleModal } from './components/BattleModal';
 import { SettingsView } from './components/SettingsView'; 
 import { RankingView } from './components/RankingView'; 
 import { HelpModal } from './components/HelpModal'; 
+import { ActionPanel } from './components/ActionPanel'; // 🚀 追加：ActionPanelをインポート
 
 // 🔴 ブリッジ定数とイベント定数
 import { PHASER_TO_REACT, REACT_TO_PHASER } from './game/events/PhaserBridge';
@@ -192,6 +193,10 @@ const App: React.FC = () => {
           </div>
           <div className="relative z-10 w-full h-full pointer-events-none flex flex-col">
             <HUD onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} />
+            
+            {/* 🚀 追加：ここにActionPanelを配置！ */}
+            <ActionPanel />
+
             <BattleModal />
             <ResultView 
               onRestart={() => window.location.reload()} 
@@ -199,13 +204,7 @@ const App: React.FC = () => {
               onOpenHelp={() => setShowHelp(true)}
               onOpenRanking={handleOpenRanking}
             />
-            {turn === 0 && selectedDistrictId && (
-              <div className="absolute bottom-40 left-1/2 -translate-x-1/2 z-[50] pointer-events-auto">
-                <button onClick={handleFinalDeploy} className="bg-orange-500 hover:bg-orange-400 text-slate-950 px-16 py-5 rounded-lg font-black text-2xl uppercase tracking-widest shadow-[0_0_30px_rgba(250,112,0,0.4)] active:scale-95 transition-all">
-                  DEPLOY START
-                </button>
-              </div>
-            )}
+            {/* Turn0時のデプロイボタンは ActionPanel に移行したため削除（または重複回避のため非表示） */}
           </div>
         </div>
       </div>

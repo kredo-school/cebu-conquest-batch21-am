@@ -5,144 +5,193 @@ interface ResultViewProps {
   onRestart: () => void;
   onOpenSettings: () => void;
   onOpenHelp: () => void;
-  onOpenRanking: () => void; // 🚀 修正：プロップスを追加
+  onOpenRanking: () => void;
 }
 
 export const ResultView: React.FC<ResultViewProps> = ({ 
   onRestart, onOpenSettings, onOpenHelp, onOpenRanking 
 }) => {
-  const { isGameOver, winnerId, myId } = useGameStore();
-
-  // 自分が勝者かどうか判定
-  const isWinner = winnerId === myId;
+  const { isGameOver, winnerId, myId, playerName, districts, hp, maxHp } = useGameStore();
 
   // ゲームオーバー中でなければ何も表示しない
   if (!isGameOver) return null;
 
+  // 勝敗判定
+  const isWinner = winnerId === myId;
+
+  // 領土とスコアの計算（デモ用）
+  const myTerritoryCount = Object.values(districts).filter(id => id === myId).length;
+  const totalTerritoryCount = Math.max(16, Object.keys(districts).length);
+  const territoryPercent = Math.round((myTerritoryCount / totalTerritoryCount) * 100) || 0;
+  const mockScore = isWinner ? 85400 + (myTerritoryCount * 1200) : 12400 + (myTerritoryCount * 800);
+
+  // 🎨 勝敗に応じたテーマカラー設定
+  const theme = {
+    bg: isWinner ? 'bg-slate-950' : 'bg-black',
+    primaryText: isWinner ? 'text-blue-500' : 'text-red-600',
+    secondaryText: isWinner ? 'text-cyan-400' : 'text-orange-500',
+    border: isWinner ? 'border-blue-900/40' : 'border-red-900/40',
+    glow: isWinner ? 'bg-blue-900/20' : 'bg-red-900/20',
+    barBg: isWinner ? 'bg-blue-600' : 'bg-red-900',
+    titleEffect: isWinner ? 'drop-shadow-[0_0_20px_rgba(59,130,246,0.8)]' : 'glitch-text',
+    subTitle: isWinner ? 'Operation Success' : 'Operation Failure',
+    mainTitle: isWinner ? 'VICTORY' : 'DEFEATED',
+    jpTitle: isWinner ? 'ミッション成功' : 'ミッション失敗',
+    buttonBg: isWinner ? 'bg-blue-600 hover:bg-blue-500' : 'bg-orange-600 hover:bg-orange-500'
+  };
+
   return (
-    <div className="fixed inset-0 z-[20000] bg-slate-950 text-slate-100 font-body overflow-y-auto selection:bg-orange-500/30">
+    <div className={`fixed inset-0 z-[20000] ${theme.bg} text-zinc-100 font-body overflow-y-auto selection:bg-orange-500/30`}>
       
+      {/* 🚀 CSSアニメーション・エフェクト */}
+      <style>{`
+        .crt-scanlines {
+          background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+          background-size: 100% 4px, 3px 100%;
+          pointer-events: none;
+        }
+        .glitch-text {
+          text-shadow: 2px 0 #ff0000, -2px 0 #ff7b00;
+        }
+        .map-static {
+          filter: contrast(150%) brightness(20%) grayscale(100%);
+          mix-blend-mode: overlay;
+        }
+      `}</style>
+
+      {/* 📡 Background Layer */}
+      <div className="fixed inset-0 z-0 pointer-events-none text-left">
+        <img 
+          className="w-full h-full object-cover map-static" 
+          src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?q=80&w=1000" 
+          alt="" 
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black opacity-90"></div>
+        <div className="absolute inset-0 crt-scanlines"></div>
+        {/* Lighting Effect */}
+        <div className={`absolute top-0 left-1/4 w-96 h-96 ${theme.glow} blur-[120px] rounded-full`}></div>
+        <div className={`absolute bottom-0 right-1/4 w-96 h-96 ${isWinner ? 'bg-cyan-900/10' : 'bg-orange-900/10'} blur-[120px] rounded-full`}></div>
+      </div>
+
       {/* 📡 TopNavBar */}
-      <nav className="fixed top-0 w-full flex justify-between items-center px-6 h-16 z-50 bg-slate-900/80 backdrop-blur-md border-b border-blue-500/30 font-inter text-sm font-medium tracking-wide">
-        <div className="text-xl font-black text-orange-500 tracking-tighter uppercase text-left">Cebu Conquest</div>
-        <div className="hidden md:flex items-center gap-8">
+      <nav className={`fixed top-0 w-full z-50 bg-black/80 text-orange-500 font-['Inter'] tracking-tighter border-b ${theme.border} shadow-[0_4px_20px_rgba(0,0,0,0.5)] flex justify-between items-center px-6 py-4 backdrop-blur-md`}>
+        <div className={`text-xl font-black italic ${theme.secondaryText} uppercase`}>
+          CEBU CONQUEST
+        </div>
+        <div className="hidden md:flex items-center gap-8 text-sm font-medium tracking-wide">
           <span className="text-slate-400 hover:text-white transition-colors cursor-pointer" onClick={onRestart}>MISSION RESULT</span>
-          
-          {/* 🚀 ランキングボタン（ヘッダー） */}
-          <button 
-            onClick={onOpenRanking}
-            className="text-orange-400 border-b-2 border-orange-500 pb-1 hover:text-orange-300 transition-colors uppercase font-bold"
-          >
+          <button onClick={onOpenRanking} className="text-orange-400 border-b-2 border-orange-500 pb-1 hover:text-orange-300 transition-colors uppercase font-bold">
             RANKING
           </button>
-          
           <span className="text-slate-400 hover:text-blue-200 transition-colors cursor-pointer">ARCHIVES</span>
         </div>
-        <div className="flex items-center gap-4 text-slate-400">
-          
-          <button 
-            onClick={onOpenHelp}
-            className="flex items-center justify-center p-2 hover:bg-blue-800/40 rounded-lg transition-all active:scale-90 pointer-events-auto"
-            title="HELP / MANUAL"
-          >
+        <div className="flex gap-4 items-center">
+          <button onClick={onOpenHelp} className="flex items-center justify-center p-2 hover:bg-zinc-800 rounded-lg transition-all active:scale-90" title="HELP / MANUAL">
             <span className="material-symbols-outlined text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]">help</span>
           </button>
-
-          <button 
-            onClick={onOpenSettings}
-            className="flex items-center justify-center p-2 hover:bg-blue-800/40 rounded-lg transition-all active:scale-90 pointer-events-auto"
-            title="SETTINGS"
-          >
-            <span className="material-symbols-outlined">settings</span>
+          <button onClick={onOpenSettings} className="flex items-center justify-center p-2 hover:bg-zinc-800 rounded-lg transition-all active:scale-90" title="SETTINGS">
+            <span className="material-symbols-outlined hover:text-white transition-colors">settings</span>
           </button>
-          
-          <span className="material-symbols-outlined p-2 hover:bg-blue-800/40 rounded-lg cursor-pointer">person</span>
         </div>
       </nav>
 
-      <main className="relative pt-16 pb-24 md:pb-0 min-h-screen overflow-hidden text-center">
+      {/* Main Content Canvas */}
+      <main className="relative z-10 flex flex-col items-center justify-center min-h-screen pt-20 pb-24 md:pb-12 px-6">
         
-        <div className="absolute inset-0 z-0 text-left">
-          {/* 🚀 修正：alt="" にして文字が出ないようにしました */}
-          <img 
-            className="w-full h-full object-cover filter brightness-50 contrast-125 saturate-50" 
-            src="https://images.unsplash.com/photo-1516690561799-46d8f74f9abf?q=80&w=2000" 
-            alt="" 
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/40 to-transparent"></div>
+        {/* Result Banner */}
+        <div className="text-center mb-8">
+          <div className={`${theme.primaryText} text-sm font-bold tracking-[0.5em] uppercase mb-2`}>
+            {theme.subTitle}
+          </div>
+          <h1 className={`text-7xl md:text-9xl font-black italic uppercase ${theme.primaryText} ${theme.titleEffect} tracking-tighter`}>
+            {theme.mainTitle}
+          </h1>
+          <div className="flex items-center justify-center gap-4 mt-2">
+            <div className={`h-[1px] w-12 ${isWinner ? 'bg-blue-500/50' : 'bg-red-600/50'}`}></div>
+            <p className={`${theme.secondaryText} font-bold text-lg`}>{theme.jpTitle}</p>
+            <div className={`h-[1px] w-12 ${isWinner ? 'bg-blue-500/50' : 'bg-red-600/50'}`}></div>
+          </div>
         </div>
 
-        <div className="relative z-10 max-w-7xl mx-auto px-6 py-12 flex flex-col items-center">
+        {/* Bento Grid Stats & Profile */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl w-full">
           
-          <div className="text-center mb-8">
-            <h2 className="text-blue-400 font-bold tracking-[0.3em] text-sm uppercase mb-2 animate-pulse">
-              {isWinner ? "OPERATION COMPLETED" : "OPERATION TERMINATED"}
-            </h2>
-            <h1 className="text-6xl md:text-8xl font-black italic tracking-tighter text-white drop-shadow-[0_0_20px_rgba(59,130,246,0.5)]">
-              {isWinner ? "GLORIOUS VICTORY" : "MISSION ENDED"}
-            </h1>
-          </div>
-
-          <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            
-            <div className="lg:col-span-3 order-2 lg:order-1">
-              <div className="bg-slate-900/60 backdrop-blur-xl border border-blue-500/20 p-8 rounded-2xl shadow-2xl text-left">
-                <span className="text-blue-400 text-sm font-bold uppercase tracking-widest block mb-2">Final Occupancy</span>
-                <div className="text-5xl font-black text-white">84%</div>
-                <div className="w-full bg-slate-800 h-2 mt-4 rounded-full overflow-hidden">
-                  <div className="bg-orange-500 h-full w-[84%] shadow-[0_0_15px_rgba(249,115,22,0.6)]"></div>
-                </div>
+          {/* Operator Profile */}
+          <div className={`bg-zinc-900/50 backdrop-blur-md border ${theme.border} p-6 flex flex-col items-center justify-center col-span-1 rounded-xl`}>
+            <div className="relative w-24 h-24 mb-4">
+              <img 
+                className={`w-full h-full object-cover rounded-none border-2 ${isWinner ? 'border-blue-500/50' : 'border-red-600/50'} p-1 bg-slate-800`} 
+                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${playerName || myId}`} 
+                alt="Operator" 
+              />
+              <div className={`absolute inset-0 ${isWinner ? 'bg-blue-500/20' : 'bg-red-600/20'} mix-blend-color pointer-events-none`}></div>
+              <div className={`absolute -bottom-2 -right-2 ${isWinner ? 'bg-blue-600' : 'bg-red-600'} text-white text-[10px] font-black px-2 py-0.5 uppercase`}>
+                {isWinner ? 'SURVIVED' : 'DEFEATED'}
               </div>
             </div>
-
-            <div className="lg:col-span-6 order-1 lg:order-2 flex justify-center relative">
-              <div className="absolute inset-0 bg-blue-500/20 blur-[100px] rounded-full"></div>
-              <div className="relative group">
-                <img 
-                  className="w-72 md:w-[450px] aspect-[3/4] object-cover rounded-3xl border-2 border-blue-400/30 shadow-[0_0_50px_rgba(59,130,246,0.3)] transition-transform duration-500 group-hover:scale-[1.02]" 
-                  src="https://images.unsplash.com/photo-1614728263952-84ea206f99b6?q=80&w=1000" 
-                  alt="Guardian" 
-                />
-              </div>
-            </div>
-
-            <div className="lg:col-span-3 order-3">
-              <div className="bg-slate-900/60 backdrop-blur-xl border border-blue-500/20 p-8 rounded-2xl shadow-2xl text-left">
-                <span className="text-blue-400 text-sm font-bold uppercase tracking-widest block mb-6">Acquired Items</span>
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="flex items-center gap-4 bg-blue-900/20 border border-blue-400/20 p-3 rounded-xl hover:border-orange-500/50 transition-colors cursor-default">
-                    <span className="material-symbols-outlined text-orange-400 text-3xl">eco</span>
-                    <div className="flex flex-col">
-                      <span className="text-[10px] text-blue-400 font-bold uppercase tracking-tighter">RARE</span>
-                      <span className="text-sm font-bold text-white leading-tight">セブ・マンゴー</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className="text-center">
+              <div className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">OPERATOR ID</div>
+              <div className="text-2xl font-black text-white italic tracking-tight">{playerName || "GUEST"}</div>
             </div>
           </div>
 
-          {/* 🚀 メインボタンエリア */}
-          <div className="mt-16 flex flex-col md:flex-row gap-6 items-center">
-            <button 
-              onClick={onRestart}
-              className="group relative px-12 py-5 bg-slate-800 hover:bg-slate-700 text-white font-black text-xl italic tracking-tighter rounded-xl transition-all duration-300 active:scale-95 border border-white/10"
-            >
-              <span className="relative z-10 uppercase">報酬を受け取る</span>
-            </button>
+          {/* Summary Stats */}
+          <div className={`bg-zinc-900/50 backdrop-blur-md border ${theme.border} p-6 md:col-span-2 flex flex-col justify-center rounded-xl`}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              
+              <div className="space-y-1">
+                <div className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">Health Points</div>
+                <div className={`text-3xl font-black italic ${isWinner ? 'text-green-500' : 'text-red-600'}`}>
+                  HP: {isWinner ? hp : 0}
+                </div>
+                <div className="w-full h-1 bg-zinc-800">
+                  <div className={`h-full ${isWinner ? 'bg-green-500' : 'bg-red-900'}`} style={{ width: `${isWinner ? (hp/(maxHp||100))*100 : 0}%` }}></div>
+                </div>
+              </div>
 
-            <button 
-              onClick={onOpenRanking}
-              className="group relative px-12 py-5 bg-orange-600 hover:bg-orange-500 text-white font-black text-xl italic tracking-tighter rounded-xl transition-all duration-300 active:scale-95 shadow-[0_0_40px_rgba(249,115,22,0.4)]"
-            >
-              <span className="relative z-10 uppercase flex items-center gap-3">
-                <span className="material-symbols-outlined">leaderboard</span>
-                現在の順位を確認
-              </span>
-              <div className="absolute inset-0 bg-white/20 blur-xl group-hover:blur-2xl transition-all rounded-xl opacity-0 group-hover:opacity-100"></div>
-            </button>
+              <div className="space-y-1">
+                <div className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">Territory Control</div>
+                <div className={`text-3xl font-black italic ${theme.secondaryText}`}>
+                  {myTerritoryCount}/{totalTerritoryCount}
+                </div>
+                <div className="w-full h-1 bg-zinc-800">
+                  <div className={`h-full ${theme.secondaryText.replace('text-', 'bg-')}`} style={{ width: `${territoryPercent}%` }}></div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">Final Rank Score</div>
+                <div className="text-3xl font-black text-white italic">{mockScore.toLocaleString()}</div>
+              </div>
+
+            </div>
           </div>
         </div>
+
+        {/* 🚀 Actions (ボタンエリア) */}
+        <div className="flex flex-col sm:flex-row gap-4 mt-12 w-full max-w-xl">
+          <button 
+            onClick={onRestart}
+            className={`flex-1 group relative overflow-hidden ${theme.buttonBg} transition-all duration-150 py-4 px-8 active:scale-95 rounded-lg`}
+          >
+            <div className="relative z-10 flex items-center justify-center gap-3">
+              <span className="material-symbols-outlined text-white font-bold">replay</span>
+              <span className="text-white font-black uppercase italic tracking-tighter">Retry (リトライ)</span>
+            </div>
+            <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          </button>
+          
+          <button 
+            onClick={onOpenRanking}
+            className="flex-1 group border border-zinc-700 hover:border-zinc-400 hover:bg-zinc-800 transition-all duration-150 py-4 px-8 active:scale-95 rounded-lg shadow-lg"
+          >
+            <div className="flex items-center justify-center gap-3">
+              <span className="material-symbols-outlined text-zinc-400 group-hover:text-white transition-colors">leaderboard</span>
+              <span className="text-zinc-100 font-black uppercase italic tracking-tighter text-sm">Rankings (順位確認)</span>
+            </div>
+          </button>
+        </div>
+
       </main>
 
       {/* Mobile Bottom Nav */}
