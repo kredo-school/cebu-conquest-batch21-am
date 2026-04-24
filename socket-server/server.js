@@ -265,7 +265,7 @@ io.on('connection', (socket) => {
     socket.roomId = null;
 
     // 🚀 1. 部屋作成
-    socket.on('CREATE_ROOM', (config, callback) => {
+    socket.on('CREATE_ROOM', async (config, callback) => { // 👈 async を追加！
         const roomId = generateRoomId();
         const roomState = createInitialGameState(config?.maxPlayers || 4);
         roomState.roomId = roomId;
@@ -273,8 +273,53 @@ io.on('connection', (socket) => {
         
         socket.join(roomId);
         socket.roomId = roomId;
+
+        // 🚀 【重要】作成者を最初のプレイヤーとして登録（DB連携対応）
+        const teamInfo = TEAM_CONFIG[0]; // 最初の人はレッド
+        let baseStats = { hp: 100, maxHp: 100, ap: 100, maxAp: 100, atk: 60, def: 45 };
+        let godName = "なし";
+
+        if (socket.authToken) {
+            try {
+                const res = await fetch(`${API_BASE_URL}get-user.php`, {
+                    headers: { 'Authorization': `Bearer ${socket.authToken}` }
+                });
+                const dbUser = await res.json();
+                
+                if (dbUser && dbUser.status === 'success' && dbUser.user) {
+                    baseStats.maxHp += dbUser.user.god_buff_hp || 0;
+                    baseStats.hp = baseStats.maxHp;
+                    baseStats.atk += dbUser.user.god_buff_atk || 0;
+                    baseStats.def += dbUser.user.god_buff_def || 0;
+                    godName = dbUser.user.god_name || "名もなき神";
+                }
+            } catch (e) {
+                console.error("❌ [DB] ユーザー・神データ取得エラー:", e);
+            }
+        }
+
+        roomState.players[socket.id] = {
+            id: socket.id,
+            username: config.username || "Commander",
+            dbUserId: config.id || null, // 👈 DB保存用に必須
+            token: socket.authToken,     // 👈 DB保存用に必須
+            godName: godName,
+            ...baseStats,
+            team: teamInfo.id,
+            teamColor: teamInfo.color,
+            isReady: false,
+            isNpc: false
+        };
         
         console.log(`🏠 Room[${roomId}] Created (Max: ${roomState.maxPlayers}) by ${socket.id}`);
+        
+        if (godName !== "なし") {
+            io.to(roomId).emit('GAME_LOG', `👼 ${roomState.players[socket.id].username} が【${godName}】の加護を受けてルームを作成！`);
+        }
+
+        // 作成直後に自分を含む状態を同期
+        io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+        
         if (callback) callback({ success: true, roomId: roomId });
     });
 
