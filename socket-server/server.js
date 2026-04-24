@@ -379,6 +379,29 @@ io.on('connection', (socket) => {
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
     });
 
+    // 🚀 【神の選択】
+    socket.on('SELECT_GOD', (data) => {
+        const roomId = socket.roomId;
+        if (!roomId) return;
+        
+        const roomState = rooms.get(roomId);
+        if (!roomState) return;
+
+        const p = roomState.players[socket.id];
+        if (p) {
+            // プレイヤー情報に selectedGodId を追加・更新
+            p.selectedGodId = data.godId;
+            // 既存の godName も必要に応じてフロントから送ってもらうか、ここでマスターデータと照合して入れると後々便利です。
+            
+            // 誰かが神を選んだというログを流す場合はコメントアウトを外してください
+            // io.to(roomId).emit('GAME_LOG', `✨ ${p.username} が神の加護を選択中...`);
+
+            // 部屋内の全員に最新のプレイヤーステータス（神の選択状態含む）を同期
+            io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+            console.log(`✨ [Room ${roomId}] ${p.username} selected god: ${data.godId}`);
+        }
+    });
+
     // 🚀 【準備完了 & ゲーム開始】
     socket.on('PLAYER_READY', (data) => {
         const roomId = socket.roomId;
