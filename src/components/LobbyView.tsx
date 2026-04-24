@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import socket from '../socket';
 import { useGameStore } from '../store';
+import SoundManager from '../game/SoundManager';
 
 interface LobbyViewProps {
   roomId: string;
