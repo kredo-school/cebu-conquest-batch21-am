@@ -70,7 +70,7 @@ try {
     $pdo->beginTransaction();
 
     // 3. 試合結果を保存 (SQLのプレースホルダー不一致を修正)
-    $sql = "INSERT INTO match_results (user_id, score, spots_count, created_at) VALUES (?, ?, ?, NOW())";
+    $sql = "INSERT INTO match_results (user_id, score, spots_count) VALUES (?, ?, ?)";
     $stmt = $pdo->prepare($sql);
 
     // 勝者の記録 (スコアは占領数に100を掛けた値を暫定スコアとする)
