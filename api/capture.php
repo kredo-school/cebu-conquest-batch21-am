@@ -11,12 +11,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
 
 // ★追加：HTTPメソッド制限（POST以外を弾き、405を返す）
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode([
-        'status' => 'error',
-        'message' => 'Method Not Allowed. This endpoint requires POST.'
-    ]);
-    exit;
+  http_response_code(405);
+  echo json_encode([
+    'status' => 'error',
+    'message' => 'Method Not Allowed. This endpoint requires POST.'
+  ]);
+  exit;
 }
 
 // 共通のデータベース設定を読み込む
@@ -98,12 +98,12 @@ try {
   }
 
   // 4. 陣地の状態をチェックして奪う
-  $stmtCheck = $pdo->prepare("SELECT user_id FROM occupations WHERE spot_id = ? FOR UPDATE");
+  $stmtCheck = $pdo->prepare("SELECT user_id FROM occupations WHERE spot_id = ?");
   $stmtCheck->execute([$spotId]);
   $existingOcc = $stmtCheck->fetch(PDO::FETCH_ASSOC);
 
   if ($existingOcc && $existingOcc['user_id'] == $userId) {
-    // 自分の陣地なら、スタミナを減らさずに弾く！
+    // 自分の陣地なら、ここで即終了
     $pdo->rollBack();
     echo json_encode([
       'status'  => 'error',
@@ -111,6 +111,11 @@ try {
     ]);
     exit();
   }
+  // 自分の陣地ではない（＝更新が必要）と分かったので、ここで初めて「ロック」をかける
+  // ※ ON DUPLICATE KEY UPDATE や UPDATE 文が走る直前にかけるのが理想的
+  $stmtLock = $pdo->prepare("SELECT spot_id FROM occupations WHERE spot_id = ? FOR UPDATE");
+  $stmtLock->execute([$spotId]);
+
   // メッセージの出し分けだけしておく
   if ($existingOcc) {
     // 敵の陣地を奪った
