@@ -69,6 +69,10 @@ interface GameState {
   bgmVolume: number;
   seVolume: number;
 
+  // 🚀 追加：被弾アラート用の状態
+  isUnderAttack: boolean;
+  setUnderAttack: (status: boolean) => void;
+
   login: (username: string, password?: string) => Promise<boolean>;
   logout: () => void;
   nextTurn: () => void; 
@@ -121,6 +125,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   activeBuffs: [],
   bgmVolume: 0.5,
   seVolume: 0.5,
+
+  // 🚀 追加：被弾アラート用の初期値と更新関数
+  isUnderAttack: false,
+  setUnderAttack: (status) => set({ isUnderAttack: status }),
 
   login: async (username, password = "password123") => {
     try {
