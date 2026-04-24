@@ -3,16 +3,17 @@ import { useGameStore } from '../store';
 
 interface LoginViewProps {
   onLogin: (name: string) => void;
+  onOpenSettings: () => void;
+  onOpenHelp: () => void; // 🚀 1. ヘルプ用のプロップスを追加
 }
 
-export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
+export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, onOpenHelp }) => {
   const { setPlayerName, login, addLog } = useGameStore();
   
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  // 🚀 追加：ログインモードと登録モードを切り替えるフラグ
   const [isRegisterMode, setIsRegisterMode] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,12 +26,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     setIsLoading(true);
     try {
       if (isRegisterMode) {
-        // 🚀 登録モードの処理（バックエンド完成までは仮でそのままログイン扱いにします）
         if (typeof setPlayerName === 'function') setPlayerName(username);
         addLog(`📝 New Operator Registered: Welcome ${username}`);
         onLogin(username); 
       } else {
-        // 既存のログイン処理
         const success = await login(username, password);
         if (success) {
           if (typeof setPlayerName === 'function') setPlayerName(username);
@@ -49,25 +48,44 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
   return (
     <div className="bg-slate-950 font-body text-slate-200 overflow-hidden h-screen flex flex-col relative">
-      {/* 背景演出：島のシルエットとオレンジの光 */}
+      {/* 背景演出 */}
       <div className="fixed inset-0 z-0 island-silhouette opacity-40" />
       <div className="fixed inset-0 z-10 tropical-flare pointer-events-none" />
 
       {/* Header */}
       <header className="fixed top-0 left-0 w-full z-50 bg-transparent flex justify-between items-center px-6 py-4">
-        <div className="text-2xl font-black tracking-tighter text-orange-500 uppercase tracking-widest">
+        <div className="text-2xl font-black tracking-tighter text-orange-500 uppercase tracking-widest text-left">
           Cebu Conquest
         </div>
         <div className="flex items-center gap-6">
-          <span className="text-slate-400 material-symbols-outlined cursor-pointer hover:text-orange-300 transition-colors">settings</span>
-          <span className="text-slate-400 material-symbols-outlined cursor-pointer hover:text-orange-300 transition-colors">help</span>
+          {/* 設定ボタン */}
+          <button 
+            onClick={onOpenSettings}
+            className="pointer-events-auto flex items-center justify-center hover:scale-110 active:scale-95 transition-all group"
+            title="SETTINGS"
+          >
+            <span className="text-slate-400 material-symbols-outlined cursor-pointer group-hover:text-orange-300 transition-colors">
+              settings
+            </span>
+          </button>
+          
+          {/* 🚀 2. ヘルプボタンに onClick を追加 */}
+          <button 
+            onClick={onOpenHelp}
+            className="pointer-events-auto flex items-center justify-center hover:scale-110 active:scale-95 transition-all group"
+            title="HOW TO PLAY"
+          >
+            <span className="text-slate-400 material-symbols-outlined cursor-pointer group-hover:text-cyan-400 transition-colors">
+              help
+            </span>
+          </button>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="relative z-20 flex-1 flex flex-col items-center justify-center px-4 pt-16 pb-4">
+      <main className="relative z-20 flex-1 flex flex-col items-center justify-center px-4 pt-16 pb-4 text-center">
         {/* Logo Section */}
-        <div className="text-center mb-6">
+        <div className="mb-6">
           <div className="inline-block px-3 py-0.5 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-400 text-[10px] font-bold tracking-[0.2em] mb-2 uppercase">
             Welcome to the Archipelago
           </div>
@@ -78,13 +96,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         </div>
 
         {/* Login Card */}
-        <div className="w-full max-w-sm bg-slate-900/60 backdrop-blur-xl p-6 rounded-2xl border border-slate-800 shadow-2xl relative overflow-hidden">
-          
-          {/* 🚀 モードによって上部のアクセントカラーを変更 */}
+        <div className="w-full max-w-sm bg-slate-900/60 backdrop-blur-xl p-6 rounded-2xl border border-slate-800 shadow-2xl relative overflow-hidden text-left">
           <div className={`absolute top-0 left-0 w-full h-1 transition-colors duration-500 ${isRegisterMode ? 'bg-cyan-500' : 'bg-orange-500'}`}></div>
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-1.5">
+          <form className="space-y-4 text-left" onSubmit={handleSubmit}>
+            <div className="space-y-1.5 text-left">
               <label className="block text-[10px] font-bold text-slate-400 tracking-widest uppercase ml-1">User ID</label>
               <div className="relative group">
                 <span className="absolute inset-y-0 left-0 pl-3 flex items-center material-symbols-outlined text-slate-500 text-lg">person</span>
@@ -98,7 +114,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               </div>
             </div>
             
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 text-left">
               <label className="block text-[10px] font-bold text-slate-400 tracking-widest uppercase ml-1">Password</label>
               <div className="relative group">
                 <span className="absolute inset-y-0 left-0 pl-3 flex items-center material-symbols-outlined text-slate-500 text-lg">lock</span>
@@ -112,7 +128,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               </div>
             </div>
 
-            {/* 🚀 登録モードの時は「Stay logged in」などを非表示にする */}
             {!isRegisterMode && (
               <div className="flex items-center justify-between text-[10px]">
                 <label className="flex items-center text-slate-400 cursor-pointer">
@@ -122,11 +137,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               </div>
             )}
 
-            {/* 🚀 Login / Register Button */}
             <button 
               type="submit" 
               disabled={isLoading}
-              className={`w-full font-black py-3 rounded-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 text-sm uppercase
+              className={`w-full font-black py-3 rounded-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 text-sm uppercase text-center
                 ${isRegisterMode ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-orange-600 hover:bg-orange-500 text-white'}
                 ${isLoading ? 'opacity-70 cursor-wait' : ''}`}
             >
@@ -139,13 +153,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
             <div className="relative py-1">
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800"></div></div>
               <div className="relative flex justify-center text-[10px] uppercase">
-                <span className="bg-slate-900/60 px-2 text-slate-500">
+                <span className="bg-slate-950 px-2 text-slate-500">
                   {isRegisterMode ? 'Already have an account?' : 'Or continue with'}
                 </span>
               </div>
             </div>
 
-            {/* 🚀 トグルボタン（ここでモードを切り替える） */}
             <button 
               type="button" 
               onClick={() => setIsRegisterMode(!isRegisterMode)}
@@ -157,23 +170,23 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           </form>
         </div>
 
-        {/* Social Proof Box (Bento Fragment) */}
+        {/* Social Proof Box */}
         <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3 w-full max-w-3xl">
-          <div className="bg-slate-900/40 backdrop-blur-sm p-3 rounded-xl border border-slate-800/50 flex items-center gap-3">
+          <div className="bg-slate-900/40 backdrop-blur-sm p-3 rounded-xl border border-slate-800/50 flex items-center gap-3 text-left">
             <div className="bg-orange-500/20 p-1.5 rounded-lg"><span className="material-symbols-outlined text-orange-400 text-lg">groups</span></div>
             <div>
               <div className="text-white font-bold text-sm">No Laravel</div>
               <div className="text-slate-500 text-[10px]">Pure Native PHP Project.</div>
             </div>
           </div>
-          <div className="bg-slate-900/40 backdrop-blur-sm p-3 rounded-xl border border-slate-800/50 flex items-center gap-3">
+          <div className="bg-slate-900/40 backdrop-blur-sm p-3 rounded-xl border border-slate-800/50 flex items-center gap-3 text-left">
             <div className="bg-orange-500/20 p-1.5 rounded-lg"><span className="material-symbols-outlined text-orange-400 text-lg">military_tech</span></div>
             <div>
               <div className="text-white font-bold text-sm">God Teachers</div>
               <div className="text-slate-500 text-[10px]">Unbelievable Mentorship.</div>
             </div>
           </div>
-          <div className="bg-slate-900/40 backdrop-blur-sm p-3 rounded-xl border border-slate-800/50 flex items-center gap-3">
+          <div className="bg-slate-900/40 backdrop-blur-sm p-3 rounded-xl border border-slate-800/50 flex items-center gap-3 text-left">
             <div className="bg-orange-500/20 p-1.5 rounded-lg"><span className="material-symbols-outlined text-orange-400 text-lg">map</span></div>
             <div>
               <div className="text-white font-bold text-sm">Island Lore</div>
@@ -184,8 +197,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
       </main>
 
       <footer className="relative z-20 bg-slate-950/80 backdrop-blur-md flex flex-col md:flex-row justify-between items-center w-full px-8 py-4 border-t border-slate-800 text-[10px]">
-        <div className="text-orange-500 font-bold uppercase tracking-widest">© 2026 Batch21 [AM GI Offline]</div>
-        <div className="flex gap-6 text-slate-500 font-medium">
+        <div className="text-orange-500 font-bold uppercase tracking-widest text-left">© 2026 Batch21 [AM GI Offline]</div>
+        <div className="flex gap-6 text-slate-500 font-medium text-right">
           <span>ENCRYPTION: JWT-SHA256</span>
           <span className="hidden md:inline">|</span>
           <span>STATUS: ENFORCED</span>

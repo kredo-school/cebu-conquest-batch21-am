@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import socket from './socket';
 
-// 🚀 チャットメッセージの型定義
 interface ChatMessage {
   sender: string;
   message: string;
@@ -67,6 +66,8 @@ interface GameState {
   predictionModalOpen: boolean;
   targetDistrictInfo: { id: number; name: string; enemyDef: number; isMyTerritory?: boolean; isNeutral?: boolean } | null;
   activeBuffs: { id: number; name: string; effect: string }[];
+  bgmVolume: number;
+  seVolume: number;
 
   login: (username: string, password?: string) => Promise<boolean>;
   logout: () => void;
@@ -87,6 +88,8 @@ interface GameState {
   addLog: (text: string) => void;
   addChatLog: (msg: ChatMessage) => void; 
   resetGame: () => void;
+  setBgmVolume: (vol: number) => void;
+  setSeVolume: (vol: number) => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -116,6 +119,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   predictionModalOpen: false,
   targetDistrictInfo: null,
   activeBuffs: [],
+  bgmVolume: 0.5,
+  seVolume: 0.5,
 
   login: async (username, password = "password123") => {
     try {
@@ -162,24 +167,17 @@ export const useGameStore = create<GameState>((set, get) => ({
     get().addLog(`⏩ ターン進行: Turn ${nextT}`);
   },
 
-  // 🚀 修正：神様選択時にサーバーへ通知するようアップデート
   selectGod: (id: number) => {
     const { isSubmitted, roomId } = get();
-    if (isSubmitted) return; // 決定済みなら変更不可
-
+    if (isSubmitted) return; 
     const god = GODS_DATA.find(g => g.id === id);
     if (!god) return;
-
-    // サーバーに選択をリクエスト（他のプレイヤーと同期するため）
     socket.emit("SELECT_GOD", { roomId, godId: id });
-
     set((state) => ({
       selectedGodId: id,
-      // ローカルでの仮計算（最終的な値はサーバーからの同期を待つのが理想的）
       atk: id === 1 ? 50 + 20 : 50,
       maxStamina: id === 2 ? 100 + 30 : 100,
     }));
-    
     get().addLog(`⚡ ${god.name} へのリンクをリクエスト中...`);
   },
 
@@ -221,7 +219,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         atk: myPlayerData?.atk ?? state.atk,
         def: myPlayerData?.def ?? state.def,
         districts: data.districts ?? state.districts,
-        players: playersArray, // 🚀 ここに他プレイヤーの selectedGodId が入ってくる
+        players: playersArray, 
         turn: data.turn ?? state.turn,
         isMyTurn: isMe,
         turnOwner: isMe ? "YOU" : (data.turnOwnerName || "ENEMY"),
@@ -267,13 +265,13 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   escape: () => { socket.emit("ACTION_SUBMIT", { type: 'escape' }); get().addLog("🏃 撤退。"); },
   endTurn: () => { socket.emit("ACTION_SUBMIT", { type: 'turn_end' }); set({ isMyTurn: false, isSubmitted: true }); },
-  setStatus: (newStatus) => set((state) => ({ ...state, ...newStatus })),
+  setStatus: (status) => set((state) => ({ ...state, ...status })),
   addLog: (text) => set((state) => ({ logs: [text, ...state.logs].slice(0, 10) })),
   addChatLog: (msg) => set((state) => ({ chatLogs: [...state.chatLogs, msg].slice(-50) })),
   resetGame: () => window.location.reload(),
+  setBgmVolume: (vol) => set({ bgmVolume: vol }),
+  setSeVolume: (vol) => set({ seVolume: vol }),
 }));
-
-// --- 📡 Socket リスナー ---
 
 socket.on('connect', () => {
   useGameStore.getState().setStatus({ isServerOnline: true });
