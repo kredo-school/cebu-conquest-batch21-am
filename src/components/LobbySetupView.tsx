@@ -8,7 +8,8 @@ interface LobbySetupViewProps {
 }
 
 export const LobbySetupView: React.FC<LobbySetupViewProps> = ({ onJoinSuccess }) => {
-  const { addLog } = useGameStore();
+  // 🚀 修正：playerName を取得し、サーバーに名前を伝えられるようにします
+  const { addLog, setStatus, playerName } = useGameStore();
   
   const [showConfig, setShowConfig] = useState(false);
   const [joinId, setJoinId] = useState("");
@@ -24,38 +25,44 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({ onJoinSuccess })
     try { SoundManager.playSe('click'); } catch (e) {}
     addLog("📡 サーバーへ作戦承認をリクエスト中...");
 
-    const timeoutId = setTimeout(() => {
-      addLog("⚠️ サーバー応答なし。デバッグモードでロビーを強制構築します。");
-      onJoinSuccess("DEBUG-999"); 
-    }, 2000);
+    // 自分の画面を即座に設定人数に更新
+    setStatus({ maxPlayers: config.maxPlayers });
 
-    socket.emit('CREATE_ROOM', config, (response: any) => {
-      clearTimeout(timeoutId); 
+    // 🚀 修正：自分の名前（username）をペイロードに含めて送信
+    const createPayload = { 
+      ...config, 
+      username: playerName 
+    };
+
+    socket.emit('CREATE_ROOM', createPayload, (response: any) => {
       if (response && response.success) {
         addLog(`✅ 作戦承認: Room[${response.roomId}] を構築しました`);
         onJoinSuccess(response.roomId);
       } else {
-        onJoinSuccess("DEBUG-999");
+        addLog("❌ ルーム作成失敗: サーバーの応答が不正です");
+        alert("ルームを作成できませんでした。");
       }
     });
   };
 
   // --- 🛠️ 部屋参加の処理 ---
   const handleJoin = () => {
-    // 🚀 修正点1：6文字以上なら実行可能にする
-    if (joinId.length >= 6) {
+    if (joinId.length === 6) {
       try { SoundManager.playSe('click'); } catch (e) {}
-      
-      const timeoutId = setTimeout(() => {
-        onJoinSuccess(joinId.toUpperCase());
-      }, 2000);
+      addLog(`📡 Room[${joinId}] への接続を試行中...`);
 
-      socket.emit('JOIN_ROOM', { roomId: joinId.toUpperCase() }, (response: any) => {
-        clearTimeout(timeoutId);
+      // 🚀 修正：参加時にも自分の名前（username）を送信
+      const joinPayload = { 
+        roomId: joinId.toUpperCase(),
+        username: playerName 
+      };
+
+      socket.emit('JOIN_ROOM', joinPayload, (response: any) => {
         if (response && response.success) {
           onJoinSuccess(joinId.toUpperCase());
         } else {
-          onJoinSuccess(joinId.toUpperCase());
+          addLog("❌ 入室拒否: 該当する作戦コードが見つかりません");
+          alert("指定されたルームが見つからないか、満員です。");
         }
       });
     }
@@ -92,15 +99,16 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({ onJoinSuccess })
       )}
 
       <header className="px-10 py-6 flex justify-between items-center border-b border-white/5 bg-slate-950/50 backdrop-blur-md z-10">
-        <div className="text-2xl font-black italic tracking-tighter text-brand-500">CEBU CONQUEST</div>
+        <div className="text-2xl font-black italic tracking-tighter text-brand-500 font-mono">CEBU CONQUEST</div>
       </header>
 
       <main className="flex-1 flex flex-col items-center justify-center p-10 z-10">
-        <h1 className="text-7xl font-black italic tracking-tighter text-white uppercase mb-12">Operation Setup</h1>
+        <h1 className="text-7xl font-black italic tracking-tighter text-white uppercase mb-12">Tactical Setup</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full max-w-5xl">
           <div className="glass-panel p-10 flex flex-col border border-white/5 bg-slate-900/40 relative overflow-hidden">
             <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter">Create Room</h2>
+            <p className="text-slate-500 text-xs mb-10 leading-relaxed italic">Establish a new command post and generate a unique uplink code for your squad.</p>
             <button onClick={() => { try{SoundManager.playSe('click');}catch(e){} setShowConfig(true); }}
               className="mt-auto w-full bg-brand-500 hover:bg-brand-400 text-slate-950 py-5 rounded-lg font-black uppercase tracking-widest text-lg shadow-lg active:scale-95 transition-all"
             >
@@ -111,23 +119,22 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({ onJoinSuccess })
           <div className="glass-panel p-10 flex flex-col border border-white/5 bg-slate-900/40 relative overflow-hidden">
             <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter">Join Room</h2>
             <div className="mb-10">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block">Enter Room ID</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block">Enter Command Code</label>
               <input 
                 type="text" 
-                maxLength={12}
+                maxLength={6}
                 value={joinId}
                 onChange={(e) => setJoinId(e.target.value.toUpperCase())}
-                placeholder="D E B U G - 9 9 9"
-                className="w-full bg-black/40 border border-slate-800 rounded-lg py-4 px-6 text-2xl font-black tracking-[0.1em] text-cyan-400 text-center focus:outline-none focus:border-cyan-500 transition-all uppercase placeholder:opacity-20"
+                placeholder="0 0 0 0 0 0"
+                className="w-full bg-black/40 border border-slate-800 rounded-lg py-4 px-6 text-3xl font-black tracking-[0.5em] text-cyan-400 text-center focus:outline-none focus:border-cyan-500 transition-all uppercase placeholder:opacity-10 font-mono"
               />
             </div>
             
-            {/* 🚀 修正点2：見た目の切り替え判定も `>= 6` に統一 */}
             <button 
               onClick={handleJoin}
-              disabled={joinId.length < 6}
+              disabled={joinId.length !== 6}
               className={`mt-auto w-full py-5 rounded-lg font-black uppercase tracking-widest text-lg transition-all active:scale-95
-                ${joinId.length >= 6 
+                ${joinId.length === 6 
                   ? 'bg-slate-100 text-slate-900 hover:bg-white shadow-[0_0_30px_rgba(255,255,255,0.1)]' 
                   : 'bg-slate-800 text-slate-600 cursor-not-allowed'}`}
             >
