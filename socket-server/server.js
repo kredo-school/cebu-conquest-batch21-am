@@ -265,7 +265,7 @@ io.on('connection', (socket) => {
     socket.roomId = null;
 
     // 🚀 1. 部屋作成
-    socket.on('CREATE_ROOM', async (config, callback) => { // 👈 async を追加！
+    socket.on('CREATE_ROOM', async (config, callback) => {
         const roomId = generateRoomId();
         const roomState = createInitialGameState(config?.maxPlayers || 4);
         roomState.roomId = roomId;
@@ -468,7 +468,11 @@ io.on('connection', (socket) => {
                 roomState.turnOwnerId = firstId;
                 
                 // 📢 【追加】フロントエンド（App.tsx）に画面遷移を命じる！
-                io.to(roomId).emit(SERVER_EVENTS.GAME_START); 
+                // App.tsxのハードコーディング（'gameStart'）と定数の両方に対応させておく安全策
+                io.to(roomId).emit('gameStart'); 
+                if (SERVER_EVENTS.GAME_START) {
+                    io.to(roomId).emit(SERVER_EVENTS.GAME_START); 
+                }
                 
                 // 状態とログを送信
                 io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
