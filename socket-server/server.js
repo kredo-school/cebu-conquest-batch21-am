@@ -15,8 +15,6 @@ const EVENTS = { CLIENT: CLIENT_EVENTS, SERVER: SERVER_EVENTS };
 // ==========================================
 const API_BASE_URL = 'http://localhost/cebu-conquest-batch21-am/api/';
 
-// 最大4人プレイ用のチーム設定（参加順に割り当て）
-const MAX_PLAYERS = 4;
 const TEAM_CONFIG = [
     { id: 'red', name: 'レッド', color: '#e74c3c' },
     { id: 'blue', name: 'ブルー', color: '#3498db' },
@@ -54,15 +52,16 @@ const ADJACENT_DISTRICTS = {
 // ==========================================
 // 🚀 【設定】ルーム管理とゲーム状態の初期化
 // ==========================================
-// 部屋ごとの gameState を管理する Map
 const rooms = new Map();
 
 // 新しい部屋の gameState を生成する関数
-function createInitialGameState() {
+function createInitialGameState(maxPlayers = 4) {
     return {
+        roomId: null,
         status: 'waiting', 
         turn: 0, 
         maxTurn: 30, // Day 10 (3ターン×10日分)
+        maxPlayers: maxPlayers, // 👈 部屋ごとの最大人数を設定
         turnOwnerId: null, 
         firstPlayerId: null,
         players: {}, 
@@ -88,7 +87,6 @@ function calculateFinalStats(roomId, playerId) {
     let bonusAtk = 0;
     let bonusDef = 0;
 
-    // 領有している全地区をループしてバフを合算
     Object.entries(roomState.districts).forEach(([dId, ownerId]) => {
         if (ownerId === playerId) {
             const master = DISTRICTS_MASTER[dId];
@@ -107,7 +105,6 @@ function calculateFinalStats(roomId, playerId) {
     };
 }
 
-// 勝敗判定ロジック
 function resolveBattle(atk, def) {
     const winProb = atk / (atk + def);
     const dice = Math.random();
@@ -115,7 +112,7 @@ function resolveBattle(atk, def) {
 }
 
 // ==========================================
-// 🤖 タクティカル・ラプパプ AIエンジン (多人数・ルーム対応)
+// 🤖 タクティカル・ラプパプ AIエンジン (ルーム対応)
 // ==========================================
 function processNpcTurn(roomId) {
     const roomState = rooms.get(roomId);
@@ -128,23 +125,20 @@ function processNpcTurn(roomId) {
     const stats = calculateFinalStats(roomId, npcId);
     const neighbors = ADJACENT_DISTRICTS[String(npc.districtId)] || [];
 
-    // 1. 周辺ターゲットの分析とスコアリング
     let targets = neighbors.map(id => {
         const ownerId = roomState.districts[id];
         const master = DISTRICTS_MASTER[id];
         let score = master ? master.priority : 1;
 
-        if (ownerId && ownerId !== npcId) score += 15; // 敵の領土を奪う意欲
-        if (!ownerId) score += 5; // 未占領地を広げる
+        if (ownerId && ownerId !== npcId) score += 15;
+        if (!ownerId) score += 5;
         
         return { id, score, ownerId, name: master ? master.name : `地区${id}` };
     });
 
     targets.sort((a, b) => b.score - a.score);
 
-    // 2. NPCの行動決定
     setTimeout(() => {
-        // 実行時に部屋がまだ存在するか再確認
         const currentState = rooms.get(roomId);
         if(!currentState) return;
 
@@ -181,7 +175,7 @@ function processNpcTurn(roomId) {
 }
 
 // ==========================================
-// 🔄 ターン終了処理とゲーム終了判定 (ルーム対応)
+// 🔄 ターン終了処理とゲーム終了判定
 // ==========================================
 function finalizeTurn(roomId, currentId) {
     const roomState = rooms.get(roomId);
@@ -190,13 +184,11 @@ function finalizeTurn(roomId, currentId) {
     const playerIds = Object.keys(roomState.players);
     const currentIndex = playerIds.indexOf(currentId);
     
-    // 次のプレイヤーのインデックスを計算
     const nextIndex = (currentIndex + 1) % playerIds.length;
     const nextId = playerIds[nextIndex];
 
     roomState.turnOwnerId = nextId;
 
-    // 一周したらターン数(Day)を進める
     if (nextId === roomState.firstPlayerId) {
         roomState.turn++;
     }
@@ -206,7 +198,6 @@ function finalizeTurn(roomId, currentId) {
         return; 
     }
 
-    // クライアントへ最新状態を送信
     io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
     io.to(roomId).emit(SERVER_EVENTS.TURN_START, {
         turn: roomState.turn,
@@ -219,7 +210,6 @@ function finalizeTurn(roomId, currentId) {
     }
 }
 
-// ゲーム終了時のDB保存ロジック (ルーム対応)
 async function handleGameOver(roomId, playerIds) {
     const roomState = rooms.get(roomId);
     if (!roomState) return;
@@ -272,32 +262,36 @@ async function handleGameOver(roomId, playerIds) {
 io.on('connection', (socket) => {
     console.log(`🔌 New connection: ${socket.id}`);
     socket.authToken = socket.handshake.auth?.token || "";
-    socket.roomId = null; // ソケット自身に現在の部屋IDを保持させる
+    socket.roomId = null;
 
-    // 🚀 【部屋の作成】
-    socket.on('CREATE_ROOM', (data, callback) => {
+    // 🚀 1. 部屋作成
+    socket.on('CREATE_ROOM', (config, callback) => {
         const roomId = generateRoomId();
-        rooms.set(roomId, createInitialGameState());
+        const roomState = createInitialGameState(config?.maxPlayers || 4);
+        roomState.roomId = roomId;
+        rooms.set(roomId, roomState);
         
         socket.join(roomId);
         socket.roomId = roomId;
         
-        console.log(`🏠 Room Created: ${roomId} by ${socket.id}`);
+        console.log(`🏠 Room[${roomId}] Created (Max: ${roomState.maxPlayers}) by ${socket.id}`);
         if (callback) callback({ success: true, roomId: roomId });
     });
 
-    // 🚀 【部屋への参加】
-    socket.on('JOIN_ROOM', async (data) => {
-        const roomId = data.roomId;
+    // 🚀 2. 部屋参加
+    socket.on('JOIN_ROOM', async (data, callback) => {
+        const roomId = data.roomId?.toUpperCase();
         const roomState = rooms.get(roomId);
 
         if (!roomState) {
+            if (callback) callback({ success: false, message: "Room not found" });
             socket.emit('ERROR_MESSAGE', "指定された部屋が存在しません");
             return;
         }
 
         const playerCount = Object.keys(roomState.players).length;
-        if (playerCount >= MAX_PLAYERS) {
+        if (playerCount >= roomState.maxPlayers) {
+            if (callback) callback({ success: false, message: "Room is full" });
             socket.emit('ERROR_MESSAGE', "ルームはすでに満員です");
             return;
         }
@@ -306,7 +300,6 @@ io.on('connection', (socket) => {
         socket.roomId = roomId;
 
         const teamInfo = TEAM_CONFIG[playerCount];
-        
         let baseStats = { hp: 100, maxHp: 100, ap: 100, maxAp: 100, atk: 60, def: 45 };
         let godName = "なし";
 
@@ -342,11 +335,14 @@ io.on('connection', (socket) => {
             isNpc: false
         };
 
+        console.log(`👤 Joined Room[${roomId}]`);
         if (godName !== "なし") {
             io.to(roomId).emit('GAME_LOG', `👼 ${roomState.players[socket.id].username} が【${godName}】の加護を受けて参戦！`);
         }
 
+        // 共通イベント定数を利用して全員に送信
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+        if (callback) callback({ success: true });
     });
 
     // 🚀 【NPCの任意追加】
@@ -357,7 +353,7 @@ io.on('connection', (socket) => {
         if (!roomState) return;
 
         const currentCount = Object.keys(roomState.players).length;
-        if (currentCount >= MAX_PLAYERS) return;
+        if (currentCount >= roomState.maxPlayers) return;
 
         const npcId = `npc_${Date.now()}`;
         const teamInfo = TEAM_CONFIG[currentCount];
@@ -383,39 +379,38 @@ io.on('connection', (socket) => {
     socket.on('SELECT_GOD', (data) => {
         const roomId = socket.roomId;
         if (!roomId) return;
-        
         const roomState = rooms.get(roomId);
         if (!roomState) return;
 
         const p = roomState.players[socket.id];
         if (p) {
-            // プレイヤー情報に selectedGodId を追加・更新
             p.selectedGodId = data.godId;
-            // 既存の godName も必要に応じてフロントから送ってもらうか、ここでマスターデータと照合して入れると後々便利です。
-            
-            // 誰かが神を選んだというログを流す場合はコメントアウトを外してください
-            // io.to(roomId).emit('GAME_LOG', `✨ ${p.username} が神の加護を選択中...`);
-
-            // 部屋内の全員に最新のプレイヤーステータス（神の選択状態含む）を同期
             io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
             console.log(`✨ [Room ${roomId}] ${p.username} selected god: ${data.godId}`);
         }
     });
 
-    // 🚀 【準備完了 & ゲーム開始】
+    // 🚀 3. 準備完了の同期 & ゲーム開始
     socket.on('PLAYER_READY', (data) => {
-        const roomId = socket.roomId;
+        const roomId = socket.roomId || data.roomId;
         if (!roomId) return;
         const roomState = rooms.get(roomId);
         if (!roomState) return;
 
         const p = roomState.players[socket.id];
         if (p) {
-            p.districtId = String(data.startDistrictId);
-            roomState.districts[p.districtId] = socket.id;
-            p.isReady = true;
+            // トグル対応（引数がなければtrue）
+            p.isReady = data.ready !== undefined ? data.ready : true;
+            
+            // 互換性のため初期陣地の指定があれば処理
+            if (data.startDistrictId) {
+                p.districtId = String(data.startDistrictId);
+                roomState.districts[p.districtId] = socket.id;
+            }
 
-            if (Object.values(roomState.players).every(pl => pl.isReady)) {
+            // プレイヤーが全員準備完了かチェック
+            const playersArr = Object.values(roomState.players);
+            if (playersArr.length > 0 && playersArr.every(pl => pl.isReady)) {
                 roomState.status = 'playing';
                 roomState.turn = 1;
                 const firstId = Object.keys(roomState.players)[0];
@@ -458,14 +453,11 @@ io.on('connection', (socket) => {
                     try {
                         const response = await fetch(`${API_BASE_URL}capture.php`, {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${p.token}`
-                            },
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${p.token}` },
                             body: JSON.stringify({ territory_id: parseInt(targetId) })
                         });
                         const dbResult = await response.json();
-                        console.log(`✅ [Room ${roomId} DB] 陣地 ${targetId} 制圧記録:`, dbResult.message || dbResult);
+                        console.log(`✅ [Room ${roomId} DB] 陣地 ${targetId} 制圧:`, dbResult.message || dbResult);
                     } catch (err) {
                         console.error(`❌ [Room ${roomId} DB] 陣地保存失敗:`, err);
                     }
@@ -502,13 +494,9 @@ io.on('connection', (socket) => {
         try {
             const response = await fetch(`${API_BASE_URL}use-item.php`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${p.token}`
-                },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${p.token}` },
                 body: JSON.stringify({ item_id: itemId })
             });
-            
             const dbResult = await response.json();
 
             if (dbResult.status === 'success') {
@@ -552,7 +540,6 @@ io.on('connection', (socket) => {
             if (roomState && roomState.players[socket.id]) {
                 delete roomState.players[socket.id];
                 
-                // 誰もいなくなったら部屋を削除
                 if (Object.keys(roomState.players).length === 0) {
                     rooms.delete(roomId);
                     console.log(`🗑️ Room ${roomId} has been deleted.`);
