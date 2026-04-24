@@ -444,28 +444,44 @@ io.on('connection', (socket) => {
 
         const p = roomState.players[socket.id];
         if (p) {
-            // トグル対応（引数がなければtrue）
+            // 状態を更新
             p.isReady = data.ready !== undefined ? data.ready : true;
             
-            // 互換性のため初期陣地の指定があれば処理
+            // 初期陣地の指定があれば保存
             if (data.startDistrictId) {
                 p.districtId = String(data.startDistrictId);
                 roomState.districts[p.districtId] = socket.id;
             }
 
-            // プレイヤーが全員準備完了かチェック
             const playersArr = Object.values(roomState.players);
-            if (playersArr.length > 0 && playersArr.every(pl => pl.isReady)) {
+            const currentCount = playersArr.length;
+            const maxPlayers = roomState.maxPlayers;
+
+            // 🚀 重要：人数が設定値（2人など）に達しており、かつ全員がREADYかチェック
+            if (currentCount >= maxPlayers && playersArr.every(pl => pl.isReady)) {
                 roomState.status = 'playing';
                 roomState.turn = 1;
-                const firstId = Object.keys(roomState.players)[0];
+                
+                const playerIds = Object.keys(roomState.players);
+                const firstId = playerIds[0];
                 roomState.firstPlayerId = firstId;
                 roomState.turnOwnerId = firstId;
                 
+                // 📢 【追加】フロントエンド（App.tsx）に画面遷移を命じる！
+                io.to(roomId).emit(SERVER_EVENTS.GAME_START); 
+                
+                // 状態とログを送信
                 io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
-                io.to(roomId).emit(SERVER_EVENTS.TURN_START, { turn: 1, turnOwnerId: firstId });
-                io.to(roomId).emit('GAME_LOG', `⚔️ ゲームスタート！`);
+                io.to(roomId).emit(SERVER_EVENTS.TURN_START, { 
+                    turn: 1, 
+                    turnOwnerId: firstId,
+                    turnOwnerName: roomState.players[firstId]?.username 
+                });
+                io.to(roomId).emit('GAME_LOG', `⚔️ 作戦開始！全オペレーターの同期に成功しました。`);
+                
+                console.log(`🎮 [Room ${roomId}] Game Started!`);
             } else {
+                // まだ全員揃っていない場合は現在の状態だけ同期
                 io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
             }
         }
