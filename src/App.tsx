@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'; // 🚀 useCallbackを追加
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import socket from './socket';
 import { useGameStore } from './store';
 
@@ -12,6 +12,9 @@ import { LobbySetupView } from './components/LobbySetupView';
 import { LobbyView } from './components/LobbyView'; 
 import { GodSelectionView } from './components/GodSelectionView';
 import { BattleModal } from './components/BattleModal'; 
+import { SettingsView } from './components/SettingsView'; 
+import { RankingView } from './components/RankingView'; 
+import { HelpModal } from './components/HelpModal'; 
 
 // 🔴 ブリッジ定数とイベント定数
 import { PHASER_TO_REACT, REACT_TO_PHASER } from './game/events/PhaserBridge';
@@ -27,22 +30,32 @@ const App: React.FC = () => {
   
   const gameRef = useRef<any>(null);
   
-  // ビュー管理：login -> setup -> lobby -> selection -> game
-  const [view, setView] = useState<'login' | 'setup' | 'lobby' | 'selection' | 'game'>('login');
+  // 🚀 ビュー管理
+  const [view, setView] = useState<'login' | 'setup' | 'lobby' | 'selection' | 'game' | 'ranking'>('login');
+  const [showSettings, setShowSettings] = useState(false); 
+  const [showHelp, setShowHelp] = useState(false); 
   const [playerName, setLocalPlayerName] = useState('');
+
+  // 🚀 ランキング画面制御用の関数
+  const handleOpenRanking = () => setView('ranking');
+  const handleCloseRanking = () => setView('setup');
 
   // view 変化に応じた BGM 切り替え
   useEffect(() => {
-    const bgmKey: Record<string, string> = { title: 'title', login: 'lobby', lobby: 'lobby' };
+    const bgmKey: Record<string, string> = { 
+      login: 'lobby', 
+      setup: 'lobby', 
+      lobby: 'lobby', 
+      ranking: 'title',
+      game: 'battle'
+    };
     if (bgmKey[view]) SoundManager.playBgm(bgmKey[view]);
   }, [view]);
 
   useEffect(() => {
     (window as any).useGameStore = useGameStore;
 
-    // --- 📡 サーバー通信の設定 ---
     socket.on('connect', () => {
-      console.log("📡 サーバー接続成功! My ID:", socket.id);
       if (socket.id) setStatus({ myId: socket.id });
     });
 
@@ -50,8 +63,7 @@ const App: React.FC = () => {
       if (!socket.id) return;
       syncServerState(data, socket.id);
       const isMe = data.turnOwnerId === socket.id;
-      const turnMsg = isMe ? '⚔️ あなたのターン' : `⌛ 相手（${data.turnOwnerName}）のターン`;
-      addLog(`📢 Day ${data.turn} 開始！ ${turnMsg}`);
+      addLog(`📢 Day ${data.turn} 開始！ ${isMe ? '⚔️ あなたのターン' : `⌛ 相手（${data.turnOwnerName}）のターン`}`);
     });
 
     socket.on(SERVER_EVENTS.SYNC_STATE, (state) => {
@@ -64,32 +76,11 @@ const App: React.FC = () => {
       addLog("🚀 マッチング完了。守護神の加護を選択してください");
     });
 
-    socket.on(SERVER_EVENTS.ACTION_RESULT, (data) => {
-      if (useGameStore.getState().isGameOver) return;
-      if (data.logs) data.logs.forEach((log: string) => addLog(log));
-      if (data.state && socket.id) syncServerState(data.state, socket.id);
-    });
-
     socket.on(SERVER_EVENTS.GAME_OVER, (data) => {
       addLog(data.winnerId === socket.id ? "🏆 MISSION COMPLETE" : "🚨 MISSION FAILED");
       setStatus({ isGameOver: true, winnerId: data.winnerId });
     });
 
-    // --- 🛠️ デバッグ・ワープ・退出用イベントリスナー ---
-    const handleForceSelection = () => {
-      setView('selection');
-      addLog("🛠️ DEBUG: 守護神選択フェーズへ移行します");
-    };
-
-    const handleAbortToSetup = () => {
-      setView('setup');
-      addLog("⚠️ MISSION ABORTED: 作戦を中止し、ベースに帰還しました");
-    };
-
-    window.addEventListener('DEBUG_START_SELECTION', handleForceSelection);
-    window.addEventListener('DEBUG_GOTO_SETUP', handleAbortToSetup);
-
-    // --- 🎮 Phaserブリッジ ---
     const handleUpdateStatus = (e: any) => {
       if (useGameStore.getState().isGameOver) return;
       setStatus(e.detail);
@@ -99,28 +90,10 @@ const App: React.FC = () => {
       const payload = e.detail;
       const districtId = payload.districtId ?? payload;
       const districtName = payload.districtName || `地区 ${districtId}`;
-      const currentState = useGameStore.getState();
-
       setStatus({ selectedDistrictId: districtId });
 
-      if (currentState.turn === 0) {
-        addLog(`📍 初期配置: ${districtName} を選択中...`);
-        return;
-      }
-
-      if (!currentState.isMyTurn) {
-        addLog(`👀 偵察: ${districtName}`);
-        return;
-      }
-
-      openPrediction(districtId, districtName, payload.isMyTerritory, payload.isNeutral);
-      
-      if (payload.isMyTerritory) {
-        addLog(`🚚 兵站確認: 自陣 ${districtName} を選択。`);
-      } else if (payload.isNeutral) {
-        addLog(`🏳️ 空白地発見: ${districtName} は無人です。`);
-      } else {
-        addLog(`🎯 ターゲット確認: 敵陣 ${districtName} を捕捉。`);
+      if (useGameStore.getState().turn > 0 && useGameStore.getState().isMyTurn) {
+        openPrediction(districtId, districtName, payload.isMyTerritory, payload.isNeutral);
       }
     };
 
@@ -132,16 +105,13 @@ const App: React.FC = () => {
       socket.off(SERVER_EVENTS.TURN_START);
       socket.off(SERVER_EVENTS.SYNC_STATE);
       socket.off('gameStart');
-      socket.off(SERVER_EVENTS.ACTION_RESULT);
       socket.off(SERVER_EVENTS.GAME_OVER);
-      window.removeEventListener('DEBUG_START_SELECTION', handleForceSelection);
-      window.removeEventListener('DEBUG_GOTO_SETUP', handleAbortToSetup);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleDistrictSelected);
     };
   }, [setStatus, syncServerState, addLog, openPrediction]);
 
-  // ログイン送信
+  // 各種ハンドラー
   const handleLoginSubmit = async (name: string) => {
     setLocalPlayerName(name);
     await login(name); 
@@ -149,72 +119,112 @@ const App: React.FC = () => {
     setView('setup'); 
   };
 
-  // ルーム確定
   const handleJoinSuccess = (joinedRoomId: string) => {
     setStatus({ roomId: joinedRoomId });
     setView('lobby'); 
   };
 
-  // 初期配置確定
   const handleFinalDeploy = () => {
     if (selectedDistrictId) {
-      // 🚀 修正：サーバー側の待機イベント名 "PLAYER_READY" に合わせました
-      socket.emit("PLAYER_READY", { 
-        username: playerName || storePlayerName || 'Guest', 
-        startDistrictId: selectedDistrictId 
-      });
-      window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, {
-        detail: { districtId: selectedDistrictId }
-      }));
-      addLog(`🚀 地区 ${selectedDistrictId} への配置完了。`);
+      socket.emit("PLAYER_READY", { username: playerName || storePlayerName || 'Guest', startDistrictId: selectedDistrictId });
+      window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, { detail: { districtId: selectedDistrictId } }));
       setStatus({ selectedDistrictId: null });
     }
   };
 
-  // リスタート
-  const handleRestart = () => {
-    window.location.reload();
-  };
+  const handleSelectionComplete = useCallback(() => setView('game'), []);
 
-  // 🚀 修正：画面遷移関数を固定化（再描画時のタイマーリセットを防ぐ）
-  const handleSelectionComplete = useCallback(() => {
-    setView('game');
-  }, []);
-
-  // --- 🎥 ビューの分岐 ---
-  if (view === 'login') return <LoginView onLogin={handleLoginSubmit} />;
-  if (view === 'setup') return <LobbySetupView onJoinSuccess={handleJoinSuccess} />;
-  if (view === 'lobby') return <LobbyView roomId={roomId} players={players} />;
-  
-  if (view === 'selection') {
-    // 🚀 修正：固定化した関数を渡す
-    return <GodSelectionView onComplete={handleSelectionComplete} />;
-  }
-  
-  return (
-    <div className="flex w-screen h-screen overflow-hidden bg-slate-950 text-slate-100 font-body">
-      <Sidebar />
-      <div className="flex-1 relative overflow-hidden flex flex-col">
-        <div className="absolute inset-0 z-0">
-          <PhaserGameView ref={gameRef} playerName={playerName || storePlayerName} />
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(249,115,22,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(249,115,22,0.05)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
-        </div>
-        <div className="relative z-10 w-full h-full pointer-events-none flex flex-col">
-          <HUD />
-          <BattleModal />
-          <ResultView onRestart={handleRestart} />
-          {turn === 0 && selectedDistrictId && (
-            <div className="absolute bottom-40 left-1/2 -translate-x-1/2 z-[1000] pointer-events-auto">
-              <button 
-                onClick={handleFinalDeploy} 
-                className="bg-orange-500 hover:bg-orange-400 text-slate-950 px-16 py-5 rounded-lg font-black text-2xl uppercase tracking-widest shadow-[0_0_30px_rgba(250,112,0,0.4)] active:scale-95 transition-all"
-              >
-                DEPLOY START
-              </button>
-            </div>
-          )}
+  // --- 🎥 ビューのレンダリング決定 ---
+  let mainContent;
+  if (view === 'login') {
+    mainContent = (
+      <LoginView 
+        onLogin={handleLoginSubmit} 
+        onOpenSettings={() => setShowSettings(true)} 
+        onOpenHelp={() => setShowHelp(true)} 
+      />
+    );
+  } else if (view === 'setup') {
+    mainContent = (
+      <LobbySetupView 
+        onJoinSuccess={handleJoinSuccess} 
+        onOpenSettings={() => setShowSettings(true)} 
+        onOpenHelp={() => setShowHelp(true)}
+        onOpenRanking={handleOpenRanking}
+      />
+    );
+  } else if (view === 'lobby') {
+    mainContent = (
+      <LobbyView 
+        roomId={roomId} 
+        players={players} 
+        onOpenSettings={() => setShowSettings(true)} 
+        onOpenHelp={() => setShowHelp(true)} 
+        onOpenRanking={handleOpenRanking}
+        onAbort={() => setView('setup')}
+      />
+    );
+  } else if (view === 'selection') {
+    mainContent = (
+      <GodSelectionView 
+        onComplete={handleSelectionComplete} 
+        onOpenSettings={() => setShowSettings(true)} 
+        onOpenHelp={() => setShowHelp(true)} 
+      />
+    );
+  } else if (view === 'ranking') {
+    mainContent = (
+      <RankingView 
+        onOpenSettings={() => setShowSettings(true)} 
+        onOpenHelp={() => setShowHelp(true)}
+        onBack={handleCloseRanking}
+      />
+    );
+  } else {
+    // ⚔️ ゲーム画面
+    mainContent = (
+      <div className="flex w-screen h-screen overflow-hidden bg-slate-950 text-slate-100 font-body">
+        <Sidebar />
+        <div className="flex-1 relative overflow-hidden flex flex-col">
+          <div className="absolute inset-0 z-0">
+            <PhaserGameView ref={gameRef} playerName={playerName || storePlayerName} />
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(249,115,22,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(249,115,22,0.05)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
+          </div>
+          <div className="relative z-10 w-full h-full pointer-events-none flex flex-col">
+            <HUD onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} />
+            <BattleModal />
+            <ResultView 
+              onRestart={() => window.location.reload()} 
+              onOpenSettings={() => setShowSettings(true)} 
+              onOpenHelp={() => setShowHelp(true)}
+              onOpenRanking={handleOpenRanking}
+            />
+            {turn === 0 && selectedDistrictId && (
+              <div className="absolute bottom-40 left-1/2 -translate-x-1/2 z-[50] pointer-events-auto">
+                <button onClick={handleFinalDeploy} className="bg-orange-500 hover:bg-orange-400 text-slate-950 px-16 py-5 rounded-lg font-black text-2xl uppercase tracking-widest shadow-[0_0_30px_rgba(250,112,0,0.4)] active:scale-95 transition-all">
+                  DEPLOY START
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="relative w-screen h-screen bg-slate-950 overflow-hidden">
+      {mainContent}
+      {showSettings && (
+        <div className="fixed inset-0 z-[99999] pointer-events-auto">
+          <SettingsView onBack={() => setShowSettings(false)} />
+        </div>
+      )}
+      {showHelp && (
+        <div className="fixed inset-0 z-[100000] pointer-events-auto">
+          <HelpModal onClose={() => setShowHelp(false)} />
+        </div>
+      )}
     </div>
   );
 };

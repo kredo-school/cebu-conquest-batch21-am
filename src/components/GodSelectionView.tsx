@@ -3,6 +3,8 @@ import { useGameStore } from '../store';
 
 interface GodSelectionViewProps {
   onComplete: () => void;
+  onOpenSettings: () => void;
+  onOpenHelp: () => void; // 🚀 1. ヘルプ用のプロップスを追加
 }
 
 const GOD_SLOTS = [
@@ -16,11 +18,11 @@ const GOD_SLOTS = [
   { id: 8, name: "IDANALE", role: "RECON", bonus: "SCAN", img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=400", desc: "障害物越しの敵をハイライト表示する。" },
 ];
 
-export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }) => {
+export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete, onOpenSettings, onOpenHelp }) => {
   const { selectGod, players, myId, selectedGodId } = useGameStore();
   const [isDeploying, setIsDeploying] = useState(false);
 
-  // 🚀 【真の修正】Reactの再描画に負けない「絶対時間」を保存する
+  // Reactの再描画に負けない「絶対時間」を保存する
   const targetTimeRef = useRef(0);
 
   const humanPlayers = players.filter(p => !p.isNpc);
@@ -38,26 +40,18 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
     selectGod(godId); 
   };
 
-  // 🚀 究極のタイマーロジック
   useEffect(() => {
     const allReady = totalCount > 0 && readyCount >= totalCount;
 
-    // 条件を満たした、またはすでに出撃シーケンスに入っているなら
     if ((allReady && selectedGodId) || isDeploying) {
       if (!isDeploying) setIsDeploying(true);
-
-      // 初回のみ目標時間をセット（現在時刻 + 2.5秒）
       if (targetTimeRef.current === 0) {
         targetTimeRef.current = Date.now() + 2500;
       }
-
-      // 残り時間を計算してタイマーをセット
       const delay = Math.max(0, targetTimeRef.current - Date.now());
       const timer = setTimeout(() => {
         onComplete();
       }, delay);
-
-      // 画面が再描画されても、残りの秒数で正しくタイマーが再開される
       return () => clearTimeout(timer);
     }
   }, [totalCount, readyCount, selectedGodId, isDeploying, onComplete]);
@@ -65,7 +59,32 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
   return (
     <div className="fixed inset-0 z-[10000] bg-slate-950 font-body text-slate-200 antialiased overflow-hidden select-none flex items-center justify-center">
       
-      {/* 🚀 デプロイ開始オーバーレイ */}
+      {/* 🚀 2. 右上にヘルプと設定ボタンを配置 */}
+      <div className="absolute top-8 right-12 z-[10002] flex gap-6 items-center">
+        {/* ヘルプボタン */}
+        <button 
+          onClick={onOpenHelp}
+          className="pointer-events-auto group flex items-center justify-center transition-all active:scale-90"
+          title="TACTICAL MANUAL"
+        >
+          <span className="material-symbols-outlined text-slate-500 group-hover:text-cyan-400 text-3xl transition-colors">
+            help
+          </span>
+        </button>
+
+        {/* 設定ボタン */}
+        <button 
+          onClick={onOpenSettings}
+          className="pointer-events-auto group flex items-center justify-center transition-all active:scale-90"
+          title="SETTINGS"
+        >
+          <span className="material-symbols-outlined text-slate-500 group-hover:text-brand-500 text-3xl transition-colors">
+            settings
+          </span>
+        </button>
+      </div>
+
+      {/* デプロイ開始オーバーレイ */}
       <div className={`fixed inset-0 z-[10001] bg-slate-950 transition-opacity duration-1000 pointer-events-none flex flex-col items-center justify-center ${isDeploying ? 'opacity-100' : 'opacity-0'}`}>
         <div className="text-center">
           <div className="text-brand-500 text-sm font-black tracking-[0.6em] uppercase mb-6 animate-pulse">Neural Link Established</div>
@@ -86,7 +105,7 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
         <div className="glass-panel w-full max-w-[96%] h-[92vh] flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.9)] border-t border-brand-500/50 rounded-2xl overflow-hidden bg-slate-900/40 backdrop-blur-md">
           
           <div className="flex items-center justify-between px-12 py-8 border-b border-white/5 bg-white/5">
-            <div className="flex flex-col">
+            <div className="flex flex-col text-left">
               <h1 className="text-4xl lg:text-5xl font-black italic tracking-tighter text-white uppercase leading-none">
                 Choose your <span className="text-brand-500">Divine Blessing</span>
               </h1>
@@ -129,7 +148,7 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
                       {lock && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-950/60 backdrop-blur-[2px]">
                           <img src={lock.avatar} className="w-10 h-10 rounded-full border-2 border-red-500 p-0.5 mb-2 bg-slate-900" alt="locked" />
-                          <span className="text-[8px] font-black text-red-500 uppercase tracking-widest bg-slate-950 px-2 py-1">CLAIMED BY {lock.name}</span>
+                          <span className="text-[8px] font-black text-red-500 uppercase tracking-widest bg-slate-950 px-2 py-1 text-center">CLAIMED BY {lock.name}</span>
                         </div>
                       )}
 
@@ -138,7 +157,7 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
                       </div>
                     </div>
 
-                    <div className="p-5 flex flex-col justify-between flex-1 gap-4">
+                    <div className="p-5 flex flex-col justify-between flex-1 gap-4 text-left">
                       <div>
                         <h3 className={`text-xl font-black tracking-tighter uppercase mb-1 ${lock ? 'text-slate-600' : 'text-white'}`}>
                           {god.name}
@@ -153,8 +172,8 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
                       
                       <button 
                         disabled={!!lock || !!selectedGodId}
-                        className={`w-full py-3 text-[9px] font-black uppercase tracking-[0.2em] transition-all duration-300 border ${
-                          isSelectedByMe
+                        className={`w-full py-3 text-[9px] font-black uppercase tracking-[0.2em] transition-all duration-300 border text-center
+                          ${isSelectedByMe
                             ? "bg-brand-500 text-slate-950 border-brand-500 animate-pulse"
                             : lock
                             ? "bg-transparent text-slate-700 border-slate-800/30" 
@@ -180,11 +199,10 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
              </span>
              
              <div className="flex gap-4 items-center">
-                {/* 🚀 ゴースト回避用：演出中か選択済みなら必ず表示 */}
                 {(selectedGodId || isDeploying) && (
                   <button
                     onClick={() => onComplete()}
-                    className="text-[10px] font-black tracking-widest bg-red-900/40 text-red-400 border border-red-500/50 px-4 py-2 hover:bg-red-600 hover:text-white transition-all rounded pointer-events-auto shadow-lg"
+                    className="text-[10px] font-black tracking-widest bg-red-900/40 text-red-400 border border-red-500/50 px-4 py-2 hover:bg-red-600 hover:text-white transition-all rounded pointer-events-auto shadow-lg text-center"
                   >
                     FORCE DEPLOY
                   </button>
