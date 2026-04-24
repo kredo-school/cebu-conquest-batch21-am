@@ -8,8 +8,8 @@ interface LobbySetupViewProps {
 }
 
 export const LobbySetupView: React.FC<LobbySetupViewProps> = ({ onJoinSuccess }) => {
-  // 🚀 setStatus を追加し、選択した人数をストアに即時反映できるようにします
-  const { addLog, setStatus } = useGameStore();
+  // 🚀 修正：playerName を取得し、サーバーに名前を伝えられるようにします
+  const { addLog, setStatus, playerName } = useGameStore();
   
   const [showConfig, setShowConfig] = useState(false);
   const [joinId, setJoinId] = useState("");
@@ -20,37 +20,45 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({ onJoinSuccess })
     turnTime: 60,
   });
 
-  // --- 🛠️ 部屋作成の処理 (サーバー発行IDを使用) ---
+  // --- 🛠️ 部屋作成の処理 ---
   const handleFinalCreate = () => {
     try { SoundManager.playSe('click'); } catch (e) {}
     addLog("📡 サーバーへ作戦承認をリクエスト中...");
 
-    // 🚀 移動前に自分のストアを選択した人数で更新
+    // 自分の画面を即座に設定人数に更新
     setStatus({ maxPlayers: config.maxPlayers });
 
-    // DEBUG-999 のタイムアウト削除：サーバーからの返答を正しく待ちます
-    socket.emit('CREATE_ROOM', config, (response: any) => {
+    // 🚀 修正：自分の名前（username）をペイロードに含めて送信
+    const createPayload = { 
+      ...config, 
+      username: playerName 
+    };
+
+    socket.emit('CREATE_ROOM', createPayload, (response: any) => {
       if (response && response.success) {
         addLog(`✅ 作戦承認: Room[${response.roomId}] を構築しました`);
         onJoinSuccess(response.roomId);
       } else {
         addLog("❌ ルーム作成失敗: サーバーの応答が不正です");
-        alert("ルームを作成できませんでした。サーバーの接続を確認してください。");
+        alert("ルームを作成できませんでした。");
       }
     });
   };
 
   // --- 🛠️ 部屋参加の処理 ---
   const handleJoin = () => {
-    // 6文字のルームIDを想定
     if (joinId.length === 6) {
       try { SoundManager.playSe('click'); } catch (e) {}
       addLog(`📡 Room[${joinId}] への接続を試行中...`);
 
-      socket.emit('JOIN_ROOM', { roomId: joinId.toUpperCase() }, (response: any) => {
+      // 🚀 修正：参加時にも自分の名前（username）を送信
+      const joinPayload = { 
+        roomId: joinId.toUpperCase(),
+        username: playerName 
+      };
+
+      socket.emit('JOIN_ROOM', joinPayload, (response: any) => {
         if (response && response.success) {
-          // 🚀 参加成功時、サーバー側から maxPlayers が送られてくる想定ですが、
-          // 念のためこの時点でも同期を試みます（サーバー側のデータが優先されます）
           onJoinSuccess(joinId.toUpperCase());
         } else {
           addLog("❌ 入室拒否: 該当する作戦コードが見つかりません");
@@ -63,7 +71,6 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({ onJoinSuccess })
   return (
     <div className="w-screen h-screen bg-slate-950 text-slate-200 font-body relative overflow-hidden flex flex-col">
       
-      {/* 設定モーダル */}
       {showConfig && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-md bg-slate-950/60">
           <div className="w-full max-w-md glass-panel border-t-2 border-brand-500 p-8 shadow-[0_0_50px_rgba(0,0,0,0.8)] animate-fadeIn">
@@ -99,7 +106,6 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({ onJoinSuccess })
         <h1 className="text-7xl font-black italic tracking-tighter text-white uppercase mb-12">Tactical Setup</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full max-w-5xl">
-          {/* Create Section */}
           <div className="glass-panel p-10 flex flex-col border border-white/5 bg-slate-900/40 relative overflow-hidden">
             <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter">Create Room</h2>
             <p className="text-slate-500 text-xs mb-10 leading-relaxed italic">Establish a new command post and generate a unique uplink code for your squad.</p>
@@ -110,7 +116,6 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({ onJoinSuccess })
             </button>
           </div>
 
-          {/* Join Section */}
           <div className="glass-panel p-10 flex flex-col border border-white/5 bg-slate-900/40 relative overflow-hidden">
             <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter">Join Room</h2>
             <div className="mb-10">
