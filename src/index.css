@@ -1,8 +1,12 @@
-/* src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --- 1. 基本レイアウト設定 --- */
 :root {
   margin: 0;
   padding: 0;
-  overflow: hidden; /* 画面からはみ出さないようにする */
+  overflow: hidden;
 }
 
 body {
@@ -10,72 +14,110 @@ body {
   padding: 0;
   width: 100vw;
   height: 100vh;
-  /* ★ display: flex や place-items: center を消すことで、端から表示されるようになります */
   display: block; 
-  background-color: #0f172a; /* 背景色をダークブルーに固定 */
+  background-color: #020617; /* slate-950に近い色で固定 */
+  color: #f1f5f9;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+/* --- 2. タクティカルUIコンポーネント --- */
+@layer components {
+  /* ガラス質感のパネル */
+  .glass-panel {
+    background: rgba(10, 10, 10, 0.85);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(249, 115, 22, 0.2);
   }
-  a:hover {
-    color: #747bff;
+
+  /* 画面全体の走査線エフェクト */
+  .scanline {
+    background: linear-gradient(to bottom, rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+    background-size: 100% 4px;
+    pointer-events: none;
   }
-  button {
-    background-color: #f9f9f9;
+
+  /* ホログラフィック・テキスト */
+  .holographic-text {
+    text-shadow: 0 0 10px rgba(249, 115, 22, 0.5), 0 0 20px rgba(249, 115, 22, 0.3);
+    animation: holographic-flicker 4s infinite linear;
+    position: relative;
+  }
+
+  /* フェーズ開始時のバウンス・ズーム演出 */
+  .phase-animation-container {
+    animation: phase-bounce-zoom 3.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  }
+
+  /* カスタムスクロールバー（システムログ用） */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.1);
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #f97316;
+    border-radius: 10px;
   }
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* --- 3. アニメーション定義 --- */
+@keyframes phase-bounce-zoom {
+  0% { opacity: 0; transform: scale(0); filter: brightness(2); }
+  15% { opacity: 1; transform: scale(1.2); filter: brightness(1.5); }
+  20% { transform: scale(0.95); }
+  25% { transform: scale(1); filter: brightness(1); }
+  85% { opacity: 1; transform: scale(1); filter: brightness(1); }
+  100% { opacity: 0; transform: scale(0); filter: brightness(3); }
+}
 
+@keyframes holographic-flicker {
+  0%, 100% { opacity: 0.85; transform: scaleY(1); }
+  50% { opacity: 1; transform: scaleY(1.005); }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(200%) skewX(-15deg); }
+}
+
+@keyframes scanline-move {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+/* --- 4. アイコン・装飾用ユーティリティ --- */
 .material-symbols-outlined {
-    font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 48;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 48;
 }
 
 .tropical-flare {
-    background: radial-gradient(circle at center, rgba(249, 115, 22, 0.4) 0%, rgba(249, 115, 22, 0) 70%);
+  background: radial-gradient(circle at center, rgba(249, 115, 22, 0.4) 0%, rgba(249, 115, 22, 0) 70%);
 }
 
 .island-silhouette {
-    background-image: linear-gradient(to top, #020617 20%, transparent 100%), 
-                      url('https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?auto=format&fit=crop&q=80&w=2000');
-    background-size: cover;
-    background-position: center bottom;
+  background-image: linear-gradient(to top, #020617 20%, transparent 100%), 
+                    url('https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?auto=format&fit=crop&q=80&w=2000');
+  background-size: cover;
+  background-position: center bottom;
+}
+
+/* --- 5. 標準タグの上書き --- */
+a {
+  font-weight: 500;
+  color: #fb923c;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #f97316;
+}
+
+button {
+  border-radius: 4px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
 }

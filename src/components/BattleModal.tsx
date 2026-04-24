@@ -5,121 +5,136 @@ export const BattleModal: React.FC = () => {
   const { 
     predictionModalOpen, 
     targetDistrictInfo, 
-    atk, blessing, attack, closePrediction, stamina 
+    atk, blessing, attack, move, closePrediction, stamina 
   } = useGameStore();
 
   if (!predictionModalOpen || !targetDistrictInfo) return null;
 
-  // 🚀 計算ロジック
+  // 状態フラグ
+  const isMyTerritory = targetDistrictInfo.isMyTerritory;
+  const isNeutral = targetDistrictInfo.isNeutral;
+  const isEnemy = !isMyTerritory && !isNeutral;
+
+  // バトル計算
   const finalAtk = atk * blessing;
   const enemyDef = targetDistrictInfo.enemyDef || 40;
   const winRate = (finalAtk / (finalAtk + enemyDef)) * 100;
 
-  // 🚀 サーバーのAP消費量(5)に合わせて判定を修正
   const AP_COST = 5;
-  const canAttack = stamina >= AP_COST;
+  const canAction = stamina >= AP_COST;
 
-  const getBtnStyle = (bg: string, canClick: boolean): React.CSSProperties => ({
-    flex: 1,
-    padding: '14px',
-    background: canClick ? bg : '#7f8c8d',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '12px',
-    cursor: canClick ? 'pointer' : 'not-allowed',
-    fontWeight: 'bold',
-    fontSize: '16px',
-    boxShadow: canClick ? '0 4px 0 rgba(0,0,0,0.2)' : 'none',
-    transition: '0.2s all',
-    opacity: canClick ? 1 : 0.7
-  });
+  // 状況に応じたアクションを実行
+  const handleExecute = () => {
+    if (isMyTerritory) {
+      move(targetDistrictInfo.id);
+    } else {
+      // 敵陣または中立への攻撃・占領
+      attack(targetDistrictInfo.id);
+    }
+  };
+
+  // 状況に応じたカラーリング設定
+  let themeColor = 'text-orange-500';
+  let borderColor = 'border-orange-500/50';
+  let btnClass = 'bg-orange-600 hover:bg-orange-500 shadow-orange-500/20';
+  let icon = '⚔️';
+  let title = 'TACTICAL PREDICTION';
+  let actionText = 'ATTACK';
+
+  if (isMyTerritory) {
+    themeColor = 'text-blue-400';
+    borderColor = 'border-blue-500/50';
+    btnClass = 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20';
+    icon = '🚚';
+    title = 'RELOCATE BASE';
+    actionText = 'MOVE';
+  } else if (isNeutral) {
+    themeColor = 'text-emerald-400';
+    borderColor = 'border-emerald-500/50';
+    btnClass = 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20';
+    icon = '🏳️';
+    title = 'OCCUPY SECTOR';
+    actionText = 'OCCUPY';
+  }
 
   return (
-    <div style={overlayStyle}>
-      <div style={modalStyle}>
-        <h2 style={{ color: '#2c3e50', margin: '0 0 10px 0', fontSize: '22px' }}>⚔️ バトル予測</h2>
-        <hr style={{ border: '0.5px solid #eee' }} />
+    <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm select-none">
+      
+      {/* モーダル本体 */}
+      <div className={`relative bg-slate-900 border-2 ${borderColor} w-[360px] rounded-2xl p-6 shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden`}>
         
-        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#e67e22', margin: '15px 0' }}>
-          対象：{targetDistrictInfo.name}
+        {/* 背景の装飾 */}
+        <div className="absolute top-0 right-0 p-4 opacity-5">
+          <span className="material-symbols-outlined text-9xl">radar</span>
+        </div>
+        
+        {/* ヘッダー */}
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-4">
+          <span className="text-xl">{icon}</span>
+          <h2 className={`text-sm font-black tracking-widest uppercase ${themeColor}`}>
+            {title}
+          </h2>
         </div>
 
-        <div style={infoBoxStyle}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-            <span>自分の最終ATK:</span>
-            <span style={{ fontWeight: 'bold' }}>{finalAtk.toFixed(1)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>相手の推定DEF:</span>
-            <span style={{ fontWeight: 'bold' }}>{enemyDef}</span>
+        {/* ターゲット情報 */}
+        <div className="mb-6 relative z-10">
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Target Sector</p>
+          <div className="text-2xl font-black text-white italic tracking-tighter">
+            {targetDistrictInfo.name}
           </div>
         </div>
 
-        <div style={resultStyle}>
-          <div style={{ fontSize: '14px', color: '#7f8c8d' }}>予測勝率</div>
-          <div style={{ fontSize: '40px', color: '#e74c3c', fontWeight: '900' }}>
-            {winRate.toFixed(1)}<span style={{ fontSize: '20px' }}>%</span>
+        {/* 敵陣の場合のみ勝率予測を表示 */}
+        {isEnemy && (
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-6 relative z-10">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs text-slate-400 font-bold">Your ATK (Est.)</span>
+              <span className="text-sm font-black text-blue-400">{finalAtk.toFixed(0)}</span>
+            </div>
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-xs text-slate-400 font-bold">Enemy DEF (Est.)</span>
+              <span className="text-sm font-black text-red-400">{enemyDef}</span>
+            </div>
+            
+            <div className="border-t border-slate-800 pt-3 flex justify-between items-end">
+              <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Win Probability</span>
+              <div className="text-3xl font-black text-orange-500 drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]">
+                {winRate.toFixed(1)}<span className="text-sm">%</span>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
-        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-          {/* 🚀 APコストを 5 に修正 */}
+        {/* 自陣・中立の場合の説明文 */}
+        {!isEnemy && (
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-6 relative z-10">
+            <p className="text-xs text-slate-400 font-bold leading-relaxed">
+              {isMyTerritory 
+                ? "本陣をこの地区に移動します。移動後はこの地区からの隣接エリアにしか攻撃できなくなります。" 
+                : "この地区は現在無人です。戦闘なしで無血占領し、領土を拡大することが可能です。"}
+            </p>
+          </div>
+        )}
+
+        {/* ボタンエリア */}
+        <div className="flex gap-3 relative z-10">
           <button 
-            onClick={() => attack(targetDistrictInfo.id)} 
-            disabled={!canAttack}
-            style={getBtnStyle('#e74c3c', canAttack)}
+            onClick={closePrediction} 
+            className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-black py-3 rounded-lg text-xs uppercase tracking-widest transition-all"
           >
-            {canAttack ? `🔥 攻撃開始 (-${AP_COST})` : 'AP不足'}
+            CANCEL
           </button>
-          
-          <button onClick={closePrediction} style={getBtnStyle('#95a5a6', true)}>
-            やめる
+          <button 
+            onClick={handleExecute} 
+            disabled={!canAction}
+            className={`flex-[2] text-white font-black py-3 rounded-lg text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95
+              ${canAction ? btnClass : 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none'}`}
+          >
+            {canAction ? `${actionText} (-${AP_COST} AP)` : 'NO AP'}
           </button>
         </div>
+
       </div>
     </div>
   );
-};
-
-// スタイル定義（確実に最前面に出るよう zIndex を調整）
-const overlayStyle: React.CSSProperties = { 
-  position: 'fixed', 
-  top: 0, 
-  left: 0, 
-  width: '100vw', 
-  height: '100vh', 
-  background: 'rgba(0,0,0,0.85)', 
-  display: 'flex', 
-  justifyContent: 'center', 
-  alignItems: 'center', 
-  zIndex: 10001 // PhaserGame(1000)やHUD(1000)より高く設定
-};
-
-const modalStyle: React.CSSProperties = { 
-  background: '#fff', 
-  padding: '30px', 
-  borderRadius: '25px', 
-  border: '6px solid #2c3e50', 
-  width: '340px', 
-  textAlign: 'center', 
-  boxShadow: '0 15px 40px rgba(0,0,0,0.5)',
-  pointerEvents: 'auto' 
-};
-
-const infoBoxStyle: React.CSSProperties = { 
-  background: '#f8f9fa', 
-  padding: '15px', 
-  borderRadius: '12px', 
-  textAlign: 'left', 
-  margin: '15px 0', 
-  fontSize: '14px', 
-  border: '1px solid #ddd' 
-};
-
-const resultStyle: React.CSSProperties = { 
-  margin: '20px 0', 
-  padding: '15px', 
-  border: '2px solid #e74c3c', 
-  borderRadius: '18px', 
-  background: '#fff5f5' 
 };

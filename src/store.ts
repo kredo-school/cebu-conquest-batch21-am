@@ -1,7 +1,18 @@
 import { create } from 'zustand';
 import socket from './socket';
 
-// 🚀 【なお仕様】ID 11101系（27スポット）完全移行 ＆ バフカード定義
+// 🚀 8つの神様（加護）スロット定義をここに統合（UIと合わせるため）
+const GODS_DATA = [
+  { id: 1, name: "LAPU-LAPU", role: "WAR GOD", bonus: "ATK +20", img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "近接攻撃ダメージを25%上昇させる。" },
+  { id: 2, name: "SEBUNA", role: "HARVEST", bonus: "MAX AP +30", img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400", desc: "タクティカル・スタミナの最大値を増加。" },
+  { id: 3, name: "KREDO", role: "WISDOM", bonus: "AP REGEN", img: "https://images.unsplash.com/photo-1533240332313-0db49b459ad6?q=80&w=400", desc: "毎ターンのAP回復スピードを向上させる。" },
+  { id: 4, name: "MAYARI", role: "STEALTH", bonus: "SILENT", img: "https://images.unsplash.com/photo-1506466010722-395aa2bef877?q=80&w=400", desc: "足音を消し、敵の探知範囲を縮小させる。" },
+  { id: 5, name: "LUMAWIG", role: "HEAVY", bonus: "ARMOR +40", img: "https://images.unsplash.com/photo-1584281722573-0f723675017e?q=80&w=400", desc: "アーマー耐久値を大幅に強化する。" },
+  { id: 6, name: "HANUMAN", role: "SUPPORT", bonus: "SPEED +15", img: "https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?q=80&w=400", desc: "移動速度と回避率を上昇させる。" },
+  { id: 7, name: "BAKUNAWA", role: "SHADOW", bonus: "INVIS", img: "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?q=80&w=400", desc: "夜間フェーズ中に一時的に姿を消す。" },
+  { id: 8, name: "IDANALE", role: "RECON", bonus: "SCAN", img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=400", desc: "障害物越しの敵をハイライト表示する。" },
+];
+
 const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   11101: { name: "絶品特製チチャロン", effect: "ATK +15%" },
   11102: { name: "夜明けのエナジードリンク", effect: "AP回復速度UP" },
@@ -11,12 +22,6 @@ const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   11119: { name: "マリン・バースト", effect: "ATK +10" },
   11120: { name: "ヘリテージ・スパイス", effect: "DEF +10" },
 };
-
-const GODS_DATA = [
-  { id: 1, name: "戦神 ラプラプ", bonus: "ATK +20", item: "古びた剣" },
-  { id: 2, name: "豊穣の女神 セブナ", bonus: "MAX AP +30", item: "マンゴーの種" },
-  { id: 3, name: "知恵の神 クレド", bonus: "毎ターンAP回復", item: "光るUSB" },
-];
 
 const API_BASE = "http://localhost/cebu-conquest/cebu-conquest-batch21-am/api"; 
 
@@ -33,8 +38,8 @@ interface GameState {
   turn: number; 
   maxTurn: number;
   logs: string[]; 
-  roomId: string;         // 🚀 修正：App.tsxのエラー解消用に追加
-  players: any[];         // 🚀 修正：RecordからArrayに変更（LobbyView用）
+  roomId: string;
+  players: any[];
   districts: Record<string, string>;
   currentDistrictName: string;
   selectedDistrictId: number | null;
@@ -44,12 +49,14 @@ interface GameState {
   isMyTurn: boolean; 
   turnOwner: string;
   isGameOver: boolean; 
+  winnerId: string | null; 
   isSubmitted: boolean;
   selectedGodId: number | null;
   godsList: typeof GODS_DATA;
   resultData: any | null;
   predictionModalOpen: boolean;
-  targetDistrictInfo: { id: number; name: string; enemyDef: number } | null;
+  // 🚀 修正：isMyTerritory と isNeutral を追加
+  targetDistrictInfo: { id: number; name: string; enemyDef: number; isMyTerritory?: boolean; isNeutral?: boolean } | null;
   activeBuffs: { id: number; name: string; effect: string }[];
 
   login: (username: string, password?: string) => Promise<boolean>;
@@ -58,12 +65,14 @@ interface GameState {
   selectGod: (id: number) => void; 
   setPlayerName: (name: string) => void; 
   authenticatedFetch: (url: string, options?: RequestInit) => Promise<any>;
-  openPrediction: (id: number, name: string) => void;
+  // 🚀 修正：引数に isMyTerritory, isNeutral を追加
+  openPrediction: (id: number, name: string, isMyTerritory?: boolean, isNeutral?: boolean) => void;
   closePrediction: () => void;
   updateBuffs: () => void;
   setStatus: (status: Partial<GameState>) => void;
   syncServerState: (data: any, myId: string) => void;
   attack: (targetId: number) => void;
+  move: (targetId: number) => void; // 🚀 追加：移動コマンド
   defend: () => void; 
   stay: () => void;
   escape: () => void;
@@ -80,14 +89,16 @@ export const useGameStore = create<GameState>((set, get) => ({
   blessing: 1.0, atk: 50, def: 40,
   turn: 0, maxTurn: 10,
   logs: ["🌞 ミッション開始。出撃地点を選択してください。"],
-  roomId: '',             // 🚀 初期値追加
-  players: [],            // 🚀 初期値を空配列に
+  roomId: '',
+  players: [],
   districts: {},
   currentDistrictName: "地点未選択", selectedDistrictId: null,
   playerName: "", myId: "",
   myTeam: "Explorer", 
   isMyTurn: true, turnOwner: "YOU",
-  isGameOver: false, isSubmitted: false,
+  isGameOver: false, 
+  winnerId: null, 
+  isSubmitted: false,
   selectedGodId: null,
   godsList: GODS_DATA,
   resultData: null,
@@ -146,7 +157,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     set((state) => ({
       selectedGodId: id,
       atk: id === 1 ? state.atk + 20 : state.atk,
-      stamina: id === 2 ? state.stamina + 30 : state.stamina,
+      maxStamina: id === 2 ? state.maxStamina + 30 : state.maxStamina,
     }));
     get().addLog(`✨ ${god.name}の加護を得た！`);
   },
@@ -160,11 +171,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     return res.json();
   },
 
-  openPrediction: (id, name) => {
+  // 🚀 修正：フラグを受け取り targetDistrictInfo に保存する
+  openPrediction: (id, name, isMyTerritory = false, isNeutral = false) => {
     set({ 
       predictionModalOpen: true, 
       selectedDistrictId: Number(id), 
-      targetDistrictInfo: { id: Number(id), name, enemyDef: 40 } 
+      targetDistrictInfo: { id: Number(id), name, enemyDef: 40, isMyTerritory, isNeutral } 
     });
   },
 
@@ -173,11 +185,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   syncServerState: (data, myId) => {
     if (!data) return;
     
-    // 🚀 修正：サーバーからの players がオブジェクトなら配列に変換、配列ならそのままセット
     const rawPlayers = data.players ?? {};
     const playersArray = Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers);
     
-    // 自分のデータを特定（配列から検索、またはオブジェクトから取得）
     const myPlayerData = Array.isArray(rawPlayers) 
       ? rawPlayers.find(p => p.id === myId)
       : rawPlayers[myId];
@@ -193,18 +203,20 @@ export const useGameStore = create<GameState>((set, get) => ({
       return {
         ...state,
         myId: myId,
-        roomId: data.roomId ?? state.roomId, // 🚀 roomId 同期
+        roomId: data.roomId ?? state.roomId,
         hp: myPlayerData?.hp ?? state.hp,
         maxHp: myPlayerData?.maxHp ?? state.maxHp,
         stamina: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.stamina,
         atk: myPlayerData?.atk ?? state.atk,
         def: myPlayerData?.def ?? state.def,
         districts: data.districts ?? state.districts,
-        players: playersArray, // 🚀 常に配列として保存
+        players: playersArray,
         turn: safeTurn,
         isMyTurn: isMe,
         turnOwner: isMe ? "YOU" : (data.turnOwnerName || "ENEMY"),
-        isSubmitted: isMe ? false : state.isSubmitted 
+        isSubmitted: isMe ? false : state.isSubmitted,
+        isGameOver: data.isGameOver ?? state.isGameOver,
+        winnerId: data.winnerId ?? state.winnerId
       };
     });
     
@@ -233,6 +245,15 @@ export const useGameStore = create<GameState>((set, get) => ({
     get().closePrediction();
   },
 
+  // 🚀 追加：自陣内の移動コマンド
+  move: (targetId) => {
+    const { isMyTurn } = get();
+    if (!isMyTurn) return;
+    socket.emit("ACTION_SUBMIT", { type: 'move', targetId: Number(targetId) });
+    get().addLog(`🚚 地区 ${targetId} へ陣形を移動！`);
+    get().closePrediction();
+  },
+
   defend: () => { 
     socket.emit("ACTION_SUBMIT", { type: 'defend' }); 
     get().addLog("🛡️ 防御。"); 
@@ -253,7 +274,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   resetGame: () => window.location.reload(),
 }));
 
-// サーバーからの実況通知
+// ソケット通知の受け口
 socket.on('GAME_LOG', (msg: string) => {
   useGameStore.getState().addLog(`🛰️ SERVER: ${msg}`);
 });

@@ -1,12 +1,53 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>cebu-conquest</title>
-  </head>
-  <body>
+    <title>Cebu Conquest - Tactical Interface</title>
 
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              brand: { DEFAULT: "#fa7000", 500: "#fa7000", 600: "#ea580c" },
+              primary: "#fa7000",
+              "tactical-orange": "#ea580c",
+              "tactical-cyan": "#06b6d4"
+            },
+            fontFamily: {
+              body: ["Inter", "sans-serif"],
+              headline: ["Inter", "sans-serif"],
+            }
+          }
+        }
+      }
+    </script>
+
+    <style>
+      /* 共通のタクティカル・エフェクト */
+      .glass-panel {
+        background: rgba(10, 10, 10, 0.8);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(234, 88, 12, 0.2);
+      }
+      .scanline {
+        background: linear-gradient(to bottom, rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%);
+        background-size: 100% 4px;
+        pointer-events: none;
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+      }
+    </style>
+  </head>
+  <body class="bg-slate-950 text-slate-100 antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
