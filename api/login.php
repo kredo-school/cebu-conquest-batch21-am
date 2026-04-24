@@ -1,5 +1,8 @@
 <?php
 
+// login.php の先頭付近に追加
+file_put_contents("debug.log", date("Y-m-d H:i:s") . " - Request received\n", FILE_APPEND);
+
 // CORS対策 (ReactからのPOSTリクエストを許可)
 header("Access-Control-Allow-Origin: http://localhost:5173");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
@@ -9,22 +12,22 @@ header("X-Content-Type-Options: nosniff"); // 追加：ブラウザによるMIME
 
 // プリフライトリクエストの処理
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(204); // 「中身はないけどOKだよ」とブラウザに伝える
-    exit();
+  http_response_code(204); // 「中身はないけどOKだよ」とブラウザに伝える
+  exit();
 }
 
 // HTTPメソッド制限（POST以外は405を返す）
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode([
-        'status' => 'error',
-        'message' => 'Method Not Allowed. This endpoint requires POST.'
-    ]);
-    exit;
+  http_response_code(405);
+  echo json_encode([
+    'status' => 'error',
+    'message' => 'Method Not Allowed. This endpoint requires POST.'
+  ]);
+  exit;
 }
 
 require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/jwt_helper.php';
+require_once __DIR__ . '/jwt-helper.php';
 
 // フロント(issei)からの入力を受け取る
 $input = json_decode(file_get_contents("php://input"), true);
@@ -34,6 +37,20 @@ $password = $input['password'] ?? '';
 if (!$username || !$password) {
   http_response_code(400);
   echo json_encode(['status' => 'error', 'message' => 'ユーザー名とパスワードを入力してください']);
+  exit;
+}
+
+// 2. ユーザー名の文字数制限 (3〜15文字)
+if (mb_strlen($username) < 3 || mb_strlen($username) > 15) {
+  http_response_code(400);
+  echo json_encode(['status' => 'error', 'message' => 'ユーザー名は3文字以上15文字以内で入力してください']);
+  exit;
+}
+
+// 3. パスワードの文字数制限 (8文字以上)
+if (strlen($password) < 8) {
+  http_response_code(400);
+  echo json_encode(['status' => 'error', 'message' => 'パスワードは8文字以上で設定してください']);
   exit;
 }
 
@@ -75,7 +92,10 @@ try {
 
     $insertSql = "INSERT INTO users (username, password, player_color, max_hp, current_hp, stamina, atk, def)
                       VALUES (?, ?, ?, 100, 100, 100, 100, 100)";
-    $pdo->prepare($insertSql)->execute([$username, $hashedPassword, $playerColor]);
+    $insertStmt = $pdo->prepare($insertSql);
+
+    // ここで実行。失敗した場合はcatchに飛びます
+    $insertStmt->execute([$username, $hashedPassword, $playerColor]);
 
     // 登録した情報を再取得
     $stmt->execute([$username]);
@@ -85,30 +105,35 @@ try {
 
   $pdo->commit();
 
-    // JWTトークンの生成 (jwt_helper.php の関数名に合わせる)
-    $token = createJWT($user['id'], $user['username']);
+  // JWTトークンの生成 (jwt-helper.php の関数名に合わせる)
+  $token = createJWT($user['id'], $user['username']);
 
-   // レスポンス（dataキーで包む形式を維持）
-    echo json_encode([
-        'status'  => 'success',
-        'message' => $message,
-        'data'    => [
-            'token' => $token,
-            'user'  => [
-                'id'           => (int)$user['id'],
-                'username'     => $user['username'],
-                'player_color' => $user['player_color'],
-                'current_hp'   => (int)$user['current_hp'],
-                'max_hp'       => (int)$user['max_hp'],
-                'stamina'      => (int)$user['stamina'],
-                'atk'          => (int)$user['atk'],
-                'def'          => (int)$user['def']
-            ]
-        ]
-    ], JSON_UNESCAPED_UNICODE);
+  // レスポンス（dataキーで包む形式を維持）
+  echo json_encode([
+    'status'  => 'success',
+    'message' => $message,
+    'data'    => [
+      'token' => $token,
+      'user'  => [
+        'id'           => (int)$user['id'],
+        'username'     => $user['username'],
+        'player_color' => $user['player_color'],
+        'current_hp'   => (int)$user['current_hp'],
+        'max_hp'       => (int)$user['max_hp'],
+        'stamina'      => (int)$user['stamina'],
+        'atk'          => (int)$user['atk'],
+        'def'          => (int)$user['def']
+      ]
+    ]
+  ], JSON_UNESCAPED_UNICODE);
 
+} catch (PDOException $e) { // PDO特有のエラーをキャッチ
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    http_response_code(500);
+    // 開発用：具体的なエラー理由を表示（本番では message を伏せるのが安全）
+    echo json_encode(['status' => 'error', 'message' => 'DBエラー: ' . $e->getMessage()]);
 } catch (Exception $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    echo json_encode(['status' => 'error', 'message' => 'サーバーエラー: ' . $e->getMessage()]);
 }

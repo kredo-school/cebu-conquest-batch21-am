@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // 依存ファイルの読み込み
-require_once __DIR__ . '/jwt_helper.php';
+require_once __DIR__ . '/jwt-helper.php';
 require_once __DIR__ . '/../config/database.php';
 
 // JWT認証チェック (検問開始)

@@ -2,6 +2,7 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- 2. 並び順を修正（参照している「子」から先に消す）
+DROP TABLE IF EXISTS rooms;
 DROP TABLE IF EXISTS gods;          -- items を参照しているので一番先に消す！
 DROP TABLE IF EXISTS user_items;    -- items, users を参照しているので先に消す
 DROP TABLE IF EXISTS occupations;   -- spots, users を参照しているので先に消す
@@ -39,6 +40,18 @@ CREATE TABLE users (
     atk INT DEFAULT 100, 
     def INT DEFAULT 100,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE rooms (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    room_key VARCHAR(10) UNIQUE NOT NULL,
+    host_user_id INT NOT NULL,
+    guest_user_id INT DEFAULT NULL,
+    status ENUM('waiting', 'playing', 'finished') DEFAULT 'waiting',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 外部キー制約を追加してデータの整合性を守る
+    FOREIGN KEY (host_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (guest_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE spots (
