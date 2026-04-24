@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../store';
-import socket from '../socket'; // ソケット通信用
 
 interface GodSelectionViewProps {
   onComplete: () => void;
@@ -18,55 +17,65 @@ const GOD_SLOTS = [
 ];
 
 export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }) => {
-  const { setStatus, players, myId, selectedGodId } = useGameStore();
+  const { selectGod, players, myId, selectedGodId } = useGameStore();
   const [isDeploying, setIsDeploying] = useState(false);
 
-  // 🚀 他のプレイヤーの選択状態をチェック
+  // 🚀 【真の修正】Reactの再描画に負けない「絶対時間」を保存する
+  const targetTimeRef = useRef(0);
+
+  const humanPlayers = players.filter(p => !p.isNpc);
+  const totalCount = humanPlayers.length;
+  const readyCount = humanPlayers.filter(p => p.selectedGodId).length;
+
   const getLockInfo = (godId: number) => {
     const selector = players.find(p => p.id !== myId && p.selectedGodId === godId);
-    if (selector) {
-      return { 
-        name: selector.name || "Operator", 
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${selector.name}` 
-      };
-    }
+    if (selector) return { name: selector.username || "Operator", avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${selector.username || selector.id}` };
     return null;
   };
 
-  // 🚀 選択をサーバーに即時通知（ここではまだ遷移しない）
   const handleSelect = (godId: number) => {
-    if (selectedGodId) return; // 既に選択済みならガード
-    socket.emit('SELECT_GOD', { godId });
-    setStatus({ selectedGodId: godId });
+    if (selectedGodId) return; 
+    selectGod(godId); 
   };
 
-  // 🚀 全員の準備が整ったか監視
+  // 🚀 究極のタイマーロジック
   useEffect(() => {
-    // 全員が selectedGodId を持っているか判定
-    const allReady = players.length > 0 && players.every(p => p.selectedGodId);
+    const allReady = totalCount > 0 && readyCount >= totalCount;
 
-    if (allReady && selectedGodId && !isDeploying) {
-      setIsDeploying(true);
-      // 演出を見せてから完了通知
+    // 条件を満たした、またはすでに出撃シーケンスに入っているなら
+    if ((allReady && selectedGodId) || isDeploying) {
+      if (!isDeploying) setIsDeploying(true);
+
+      // 初回のみ目標時間をセット（現在時刻 + 2.5秒）
+      if (targetTimeRef.current === 0) {
+        targetTimeRef.current = Date.now() + 2500;
+      }
+
+      // 残り時間を計算してタイマーをセット
+      const delay = Math.max(0, targetTimeRef.current - Date.now());
       const timer = setTimeout(() => {
         onComplete();
-      }, 2000);
+      }, delay);
+
+      // 画面が再描画されても、残りの秒数で正しくタイマーが再開される
       return () => clearTimeout(timer);
     }
-  }, [players, selectedGodId, isDeploying, onComplete]);
+  }, [totalCount, readyCount, selectedGodId, isDeploying, onComplete]);
 
   return (
     <div className="fixed inset-0 z-[10000] bg-slate-950 font-body text-slate-200 antialiased overflow-hidden select-none flex items-center justify-center">
       
-      {/* 🚀 出撃時のオーバーレイ演出 */}
-      <div className={`fixed inset-0 z-[10001] bg-slate-950 transition-opacity duration-1000 pointer-events-none flex items-center justify-center ${isDeploying ? 'opacity-100' : 'opacity-0'}`}>
+      {/* 🚀 デプロイ開始オーバーレイ */}
+      <div className={`fixed inset-0 z-[10001] bg-slate-950 transition-opacity duration-1000 pointer-events-none flex flex-col items-center justify-center ${isDeploying ? 'opacity-100' : 'opacity-0'}`}>
         <div className="text-center">
-          <div className="text-brand-500 text-sm font-black tracking-[0.5em] uppercase mb-4 animate-pulse">All Operators Synchronized</div>
-          <div className="text-5xl font-black text-white italic tracking-tighter uppercase">Initiating Deployment...</div>
+          <div className="text-brand-500 text-sm font-black tracking-[0.6em] uppercase mb-6 animate-pulse">Neural Link Established</div>
+          <div className="text-6xl font-black text-white italic tracking-tighter uppercase mb-2">Deploying Squad...</div>
+          <div className="h-1 w-64 bg-slate-800 mx-auto overflow-hidden rounded-full">
+            <div className="h-full bg-brand-500 animate-progressBar"></div>
+          </div>
         </div>
       </div>
 
-      {/* 背景エフェクト */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-slate-950/80"></div>
@@ -82,18 +91,18 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
                 Choose your <span className="text-brand-500">Divine Blessing</span>
               </h1>
               <div className="flex items-center gap-3 mt-3">
-                <span className={`w-3 h-3 rounded-full animate-pulse ${selectedGodId ? 'bg-orange-500' : 'bg-cyan-400'}`}></span>
-                <span className={`text-xs uppercase tracking-[0.4em] font-bold italic ${selectedGodId ? 'text-orange-500' : 'text-cyan-400'}`}>
+                <span className={`w-3 h-3 rounded-full animate-pulse ${selectedGodId ? 'bg-brand-500' : 'bg-cyan-400'}`}></span>
+                <span className={`text-[10px] uppercase tracking-[0.4em] font-bold italic ${selectedGodId ? 'text-brand-500' : 'text-cyan-400'}`}>
                     {selectedGodId 
-                      ? "Awaiting squad synchronization..." 
-                      : `${players.length} Operators Connected - First Come, First Served!`}
+                      ? "Awaiting other operators to finalize link..." 
+                      : `Priority Protocol Active - Choose your guardian`}
                 </span>
               </div>
             </div>
           </div>
 
           <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 min-h-full">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 min-h-full">
               {GOD_SLOTS.map((god) => {
                 const lock = getLockInfo(god.id);
                 const isSelectedByMe = selectedGodId === god.id;
@@ -102,57 +111,59 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
                 return (
                   <div 
                     key={god.id} 
-                    className={`group relative flex flex-col transition-all duration-500 tactical-border h-full shadow-xl border ${
-                      lock || isOtherSelected
-                        ? "bg-red-950/20 border-red-900/50 opacity-40 scale-[0.98] grayscale pointer-events-none" 
+                    onClick={() => !lock && !selectedGodId && handleSelect(god.id)}
+                    className={`group relative flex flex-col transition-all duration-500 tactical-border h-full border ${
+                      lock 
+                        ? "bg-red-950/10 border-red-900/30 opacity-40 grayscale cursor-not-allowed" 
                         : isSelectedByMe
-                        ? "bg-brand-500/10 border-brand-500 shadow-[0_0_30px_rgba(250,112,0,0.3)] scale-[1.02]"
-                        : "bg-slate-900/60 border-slate-800/50 hover:border-brand-500 hover:bg-slate-800/80 hover:-translate-y-2 cursor-pointer"
+                        ? "bg-brand-500/10 border-brand-500 shadow-[0_0_30px_rgba(250,112,0,0.2)] scale-[1.02] z-10"
+                        : isOtherSelected
+                        ? "bg-slate-900/20 border-slate-800/30 opacity-50 pointer-events-none"
+                        : "bg-slate-900/60 border-slate-800/50 hover:border-brand-500/50 hover:bg-slate-800/80 hover:-translate-y-1 cursor-pointer"
                     }`}
                   >
-                    <div className="relative h-44 lg:h-52 overflow-hidden border-b border-white/10 shrink-0">
-                      <img src={god.img} className="w-full h-full object-cover" alt={god.name} />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 to-transparent opacity-80"></div>
+                    <div className="relative h-44 overflow-hidden border-b border-white/5 shrink-0">
+                      <img src={god.img} className={`w-full h-full object-cover transition-transform duration-700 ${isSelectedByMe ? 'scale-110' : 'group-hover:scale-105'}`} alt={god.name} />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 to-transparent opacity-60"></div>
                       
                       {lock && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-950/40 backdrop-blur-sm">
-                          <img src={lock.avatar} className="w-12 h-12 rounded-full border-2 border-red-500 p-0.5 mb-2 bg-slate-900 shadow-lg" alt="locked by" />
-                          <span className="text-[10px] font-black text-red-500 uppercase tracking-widest bg-slate-950 px-2 py-1">CLAIMED BY {lock.name}</span>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-950/60 backdrop-blur-[2px]">
+                          <img src={lock.avatar} className="w-10 h-10 rounded-full border-2 border-red-500 p-0.5 mb-2 bg-slate-900" alt="locked" />
+                          <span className="text-[8px] font-black text-red-500 uppercase tracking-widest bg-slate-950 px-2 py-1">CLAIMED BY {lock.name}</span>
                         </div>
                       )}
 
-                      <div className="absolute top-3 right-3 bg-cyan-950/80 px-3 py-1 text-[9px] font-black text-cyan-400 border border-cyan-400/30 uppercase tracking-widest">
+                      <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md px-2 py-1 text-[8px] font-black text-cyan-400 border border-cyan-400/20 uppercase tracking-widest">
                         {god.role}
                       </div>
                     </div>
 
-                    <div className="p-6 flex flex-col justify-between flex-1 gap-4">
+                    <div className="p-5 flex flex-col justify-between flex-1 gap-4">
                       <div>
-                        <h3 className={`text-2xl font-black tracking-tighter uppercase mb-1 ${lock ? 'text-red-900' : 'text-white'}`}>
+                        <h3 className={`text-xl font-black tracking-tighter uppercase mb-1 ${lock ? 'text-slate-600' : 'text-white'}`}>
                           {god.name}
                         </h3>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded ${lock ? 'bg-red-950/40 text-red-900' : 'bg-brand-500/10 text-brand-500 border border-brand-500/20'}`}>
-                            {god.bonus}
-                          </span>
-                        </div>
-                        <p className={`text-[11px] leading-relaxed mt-4 font-medium italic ${lock ? 'text-red-900/60' : 'text-slate-400'}`}>
+                        <span className={`text-[9px] font-black px-2 py-0.5 rounded inline-block ${lock ? 'bg-slate-900 text-slate-700' : 'bg-brand-500/10 text-brand-500 border border-brand-500/20'}`}>
+                          {god.bonus}
+                        </span>
+                        <p className={`text-[10px] leading-relaxed mt-3 font-medium italic ${lock ? 'text-slate-700' : 'text-slate-400'}`}>
                           {god.desc}
                         </p>
                       </div>
                       
                       <button 
-                        onClick={() => !lock && !selectedGodId && handleSelect(god.id)}
                         disabled={!!lock || !!selectedGodId}
-                        className={`w-full py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${
+                        className={`w-full py-3 text-[9px] font-black uppercase tracking-[0.2em] transition-all duration-300 border ${
                           isSelectedByMe
                             ? "bg-brand-500 text-slate-950 border-brand-500 animate-pulse"
-                            : lock || isOtherSelected
-                            ? "bg-transparent text-slate-700 border border-slate-800/30 cursor-not-allowed" 
-                            : "bg-slate-800 text-white border border-slate-700 group-hover:bg-brand-500 group-hover:text-slate-950 group-hover:border-brand-500 shadow-lg"
+                            : lock
+                            ? "bg-transparent text-slate-700 border-slate-800/30" 
+                            : isOtherSelected
+                            ? "bg-transparent text-slate-800 border-transparent"
+                            : "bg-slate-800 text-white border-slate-700 group-hover:bg-brand-500 group-hover:text-slate-950 group-hover:border-brand-500 shadow-lg"
                         }`}
                       >
-                        {isSelectedByMe ? "WAITING FOR OTHERS..." : lock ? "UNAVAILABLE" : "Synchronize"}
+                        {isSelectedByMe ? "LINK ESTABLISHED" : lock ? "UNAVAILABLE" : "Synchronize Link"}
                       </button>
                     </div>
                   </div>
@@ -162,11 +173,26 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
           </div>
 
           <div className="px-12 py-6 border-t border-white/5 bg-black/40 flex items-center justify-between">
-             <span className={`text-[10px] font-black uppercase tracking-[0.5em] ${selectedGodId ? 'text-brand-500 animate-pulse' : 'text-slate-500'}`}>
-                {selectedGodId ? "SYSTEM:// UPLINK_ESTABLISHED. AWAITING_ALL_OPERATORS..." : "System:// Awaiting_Squad_Synchronization..."}
+             <span className={`text-[10px] font-black uppercase tracking-[0.5em] ${selectedGodId || isDeploying ? 'text-brand-500' : 'text-slate-500'}`}>
+                {selectedGodId || isDeploying
+                  ? `SYSTEM:// UPLINK_ESTABLISHED. [ ${readyCount} / ${totalCount} READY ]` 
+                  : "System:// Neural_Link_Pending..."}
              </span>
-             <div className="flex items-center gap-4 text-brand-500 font-black text-[10px] italic">
-                BE QUICK. POWER IS FINITE.
+             
+             <div className="flex gap-4 items-center">
+                {/* 🚀 ゴースト回避用：演出中か選択済みなら必ず表示 */}
+                {(selectedGodId || isDeploying) && (
+                  <button
+                    onClick={() => onComplete()}
+                    className="text-[10px] font-black tracking-widest bg-red-900/40 text-red-400 border border-red-500/50 px-4 py-2 hover:bg-red-600 hover:text-white transition-all rounded pointer-events-auto shadow-lg"
+                  >
+                    FORCE DEPLOY
+                  </button>
+                )}
+                <div className="text-brand-500 font-black text-[9px] flex gap-8 italic">
+                   <span>ENCRYPTION: AES-256</span>
+                   <span>STATUS: OPERATIONAL</span>
+                </div>
              </div>
           </div>
         </div>
@@ -179,6 +205,13 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
         .scanline {
           background: linear-gradient(to bottom, rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
           background-size: 100% 4px;
+        }
+        @keyframes progressBar {
+          0% { width: 0%; }
+          100% { width: 100%; }
+        }
+        .animate-progressBar {
+          animation: progressBar 2.5s ease-in-out forwards;
         }
       `}</style>
     </div>

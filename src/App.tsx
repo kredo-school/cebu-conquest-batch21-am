@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react'; // 🚀 useCallbackを追加
 import socket from './socket';
 import { useGameStore } from './store';
 
@@ -31,7 +31,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<'login' | 'setup' | 'lobby' | 'selection' | 'game'>('login');
   const [playerName, setLocalPlayerName] = useState('');
 
-  // view 変化に応じた BGM 切り替え（game 画面は MainScene.create() が担当）
+  // view 変化に応じた BGM 切り替え
   useEffect(() => {
     const bgmKey: Record<string, string> = { title: 'title', login: 'lobby', lobby: 'lobby' };
     if (bgmKey[view]) SoundManager.playBgm(bgmKey[view]);
@@ -60,7 +60,6 @@ const App: React.FC = () => {
     });
 
     socket.on('gameStart', () => {
-      // マッチング完了時はまず「守護神選択」へ
       setView('selection');
       addLog("🚀 マッチング完了。守護神の加護を選択してください");
     });
@@ -76,6 +75,20 @@ const App: React.FC = () => {
       setStatus({ isGameOver: true, winnerId: data.winnerId });
     });
 
+    // --- 🛠️ デバッグ・ワープ・退出用イベントリスナー ---
+    const handleForceSelection = () => {
+      setView('selection');
+      addLog("🛠️ DEBUG: 守護神選択フェーズへ移行します");
+    };
+
+    const handleAbortToSetup = () => {
+      setView('setup');
+      addLog("⚠️ MISSION ABORTED: 作戦を中止し、ベースに帰還しました");
+    };
+
+    window.addEventListener('DEBUG_START_SELECTION', handleForceSelection);
+    window.addEventListener('DEBUG_GOTO_SETUP', handleAbortToSetup);
+
     // --- 🎮 Phaserブリッジ ---
     const handleUpdateStatus = (e: any) => {
       if (useGameStore.getState().isGameOver) return;
@@ -83,41 +96,31 @@ const App: React.FC = () => {
     };
 
     const handleDistrictSelected = (e: any) => {
-      // payload: { districtId, districtName, isMyTerritory, isNeutral }
       const payload = e.detail;
-      
-      // まだPhaser側が古い数字だけのデータを送ってきた場合の互換性対策
       const districtId = payload.districtId ?? payload;
       const districtName = payload.districtName || `地区 ${districtId}`;
-      
       const currentState = useGameStore.getState();
 
-      // 状態に選択した地区IDをセット
       setStatus({ selectedDistrictId: districtId });
 
-      // 1. 初期配置フェーズ（turn === 0）の処理
       if (currentState.turn === 0) {
         addLog(`📍 初期配置: ${districtName} を選択中...`);
-        return; // 初期配置中はモーダルを出さない
+        return;
       }
 
-      // 2. 自分のターンでない場合は何もしない（偵察のみ）
       if (!currentState.isMyTurn) {
         addLog(`👀 偵察: ${districtName}`);
         return;
       }
 
-      // 3. ゲーム進行中（自分のターン）の処理
-      // 🚀 修正：isMyTerritory と isNeutral のフラグを store に渡す
       openPrediction(districtId, districtName, payload.isMyTerritory, payload.isNeutral);
       
-      // payloadのフラグを使ってログを出し分ける
       if (payload.isMyTerritory) {
-        addLog(`🚚 兵站確認: 自陣 ${districtName} を選択。移動・補給が可能です。`);
+        addLog(`🚚 兵站確認: 自陣 ${districtName} を選択。`);
       } else if (payload.isNeutral) {
-        addLog(`🏳️ 空白地発見: ${districtName} は無人です。無血開城が可能です。`);
+        addLog(`🏳️ 空白地発見: ${districtName} は無人です。`);
       } else {
-        addLog(`🎯 ターゲット確認: 敵陣 ${districtName} を捕捉。攻撃指示を待機中。`);
+        addLog(`🎯 ターゲット確認: 敵陣 ${districtName} を捕捉。`);
       }
     };
 
@@ -131,6 +134,8 @@ const App: React.FC = () => {
       socket.off('gameStart');
       socket.off(SERVER_EVENTS.ACTION_RESULT);
       socket.off(SERVER_EVENTS.GAME_OVER);
+      window.removeEventListener('DEBUG_START_SELECTION', handleForceSelection);
+      window.removeEventListener('DEBUG_GOTO_SETUP', handleAbortToSetup);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleDistrictSelected);
     };
@@ -144,66 +149,60 @@ const App: React.FC = () => {
     setView('setup'); 
   };
 
-  // ルームが確定（作成 or 参加）した時の処理
+  // ルーム確定
   const handleJoinSuccess = (joinedRoomId: string) => {
     setStatus({ roomId: joinedRoomId });
     setView('lobby'); 
   };
 
-  // ハンドラー：初期配置確定
+  // 初期配置確定
   const handleFinalDeploy = () => {
     if (selectedDistrictId) {
-      socket.emit("READY_TO_START", { 
+      // 🚀 修正：サーバー側の待機イベント名 "PLAYER_READY" に合わせました
+      socket.emit("PLAYER_READY", { 
         username: playerName || storePlayerName || 'Guest', 
         startDistrictId: selectedDistrictId 
       });
       window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, {
         detail: { districtId: selectedDistrictId }
       }));
-      addLog(`🚀 地区 ${selectedDistrictId} への配置完了。マッチング相手を待機中...`);
+      addLog(`🚀 地区 ${selectedDistrictId} への配置完了。`);
       setStatus({ selectedDistrictId: null });
     }
   };
 
-  // ハンドラー：リザルト画面からの再スタート（ページリロード）
+  // リスタート
   const handleRestart = () => {
     window.location.reload();
   };
 
+  // 🚀 修正：画面遷移関数を固定化（再描画時のタイマーリセットを防ぐ）
+  const handleSelectionComplete = useCallback(() => {
+    setView('game');
+  }, []);
+
   // --- 🎥 ビューの分岐 ---
   if (view === 'login') return <LoginView onLogin={handleLoginSubmit} />;
-  
   if (view === 'setup') return <LobbySetupView onJoinSuccess={handleJoinSuccess} />;
-
   if (view === 'lobby') return <LobbyView roomId={roomId} players={players} />;
   
   if (view === 'selection') {
-    return <GodSelectionView onComplete={() => setView('game')} />;
+    // 🚀 修正：固定化した関数を渡す
+    return <GodSelectionView onComplete={handleSelectionComplete} />;
   }
   
-  // ゲーム本編（ここから Sidebar と Phaser を表示）
   return (
     <div className="flex w-screen h-screen overflow-hidden bg-slate-950 text-slate-100 font-body">
-      {/* 左側: Sidebar */}
       <Sidebar />
-
-      {/* 右側: Main Area */}
       <div className="flex-1 relative overflow-hidden flex flex-col">
-        {/* Phaser コンテナ */}
         <div className="absolute inset-0 z-0">
           <PhaserGameView ref={gameRef} playerName={playerName || storePlayerName} />
           <div className="absolute inset-0 bg-[linear-gradient(rgba(249,115,22,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(249,115,22,0.05)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
         </div>
-
-        {/* UIレイヤー */}
         <div className="relative z-10 w-full h-full pointer-events-none flex flex-col">
           <HUD />
           <BattleModal />
-          
-          {/* リザルト画面を配置（ゲーム終了時のみ表示） */}
           <ResultView onRestart={handleRestart} />
-
-          {/* 初期配置ボタン (Turn 0 の時だけ中央に出す) */}
           {turn === 0 && selectedDistrictId && (
             <div className="absolute bottom-40 left-1/2 -translate-x-1/2 z-[1000] pointer-events-auto">
               <button 

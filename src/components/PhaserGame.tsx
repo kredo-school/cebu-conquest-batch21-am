@@ -20,34 +20,9 @@ export const PhaserGameView = forwardRef<any, PhaserGameProps>((props, ref) => {
     },
   }));
 
+  // 🚀 1. ゲーム本体の初期化（マウント時に1回だけ実行）
   useEffect(() => {
-    if (!containerRef.current) return;
-
-    const config = {
-      type: Phaser.AUTO,
-      width: containerRef.current.offsetWidth || window.innerWidth - 320,
-      height: containerRef.current.offsetHeight || window.innerHeight,
-      backgroundColor: "#1a1a2e",
-      scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
-      scene: [MainScene],
-      parent: "phaser-container",
-    };
-
-    if (!gameRef.current) {
-      const game = new Phaser.Game(config);
-      gameRef.current = game;
-      game.registry.set("playerName", playerName);
-    }
-
-    return () => {
-      gameRef.current?.destroy(true);
-      gameRef.current = null;
-    };
-  }, [playerName]);
-
-  // src/components/PhaserGame.tsx
-  useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || gameRef.current) return;
 
     // 🛑 ピンチによるページ全体ズームを無効化
     const preventBrowserZoom = (e: WheelEvent) => {
@@ -58,13 +33,12 @@ export const PhaserGameView = forwardRef<any, PhaserGameProps>((props, ref) => {
     const container = containerRef.current;
     container.addEventListener("wheel", preventBrowserZoom, { passive: false });
 
-    const config = {
+    const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
-      width: containerRef.current.offsetWidth || window.innerWidth - 320,
-      height: containerRef.current.offsetHeight || window.innerHeight,
+      width: container.offsetWidth || window.innerWidth - 320,
+      height: container.offsetHeight || window.innerHeight,
       backgroundColor: "#1a1a2e",
-      // 🚀 【修正】RESIZEモードと矛盾する autoCenter: CENTER_BOTH を削除しました
-      // これでリサイズ時にカメラ位置が狂うのを防ぎます
+      // 🚀 RESIZEモードを維持
       scale: { 
         mode: Phaser.Scale.RESIZE 
       },
@@ -72,10 +46,11 @@ export const PhaserGameView = forwardRef<any, PhaserGameProps>((props, ref) => {
       parent: "phaser-container",
     };
 
-    // 🚀 【重要】二重起動を防ぐため、存在しない時だけ新規作成
+    // 🚀 二重起動を防ぐため、存在しない時だけ新規作成
     if (!gameRef.current) {
       const game = new Phaser.Game(config);
       gameRef.current = game;
+      // 初回名前セット
       game.registry.set("playerName", playerName);
     }
 
@@ -85,10 +60,17 @@ export const PhaserGameView = forwardRef<any, PhaserGameProps>((props, ref) => {
         gameRef.current.destroy(true);
         gameRef.current = null;
       }
+      container.removeEventListener("wheel", preventBrowserZoom);
     };
-    // 🚀 【修正】依存配列から playerName を削除して空 [] にしました
-    // これにより、ログインして名前が決まった瞬間にゲームが最初からやり直しになるバグを防ぎます
+    // 🚀 依存配列を空にすることで、playerNameが変わってもゲームを再起動させない
   }, []); 
+
+  // 🚀 2. プレイヤー名の同期（名前がReact側で確定・変更された時だけPhaserに伝える）
+  useEffect(() => {
+    if (gameRef.current) {
+      gameRef.current.registry.set("playerName", playerName);
+    }
+  }, [playerName]);
 
   return (
     <div 

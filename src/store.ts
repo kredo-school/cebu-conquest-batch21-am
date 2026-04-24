@@ -1,7 +1,14 @@
 import { create } from 'zustand';
 import socket from './socket';
 
-// 🚀 8つの神様（加護）スロット定義をここに統合（UIと合わせるため）
+// 🚀 チャットメッセージの型定義
+interface ChatMessage {
+  sender: string;
+  message: string;
+  color?: string;
+  timestamp: string;
+}
+
 const GODS_DATA = [
   { id: 1, name: "LAPU-LAPU", role: "WAR GOD", bonus: "ATK +20", img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "近接攻撃ダメージを25%上昇させる。" },
   { id: 2, name: "SEBUNA", role: "HARVEST", bonus: "MAX AP +30", img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400", desc: "タクティカル・スタミナの最大値を増加。" },
@@ -28,6 +35,7 @@ const API_BASE = "http://localhost/cebu-conquest/cebu-conquest-batch21-am/api";
 interface GameState {
   token: string | null;
   isAuthenticated: boolean;
+  isServerOnline: boolean; 
   hp: number;
   maxHp: number;
   stamina: number;
@@ -38,8 +46,10 @@ interface GameState {
   turn: number; 
   maxTurn: number;
   logs: string[]; 
+  chatLogs: ChatMessage[]; 
   roomId: string;
   players: any[];
+  maxPlayers: number; 
   districts: Record<string, string>;
   currentDistrictName: string;
   selectedDistrictId: number | null;
@@ -55,7 +65,6 @@ interface GameState {
   godsList: typeof GODS_DATA;
   resultData: any | null;
   predictionModalOpen: boolean;
-  // 🚀 修正：isMyTerritory と isNeutral を追加
   targetDistrictInfo: { id: number; name: string; enemyDef: number; isMyTerritory?: boolean; isNeutral?: boolean } | null;
   activeBuffs: { id: number; name: string; effect: string }[];
 
@@ -65,32 +74,34 @@ interface GameState {
   selectGod: (id: number) => void; 
   setPlayerName: (name: string) => void; 
   authenticatedFetch: (url: string, options?: RequestInit) => Promise<any>;
-  // 🚀 修正：引数に isMyTerritory, isNeutral を追加
   openPrediction: (id: number, name: string, isMyTerritory?: boolean, isNeutral?: boolean) => void;
   closePrediction: () => void;
   updateBuffs: () => void;
   setStatus: (status: Partial<GameState>) => void;
   syncServerState: (data: any, myId: string) => void;
   attack: (targetId: number) => void;
-  move: (targetId: number) => void; // 🚀 追加：移動コマンド
-  defend: () => void; 
+  move: (targetId: number) => void;
   stay: () => void;
   escape: () => void;
   endTurn: () => void; 
   addLog: (text: string) => void;
+  addChatLog: (msg: ChatMessage) => void; 
   resetGame: () => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
   token: typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null,
   isAuthenticated: !!(typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null),
+  isServerOnline: socket.connected, 
   hp: 100, maxHp: 100,
   stamina: 100, maxStamina: 100,
   blessing: 1.0, atk: 50, def: 40,
   turn: 0, maxTurn: 10,
   logs: ["🌞 ミッション開始。出撃地点を選択してください。"],
+  chatLogs: [], 
   roomId: '',
   players: [],
+  maxPlayers: 4, 
   districts: {},
   currentDistrictName: "地点未選択", selectedDistrictId: null,
   playerName: "", myId: "",
@@ -151,15 +162,25 @@ export const useGameStore = create<GameState>((set, get) => ({
     get().addLog(`⏩ ターン進行: Turn ${nextT}`);
   },
 
+  // 🚀 修正：神様選択時にサーバーへ通知するようアップデート
   selectGod: (id: number) => {
+    const { isSubmitted, roomId } = get();
+    if (isSubmitted) return; // 決定済みなら変更不可
+
     const god = GODS_DATA.find(g => g.id === id);
     if (!god) return;
+
+    // サーバーに選択をリクエスト（他のプレイヤーと同期するため）
+    socket.emit("SELECT_GOD", { roomId, godId: id });
+
     set((state) => ({
       selectedGodId: id,
-      atk: id === 1 ? state.atk + 20 : state.atk,
-      maxStamina: id === 2 ? state.maxStamina + 30 : state.maxStamina,
+      // ローカルでの仮計算（最終的な値はサーバーからの同期を待つのが理想的）
+      atk: id === 1 ? 50 + 20 : 50,
+      maxStamina: id === 2 ? 100 + 30 : 100,
     }));
-    get().addLog(`✨ ${god.name}の加護を得た！`);
+    
+    get().addLog(`⚡ ${god.name} へのリンクをリクエスト中...`);
   },
 
   setPlayerName: (name) => set({ playerName: name }),
@@ -171,7 +192,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     return res.json();
   },
 
-  // 🚀 修正：フラグを受け取り targetDistrictInfo に保存する
   openPrediction: (id, name, isMyTerritory = false, isNeutral = false) => {
     set({ 
       predictionModalOpen: true, 
@@ -184,34 +204,25 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   syncServerState: (data, myId) => {
     if (!data) return;
-    
     const rawPlayers = data.players ?? {};
     const playersArray = Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers);
-    
-    const myPlayerData = Array.isArray(rawPlayers) 
-      ? rawPlayers.find(p => p.id === myId)
-      : rawPlayers[myId];
+    const myPlayerData = Array.isArray(rawPlayers) ? rawPlayers.find(p => p.id === myId) : rawPlayers[myId];
     
     set((state) => {
-      const isAlreadyOnMap = !!myPlayerData?.districtId;
-      let safeTurn = data.turn;
-      if (isAlreadyOnMap && data.turn === 0) {
-        safeTurn = state.turn > 0 ? state.turn : 1; 
-      }
-
       const isMe = data.turnOwnerId === myId;
       return {
         ...state,
         myId: myId,
         roomId: data.roomId ?? state.roomId,
+        maxPlayers: data.maxPlayers ?? state.maxPlayers,
         hp: myPlayerData?.hp ?? state.hp,
         maxHp: myPlayerData?.maxHp ?? state.maxHp,
         stamina: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.stamina,
         atk: myPlayerData?.atk ?? state.atk,
         def: myPlayerData?.def ?? state.def,
         districts: data.districts ?? state.districts,
-        players: playersArray,
-        turn: safeTurn,
+        players: playersArray, // 🚀 ここに他プレイヤーの selectedGodId が入ってくる
+        turn: data.turn ?? state.turn,
         isMyTurn: isMe,
         turnOwner: isMe ? "YOU" : (data.turnOwnerName || "ENEMY"),
         isSubmitted: isMe ? false : state.isSubmitted,
@@ -219,21 +230,14 @@ export const useGameStore = create<GameState>((set, get) => ({
         winnerId: data.winnerId ?? state.winnerId
       };
     });
-    
     window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: data.players } }));
     get().updateBuffs();
   },
 
   updateBuffs: () => {
     const { districts, myId } = get();
-    const myDistrictIds = Object.entries(districts)
-      .filter(([_, ownerId]) => ownerId === myId)
-      .map(([id, _]) => Number(id)); 
-    
-    const buffs = myDistrictIds
-      .filter(id => SPECIALTY_DATA[id])
-      .map(id => ({ id, ...SPECIALTY_DATA[id] }));
-    
+    const myDistrictIds = Object.entries(districts).filter(([_, ownerId]) => ownerId === myId).map(([id, _]) => Number(id)); 
+    const buffs = myDistrictIds.filter(id => SPECIALTY_DATA[id]).map(id => ({ id, ...SPECIALTY_DATA[id] }));
     set({ activeBuffs: buffs });
   },
 
@@ -245,18 +249,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     get().closePrediction();
   },
 
-  // 🚀 追加：自陣内の移動コマンド
   move: (targetId) => {
     const { isMyTurn } = get();
     if (!isMyTurn) return;
     socket.emit("ACTION_SUBMIT", { type: 'move', targetId: Number(targetId) });
     get().addLog(`🚚 地区 ${targetId} へ陣形を移動！`);
     get().closePrediction();
-  },
-
-  defend: () => { 
-    socket.emit("ACTION_SUBMIT", { type: 'defend' }); 
-    get().addLog("🛡️ 防御。"); 
   },
 
   stay: () => { 
@@ -271,10 +269,29 @@ export const useGameStore = create<GameState>((set, get) => ({
   endTurn: () => { socket.emit("ACTION_SUBMIT", { type: 'turn_end' }); set({ isMyTurn: false, isSubmitted: true }); },
   setStatus: (newStatus) => set((state) => ({ ...state, ...newStatus })),
   addLog: (text) => set((state) => ({ logs: [text, ...state.logs].slice(0, 10) })),
+  addChatLog: (msg) => set((state) => ({ chatLogs: [...state.chatLogs, msg].slice(-50) })),
   resetGame: () => window.location.reload(),
 }));
 
-// ソケット通知の受け口
+// --- 📡 Socket リスナー ---
+
+socket.on('connect', () => {
+  useGameStore.getState().setStatus({ isServerOnline: true });
+});
+
+socket.on('disconnect', () => {
+  useGameStore.getState().setStatus({ isServerOnline: false });
+});
+
+socket.on('RECEIVE_CHAT', (data: any) => {
+  useGameStore.getState().addChatLog({
+    sender: data.sender,
+    message: data.message,
+    color: data.color || '#cbd5e1',
+    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  });
+});
+
 socket.on('GAME_LOG', (msg: string) => {
   useGameStore.getState().addLog(`🛰️ SERVER: ${msg}`);
 });
