@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/jwt_helper.php';
+require_once __DIR__ . '/jwt-helper.php';
 
 // JWT検問
 $headers = getallheaders();

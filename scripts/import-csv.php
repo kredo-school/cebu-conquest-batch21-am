@@ -23,7 +23,7 @@ try {
 
     // --- 2. 徹底掃除 (TRUNCATE は親テーブルに使えないので DELETE を使います) ---
     // これが今回の #1701 エラーを解決するための最大のポイントです
-    $tables = ['user_items', 'occupations', 'items', 'spots', 'match_results', 'areas', 'islands', 'gods', 'users'];
+    $tables = ['rooms', 'user_items', 'occupations', 'items', 'spots', 'match_results', 'areas', 'islands', 'gods', 'users'];
     foreach ($tables as $table) {
         // DELETE FROM ならば親子関係があっても制約無視(0)の状態なら確実に掃除可能です
         $pdo->exec("DELETE FROM $table");
@@ -85,6 +85,18 @@ try {
         atk INT DEFAULT 100,
         def INT DEFAULT 100,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+    // room
+    $pdo->exec("CREATE TABLE IF NOT EXISTS rooms (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        room_key VARCHAR(10) UNIQUE NOT NULL,
+        host_user_id INT NOT NULL,
+        guest_user_id INT DEFAULT NULL,
+        status ENUM('waiting', 'playing', 'finished') DEFAULT 'waiting',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (host_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (guest_user_id) REFERENCES users(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
     // 占領状況

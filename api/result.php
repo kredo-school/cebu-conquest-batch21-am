@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // 共通のデータベース設定を読み込む
-require_once __DIR__ . '/jwt_helper.php';
+require_once __DIR__ . '/jwt-helper.php';
 require_once __DIR__ . '/../config/database.php';
 
 // JWT認証チェック (検問)
@@ -36,7 +36,7 @@ try {
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
 
-        // バリデーション: 必須データの確認
+    // バリデーション: 必須データの確認
     if (!isset($data['winner_id'], $data['loser_id'], $data['winner_score'], $data['loser_score'])) {
         echo json_encode(['status' => 'error', 'message' => 'Missing match data (winner_id, loser_id, etc.)']);
         exit();
@@ -47,6 +47,7 @@ try {
     $loserId     = (int)$data['loser_id'];
     $winnerScore = (int)$data['winner_score'];
     $loserScore  = (int)$data['loser_score'];
+    $roomKey     = $data['room_key'] ?? null;
 
     // 本人確認（ログイン中のユーザーが勝者か敗者のどちらかであること）
     if ($currentUserId !== $winnerId && $currentUserId !== $loserId) {
@@ -57,14 +58,10 @@ try {
 
     // --- 不正スコアの検証ロジック ---
     // セブ島の全スポット数は27なので、合計がそれ以上になるのは不正なデータ
-    $maxSpots = 27;
+    $maxSpots = 30;
     if (($winnerScore + $loserScore) > $maxSpots) {
         http_response_code(400);
-        echo json_encode([
-            'status' => 'error', 
-            'message' => "Invalid score: Total spots ({$winnerScore} + {$loserScore}) cannot exceed {$maxSpots}."
-        ]);
-        exit();
+        exit(json_encode(['status' => 'error', 'message' => "Invalid score: Total exceeds {$maxSpots}"]));
     }
 
     $pdo->beginTransaction();
@@ -83,24 +80,34 @@ try {
     $updateUsers = $pdo->prepare("UPDATE users SET current_hp = max_hp, stamina = 100 WHERE id IN (?, ?)");
     $updateUsers->execute([$winnerId, $loserId]);
 
+    // 5. 部屋のステータスを完了に変更
+    if ($roomKey) {
+        $updateRoom = $pdo->prepare("UPDATE rooms SET status = 'finished' WHERE room_key = ?");
+        $updateRoom->execute([$roomKey]);
+    }
+
+    // 6. 占領状況のクリア（次ゲームのためのリセット）
+    $pdo->exec("DELETE FROM occupations");
+
     $pdo->commit();
 
-    // 5. 勝者の名前を取得してレスポンスを作る
+    // 7. 勝者の名前を取得してレスポンスを作る
     $stmtUser = $pdo->prepare("SELECT username FROM users WHERE id = ?");
     $stmtUser->execute([$winnerId]);
     $winnerName = $stmtUser->fetchColumn() ?: "Unknown";
 
 
-    // 6. フロントエンドへのレスポンス
+    // 8. フロントエンドへのレスポンス
     echo json_encode([
         'status'  => 'success',
         'message' => 'Match results have been saved and players recovered!',
         'data'    => [
+            'winner_id'   => $winnerId,
             'winner_name' => $winnerName,
             'total_spots_accounted' => ($winnerScore + $loserScore)
         ]
     ], JSON_UNESCAPED_UNICODE);
-
+    
 } catch (Exception $e) {
     if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
     http_response_code(500);

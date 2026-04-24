@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 // ここで共通のデータベース設定を読み込む
-require_once __DIR__ . '/jwt_helper.php';
+require_once __DIR__ . '/jwt-helper.php';
 require_once __DIR__ . '/../config/database.php';
 
 // --- JWT認証チェック ---
