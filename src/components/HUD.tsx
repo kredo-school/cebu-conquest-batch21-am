@@ -1,151 +1,118 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../store';
 
 export const HUD: React.FC = () => {
   const { 
-    currentDistrictName, districts, isMyTurn, turnOwner, 
-    myId, myTeam, turn, maxTurn, isSubmitted, activeBuffs,
-    // 🚀 Task No.51, 52: ステータス表示用のデータを取得（store.tsの型定義修正済み）
-    hp, maxHp, stamina, maxStamina 
+    currentDistrictName, districts, isMyTurn, 
+    myId, myTeam, turn, isSubmitted, activeBuffs,
+    players 
   } = useGameStore();
 
-  // 1. 各種進捗の計算
-  const isSelected = currentDistrictName && currentDistrictName !== "未展開" && currentDistrictName !== "";
-  // 自分が占領している地区の数
-  const actualCount = Object.values(districts).filter(id => id === myId).length;
-  // 占領率の計算（全11地区） [cite: 11]
-  const conquestProgress = (actualCount / 11) * 100;
-  
-  const turnProgress = (turn / maxTurn) * 100;
+  const [showPhase, setShowPhase] = useState(false);
 
-  // 🚀 APとHPの割合（%） - 0除算防止のフォールバックを追加
-  const hpPercent = (hp / (maxHp || 100)) * 100;
-  const staminaPercent = (stamina / (maxStamina || 100)) * 100;
+  // 🚀 自分のターン開始時の演出ロジック（これは残しています）
+  useEffect(() => {
+    if (isMyTurn && !isSubmitted && turn > 0) {
+      setShowPhase(true);
+      const timer = setTimeout(() => setShowPhase(false), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [isMyTurn, isSubmitted, turn]);
 
-  // 2. ラベル判定（現在のフェーズや手番を視覚化）
-  let statusLabel = "";
-  if (turn === 0) {
-    statusLabel = "▶ INITIAL STANDBY";
-  } else if (isSubmitted) {
-    statusLabel = `▶ STANDBY: SERVER`;
-  } else if (isMyTurn) {
-    statusLabel = isSelected ? "▶ MISSION ACTIVE" : "▶ SELECT SECTOR";
-  } else {
-    statusLabel = `▶ STANDBY: ${turnOwner}`;
-  }
-
-  // 3. 共通スタイル
-  const whiteText: React.CSSProperties = { 
-    color: '#ffffff', 
-    fontWeight: 'bold', 
-    textShadow: '0px 0px 4px #000, 1px 1px 2px #000',
-    fontSize: '11px'
-  };
+  // --- 📊 勢力計算（上部バー用） ---
+  const totalDistricts = Object.keys(districts).length || 11;
+  const teamStats = players.map(player => {
+    const ownedCount = Object.values(districts).filter(ownerId => ownerId === player.id).length;
+    return {
+      id: player.id,
+      color: player.color || '#f97316',
+      percent: (ownedCount / totalDistricts) * 100
+    };
+  });
 
   return (
-    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', display: 'flex', justifyContent: 'space-between', padding: '10px 15px', zIndex: 1000, pointerEvents: 'none' }}>
+    <div className="absolute inset-0 pointer-events-none z-30 flex flex-col items-center font-body">
       
-      {/* 🚀 左：現在のセクター名 ＆ 特産品バフカード (Task No.30) */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', pointerEvents: 'auto' }}>
-        <div style={{ background: 'rgba(15, 23, 42, 0.9)', padding: '8px 25px', clipPath: 'polygon(0 0, 100% 0, 85% 100%, 0 100%)', borderBottom: '2px solid #fff' }}>
-          <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)' }}>SECTOR</div>
-          <div style={{ ...whiteText, fontSize: '13px' }}>{currentDistrictName || "地点未選択"}</div>
-        </div>
-
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {activeBuffs.map((buff) => (
-            <div key={buff.id} style={buffCardStyle}>
-              <div style={{ fontSize: '8px', color: '#f1c40f', fontWeight: 'bold' }}>SPECIALTY</div>
-              <div style={{ ...whiteText, fontSize: '10px', textShadow: 'none' }}>{buff.name}</div>
-              <div style={{ color: '#2ecc71', fontSize: '9px', fontWeight: 'bold' }}>{buff.effect}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 🚀 中央：メインパネル（STATUS / HP / AP / TURN） */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', pointerEvents: 'auto' }}>
-        <div style={{ 
-          background: (isMyTurn && !isSubmitted) ? (turn === 0 ? '#27ae60' : '#f1c40f') : '#334155', 
-          color: '#fff', 
-          padding: '2px 30px', fontSize: '11px', fontWeight: '900', clipPath: 'polygon(15% 0, 85% 0, 100% 100%, 0 100%)',
-          transition: 'all 0.3s ease',
-          boxShadow: (isMyTurn && !isSubmitted) ? `0 0 15px ${turn === 0 ? '#27ae60' : '#f1c40f'}` : 'none'
-        }}>
-          {statusLabel}
-        </div>
+      {/* 🚀 TOP HUD ROW */}
+      <div className="w-full flex justify-between items-start px-6 py-4">
         
-        <div style={{ background: 'rgba(15, 23, 42, 0.95)', padding: '10px 20px', borderRadius: '0 0 15px 15px', border: '1px solid rgba(255,255,255,0.2)', minWidth: '280px' }}>
-          
-          {/* 🚀 Task No.51: HP Bar (VIT) */}
-          <div style={statRowStyle}>
-            <span style={{ ...whiteText, width: '60px' }}>VIT (HP)</span>
-            <div style={barContainerStyle}>
-              <div style={{ 
-                ...barProgressStyle, 
-                width: `${hpPercent}%`, 
-                backgroundColor: '#ff3e3e',
-                boxShadow: '0 0 10px #ff3e3e'
-              }} />
+        {/* 左：SECTOR & BUFFS */}
+        <div className="flex flex-col gap-3 pointer-events-auto">
+          <div className="glass-panel px-6 py-2 rounded-br-2xl border-l-4 border-brand-500 shadow-lg" style={{ clipPath: 'polygon(0 0, 100% 0, 90% 100%, 0 100%)' }}>
+            <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Current Sector</div>
+            <div className="text-sm font-black text-white italic tracking-tighter uppercase">
+              {currentDistrictName || "DEPLOYMENT PENDING"}
             </div>
-            <span style={{ ...whiteText, width: '45px', textAlign: 'right' }}>{Math.round(hp)}</span>
           </div>
 
-          {/* 🚀 Task No.52: Stamina (AP) Bar (STM) */}
-          <div style={statRowStyle}>
-            <span style={{ ...whiteText, width: '60px', color: '#00fbff' }}>STM (AP)</span>
-            <div style={barContainerStyle}>
-              <div style={{ 
-                ...barProgressStyle, 
-                width: `${staminaPercent}%`, 
-                backgroundColor: '#00fbff',
-                boxShadow: '0 0 10px #00fbff'
-              }} />
-            </div>
-            <span style={{ ...whiteText, width: '45px', textAlign: 'right', color: '#00fbff' }}>{Math.round(stamina)}</span>
+          <div className="flex gap-2">
+            {activeBuffs.map((buff) => (
+              <div key={buff.id} className="glass-panel px-3 py-1.5 border-l-2 border-brand-500 flex flex-col animate-fadeIn">
+                <div className="text-[8px] font-black text-brand-500 uppercase">Specialty</div>
+                <div className="text-[10px] font-bold text-white leading-none mb-1">{buff.name}</div>
+                <div className="text-[8px] font-bold text-green-400 uppercase tracking-tighter">{buff.effect}</div>
+              </div>
+            ))}
           </div>
+        </div>
 
-          <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', margin: '8px 0' }} />
-
-          {/* 占領率 & ターン数表示 */}
-          <div style={statRowStyle}>
-            <span style={{ ...whiteText, width: '60px', fontSize: '9px' }}>CONQUEST</span>
-            <div style={{ ...barContainerStyle, height: '4px' }}>
-              <div style={{ ...barProgressStyle, width: `${conquestProgress}%`, backgroundColor: myTeam === 'red' ? '#ff3e3e' : '#00fbff' }} />
-            </div>
-            <span style={{ ...whiteText, width: '45px', textAlign: 'right', fontSize: '9px' }}>{Math.round(conquestProgress)}%</span>
+        {/* 中央：DYNAMIC FACTION BAR（勢力図バーのみ残しました） */}
+        <div className="flex flex-col items-center pointer-events-auto">
+          <div className="flex h-10 w-[480px] bg-slate-900/60 backdrop-blur-md rounded-xl border border-white/10 overflow-hidden shadow-2xl relative">
+            {teamStats.map((team) => (
+              <div 
+                key={team.id}
+                className="h-full flex items-center justify-center relative transition-all duration-1000 border-r border-white/5 last:border-r-0"
+                style={{ 
+                  width: `${team.percent}%`, 
+                  background: `linear-gradient(180deg, ${team.color}66 0%, ${team.color}33 100%)` 
+                }}
+              >
+                <span className="text-[10px] font-black text-white italic truncate px-2">
+                  {team.percent.toFixed(1)}%
+                </span>
+              </div>
+            ))}
+            <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-12 -translate-x-full animate-[shimmer_5s_infinite]"></div>
           </div>
+        </div>
 
-          <div style={statRowStyle}>
-            <span style={{ ...whiteText, width: '60px', fontSize: '9px' }}>TURN</span>
-            <div style={{ ...barContainerStyle, height: '4px' }}>
-              <div style={{ ...barProgressStyle, width: `${turnProgress}%`, backgroundColor: '#f1c40f' }} />
+        {/* 右：COMMANDER INFO */}
+        <div className="flex flex-col items-end pointer-events-auto">
+          <div className={`glass-panel px-6 py-2 rounded-bl-2xl border-r-4 shadow-lg
+            ${myTeam === 'red' ? 'border-red-500' : 'border-cyan-500'}`}
+            style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 15% 100%)' }}>
+            <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] text-right">Commander ID</div>
+            <div className="text-xs font-black text-white italic uppercase tracking-tighter">
+              {myId ? myId.substring(0, 8) : "OFFLINE-PROTO"}
             </div>
-            <span style={{ ...whiteText, width: '45px', textAlign: 'right', fontSize: '9px' }}>{turn}/{maxTurn}</span>
           </div>
         </div>
       </div>
 
-      {/* 右：プレイヤー情報 */}
-      <div style={{ background: 'rgba(15, 23, 42, 0.9)', padding: '8px 25px', clipPath: 'polygon(0 0, 100% 0, 100% 100%, 15% 100%)', borderBottom: `2px solid ${myTeam === 'red' ? '#ff3e3e' : '#00fbff'}`, pointerEvents: 'auto' }}>
-        <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)' }}>COMMANDER ID</div>
-        <div style={{ ...whiteText, fontSize: '11px' }}>{myId || "OFFLINE"}</div>
-      </div>
+      {/* 🚀 演出用: YOUR PHASE (中央の大きな文字はターン開始時のみ出ます) */}
+      {showPhase && (
+        <div className="flex-grow flex items-center justify-center">
+          <div className="phase-animation-container">
+            <div className="relative flex flex-col items-center px-16 py-8">
+              <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-brand-500/50"></div>
+              <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-brand-500/50"></div>
+              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-brand-500/50"></div>
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-brand-500/50"></div>
+              <div className="flex items-center gap-4 mb-2">
+                <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-brand-500"></div>
+                <span className="text-[10px] font-black text-brand-400 uppercase tracking-[0.5em] holographic-text">Tactical Engagement</span>
+                <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-brand-500"></div>
+              </div>
+              <h1 className="holographic-text text-8xl font-black italic tracking-tighter uppercase flex flex-col items-center">
+                <span className="text-white leading-none">YOUR</span>
+                <span className="text-brand-500 -mt-4 leading-none">PHASE</span>
+              </h1>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
-};
-
-// スタイル定数
-const statRowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', width: '100%', marginBottom: '4px' };
-const barContainerStyle: React.CSSProperties = { flex: 1, height: '8px', background: '#000', margin: '0 10px', borderRadius: '4px', overflow: 'hidden', border: '1px solid #444' };
-const barProgressStyle: React.CSSProperties = { height: '100%', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)' };
-
-const buffCardStyle: React.CSSProperties = {
-  background: 'rgba(15, 23, 42, 0.95)',
-  padding: '5px 10px',
-  borderRadius: '4px',
-  borderLeft: '3px solid #f1c40f',
-  boxShadow: '0 2px 4px rgba(0,0,0,0.5)',
-  minWidth: '80px',
-  animation: 'fadeIn 0.5s ease-out'
 };

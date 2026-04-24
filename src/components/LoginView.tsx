@@ -11,9 +11,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  // 🚀 追加：ログインモードと登録モードを切り替えるフラグ
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault(); // フォーム送信のデフォルト挙動を防止
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (username.trim().length === 0) {
       alert('Please enter your name.');
       return;
@@ -21,13 +24,21 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
     setIsLoading(true);
     try {
-      const success = await login(username, password);
-      if (success) {
+      if (isRegisterMode) {
+        // 🚀 登録モードの処理（バックエンド完成までは仮でそのままログイン扱いにします）
         if (typeof setPlayerName === 'function') setPlayerName(username);
-        addLog(`🔐 Authentication Successful: Welcome ${username}`);
+        addLog(`📝 New Operator Registered: Welcome ${username}`);
         onLogin(username); 
       } else {
-        alert('Authentication Failed. Check your name or password.');
+        // 既存のログイン処理
+        const success = await login(username, password);
+        if (success) {
+          if (typeof setPlayerName === 'function') setPlayerName(username);
+          addLog(`🔐 Authentication Successful: Welcome ${username}`);
+          onLogin(username); 
+        } else {
+          alert('Authentication Failed. Check your name or password.');
+        }
       }
     } catch (error) {
       alert('Connection Error to Fortified Server.');
@@ -38,7 +49,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
   return (
     <div className="bg-slate-950 font-body text-slate-200 overflow-hidden h-screen flex flex-col relative">
-      {/* 🚀 背景演出：島のシルエットとオレンジの光 */}
+      {/* 背景演出：島のシルエットとオレンジの光 */}
       <div className="fixed inset-0 z-0 island-silhouette opacity-40" />
       <div className="fixed inset-0 z-10 tropical-flare pointer-events-none" />
 
@@ -66,9 +77,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           <p className="text-slate-400 text-sm font-medium tracking-wide">Enter the battlefield.</p>
         </div>
 
-        {/* 🚀 Login Card：いっせいさんの送ってくれたデザインを反映 */}
-        <div className="w-full max-w-sm bg-slate-900/60 backdrop-blur-xl p-6 rounded-2xl border border-slate-800 shadow-2xl">
-          <form className="space-y-4" onSubmit={handleLogin}>
+        {/* Login Card */}
+        <div className="w-full max-w-sm bg-slate-900/60 backdrop-blur-xl p-6 rounded-2xl border border-slate-800 shadow-2xl relative overflow-hidden">
+          
+          {/* 🚀 モードによって上部のアクセントカラーを変更 */}
+          <div className={`absolute top-0 left-0 w-full h-1 transition-colors duration-500 ${isRegisterMode ? 'bg-cyan-500' : 'bg-orange-500'}`}></div>
+
+          <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-1.5">
               <label className="block text-[10px] font-bold text-slate-400 tracking-widest uppercase ml-1">User ID</label>
               <div className="relative group">
@@ -97,30 +112,47 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-[10px]">
-              <label className="flex items-center text-slate-400 cursor-pointer">
-                <input type="checkbox" className="rounded bg-slate-800 border-slate-700 text-orange-500 mr-2 w-3 h-3"/> Stay logged in
-              </label>
-              <span className="text-orange-400 hover:text-orange-300 cursor-pointer">Forgot password?</span>
-            </div>
+            {/* 🚀 登録モードの時は「Stay logged in」などを非表示にする */}
+            {!isRegisterMode && (
+              <div className="flex items-center justify-between text-[10px]">
+                <label className="flex items-center text-slate-400 cursor-pointer">
+                  <input type="checkbox" className="rounded bg-slate-800 border-slate-700 text-orange-500 mr-2 w-3 h-3"/> Stay logged in
+                </label>
+                <span className="text-orange-400 hover:text-orange-300 cursor-pointer">Forgot password?</span>
+              </div>
+            )}
 
-            {/* Login Button */}
+            {/* 🚀 Login / Register Button */}
             <button 
               type="submit" 
               disabled={isLoading}
-              className={`w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-3 rounded-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 text-sm uppercase ${isLoading ? 'opacity-70 cursor-wait' : ''}`}
+              className={`w-full font-black py-3 rounded-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 text-sm uppercase
+                ${isRegisterMode ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-orange-600 hover:bg-orange-500 text-white'}
+                ${isLoading ? 'opacity-70 cursor-wait' : ''}`}
             >
-              {isLoading ? 'ESTABLISHING LINK...' : 'ENTER CEBU (LOGIN)'}
-              {!isLoading && <span className="material-symbols-outlined text-lg">arrow_forward</span>}
+              {isLoading 
+                ? (isRegisterMode ? 'REGISTERING...' : 'ESTABLISHING LINK...') 
+                : (isRegisterMode ? 'REGISTER ACCOUNT' : 'ENTER CEBU (LOGIN)')}
+              {!isLoading && <span className="material-symbols-outlined text-lg">{isRegisterMode ? 'person_add' : 'arrow_forward'}</span>}
             </button>
 
             <div className="relative py-1">
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800"></div></div>
-              <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-slate-900/60 px-2 text-slate-500">Or continue with</span></div>
+              <div className="relative flex justify-center text-[10px] uppercase">
+                <span className="bg-slate-900/60 px-2 text-slate-500">
+                  {isRegisterMode ? 'Already have an account?' : 'Or continue with'}
+                </span>
+              </div>
             </div>
 
-            <button type="button" className="w-full border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold py-2.5 rounded-lg transition-colors text-sm uppercase tracking-wide">
-              CREATE NEW ACCOUNT
+            {/* 🚀 トグルボタン（ここでモードを切り替える） */}
+            <button 
+              type="button" 
+              onClick={() => setIsRegisterMode(!isRegisterMode)}
+              className="w-full border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold py-2.5 rounded-lg transition-colors text-sm uppercase tracking-wide flex justify-center items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-lg">{isRegisterMode ? 'login' : 'person_add'}</span>
+              {isRegisterMode ? 'BACK TO LOGIN' : 'CREATE NEW ACCOUNT'}
             </button>
           </form>
         </div>
