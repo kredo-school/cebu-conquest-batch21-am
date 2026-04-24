@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../store';
 
 interface GodSelectionViewProps {
@@ -17,43 +17,50 @@ const GOD_SLOTS = [
 ];
 
 export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }) => {
-  // 🚀 selectGod をストアから取得
   const { selectGod, players, myId, selectedGodId } = useGameStore();
   const [isDeploying, setIsDeploying] = useState(false);
 
-  // 🚀 排他制御：他のプレイヤーが既に選んでいるかチェック
+  // 🚀 【真の修正】Reactの再描画に負けない「絶対時間」を保存する
+  const targetTimeRef = useRef(0);
+
+  const humanPlayers = players.filter(p => !p.isNpc);
+  const totalCount = humanPlayers.length;
+  const readyCount = humanPlayers.filter(p => p.selectedGodId).length;
+
   const getLockInfo = (godId: number) => {
     const selector = players.find(p => p.id !== myId && p.selectedGodId === godId);
-    if (selector) {
-      return { 
-        name: selector.username || "Operator", 
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${selector.username || selector.id}` 
-      };
-    }
+    if (selector) return { name: selector.username || "Operator", avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${selector.username || selector.id}` };
     return null;
   };
 
-  // 🚀 選択処理：ストアのアクションを呼び出す
   const handleSelect = (godId: number) => {
-    if (selectedGodId) return; // 自分が既に決定済みなら何もしない
-    selectGod(godId); // 🚀 ストア経由でサーバーへ SELECT_GOD を送信
+    if (selectedGodId) return; 
+    selectGod(godId); 
   };
 
-  // 🚀 全員の同期監視（全員が選択し終えたら次へ）
+  // 🚀 究極のタイマーロジック
   useEffect(() => {
-    // 🚀 【重要修正】すでに出撃演出中なら、サーバーから他のデータが来てもタイマーをキャンセルしない！
-    if (isDeploying) return; 
+    const allReady = totalCount > 0 && readyCount >= totalCount;
 
-    const allReady = players.length > 0 && players.every(p => p.selectedGodId);
+    // 条件を満たした、またはすでに出撃シーケンスに入っているなら
+    if ((allReady && selectedGodId) || isDeploying) {
+      if (!isDeploying) setIsDeploying(true);
 
-    if (allReady && selectedGodId) {
-      setIsDeploying(true);
+      // 初回のみ目標時間をセット（現在時刻 + 2.5秒）
+      if (targetTimeRef.current === 0) {
+        targetTimeRef.current = Date.now() + 2500;
+      }
+
+      // 残り時間を計算してタイマーをセット
+      const delay = Math.max(0, targetTimeRef.current - Date.now());
       const timer = setTimeout(() => {
         onComplete();
-      }, 2500); // 演出のため少し長めに設定
+      }, delay);
+
+      // 画面が再描画されても、残りの秒数で正しくタイマーが再開される
       return () => clearTimeout(timer);
     }
-  }, [players, selectedGodId, isDeploying, onComplete]);
+  }, [totalCount, readyCount, selectedGodId, isDeploying, onComplete]);
 
   return (
     <div className="fixed inset-0 z-[10000] bg-slate-950 font-body text-slate-200 antialiased overflow-hidden select-none flex items-center justify-center">
@@ -166,12 +173,26 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
           </div>
 
           <div className="px-12 py-6 border-t border-white/5 bg-black/40 flex items-center justify-between">
-             <span className={`text-[10px] font-black uppercase tracking-[0.5em] ${selectedGodId ? 'text-brand-500' : 'text-slate-500'}`}>
-                {selectedGodId ? "SYSTEM:// UPLINK_ESTABLISHED. PREPARING_DEPLOYMENT..." : "System:// Neural_Link_Pending..."}
+             <span className={`text-[10px] font-black uppercase tracking-[0.5em] ${selectedGodId || isDeploying ? 'text-brand-500' : 'text-slate-500'}`}>
+                {selectedGodId || isDeploying
+                  ? `SYSTEM:// UPLINK_ESTABLISHED. [ ${readyCount} / ${totalCount} READY ]` 
+                  : "System:// Neural_Link_Pending..."}
              </span>
-             <div className="text-brand-500 font-black text-[9px] flex gap-8 italic">
-                <span>ENCRYPTION: AES-256</span>
-                <span>STATUS: OPERATIONAL</span>
+             
+             <div className="flex gap-4 items-center">
+                {/* 🚀 ゴースト回避用：演出中か選択済みなら必ず表示 */}
+                {(selectedGodId || isDeploying) && (
+                  <button
+                    onClick={() => onComplete()}
+                    className="text-[10px] font-black tracking-widest bg-red-900/40 text-red-400 border border-red-500/50 px-4 py-2 hover:bg-red-600 hover:text-white transition-all rounded pointer-events-auto shadow-lg"
+                  >
+                    FORCE DEPLOY
+                  </button>
+                )}
+                <div className="text-brand-500 font-black text-[9px] flex gap-8 italic">
+                   <span>ENCRYPTION: AES-256</span>
+                   <span>STATUS: OPERATIONAL</span>
+                </div>
              </div>
           </div>
         </div>
