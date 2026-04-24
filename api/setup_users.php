@@ -2,7 +2,7 @@
 /**
  * Initial User Setup Script
  * 役割: 開発・テスト用のユーザー（issei, kei）を確実に作成する
- * 使い方: ブラウザで http://localhost/cebu-conquest-batch21-am/api/setup_users.php を開くだけ
+ * 使い方: ブラウザで http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api/setup_users.php を開くだけ
  */
 
 require_once __DIR__ . '/../config/database.php';

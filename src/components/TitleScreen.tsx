@@ -1,10 +1,20 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import SoundManager from '../game/SoundManager';
 
 interface TitleScreenProps {
   onStart: () => void;
 }
 
 const TitleScreen: React.FC<TitleScreenProps> = ({ onStart }) => {
+  useEffect(() => {
+    SoundManager.playBgm('title');
+  }, []);
+
+  const handleStart = () => {
+    SoundManager.playSe('click');
+    onStart();
+  };
+
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999,
@@ -31,7 +41,7 @@ const TitleScreen: React.FC<TitleScreenProps> = ({ onStart }) => {
       </p>
 
       <button 
-        onClick={onStart}
+        onClick={handleStart}
         style={{
           marginTop: '50px', padding: '20px 60px',
           fontSize: '32px', fontWeight: 'bold', cursor: 'pointer',

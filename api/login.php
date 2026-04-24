@@ -8,7 +8,10 @@ header("Content-Type: application/json; charset=UTF-8");
 header("X-Content-Type-Options: nosniff"); // 追加：ブラウザによるMIMEタイプ推測を禁止
 
 // プリフライトリクエストの処理
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204); // 「中身はないけどOKだよ」とブラウザに伝える
+    exit();
+}
 
 // HTTPメソッド制限（POST以外は405を返す）
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

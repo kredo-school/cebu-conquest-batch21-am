@@ -1,21 +1,47 @@
--- 1. 制約を一時的に無効化して、古いデータを徹底掃除
+-- 1. 制約を一時的に無効化して、古いテーブルを「作成前」に一掃する
 SET FOREIGN_KEY_CHECKS = 0;
-DELETE FROM user_items;
-DELETE FROM occupations;
-DELETE FROM items;
-DELETE FROM spots;
-DELETE FROM match_results;
-DELETE FROM areas;
-DELETE FROM islands;
-DELETE FROM gods;
-DELETE FROM users;
+
+-- 2. 並び順を修正（参照している「子」から先に消す）
+DROP TABLE IF EXISTS gods;          -- items を参照しているので一番先に消す！
+DROP TABLE IF EXISTS user_items;    -- items, users を参照しているので先に消す
+DROP TABLE IF EXISTS occupations;   -- spots, users を参照しているので先に消す
+DROP TABLE IF EXISTS match_results; -- users を参照しているので先に消す
+
+-- 3. その後に「親」を消す
+DROP TABLE IF EXISTS items;  -- 親
+DROP TABLE IF EXISTS spots;  -- 親
+DROP TABLE IF EXISTS areas;  -- 親
+DROP TABLE IF EXISTS islands;-- 親
+DROP TABLE IF EXISTS users;  -- 親
+
+-- 4. 制約をオンに戻す
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- 2. テーブルの新規作成 (設計図)
-CREATE TABLE IF NOT EXISTS islands (id INT PRIMARY KEY, name VARCHAR(100)) ENGINE=InnoDB;
-CREATE TABLE IF NOT EXISTS areas (id INT PRIMARY KEY, island_id INT, name VARCHAR(100)) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS spots (
+CREATE TABLE islands (id INT PRIMARY KEY, name VARCHAR(100)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE areas (
+    id INT PRIMARY KEY, 
+    island_id INT, 
+    name VARCHAR(100) NOT NULL,
+    FOREIGN KEY (island_id) REFERENCES islands(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) DEFAULT 'dummy_pass',
+    player_color VARCHAR(20) DEFAULT '#3498db',
+    max_hp INT DEFAULT 100, 
+    current_hp INT DEFAULT 100,
+    stamina INT DEFAULT 100, 
+    atk INT DEFAULT 100, 
+    def INT DEFAULT 100,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE spots (
     id INT PRIMARY KEY,
     island_id INT NOT NULL,
     area_id INT NOT NULL,
@@ -23,10 +49,11 @@ CREATE TABLE IF NOT EXISTS spots (
     name VARCHAR(100) NOT NULL,
     map_x FLOAT NULL, map_y FLOAT NULL,
     capture_cost INT DEFAULT 10,
-    drop_item_id INT NULL
+    drop_item_id INT NULL,
+    FOREIGN KEY (area_id) REFERENCES areas(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS items (
+CREATE TABLE items (
     id INT PRIMARY KEY,
     spot_id INT NULL, 
     name VARCHAR(100) NOT NULL,
@@ -36,7 +63,7 @@ CREATE TABLE IF NOT EXISTS items (
     description TEXT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS gods (
+CREATE TABLE gods (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
     atk_bonus INT DEFAULT 0,
@@ -47,17 +74,7 @@ CREATE TABLE IF NOT EXISTS gods (
     description TEXT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
-    password VARCHAR(255) DEFAULT 'dummy_pass',
-    player_color VARCHAR(20) DEFAULT '#3498db',
-    max_hp INT DEFAULT 100, current_hp INT DEFAULT 100,
-    stamina INT DEFAULT 100, atk INT DEFAULT 100, def INT DEFAULT 100,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS occupations (
+CREATE TABLE occupations (
     spot_id INT PRIMARY KEY,
     user_id INT,
     occupied_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -65,8 +82,29 @@ CREATE TABLE IF NOT EXISTS occupations (
     FOREIGN KEY (spot_id) REFERENCES spots(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 3. マスタデータの投入 (島・エリア)
+-- ★足りなかったテーブル: ユーザー所持アイテム
+CREATE TABLE user_items (
+    user_id INT,
+    item_id INT,
+    quantity INT DEFAULT 1,
+    PRIMARY KEY (user_id, item_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ★足りなかったテーブル: 対戦結果
+CREATE TABLE match_results (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    score INT DEFAULT 0,
+    spots_count INT DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 3. マスタデータの投入
 INSERT INTO islands (id, name) VALUES (1000, 'Cebu・Mactan');
+
 INSERT INTO areas (island_id, id, name) VALUES
 (1000, 13, 'Core (Cebu City)'),
 (1000, 16, 'Mactan Island'),
