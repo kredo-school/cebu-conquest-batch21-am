@@ -41,9 +41,12 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
 
   // 🚀 全員の同期監視（全員が選択し終えたら次へ）
   useEffect(() => {
+    // 🚀 【重要修正】すでに出撃演出中なら、サーバーから他のデータが来てもタイマーをキャンセルしない！
+    if (isDeploying) return; 
+
     const allReady = players.length > 0 && players.every(p => p.selectedGodId);
 
-    if (allReady && selectedGodId && !isDeploying) {
+    if (allReady && selectedGodId) {
       setIsDeploying(true);
       const timer = setTimeout(() => {
         onComplete();

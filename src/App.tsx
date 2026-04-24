@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react'; // 🚀 useCallbackを追加
 import socket from './socket';
 import { useGameStore } from './store';
 
@@ -75,7 +75,7 @@ const App: React.FC = () => {
       setStatus({ isGameOver: true, winnerId: data.winnerId });
     });
 
-    // --- 🛠️ 修正：デバッグ・ワープ・退出用イベントリスナー ---
+    // --- 🛠️ デバッグ・ワープ・退出用イベントリスナー ---
     const handleForceSelection = () => {
       setView('selection');
       addLog("🛠️ DEBUG: 守護神選択フェーズへ移行します");
@@ -158,7 +158,8 @@ const App: React.FC = () => {
   // 初期配置確定
   const handleFinalDeploy = () => {
     if (selectedDistrictId) {
-      socket.emit("READY_TO_START", { 
+      // 🚀 修正：サーバー側の待機イベント名 "PLAYER_READY" に合わせました
+      socket.emit("PLAYER_READY", { 
         username: playerName || storePlayerName || 'Guest', 
         startDistrictId: selectedDistrictId 
       });
@@ -175,13 +176,19 @@ const App: React.FC = () => {
     window.location.reload();
   };
 
+  // 🚀 修正：画面遷移関数を固定化（再描画時のタイマーリセットを防ぐ）
+  const handleSelectionComplete = useCallback(() => {
+    setView('game');
+  }, []);
+
   // --- 🎥 ビューの分岐 ---
   if (view === 'login') return <LoginView onLogin={handleLoginSubmit} />;
   if (view === 'setup') return <LobbySetupView onJoinSuccess={handleJoinSuccess} />;
   if (view === 'lobby') return <LobbyView roomId={roomId} players={players} />;
   
   if (view === 'selection') {
-    return <GodSelectionView onComplete={() => setView('game')} />;
+    // 🚀 修正：固定化した関数を渡す
+    return <GodSelectionView onComplete={handleSelectionComplete} />;
   }
   
   return (
