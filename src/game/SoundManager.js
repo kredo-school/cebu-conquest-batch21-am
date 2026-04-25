@@ -44,6 +44,7 @@ class SoundManager {
     this._phaserBgm = null;   // Phaser.Sound.BaseSound
     this._htmlBgm   = null;   // HTMLAudioElement
     this._muted     = false;
+    this.bgmVolume  = BGM_VOLUME;
   }
 
   // ─── Phaserシーン登録・解除 ───────────────────
@@ -121,9 +122,15 @@ class SoundManager {
 
   // ─── ミュート ────────────────────────────────────
 
+  setBgmVolume(volume) {
+    this.bgmVolume = volume;
+    if (this._phaserBgm) this._phaserBgm.setVolume(volume);
+    if (this._htmlBgm)   this._htmlBgm.volume = volume;
+  }
+
   setMuted(muted) {
     this._muted = muted;
-    const vol = muted ? 0 : BGM_VOLUME;
+    const vol = muted ? 0 : this.bgmVolume;
     if (this._phaserBgm) this._phaserBgm.setVolume(vol);
     if (this._htmlBgm)   this._htmlBgm.volume = vol;
   }
