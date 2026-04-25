@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import socket from '../socket';
 import { useGameStore } from '../store';
 import SoundManager from '../game/SoundManager';
+import { CLIENT_EVENTS } from '../../shared/socketEvents.js';
 
 interface LobbyViewProps {
   roomId: string;
@@ -44,14 +45,14 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   const handleAbort = () => {
     if (window.confirm("ABORT MISSION? (作戦を中止してベースへ戻りますか？)")) {
       try { SoundManager.playSe('click'); } catch (e) {}
-      socket.emit('LEAVE_ROOM', { roomId });
+      socket.emit(CLIENT_EVENTS.LEAVE_ROOM, { roomId });
       onAbort(); 
     }
   };
 
   const handleSendMessage = () => {
     if (chatInput.trim()) {
-      socket.emit('SEND_CHAT', { roomId, message: chatInput });
+      socket.emit(CLIENT_EVENTS.SEND_CHAT, { roomId, message: chatInput });
       setChatInput(''); 
       try { SoundManager.playSe('click'); } catch (e) {}
     }
@@ -65,7 +66,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     const nextReadyState = !isReady;
     setIsReady(nextReadyState);
     try { SoundManager.playSe('click'); } catch (e) {}
-    socket.emit('PLAYER_READY', { roomId, ready: nextReadyState });
+    socket.emit(CLIENT_EVENTS.PLAYER_READY, { roomId, ready: nextReadyState });
     addLog(nextReadyState ? "📡 READY完了。作戦開始を待機中..." : "📡 READY解除。装備を再確認中...");
   };
 

@@ -1,8 +1,5 @@
 <?php
 
-// login.php の先頭付近に追加
-file_put_contents("debug.log", date("Y-m-d H:i:s") . " - Request received\n", FILE_APPEND);
-
 // CORS対策 (ReactからのPOSTリクエストを許可)
 header("Access-Control-Allow-Origin: http://localhost:5173");
 header("Access-Control-Allow-Methods: POST, OPTIONS");

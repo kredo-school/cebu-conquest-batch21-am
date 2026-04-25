@@ -19,7 +19,7 @@ import { ActionPanel } from './components/ActionPanel'; // 🚀 追加：ActionP
 
 // 🔴 ブリッジ定数とイベント定数
 import { PHASER_TO_REACT, REACT_TO_PHASER } from './game/events/PhaserBridge';
-import { SERVER_EVENTS } from '../shared/socketEvents.js';
+import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
 import SoundManager from './game/SoundManager';
 
 const App: React.FC = () => {
@@ -72,7 +72,7 @@ const App: React.FC = () => {
       if (socket.id) syncServerState(state, socket.id);
     });
 
-    socket.on('gameStart', () => {
+    socket.on(SERVER_EVENTS.GAME_START, () => {
       setView('selection');
       addLog("🚀 マッチング完了。守護神の加護を選択してください");
     });
@@ -105,7 +105,7 @@ const App: React.FC = () => {
       socket.off('connect');
       socket.off(SERVER_EVENTS.TURN_START);
       socket.off(SERVER_EVENTS.SYNC_STATE);
-      socket.off('gameStart');
+      socket.off(SERVER_EVENTS.GAME_START);
       socket.off(SERVER_EVENTS.GAME_OVER);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleDistrictSelected);
@@ -127,7 +127,7 @@ const App: React.FC = () => {
 
   const handleFinalDeploy = () => {
     if (selectedDistrictId) {
-      socket.emit("PLAYER_READY", { username: playerName || storePlayerName || 'Guest', startDistrictId: selectedDistrictId });
+      socket.emit(CLIENT_EVENTS.PLAYER_READY, { username: playerName || storePlayerName || 'Guest', startDistrictId: selectedDistrictId });
       window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, { detail: { districtId: selectedDistrictId } }));
       setStatus({ selectedDistrictId: null });
     }

@@ -8,8 +8,6 @@ const server = http.createServer(app);
 const PORT = 3001;
 const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
 
-const EVENTS = { CLIENT: CLIENT_EVENTS, SERVER: SERVER_EVENTS };
-
 // ==========================================
 // 🚀 【設定】APIとチームカラー設定
 // ==========================================
@@ -145,13 +143,13 @@ function processNpcTurn(roomId) {
         if (npc.hp < 30) {
             npc.hp = Math.min(npc.maxHp, npc.hp + 20);
             npc.ap = Math.min(npc.maxAp, npc.ap + 30);
-            io.to(roomId).emit('GAME_LOG', `🧘 ${npc.username}: 休息を選び、体制を整えています。`);
+            io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`🧘 ${npc.username}: 休息を選び、体制を整えています。`);
         } else if (targets.length > 0) {
             const target = targets[0];
 
             if (target.ownerId === npcId) {
                 npc.districtId = target.id;
-                io.to(roomId).emit('GAME_LOG', `🚚 ${npc.username}: ${target.name} へ本陣を移しました。`);
+                io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`🚚 ${npc.username}: ${target.name} へ本陣を移しました。`);
             } else {
                 npc.ap -= 5;
                 const defenderId = target.ownerId;
@@ -162,10 +160,10 @@ function processNpcTurn(roomId) {
                 if (battleResult.isWin) {
                     currentState.districts[target.id] = npcId;
                     npc.districtId = target.id;
-                    io.to(roomId).emit('GAME_LOG', `⚔️ ${npc.username}: ${target.name} を制圧しました！`);
+                    io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`⚔️ ${npc.username}: ${target.name} を制圧しました！`);
                 } else {
                     npc.hp -= 20;
-                    io.to(roomId).emit('GAME_LOG', `❌ ${npc.username}: ${target.name} への侵攻に失敗しました。`);
+                    io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`❌ ${npc.username}: ${target.name} への侵攻に失敗しました。`);
                 }
             }
         }
@@ -230,7 +228,7 @@ async function handleGameOver(roomId, playerIds) {
     const winner = roomState.players[winnerId];
     const loser = roomState.players[loserId];
 
-    io.to(roomId).emit('GAME_LOG', `🏆 ゲーム終了！勝者: ${winner?.username} (${scores[winnerId]} 拠点)`);
+    io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`🏆 ゲーム終了！勝者: ${winner?.username} (${scores[winnerId]} 拠点)`);
     io.to(roomId).emit(SERVER_EVENTS.GAME_OVER, { winnerId, scores });
 
     if (winner && !winner.isNpc && winner.token) {
@@ -314,7 +312,7 @@ io.on('connection', (socket) => {
         console.log(`🏠 Room[${roomId}] Created (Max: ${roomState.maxPlayers}) by ${socket.id}`);
         
         if (godName !== "なし") {
-            io.to(roomId).emit('GAME_LOG', `👼 ${roomState.players[socket.id].username} が【${godName}】の加護を受けてルームを作成！`);
+            io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`👼 ${roomState.players[socket.id].username} が【${godName}】の加護を受けてルームを作成！`);
         }
 
         // 作成直後に自分を含む状態を同期
@@ -330,14 +328,14 @@ io.on('connection', (socket) => {
 
         if (!roomState) {
             if (callback) callback({ success: false, message: "Room not found" });
-            socket.emit('ERROR_MESSAGE', "指定された部屋が存在しません");
+            socket.emit(SERVER_EVENTS.ERROR_MESSAGE, "指定された部屋が存在しません");
             return;
         }
 
         const playerCount = Object.keys(roomState.players).length;
         if (playerCount >= roomState.maxPlayers) {
             if (callback) callback({ success: false, message: "Room is full" });
-            socket.emit('ERROR_MESSAGE', "ルームはすでに満員です");
+            socket.emit(SERVER_EVENTS.ERROR_MESSAGE, "ルームはすでに満員です");
             return;
         }
 
@@ -382,7 +380,7 @@ io.on('connection', (socket) => {
 
         console.log(`👤 Joined Room[${roomId}]`);
         if (godName !== "なし") {
-            io.to(roomId).emit('GAME_LOG', `👼 ${roomState.players[socket.id].username} が【${godName}】の加護を受けて参戦！`);
+            io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`👼 ${roomState.players[socket.id].username} が【${godName}】の加護を受けて参戦！`);
         }
 
         // 共通イベント定数を利用して全員に送信
@@ -416,12 +414,12 @@ io.on('connection', (socket) => {
             districtId: null 
         };
 
-        io.to(roomId).emit('GAME_LOG', `🤖 ${roomState.players[npcId].username} が参戦しました！`);
+        io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`🤖 ${roomState.players[npcId].username} が参戦しました！`);
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
     });
 
     // 🚀 【神の選択】
-    socket.on('SELECT_GOD', (data) => {
+    socket.on(CLIENT_EVENTS.SELECT_GOD, (data) => {
         const roomId = socket.roomId;
         if (!roomId) return;
         const roomState = rooms.get(roomId);
@@ -436,7 +434,7 @@ io.on('connection', (socket) => {
     });
 
     // 🚀 3. 準備完了の同期 & ゲーム開始
-    socket.on('PLAYER_READY', (data) => {
+    socket.on(CLIENT_EVENTS.PLAYER_READY, (data) => {
         const roomId = socket.roomId || data.roomId;
         if (!roomId) return;
         const roomState = rooms.get(roomId);
@@ -467,12 +465,7 @@ io.on('connection', (socket) => {
                 roomState.firstPlayerId = firstId;
                 roomState.turnOwnerId = firstId;
                 
-                // 📢 【追加】フロントエンド（App.tsx）に画面遷移を命じる！
-                // App.tsxのハードコーディング（'gameStart'）と定数の両方に対応させておく安全策
-                io.to(roomId).emit('gameStart'); 
-                if (SERVER_EVENTS.GAME_START) {
-                    io.to(roomId).emit(SERVER_EVENTS.GAME_START); 
-                }
+                io.to(roomId).emit(SERVER_EVENTS.GAME_START);
                 
                 // 状態とログを送信
                 io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
@@ -481,7 +474,7 @@ io.on('connection', (socket) => {
                     turnOwnerId: firstId,
                     turnOwnerName: roomState.players[firstId]?.username 
                 });
-                io.to(roomId).emit('GAME_LOG', `⚔️ 作戦開始！全オペレーターの同期に成功しました。`);
+                io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`⚔️ 作戦開始！全オペレーターの同期に成功しました。`);
                 
                 console.log(`🎮 [Room ${roomId}] Game Started!`);
             } else {
@@ -512,7 +505,7 @@ io.on('connection', (socket) => {
             if (result.isWin) {
                 roomState.districts[targetId] = socket.id;
                 p.districtId = targetId;
-                io.to(roomId).emit('GAME_LOG', `⚔️ ${p.username}: ${targetId} を制圧！`);
+                io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`⚔️ ${p.username}: ${targetId} を制圧！`);
 
                 if (!p.isNpc && p.token) {
                     try {
@@ -529,15 +522,15 @@ io.on('connection', (socket) => {
                 }
             } else {
                 p.hp -= 20;
-                io.to(roomId).emit('GAME_LOG', `❌ ${p.username}: ${targetId} への攻撃に失敗。`);
+                io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`❌ ${p.username}: ${targetId} への攻撃に失敗。`);
             }
         } else if (data.type === 'move') {
             p.districtId = targetId;
-            io.to(roomId).emit('GAME_LOG', `🚚 ${p.username}: ${targetId} へ本陣を移動。`);
+            io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`🚚 ${p.username}: ${targetId} へ本陣を移動。`);
         } else if (data.type === 'stay') {
             p.hp = Math.min(p.maxHp, p.hp + 20);
             p.ap = Math.min(p.maxAp, p.ap + 35);
-            io.to(roomId).emit('GAME_LOG', `🧘 ${p.username}: 休息を選択。`);
+            io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`🧘 ${p.username}: 休息を選択。`);
         }
 
         finalizeTurn(roomId, socket.id);
@@ -571,28 +564,46 @@ io.on('connection', (socket) => {
                     p.atk = dbResult.new_status.atk;
                     p.def = dbResult.new_status.def;
                 }
-                io.to(roomId).emit('GAME_LOG', `🧪 ${p.username} ${dbResult.message}`);
+                io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`🧪 ${p.username} ${dbResult.message}`);
                 io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
             } else {
-                socket.emit('ERROR_MESSAGE', dbResult.message || "アイテムの使用に失敗しました");
+                socket.emit(SERVER_EVENTS.ERROR_MESSAGE, dbResult.message || "アイテムの使用に失敗しました");
             }
         } catch (err) {
             console.error(`❌ [Room ${roomId} DB] アイテム使用API通信エラー:`, err);
-            socket.emit('ERROR_MESSAGE', "サーバーエラーが発生しました");
+            socket.emit(SERVER_EVENTS.ERROR_MESSAGE, "サーバーエラーが発生しました");
         }
     });
 
     // 🚀 【チャット送信】
-    socket.on('SEND_CHAT', (data) => {
+    socket.on(CLIENT_EVENTS.SEND_CHAT, (data) => {
         const roomId = socket.roomId;
         if (!roomId) return;
         
-        io.to(roomId).emit('RECEIVE_CHAT', {
+        io.to(roomId).emit(SERVER_EVENTS.RECEIVE_CHAT, {
             senderId: socket.id,
             username: data.username,
             message: data.message,
             timestamp: new Date().toISOString()
         });
+    });
+
+    // 🚀 【ルーム退出】
+    socket.on(CLIENT_EVENTS.LEAVE_ROOM, (data) => {
+        const roomId = data?.roomId || socket.roomId;
+        if (!roomId) return;
+        const roomState = rooms.get(roomId);
+        if (roomState && roomState.players[socket.id]) {
+            delete roomState.players[socket.id];
+            socket.leave(roomId);
+            socket.roomId = null;
+            if (Object.keys(roomState.players).length === 0) {
+                rooms.delete(roomId);
+            } else {
+                io.to(roomId).emit(SERVER_EVENTS.PLAYER_DISCONNECTED, socket.id);
+                io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+            }
+        }
     });
 
     // 🚀 【プレイヤー切断時のクリーンアップ】
@@ -609,7 +620,7 @@ io.on('connection', (socket) => {
                     rooms.delete(roomId);
                     console.log(`🗑️ Room ${roomId} has been deleted.`);
                 } else {
-                    io.to(roomId).emit('playerDisconnected', socket.id);
+                    io.to(roomId).emit(SERVER_EVENTS.PLAYER_DISCONNECTED, socket.id);
                     io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
                 }
             }
