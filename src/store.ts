@@ -69,8 +69,6 @@ interface GameState {
   activeBuffs: { id: number; name: string; effect: string }[];
   bgmVolume: number;
   seVolume: number;
-
-  // 🚀 追加：被弾アラート用の状態
   isUnderAttack: boolean;
   setUnderAttack: (status: boolean) => void;
 
@@ -126,8 +124,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   activeBuffs: [],
   bgmVolume: 0.5,
   seVolume: 0.5,
-
-  // 🚀 追加：被弾アラート用の初期値と更新関数
   isUnderAttack: false,
   setUnderAttack: (status) => set({ isUnderAttack: status }),
 
@@ -209,36 +205,55 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   closePrediction: () => set({ predictionModalOpen: false, targetDistrictInfo: null }),
 
+  // 🚀 修正：フリッカーを防止しつつ、God選択やターン移行を確実に同期する
   syncServerState: (data, myId) => {
     if (!data) return;
+    const currentState = get();
+
     const rawPlayers = data.players ?? {};
     const playersArray = Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers);
-    const myPlayerData = Array.isArray(rawPlayers) ? rawPlayers.find(p => p.id === myId) : rawPlayers[myId];
+    const myPlayerData = Array.isArray(rawPlayers) ? rawPlayers.find((p: any) => p.id === myId) : rawPlayers[myId];
     
-    set((state) => {
-      const isMe = data.turnOwnerId === myId;
-      return {
+    const nextHp = myPlayerData?.hp ?? currentState.hp;
+    const nextStamina = myPlayerData?.ap ?? myPlayerData?.stamina ?? currentState.stamina;
+    const nextTurn = data.turn ?? currentState.turn;
+    const isMe = data.turnOwnerId === myId;
+    const isGameOver = data.isGameOver ?? currentState.isGameOver;
+
+    // 🚀 監視対象：HP, スタミナ, ターン, 手番, 領土, プレイヤー情報(God選択含む), ゲーム終了フラグ
+    if (
+      currentState.hp !== nextHp ||
+      currentState.stamina !== nextStamina ||
+      currentState.turn !== nextTurn ||
+      currentState.isMyTurn !== isMe ||
+      currentState.isGameOver !== isGameOver ||
+      JSON.stringify(currentState.districts) !== JSON.stringify(data.districts) ||
+      JSON.stringify(currentState.players) !== JSON.stringify(playersArray)
+    ) {
+      set((state) => ({
         ...state,
         myId: myId,
         roomId: data.roomId ?? state.roomId,
         maxPlayers: data.maxPlayers ?? state.maxPlayers,
-        hp: myPlayerData?.hp ?? state.hp,
+        hp: nextHp,
         maxHp: myPlayerData?.maxHp ?? state.maxHp,
-        stamina: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.stamina,
+        stamina: nextStamina,
         atk: myPlayerData?.atk ?? state.atk,
         def: myPlayerData?.def ?? state.def,
         districts: data.districts ?? state.districts,
         players: playersArray, 
-        turn: data.turn ?? state.turn,
+        turn: nextTurn,
         isMyTurn: isMe,
         turnOwner: isMe ? "YOU" : (data.turnOwnerName || "ENEMY"),
         isSubmitted: isMe ? false : state.isSubmitted,
-        isGameOver: data.isGameOver ?? state.isGameOver,
+        isGameOver: isGameOver,
         winnerId: data.winnerId ?? state.winnerId
-      };
-    });
-    window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: data.players } }));
-    get().updateBuffs();
+      }));
+
+      // 地図の再描画とバフの更新も、変更があったときのみ実行
+      window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: data.players } }));
+      get().updateBuffs();
+    }
   },
 
   updateBuffs: () => {
