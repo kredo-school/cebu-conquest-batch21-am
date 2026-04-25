@@ -4,7 +4,7 @@ import { useGameStore } from '../store';
 interface GodSelectionViewProps {
   onComplete: () => void;
   onOpenSettings: () => void;
-  onOpenHelp: () => void; // 🚀 1. ヘルプ用のプロップスを追加
+  onOpenHelp: () => void;
 }
 
 const GOD_SLOTS = [
@@ -21,17 +21,20 @@ const GOD_SLOTS = [
 export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete, onOpenSettings, onOpenHelp }) => {
   const { selectGod, players, myId, selectedGodId } = useGameStore();
   const [isDeploying, setIsDeploying] = useState(false);
-
-  // Reactの再描画に負けない「絶対時間」を保存する
   const targetTimeRef = useRef(0);
 
+  // 🚀 修正：サーバーからのキー名(godId)とStoreのキー名(selectedGodId)の両方に対応
   const humanPlayers = players.filter(p => !p.isNpc);
   const totalCount = humanPlayers.length;
-  const readyCount = humanPlayers.filter(p => p.selectedGodId).length;
+  const readyCount = humanPlayers.filter(p => p.selectedGodId || p.godId).length;
 
   const getLockInfo = (godId: number) => {
-    const selector = players.find(p => p.id !== myId && p.selectedGodId === godId);
-    if (selector) return { name: selector.username || "Operator", avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${selector.username || selector.id}` };
+    // 🚀 修正：他プレイヤーがそのGodを選んでいるかチェック (godId も確認)
+    const selector = players.find(p => p.id !== myId && (p.selectedGodId === godId || p.godId === godId));
+    if (selector) return { 
+      name: selector.playerName || selector.username || "Operator", 
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${selector.playerName || selector.id}` 
+    };
     return null;
   };
 
@@ -41,9 +44,10 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete, 
   };
 
   useEffect(() => {
+    // 🚀 修正：全員準備完了のロジック
     const allReady = totalCount > 0 && readyCount >= totalCount;
 
-    if ((allReady && selectedGodId) || isDeploying) {
+    if (allReady && (selectedGodId || isDeploying)) {
       if (!isDeploying) setIsDeploying(true);
       if (targetTimeRef.current === 0) {
         targetTimeRef.current = Date.now() + 2500;
@@ -59,32 +63,17 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete, 
   return (
     <div className="fixed inset-0 z-[10000] bg-slate-950 font-body text-slate-200 antialiased overflow-hidden select-none flex items-center justify-center">
       
-      {/* 🚀 2. 右上にヘルプと設定ボタンを配置 */}
+      {/* 📡 Top UI Controls */}
       <div className="absolute top-8 right-12 z-[10002] flex gap-6 items-center">
-        {/* ヘルプボタン */}
-        <button 
-          onClick={onOpenHelp}
-          className="pointer-events-auto group flex items-center justify-center transition-all active:scale-90"
-          title="TACTICAL MANUAL"
-        >
-          <span className="material-symbols-outlined text-slate-500 group-hover:text-cyan-400 text-3xl transition-colors">
-            help
-          </span>
+        <button onClick={onOpenHelp} className="group transition-all active:scale-90" title="TACTICAL MANUAL">
+          <span className="material-symbols-outlined text-slate-500 group-hover:text-cyan-400 text-3xl">help</span>
         </button>
-
-        {/* 設定ボタン */}
-        <button 
-          onClick={onOpenSettings}
-          className="pointer-events-auto group flex items-center justify-center transition-all active:scale-90"
-          title="SETTINGS"
-        >
-          <span className="material-symbols-outlined text-slate-500 group-hover:text-brand-500 text-3xl transition-colors">
-            settings
-          </span>
+        <button onClick={onOpenSettings} className="group transition-all active:scale-90" title="SETTINGS">
+          <span className="material-symbols-outlined text-slate-500 group-hover:text-brand-500 text-3xl">settings</span>
         </button>
       </div>
 
-      {/* デプロイ開始オーバーレイ */}
+      {/* Deploy Overlay */}
       <div className={`fixed inset-0 z-[10001] bg-slate-950 transition-opacity duration-1000 pointer-events-none flex flex-col items-center justify-center ${isDeploying ? 'opacity-100' : 'opacity-0'}`}>
         <div className="text-center">
           <div className="text-brand-500 text-sm font-black tracking-[0.6em] uppercase mb-6 animate-pulse">Neural Link Established</div>
@@ -104,8 +93,8 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete, 
       <main className="relative z-10 w-full h-full flex flex-col items-center justify-center p-6 lg:p-12">
         <div className="glass-panel w-full max-w-[96%] h-[92vh] flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.9)] border-t border-brand-500/50 rounded-2xl overflow-hidden bg-slate-900/40 backdrop-blur-md">
           
-          <div className="flex items-center justify-between px-12 py-8 border-b border-white/5 bg-white/5">
-            <div className="flex flex-col text-left">
+          <div className="flex items-center justify-between px-12 py-8 border-b border-white/5 bg-white/5 text-left">
+            <div className="flex flex-col">
               <h1 className="text-4xl lg:text-5xl font-black italic tracking-tighter text-white uppercase leading-none">
                 Choose your <span className="text-brand-500">Divine Blessing</span>
               </h1>
@@ -114,7 +103,7 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete, 
                 <span className={`text-[10px] uppercase tracking-[0.4em] font-bold italic ${selectedGodId ? 'text-brand-500' : 'text-cyan-400'}`}>
                     {selectedGodId 
                       ? "Awaiting other operators to finalize link..." 
-                      : `Priority Protocol Active - Choose your guardian`}
+                      : `Priority Protocol Active - [ ${readyCount} / ${totalCount} READY ]`}
                 </span>
               </div>
             </div>
@@ -202,7 +191,7 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete, 
                 {(selectedGodId || isDeploying) && (
                   <button
                     onClick={() => onComplete()}
-                    className="text-[10px] font-black tracking-widest bg-red-900/40 text-red-400 border border-red-500/50 px-4 py-2 hover:bg-red-600 hover:text-white transition-all rounded pointer-events-auto shadow-lg text-center"
+                    className="text-[10px] font-black tracking-widest bg-red-900/40 text-red-400 border border-red-500/50 px-4 py-2 hover:bg-red-600 hover:text-white transition-all rounded pointer-events-auto shadow-lg"
                   >
                     FORCE DEPLOY
                   </button>
@@ -217,20 +206,10 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete, 
       </main>
 
       <style>{`
-        .tactical-border {
-          clip-path: polygon(0 0, 100% 0, 100% 92%, 92% 100%, 0 100%, 0 8%);
-        }
-        .scanline {
-          background: linear-gradient(to bottom, rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
-          background-size: 100% 4px;
-        }
-        @keyframes progressBar {
-          0% { width: 0%; }
-          100% { width: 100%; }
-        }
-        .animate-progressBar {
-          animation: progressBar 2.5s ease-in-out forwards;
-        }
+        .tactical-border { clip-path: polygon(0 0, 100% 0, 100% 92%, 92% 100%, 0 100%, 0 8%); }
+        .scanline { background: linear-gradient(to bottom, rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%); background-size: 100% 4px; }
+        @keyframes progressBar { 0% { width: 0%; } 100% { width: 100%; } }
+        .animate-progressBar { animation: progressBar 2.5s ease-in-out forwards; }
       `}</style>
     </div>
   );
