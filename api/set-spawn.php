@@ -77,7 +77,7 @@ try {
   echo json_encode([
     'status'      => 'success',
     'message'     => "The initial spawn locations have been determined! Let the game begin!", //初期スポーン位置が決定しました！ゲームスタート！
-    'spawn_territory_id' => $territoryId
+    'spawn_territory_id' => $spotId
   ], JSON_UNESCAPED_UNICODE);
   
 } catch (Exception $e) {

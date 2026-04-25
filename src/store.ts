@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import socket from './socket';
+import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
 
 interface ChatMessage {
   sender: string;
@@ -29,7 +30,7 @@ const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   11120: { name: "ヘリテージ・スパイス", effect: "DEF +10" },
 };
 
-const API_BASE = "http://localhost/cebu-conquest/cebu-conquest-batch21-am/api"; 
+const API_BASE = "http://localhost/cebu-conquest-batch21-am/api";
 
 interface GameState {
   token: string | null;
@@ -151,7 +152,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           atk: user.atk || 100,
           def: user.def || 100,
           stamina: user.stamina || 100,
-          maxStamina: user.max_hp || 100,
+          maxStamina: user.stamina || 100,
         });
         get().addLog(`🔐 認証完了。コマンダー ${user.username} ログイン。`);
         return true;
@@ -180,7 +181,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (isSubmitted) return; 
     const god = GODS_DATA.find(g => g.id === id);
     if (!god) return;
-    socket.emit("SELECT_GOD", { roomId, godId: id });
+    socket.emit(CLIENT_EVENTS.SELECT_GOD, { roomId, godId: id });
     set((state) => ({
       selectedGodId: id,
       atk: id === 1 ? 50 + 20 : 50,
@@ -289,7 +290,7 @@ socket.on('disconnect', () => {
   useGameStore.getState().setStatus({ isServerOnline: false });
 });
 
-socket.on('RECEIVE_CHAT', (data: any) => {
+socket.on(SERVER_EVENTS.RECEIVE_CHAT, (data: any) => {
   useGameStore.getState().addChatLog({
     sender: data.sender,
     message: data.message,
@@ -298,11 +299,11 @@ socket.on('RECEIVE_CHAT', (data: any) => {
   });
 });
 
-socket.on('GAME_LOG', (msg: string) => {
+socket.on(SERVER_EVENTS.GAME_LOG, (msg: string) => {
   useGameStore.getState().addLog(`🛰️ SERVER: ${msg}`);
 });
 
-socket.on('ERROR', (msg: string) => {
+socket.on(SERVER_EVENTS.ERROR_MESSAGE, (msg: string) => {
   useGameStore.getState().addLog(`⚠️ SERVER: ${msg}`);
 });
 
