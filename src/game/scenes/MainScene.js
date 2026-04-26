@@ -5,16 +5,16 @@ import { PHASER_TO_REACT, REACT_TO_PHASER, emitToReact } from "../events/PhaserB
 import { MAP_CONFIG } from "../config/mapConfig";
 import ZoomManager from "./ZoomManager";
 import SoundManager from "../SoundManager";
+import EffectManager from "../effects/EffectManager";
 
 const MAP_SCALE = 0.5;
 
 const COLOR = {
   NEUTRAL: 0x95a5a6,
   HIGHLIGHT: 0xffff00,
-  PLAYER_DOT: 0xf1c40f, // 自分：黄
-  ENEMY_DOT: 0xffffff, // 🚀 NPC：白（黒枠付きで視認性最大）
-  TEAM_RED: 0xff4d4d, // 赤（issei領土）
-  TEAM_BLUE: 0x00ffff, // 青（NPC領土）
+  ENEMY_DOT: 0xffffff,
+  TEAM_RED: 0xff4d4d,
+  TEAM_BLUE: 0x00ffff,
 };
 
 const normalizeId = (id) => {
@@ -96,6 +96,7 @@ export default class MainScene extends Phaser.Scene {
     this.updateStatusToReact();
     SoundManager.setScene(this);
     SoundManager.playBgm('map');
+    this.effectManager = new EffectManager(this);
   }
 
   update() {
@@ -127,6 +128,7 @@ export default class MainScene extends Phaser.Scene {
         handler: (e) => {
           const targetId = e.detail?.targetId;
           if (!targetId) return;
+          this._pendingTargetId = normalizeId(targetId);
           socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: "attack", targetId: String(targetId) });
           SoundManager.playBgm('battle');
         },
@@ -195,6 +197,13 @@ export default class MainScene extends Phaser.Scene {
         this.updateStatusToReact();
       }
       if (data.message) this.showLog(data.message);
+      if (this._pendingTargetId !== null) {
+        const attacker = this.districts[this.currentDistrictId];
+        const target   = this.districts[this._pendingTargetId];
+        if (attacker) this.effectManager.playSlashEffect(attacker.center.x, attacker.center.y);
+        if (target)   this.effectManager.playExplosionEffect(target.center.x, target.center.y);
+        this._pendingTargetId = null;
+      }
       // バトル結果受信後、マップBGMへ戻す（2秒の余韻を持たせる）
       this.time.delayedCall(2000, () => SoundManager.playBgm('map'));
     });
@@ -289,8 +298,9 @@ export default class MainScene extends Phaser.Scene {
         this._updateHoverText(hoveredId);
       }
     });
-    this.input.on("wheel", (pointer, _objs, _dx, deltaY, _dz, event) => {
-      const isPinch = event?.ctrlKey === true;
+    this.input.on("wheel", (pointer, _objs, _dx, deltaY) => {
+      const nativeEvent = pointer.event;
+      const isPinch = nativeEvent?.ctrlKey === true;
       const zoomSpeed = isPinch ? 0.1 : 0.001;
       const oldZoom = cam.zoom;
       const newZoom = Phaser.Math.Clamp(oldZoom - deltaY * zoomSpeed, 0.5, 8);
@@ -302,7 +312,7 @@ export default class MainScene extends Phaser.Scene {
       cam.scrollY = worldY - pointer.y / newZoom;
       this._clampCamera();
       this._updateLabelVisibility();
-      if (isPinch && event?.preventDefault) event.preventDefault();
+      if (isPinch) nativeEvent.preventDefault();
     });
     cam.setZoom(1);
     this._clampCamera();
@@ -421,16 +431,18 @@ export default class MainScene extends Phaser.Scene {
   _syncDistricts(serverDistricts, serverPlayers) {
     Object.entries(serverDistricts).forEach(([dId, ownerId]) => {
       const d = this.districts[normalizeId(dId)];
-      if (!d || !serverPlayers[ownerId]) return;
-      const team = serverPlayers[ownerId].team?.toLowerCase();
+      if (!d) return;
+      // ownerIdがnull・未登録プレイヤー(退出等)は中立として扱う
+      const playerData = ownerId ? serverPlayers[ownerId] : null;
+      const team = playerData?.team?.toLowerCase() ?? "neutral";
       // 自分の陣地として新たに確定したとき SE を鳴らす
       if (!this.isSelectionMode && this._myTeam && team === this._myTeam && d.owner !== this._myTeam) {
         SoundManager.playSe('capture');
+        this.effectManager.playCapturePopup(d.center.x, d.center.y);
       }
-      d.owner = team ?? "neutral";
-      const col =
-        team === "red" ? COLOR.TEAM_RED : team === "blue" ? COLOR.TEAM_BLUE : COLOR.NEUTRAL;
-      this._redrawDistrict(d, col, 0.7);
+      d.owner = team;
+      const col = team === "red" ? COLOR.TEAM_RED : team === "blue" ? COLOR.TEAM_BLUE : COLOR.NEUTRAL;
+      this._redrawDistrict(d, col, team === "neutral" ? 0 : 0.7);
     });
   }
 
