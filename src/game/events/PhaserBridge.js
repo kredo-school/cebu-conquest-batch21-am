@@ -16,6 +16,7 @@ export const REACT_TO_PHASER = {
   COMMAND_ESCAPE:         'react:commandEscape',
   COMMAND_DEFEND:         'react:commandDefend',
   COMMAND_DEPLOY_CONFIRM: 'react:confirmDeployment',
+  SET_AVATAR:             'react:setAvatar', // payload: { godKey: 'god-john' }
 };
 
 export function emitToReact(eventName, payload = {}) {
