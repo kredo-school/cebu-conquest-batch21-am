@@ -63,7 +63,7 @@ export default class MainScene extends Phaser.Scene {
     this._reactListeners = [];
     this._myTeam = null;
     this._pendingTargetId = null;
-    this._avatarKey = 'avatar-default';
+    this._avatarKey = 'god-john';
   }
 
   preload() {
@@ -72,7 +72,18 @@ export default class MainScene extends Phaser.Scene {
       config.tilesets.forEach((ts) => this.load.image(ts.key, ts.path));
     }
     this.load.tilemapTiledJSON(config.key, config.path);
-    this.load.image('avatar-default', '/assets/images/gods/John.png');
+
+    const GOD_IMAGES = [
+      { key: 'god-john',   path: '/assets/images/gods/John.png' },
+      { key: 'god-garry',  path: '/assets/images/gods/Garry.png' },
+      { key: 'god-quesie', path: '/assets/images/gods/Quesie.png' },
+      { key: 'god-neil',   path: '/assets/images/gods/Neil.png' },
+      { key: 'god-edo',    path: '/assets/images/gods/Edo.png' },
+      { key: 'god-shem',   path: '/assets/images/gods/Shem.png' },
+      { key: 'god-kurt',   path: '/assets/images/gods/Kurt.png' },
+      { key: 'god-secret', path: '/assets/images/gods/Secret_Rare.png' },
+    ];
+    GOD_IMAGES.forEach(({ key, path }) => this.load.image(key, path));
 
     // BGM（game view 中に使うもののみ）
     this.load.audio('bgm_map',    '/assets/audio/bgm/bgm_map.mp3');
@@ -153,6 +164,15 @@ export default class MainScene extends Phaser.Scene {
           if (e.detail.districts && e.detail.players) {
             this._syncDistricts(e.detail.districts, e.detail.players);
           }
+        },
+      },
+      {
+        event: REACT_TO_PHASER.SET_AVATAR,
+        handler: (e) => {
+          const key = e.detail?.godKey;
+          if (!key || !this.textures.exists(key)) return;
+          this._avatarKey = key;
+          if (this.currentDistrictId !== null) this._placePlayer(this.currentDistrictId);
         },
       },
     ];
@@ -417,11 +437,15 @@ export default class MainScene extends Phaser.Scene {
     if (!d) return;
     if (this.player) this.player.destroy();
 
-    // John.png は 1306×816 の横長カード画像。中央正方形（816×816）を切り出して 48×48 に表示。
-    const cropX = Math.floor((1306 - 816) / 2); // 245
+    // 画像ごとにサイズが異なる場合でも中央正方形をクロップして 48×48 に表示
+    const src = this.textures.get(this._avatarKey).getSourceImage();
+    const size = Math.min(src.width, src.height);
+    const cropX = Math.floor((src.width  - size) / 2);
+    const cropY = Math.floor((src.height - size) / 2);
+
     this.player = this.add
       .image(d.center.x, d.center.y, this._avatarKey)
-      .setCrop(cropX, 0, 816, 816)
+      .setCrop(cropX, cropY, size, size)
       .setDisplaySize(48, 48)
       .setDepth(1000);
 
