@@ -6,9 +6,9 @@ export const MAP_CONFIG = {
         SIMPLE: {
             key: 'map_simple',
             path: '/assets/maps/cebu_map_簡易版.tmj',
-            tilesetKey: 'tiles',
-            tilesetName: 'Slates.png',
-            layerName: 'タイルレイヤー1',
+            tilesets: [
+                { name: 'Slates.png', key: 'tiles', path: '/assets/tilesets/Slates.png' },
+            ],
             districtLayer: "districtName",
         },
         PRODUCTION: {
