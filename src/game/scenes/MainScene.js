@@ -528,6 +528,47 @@ export default class MainScene extends Phaser.Scene {
       else if (ev.key === '-') this._keyZoom(-1);
       else if (ev.key === '0') this._keyZoomReset();
     });
+
+    if (import.meta.env.DEV) this._setupDevKeys();
+  }
+
+  // ─── 開発用テストキー（npm run dev 時のみ有効） ──────────────────
+  // F1: 斬撃エフェクト  F2: 爆発エフェクト  F3: 占領ポップアップ
+  // F4: プレイヤーをランダム地区にスポーン（単体起動テスト用）
+  _setupDevKeys() {
+    const _center = () => {
+      const cam = this.cameras.main;
+      return cam.getWorldPoint(cam.width / 2, cam.height / 2);
+    };
+
+    this.input.keyboard.on('keydown-F1', () => {
+      const { x, y } = _center();
+      this.effectManager.playSlashEffect(x, y);
+      this.showLog('[DEV] 斬撃エフェクト (F1)');
+    });
+
+    this.input.keyboard.on('keydown-F2', () => {
+      const { x, y } = _center();
+      this.effectManager.playExplosionEffect(x, y);
+      this.showLog('[DEV] 爆発エフェクト (F2)');
+    });
+
+    this.input.keyboard.on('keydown-F3', () => {
+      const { x, y } = _center();
+      this.effectManager.playCapturePopup(x, y);
+      this.showLog('[DEV] 占領ポップアップ (F3)');
+    });
+
+    this.input.keyboard.on('keydown-F4', () => {
+      const spotDistricts = Object.values(this.districts).filter((d) => d.type === 'spotName');
+      if (spotDistricts.length === 0) return;
+      const d = spotDistricts[Math.floor(Math.random() * spotDistricts.length)];
+      this.isSelectionMode = false;
+      this._myTeam = 'red';
+      this.currentDistrictId = d.id;
+      this._placePlayer(d.id);
+      this.showLog(`[DEV] スポーン: ${d.name} (F4)`);
+    });
   }
 
   _handleCameraKeyboard() {
