@@ -24,17 +24,30 @@ const normalizeId = (id) => {
 };
 
 const ADJACENCY = {
-  // 11101: ["11102", "11104", "11105", "11120"],
-  // 11102: ["11101", "11104", "11106", "11108"],
-  // 11108: ["11102", "11104", "11109", "11112"],
-  // 11112: ["11108", "11109", "11116", "11113", "11119"],
-  // 11113: ["11109", "11112", "11117", "11118", "11119"],
-  // 11119: ["11112", "11113", "11115", "11118", "11120", "11121"],
-  // 11120: ["11116", "11119", "11101", "11121"],
-  // 13101: ["13102", "13103", "13401"],
-  // 13102: ["13101", "13103", "13201"],
-  // 13103: [ "13102", "13201", "13204"],
-  // 13201: ["13102", "13103", "1320"],
+  // ── セブ市街地エリア（エリアID: 11）──
+  11101: [11102, 11104, 11105, 11120],
+  11102: [11101, 11104, 11106, 11108],
+  11103: [11101, 11105, 11201, 11301],
+  11104: [11101, 11102, 11105, 11401],
+  11105: [11101, 11103, 11104, 11301],
+  11106: [11102, 11108],
+  11108: [11102, 11106, 11109, 11112],
+  11109: [11108, 11112, 11113],
+  11112: [11108, 11109, 11113, 11116, 11119],
+  11113: [11109, 11112, 11117, 11118, 11119],
+  11115: [11118, 11119],
+  11116: [11112, 11119, 11120],
+  11117: [11113, 11118],
+  11118: [11113, 11115, 11117, 11119],
+  11119: [11112, 11113, 11115, 11118, 11120, 11121],
+  11120: [11101, 11116, 11119, 11121],
+  11121: [11119, 11120],
+  // ── 北部エリア（エリアID: 13）──
+  13101: [13102, 13103],
+  13102: [13101, 13103, 13201],
+  13103: [13101, 13102, 13201, 13204],
+  13201: [13102, 13103, 13204],
+  13204: [13103, 13201],
 };
 
 function pointInPolygon(point, polygon) {
@@ -272,6 +285,16 @@ export default class MainScene extends Phaser.Scene {
         this._redrawDistrict(this.districts[districtId], COLOR.NEUTRAL, 0);
       });
     });
+
+    if (import.meta.env.DEV) {
+      const summary = {};
+      Object.values(this.districts).forEach((d) => {
+        summary[d.type] = summary[d.type] ?? [];
+        summary[d.type].push(d.id);
+      });
+      console.log("[TMJ] ロード結果:", summary);
+      console.log("[TMJ] 合計:", Object.keys(this.districts).length, "オブジェクト");
+    }
   }
 
   _drawDistrictPolygons() {
@@ -353,52 +376,54 @@ export default class MainScene extends Phaser.Scene {
   _onMapClicked(x, y) {
     if (this._dragMoved) return;
     const worldPoint = this.cameras.main.getWorldPoint(x, y);
-    const id = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
-    if (!id) return;
+
+    // _getDistrictAtPoint は districts のキー（Number）をそのまま返す
+    // 本番マップではズームが十分なら spotId（5桁 Number）が返る
+    const spotId = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
+    if (!spotId) return;
 
     if (this.isSelectionMode) {
-      // 選択モード：スポーン地点を選ぶフェーズ
+      // ── 初期スポット選択フェーズ ──
       SoundManager.playSe('click');
       Object.values(this.districts).forEach((d) => this._redrawDistrict(d, COLOR.NEUTRAL));
-      this._redrawDistrict(this.districts[id], COLOR.HIGHLIGHT, 0.8);
+      this._redrawDistrict(this.districts[spotId], COLOR.HIGHLIGHT, 0.8);
 
-      // Reactに地区選択を通知（Zustandはいっせい側で更新する）
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
-        districtId: id,
-        districtName: this.districts[id]?.name ?? String(id),
+        districtId: spotId,                                       // Number のまま渡す
+        districtName: this.districts[spotId]?.name ?? String(spotId),
       });
-    } else {
-      // プレイ中：攻撃・移動の選択フェーズ
-      const myPos = String(this.currentDistrictId);
-      const targetId = String(id);
-      if (targetId === myPos) return;
 
-      if (!(ADJACENCY[myPos] || []).includes(targetId)) {
-        this.showLog("⚠️ 隣接していない地区には行動できません。");
+    } else {
+      // ── プレイ中：移動・攻撃フェーズ ──
+
+      // Number 同士で同一スポット判定
+      if (spotId === this.currentDistrictId) return;
+
+      // ADJACENCY は Number キー・Number 配列なので型一致
+      const neighbors = ADJACENCY[this.currentDistrictId] ?? [];
+      if (!neighbors.includes(spotId)) {
+        this.showLog("⚠️ 隣接していないスポットには行動できません。");
         return;
       }
 
       SoundManager.playSe('click');
-      this._pendingTargetId = id;
+      this._pendingTargetId = spotId;                             // Number で保持
 
-      // オーナー判定：サーバーが返す "red" | "blue" だけで比較
-      const targetOwner = (this.districts[id]?.owner ?? "neutral").toLowerCase();
+      const targetOwner = (this.districts[spotId]?.owner ?? "neutral").toLowerCase();
       const isMyTerritory = targetOwner === this._myTeam;
-      const isNeutral = targetOwner === "neutral";
+      const isNeutral     = targetOwner === "neutral";
 
-      // Reactに選択結果を通知（ターン判定・モーダル表示はいっせいに任せる）
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
-        districtId: id,
-        districtName: this.districts[id]?.name ?? String(id),
+        districtId: spotId,                                       // Number
+        districtName: this.districts[spotId]?.name ?? String(spotId),
         isMyTerritory,
         isNeutral,
       });
 
-      // ログだけPhaser側で出す
       if (isMyTerritory) {
-        this.showLog(`🚚 移動先: ${this.districts[id]?.name}`);
+        this.showLog(`🚚 移動先: ${this.districts[spotId]?.name}`);
       } else {
-        this.showLog(`🎯 攻撃対象: ${this.districts[id]?.name}`);
+        this.showLog(`🎯 攻撃対象: ${this.districts[spotId]?.name}`);
       }
     }
   }
@@ -455,14 +480,17 @@ export default class MainScene extends Phaser.Scene {
   _syncDistricts(serverDistricts, serverPlayers) {
     Object.entries(serverDistricts).forEach(([dId, ownerId]) => {
       const d = this.districts[normalizeId(dId)];
-      if (!d) return;
-      // ownerIdがnull・未登録プレイヤー(退出等)は中立として扱う
+      if (!d) {
+        if (import.meta.env.DEV) {
+          console.warn(`[_syncDistricts] district ${dId} not found in Phaser. Available:`, Object.keys(this.districts).slice(0, 5));
+        }
+        return;
+      }
       const playerData = ownerId ? serverPlayers[ownerId] : null;
       const team = playerData?.team?.toLowerCase() ?? "neutral";
-      // 自分の陣地として新たに確定したとき SE を鳴らす
       if (!this.isSelectionMode && this._myTeam && team === this._myTeam && d.owner !== this._myTeam) {
         SoundManager.playSe('capture');
-        this.effectManager.playCapturePopup(d.center.x, d.center.y);
+        this.effectManager?.playCapturePopup(d.center.x, d.center.y);
       }
       d.owner = team;
       const col = team === "red" ? COLOR.TEAM_RED : team === "blue" ? COLOR.TEAM_BLUE : COLOR.NEUTRAL;
@@ -478,7 +506,10 @@ export default class MainScene extends Phaser.Scene {
     this.otherPlayers = {};
 
     Object.entries(players).forEach(([playerId, data]) => {
-      const rawId = data.districtId || data.currentDistrict || data.pos;
+      const rawId = data.spotId          // サーバーが spotId を返す場合
+                 ?? data.districtId      // 後方互換（旧フィールド名）
+                 ?? data.currentDistrict // 後方互換
+                 ?? data.pos;            // 最終フォールバック
       const dId = normalizeId(rawId);
 
       if (!dId) {
