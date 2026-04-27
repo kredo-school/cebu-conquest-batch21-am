@@ -76,7 +76,7 @@ try {
 
     // 人数制限チェック（最大2名）
     $countStmt = $pdo->query("SELECT COUNT(*) FROM users");
-    if ($countStmt->fetchColumn() >= 2) {
+    if ($countStmt->fetchColumn() >= 4) { //ここを２に変えると２人の接続に制限できる！！
       $pdo->rollBack();
       http_response_code(403);
       echo json_encode(['status' => 'error', 'message' => '満員です（最大2名まで）']);
