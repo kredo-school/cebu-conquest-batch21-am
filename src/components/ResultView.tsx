@@ -41,7 +41,8 @@ export const ResultView: React.FC<ResultViewProps> = ({
   };
 
   return (
-    <div className={`fixed inset-0 z-[20000] ${theme.bg} text-zinc-100 font-body overflow-y-auto selection:bg-orange-500/30`}>
+    // 🚀 fixed inset-0 を使用しているため、親要素への依存なしに画面全体を覆います
+    <div className={`fixed inset-0 z-[20000] ${theme.bg} text-zinc-100 font-body overflow-y-auto selection:bg-orange-500/30 custom-scrollbar`}>
       
       {/* 🚀 CSSアニメーション・エフェクト */}
       <style>{`
@@ -75,15 +76,17 @@ export const ResultView: React.FC<ResultViewProps> = ({
 
       {/* 📡 TopNavBar */}
       <nav className={`fixed top-0 w-full z-50 bg-black/80 text-orange-500 font-['Inter'] tracking-tighter border-b ${theme.border} shadow-[0_4px_20px_rgba(0,0,0,0.5)] flex justify-between items-center px-6 py-4 backdrop-blur-md`}>
-        <div className={`text-xl font-black italic ${theme.secondaryText} uppercase`}>
+        {/* 🚀 修正：font-fixを追加 */}
+        <div className={`text-xl font-black italic ${theme.secondaryText} uppercase font-fix`}>
           CEBU CONQUEST
         </div>
         <div className="hidden md:flex items-center gap-8 text-sm font-medium tracking-wide">
-          <span className="text-slate-400 hover:text-white transition-colors cursor-pointer" onClick={onRestart}>MISSION RESULT</span>
-          <button onClick={onOpenRanking} className="text-orange-400 border-b-2 border-orange-500 pb-1 hover:text-orange-300 transition-colors uppercase font-bold">
+          {/* 🚀 修正：font-fixを追加 */}
+          <span className="text-slate-400 hover:text-white transition-colors cursor-pointer font-fix" onClick={onRestart}>MISSION RESULT</span>
+          <button onClick={onOpenRanking} className="text-orange-400 border-b-2 border-orange-500 pb-1 hover:text-orange-300 transition-colors uppercase font-bold font-fix">
             RANKING
           </button>
-          <span className="text-slate-400 hover:text-blue-200 transition-colors cursor-pointer">ARCHIVES</span>
+          <span className="text-slate-400 hover:text-blue-200 transition-colors cursor-pointer font-fix">ARCHIVES</span>
         </div>
         <div className="flex gap-4 items-center">
           <button onClick={onOpenHelp} className="flex items-center justify-center p-2 hover:bg-zinc-800 rounded-lg transition-all active:scale-90" title="HELP / MANUAL">
@@ -96,19 +99,23 @@ export const ResultView: React.FC<ResultViewProps> = ({
       </nav>
 
       {/* Main Content Canvas */}
-      <main className="relative z-10 flex flex-col items-center justify-center min-h-screen pt-20 pb-24 md:pb-12 px-6">
+      {/* 🚀 修正：min-h-screen を min-h-full に変更し、親要素の fixed inset-0 に追従させる */}
+      <main className="relative z-10 flex flex-col items-center justify-center min-h-full pt-20 pb-24 md:pb-12 px-6">
         
         {/* Result Banner */}
         <div className="text-center mb-8">
-          <div className={`${theme.primaryText} text-sm font-bold tracking-[0.5em] uppercase mb-2`}>
+          {/* 🚀 修正：font-fixを追加 */}
+          <div className={`${theme.primaryText} text-sm font-bold tracking-[0.5em] uppercase mb-2 font-fix`}>
             {theme.subTitle}
           </div>
-          <h1 className={`text-7xl md:text-9xl font-black italic uppercase ${theme.primaryText} ${theme.titleEffect} tracking-tighter`}>
+          {/* 🚀 修正：font-fixを追加 */}
+          <h1 className={`text-7xl md:text-9xl font-black italic uppercase ${theme.primaryText} ${theme.titleEffect} tracking-tighter font-fix`}>
             {theme.mainTitle}
           </h1>
           <div className="flex items-center justify-center gap-4 mt-2">
             <div className={`h-[1px] w-12 ${isWinner ? 'bg-blue-500/50' : 'bg-red-600/50'}`}></div>
-            <p className={`${theme.secondaryText} font-bold text-lg`}>{theme.jpTitle}</p>
+            {/* 🚀 修正：font-fixを追加 */}
+            <p className={`${theme.secondaryText} font-bold text-lg font-fix`}>{theme.jpTitle}</p>
             <div className={`h-[1px] w-12 ${isWinner ? 'bg-blue-500/50' : 'bg-red-600/50'}`}></div>
           </div>
         </div>
@@ -125,13 +132,16 @@ export const ResultView: React.FC<ResultViewProps> = ({
                 alt="Operator" 
               />
               <div className={`absolute inset-0 ${isWinner ? 'bg-blue-500/20' : 'bg-red-600/20'} mix-blend-color pointer-events-none`}></div>
-              <div className={`absolute -bottom-2 -right-2 ${isWinner ? 'bg-blue-600' : 'bg-red-600'} text-white text-[10px] font-black px-2 py-0.5 uppercase`}>
+              {/* 🚀 修正：font-fixを追加 */}
+              <div className={`absolute -bottom-2 -right-2 ${isWinner ? 'bg-blue-600' : 'bg-red-600'} text-white text-[10px] font-black px-2 py-0.5 uppercase font-fix`}>
                 {isWinner ? 'SURVIVED' : 'DEFEATED'}
               </div>
             </div>
             <div className="text-center">
-              <div className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">OPERATOR ID</div>
-              <div className="text-2xl font-black text-white italic tracking-tight">{playerName || "GUEST"}</div>
+              {/* 🚀 修正：font-fixを追加 */}
+              <div className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold font-fix">OPERATOR ID</div>
+              {/* 🚀 修正：font-fixを追加 */}
+              <div className="text-2xl font-black text-white italic tracking-tight font-fix">{playerName || "GUEST"}</div>
             </div>
           </div>
 
@@ -140,8 +150,9 @@ export const ResultView: React.FC<ResultViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               
               <div className="space-y-1">
-                <div className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">Health Points</div>
-                <div className={`text-3xl font-black italic ${isWinner ? 'text-green-500' : 'text-red-600'}`}>
+                {/* 🚀 修正：font-fixを追加 */}
+                <div className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest font-fix">Health Points</div>
+                <div className={`text-3xl font-black italic ${isWinner ? 'text-green-500' : 'text-red-600'} font-fix`}>
                   HP: {isWinner ? hp : 0}
                 </div>
                 <div className="w-full h-1 bg-zinc-800">
@@ -150,8 +161,9 @@ export const ResultView: React.FC<ResultViewProps> = ({
               </div>
 
               <div className="space-y-1">
-                <div className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">Territory Control</div>
-                <div className={`text-3xl font-black italic ${theme.secondaryText}`}>
+                {/* 🚀 修正：font-fixを追加 */}
+                <div className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest font-fix">Territory Control</div>
+                <div className={`text-3xl font-black italic ${theme.secondaryText} font-fix`}>
                   {myTerritoryCount}/{totalTerritoryCount}
                 </div>
                 <div className="w-full h-1 bg-zinc-800">
@@ -160,8 +172,9 @@ export const ResultView: React.FC<ResultViewProps> = ({
               </div>
 
               <div className="space-y-1">
-                <div className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">Final Rank Score</div>
-                <div className="text-3xl font-black text-white italic">{mockScore.toLocaleString()}</div>
+                {/* 🚀 修正：font-fixを追加 */}
+                <div className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest font-fix">Final Rank Score</div>
+                <div className="text-3xl font-black text-white italic font-fix">{mockScore.toLocaleString()}</div>
               </div>
 
             </div>
@@ -176,7 +189,8 @@ export const ResultView: React.FC<ResultViewProps> = ({
           >
             <div className="relative z-10 flex items-center justify-center gap-3">
               <span className="material-symbols-outlined text-white font-bold">replay</span>
-              <span className="text-white font-black uppercase italic tracking-tighter">Retry (リトライ)</span>
+              {/* 🚀 修正：font-fixを追加 */}
+              <span className="text-white font-black uppercase italic tracking-tighter font-fix">Retry (リトライ)</span>
             </div>
             <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
           </button>
@@ -187,7 +201,8 @@ export const ResultView: React.FC<ResultViewProps> = ({
           >
             <div className="flex items-center justify-center gap-3">
               <span className="material-symbols-outlined text-zinc-400 group-hover:text-white transition-colors">leaderboard</span>
-              <span className="text-zinc-100 font-black uppercase italic tracking-tighter text-sm">Rankings (順位確認)</span>
+              {/* 🚀 修正：font-fixを追加 */}
+              <span className="text-zinc-100 font-black uppercase italic tracking-tighter text-sm font-fix">Rankings (順位確認)</span>
             </div>
           </button>
         </div>
@@ -198,15 +213,18 @@ export const ResultView: React.FC<ResultViewProps> = ({
       <footer className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-20 bg-slate-900/95 border-t border-blue-500/20 shadow-[0_-4px_20px_rgba(0,0,0,0.5)] md:hidden px-4">
         <div className="flex flex-col items-center justify-center text-slate-500 cursor-pointer" onClick={onRestart}>
           <span className="material-symbols-outlined">home</span>
-          <span className="font-inter text-[10px] uppercase font-bold mt-1 text-center">ホーム</span>
+          {/* 🚀 修正：font-fixを追加 */}
+          <span className="font-inter text-[10px] uppercase font-bold mt-1 text-center font-fix">ホーム</span>
         </div>
         <div className="flex flex-col items-center justify-center text-orange-500 bg-orange-500/10 rounded-xl px-4 py-1">
           <span className="material-symbols-outlined">swords</span>
-          <span className="font-inter text-[10px] uppercase font-bold mt-1 text-center">バトル</span>
+          {/* 🚀 修正：font-fixを追加 */}
+          <span className="font-inter text-[10px] uppercase font-bold mt-1 text-center font-fix">バトル</span>
         </div>
         <div className="flex flex-col items-center justify-center text-slate-500 cursor-pointer" onClick={onOpenRanking}>
           <span className="material-symbols-outlined">leaderboard</span>
-          <span className="font-inter text-[10px] uppercase font-bold mt-1 text-center">順位</span>
+          {/* 🚀 修正：font-fixを追加 */}
+          <span className="font-inter text-[10px] uppercase font-bold mt-1 text-center font-fix">順位</span>
         </div>
       </footer>
     </div>

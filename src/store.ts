@@ -9,15 +9,16 @@ interface ChatMessage {
   timestamp: string;
 }
 
+// 🚀 神々のデータ
 const GODS_DATA = [
-  { id: 1, name: "LAPU-LAPU", role: "WAR GOD", bonus: "ATK +20", img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "近接攻撃ダメージを25%上昇させる。" },
-  { id: 2, name: "SEBUNA", role: "HARVEST", bonus: "MAX AP +30", img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400", desc: "タクティカル・スタミナの最大値を増加。" },
-  { id: 3, name: "KREDO", role: "WISDOM", bonus: "AP REGEN", img: "https://images.unsplash.com/photo-1533240332313-0db49b459ad6?q=80&w=400", desc: "毎ターンのAP回復スピードを向上させる。" },
-  { id: 4, name: "MAYARI", role: "STEALTH", bonus: "SILENT", img: "https://images.unsplash.com/photo-1506466010722-395aa2bef877?q=80&w=400", desc: "足音を消し、敵の探知範囲を縮小させる。" },
-  { id: 5, name: "LUMAWIG", role: "HEAVY", bonus: "ARMOR +40", img: "https://images.unsplash.com/photo-1584281722573-0f723675017e?q=80&w=400", desc: "アーマー耐久値を大幅に強化する。" },
+  { id: 1, name: "LAPU-LAPU", role: "WAR GOD", bonus: "ATK +20", img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "島嶼戦における近接攻撃ダメージを25%上昇させ、物理防御力を強化する。" },
+  { id: 2, name: "SEBUNA", role: "HARVEST", bonus: "MAX AP +30", img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400", desc: "全分隊員のタクティカルアビリティのクールダウンを15%短縮する。" },
+  { id: 3, name: "KREDO", role: "WISDOM", bonus: "AP REGEN", img: "https://images.unsplash.com/photo-1533240332313-0db49b459ad6?q=80&w=400", desc: "毎ターンのAP回復スピードを大幅に向上させ、継戦能力を高める。" },
+  { id: 4, name: "MAYARI", role: "STEALTH", bonus: "SILENT", img: "https://images.unsplash.com/photo-1506466010722-395aa2bef877?q=80&w=400", desc: "隠密探知範囲を拡大し、足音の静音性を40%向上させる。" },
+  { id: 5, name: "LUMAWIG", role: "HEAVY", bonus: "ARMOR +40", img: "https://images.unsplash.com/photo-1584281722573-0f723675017e?q=80&w=400", desc: "アーマー耐久値を増加させ、燃焼ステータス効果を無効化する。" },
   { id: 6, name: "HANUMAN", role: "SUPPORT", bonus: "SPEED +15", img: "https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?q=80&w=400", desc: "移動速度と回避率を上昇させる。" },
-  { id: 7, name: "BAKUNAWA", role: "SHADOW", bonus: "INVIS", img: "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?q=80&w=400", desc: "夜間フェーズ中に一時的に姿を消す。" },
-  { id: 8, name: "IDANALE", role: "RECON", bonus: "SCAN", img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=400", desc: "障害物越しの敵をハイライト表示する。" },
+  { id: 7, name: "BAKUNAWA", role: "SHADOW", bonus: "INVIS", img: "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?q=80&w=400", desc: "夜間サイクル中、一時的な不可視化を可能にする。" },
+  { id: 8, name: "IDANALE", role: "RECON", bonus: "SCAN", img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=400", desc: "障害物越しの敵やリソースをハイライト表示する。" },
 ];
 
 const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
@@ -30,17 +31,22 @@ const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   11120: { name: "ヘリテージ・スパイス", effect: "DEF +10" },
 };
 
-const API_BASE = "http://localhost/cebu-conquest-batch21-am/api";
+const API_BASE = "http://localhost/cebu-conquest/cebu-conquest-batch21-am/api";
+
+// 🚀 View名の定義
+type ViewType = 'login' | 'setup' | 'lobby' | 'selection' | 'waiting' | 'game' | 'ranking';
 
 interface GameState {
+  view: ViewType;
+  setView: (view: ViewType) => void; // 🚀 App.tsx で必要なメソッドを追加 
   token: string | null;
   isAuthenticated: boolean;
   isServerOnline: boolean; 
-  hp: number;
+  hp: number; // [cite: 35]
   maxHp: number;
-  stamina: number;
-  maxStamina: number;
-  blessing: number;
+  ap: number; // 
+  maxAp: number; 
+  blessing: number; // 
   atk: number; 
   def: number;
   turn: number; 
@@ -49,7 +55,7 @@ interface GameState {
   chatLogs: ChatMessage[]; 
   roomId: string;
   players: any[];
-  maxPlayers: number; 
+  maxPlayers: number; // 
   districts: Record<string, string>;
   currentDistrictName: string;
   selectedDistrictId: number | null;
@@ -72,20 +78,21 @@ interface GameState {
   isUnderAttack: boolean;
   setUnderAttack: (status: boolean) => void;
 
-  login: (username: string, password?: string) => Promise<boolean>;
+  login: (username: string, password?: string) => Promise<boolean>; // [cite: 11, 12]
   logout: () => void;
   nextTurn: () => void; 
-  selectGod: (id: number) => void; 
+  selectGod: (id: number) => void; // 
   setPlayerName: (name: string) => void; 
   authenticatedFetch: (url: string, options?: RequestInit) => Promise<any>;
   openPrediction: (id: number, name: string, isMyTerritory?: boolean, isNeutral?: boolean) => void;
   closePrediction: () => void;
-  updateBuffs: () => void;
+  updateBuffs: () => void; // [cite: 19, 53]
   setStatus: (status: Partial<GameState>) => void;
-  syncServerState: (data: any, myId: string) => void;
-  attack: (targetId: number) => void;
+  syncServerState: (data: any, myId: string) => void; // [cite: 22, 53]
+  attack: (targetId: number) => void; // [cite: 21, 53]
   move: (targetId: number) => void;
-  stay: () => void;
+  stay: () => void; // [cite: 21, 53]
+  defend: () => void; // [cite: 33]
   escape: () => void;
   endTurn: () => void; 
   addLog: (text: string) => void;
@@ -96,18 +103,20 @@ interface GameState {
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
+  view: 'login',
+  setView: (view) => set({ view }), // 🚀 実装を追加 
   token: typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null,
   isAuthenticated: !!(typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null),
   isServerOnline: socket.connected, 
   hp: 100, maxHp: 100,
-  stamina: 100, maxStamina: 100,
+  ap: 100, maxAp: 100, // [cite: 36]
   blessing: 1.0, atk: 50, def: 40,
   turn: 0, maxTurn: 10,
   logs: ["🌞 ミッション開始。出撃地点を選択してください。"],
   chatLogs: [], 
   roomId: '',
   players: [],
-  maxPlayers: 4, 
+  maxPlayers: 2, // 
   districts: {},
   currentDistrictName: "地点未選択", selectedDistrictId: null,
   playerName: "", myId: "",
@@ -142,13 +151,13 @@ export const useGameStore = create<GameState>((set, get) => ({
           token,
           isAuthenticated: true,
           playerName: user.username,
-          myTeam: user.team || "Blue Team", 
+          myTeam: user.team || "Explorer", 
           hp: user.current_hp || 100,
           maxHp: user.max_hp || 100,
-          atk: user.atk || 100,
-          def: user.def || 100,
-          stamina: user.stamina || 100,
-          maxStamina: user.stamina || 100,
+          atk: user.atk || 50,
+          def: user.def || 40,
+          ap: user.ap || user.stamina || 100, // APへ統一 [cite: 36]
+          maxAp: user.max_ap || 100,
         });
         get().addLog(`🔐 認証完了。コマンダー ${user.username} ログイン。`);
         return true;
@@ -175,15 +184,17 @@ export const useGameStore = create<GameState>((set, get) => ({
   selectGod: (id: number) => {
     const { isSubmitted, roomId } = get();
     if (isSubmitted) return; 
+
     const god = GODS_DATA.find(g => g.id === id);
     if (!god) return;
+
     socket.emit(CLIENT_EVENTS.SELECT_GOD, { roomId, godId: id });
     set((state) => ({
       selectedGodId: id,
-      atk: id === 1 ? 50 + 20 : 50,
-      maxStamina: id === 2 ? 100 + 30 : 100,
+      atk: id === 1 ? 50 + 20 : state.atk,
+      maxAp: id === 2 ? 100 + 30 : state.maxAp,
     }));
-    get().addLog(`⚡ ${god.name} へのリンクをリクエスト中...`);
+    get().addLog(`⚡ ${god.name} との神経リンクを確立中...`);
   },
 
   setPlayerName: (name) => set({ playerName: name }),
@@ -205,7 +216,6 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   closePrediction: () => set({ predictionModalOpen: false, targetDistrictInfo: null }),
 
-  // 🚀 修正：フリッカーを防止しつつ、God選択やターン移行を確実に同期する
   syncServerState: (data, myId) => {
     if (!data) return;
     const currentState = get();
@@ -215,15 +225,20 @@ export const useGameStore = create<GameState>((set, get) => ({
     const myPlayerData = Array.isArray(rawPlayers) ? rawPlayers.find((p: any) => p.id === myId) : rawPlayers[myId];
     
     const nextHp = myPlayerData?.hp ?? currentState.hp;
-    const nextStamina = myPlayerData?.ap ?? myPlayerData?.stamina ?? currentState.stamina;
+    const nextAp = myPlayerData?.ap ?? myPlayerData?.stamina ?? currentState.ap; // [cite: 36]
+    const nextAtk = myPlayerData?.atk ?? currentState.atk;
+    const nextDef = myPlayerData?.def ?? currentState.def;
+    const nextBlessing = myPlayerData?.faith ?? myPlayerData?.blessing ?? currentState.blessing; //
     const nextTurn = data.turn ?? currentState.turn;
     const isMe = data.turnOwnerId === myId;
     const isGameOver = data.isGameOver ?? currentState.isGameOver;
 
-    // 🚀 監視対象：HP, スタミナ, ターン, 手番, 領土, プレイヤー情報(God選択含む), ゲーム終了フラグ
     if (
       currentState.hp !== nextHp ||
-      currentState.stamina !== nextStamina ||
+      currentState.ap !== nextAp ||
+      currentState.atk !== nextAtk ||
+      currentState.def !== nextDef ||
+      currentState.blessing !== nextBlessing ||
       currentState.turn !== nextTurn ||
       currentState.isMyTurn !== isMe ||
       currentState.isGameOver !== isGameOver ||
@@ -234,12 +249,13 @@ export const useGameStore = create<GameState>((set, get) => ({
         ...state,
         myId: myId,
         roomId: data.roomId ?? state.roomId,
-        maxPlayers: data.maxPlayers ?? state.maxPlayers,
+        maxPlayers: data.maxPlayers ?? state.maxPlayers, // 人数同期 
         hp: nextHp,
         maxHp: myPlayerData?.maxHp ?? state.maxHp,
-        stamina: nextStamina,
-        atk: myPlayerData?.atk ?? state.atk,
-        def: myPlayerData?.def ?? state.def,
+        ap: nextAp,
+        atk: nextAtk,
+        def: nextDef,
+        blessing: nextBlessing,
         districts: data.districts ?? state.districts,
         players: playersArray, 
         turn: nextTurn,
@@ -250,7 +266,6 @@ export const useGameStore = create<GameState>((set, get) => ({
         winnerId: data.winnerId ?? state.winnerId
       }));
 
-      // 地図の再描画とバフの更新も、変更があったときのみ実行
       window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: data.players } }));
       get().updateBuffs();
     }
@@ -264,9 +279,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   attack: (targetId) => {
-    const { stamina, isMyTurn } = get();
-    if (!isMyTurn || stamina < 5) return;
-    socket.emit("ACTION_SUBMIT", { type: 'attack', targetId: Number(targetId) });
+    const { ap, isMyTurn } = get();
+    if (!isMyTurn || ap < 5) return;
+    socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'attack', targetId: Number(targetId) });
     get().addLog(`⚔️ 地区 ${targetId} 攻撃指令！`);
     get().closePrediction();
   },
@@ -274,7 +289,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   move: (targetId) => {
     const { isMyTurn } = get();
     if (!isMyTurn) return;
-    socket.emit("ACTION_SUBMIT", { type: 'move', targetId: Number(targetId) });
+    socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'move', targetId: Number(targetId) });
     get().addLog(`🚚 地区 ${targetId} へ陣形を移動！`);
     get().closePrediction();
   },
@@ -282,13 +297,28 @@ export const useGameStore = create<GameState>((set, get) => ({
   stay: () => { 
     const { isMyTurn } = get();
     if (!isMyTurn) return;
-    socket.emit("ACTION_SUBMIT", { type: 'stay' }); 
-    get().addLog("🧘 休息。"); 
+    socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'stay' }); // [cite: 21]
+    get().addLog("🧘 休息中。"); 
     window.dispatchEvent(new CustomEvent('ACTION_STAY'));
   },
 
-  escape: () => { socket.emit("ACTION_SUBMIT", { type: 'escape' }); get().addLog("🏃 撤退。"); },
-  endTurn: () => { socket.emit("ACTION_SUBMIT", { type: 'turn_end' }); set({ isMyTurn: false, isSubmitted: true }); },
+  defend: () => {
+    const { isMyTurn } = get();
+    if (!isMyTurn) return;
+    socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'defend' }); // [cite: 33]
+    get().addLog("🛡️ 防御体勢を構築。");
+  },
+
+  escape: () => { 
+    socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'escape' }); 
+    get().addLog("🏃 撤退。"); 
+  },
+
+  endTurn: () => { 
+    socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'turn_end' }); 
+    set({ isMyTurn: false, isSubmitted: true }); 
+  },
+
   setStatus: (status) => set((state) => ({ ...state, ...status })),
   addLog: (text) => set((state) => ({ logs: [text, ...state.logs].slice(0, 10) })),
   addChatLog: (msg) => set((state) => ({ chatLogs: [...state.chatLogs, msg].slice(-50) })),
@@ -297,6 +327,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setSeVolume: (vol) => set({ seVolume: vol }),
 }));
 
+// --- 📡 Socket Listeners ---
 socket.on('connect', () => {
   useGameStore.getState().setStatus({ isServerOnline: true });
 });
