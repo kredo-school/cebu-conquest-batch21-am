@@ -266,7 +266,11 @@ export const useGameStore = create<GameState>((set, get) => ({
         winnerId: data.winnerId ?? state.winnerId
       }));
 
-      window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: data.players } }));
+      const playersAsObject = Array.isArray(data.players)
+        ? data.players.reduce((acc: any, p: any) => { acc[p.id] = p; return acc; }, {})
+        : (data.players ?? {});
+
+      window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: playersAsObject } }));
       get().updateBuffs();
     }
   },

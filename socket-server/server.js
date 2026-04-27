@@ -406,6 +406,14 @@ io.on('connection', (socket) => {
         const npcId = `npc_${Date.now()}`;
         const teamInfo = TEAM_CONFIG[currentCount];
 
+        const allDistrictIds = Object.keys(DISTRICTS_MASTER);
+        const occupiedIds = new Set(Object.keys(roomState.districts));
+        const freeDistrictIds = allDistrictIds.filter(id => !occupiedIds.has(id));
+
+        const startDistrictId = freeDistrictIds.length > 0
+            ? freeDistrictIds[Math.floor(Math.random() * freeDistrictIds.length)]
+            : allDistrictIds[Math.floor(Math.random() * allDistrictIds.length)];
+
         roomState.players[npcId] = {
             id: npcId,
             username: `猛将ラプパプ(${teamInfo.name})`,
@@ -416,11 +424,15 @@ io.on('connection', (socket) => {
             teamColor: teamInfo.color,
             isReady: true,
             isNpc: true,
-            districtId: null,
+            districtId: String(startDistrictId),
             isDefending: false,
         };
 
-        io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`🤖 ${roomState.players[npcId].username} が参戦しました！`);
+        roomState.districts[String(startDistrictId)] = npcId;
+
+        io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,
+            `🤖 ${roomState.players[npcId].username} が ${DISTRICTS_MASTER[startDistrictId]?.name || startDistrictId} に展開しました！`
+        );
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
     });
 
@@ -463,6 +475,19 @@ io.on('connection', (socket) => {
 
             // 🚀 重要：人数が設定値（2人など）に達しており、かつ全員がREADYかチェック
             if (currentCount >= maxPlayers && playersArr.every(pl => pl.isReady)) {
+                // 🚀 ゲーム開始時、districtIdが未設定のNPCに緊急スポーン
+                Object.values(roomState.players).forEach(p => {
+                    if (p.isNpc && !p.districtId) {
+                        const allDistrictIds = Object.keys(DISTRICTS_MASTER);
+                        const occupiedIds = new Set(Object.keys(roomState.districts));
+                        const freeIds = allDistrictIds.filter(id => !occupiedIds.has(id));
+                        const fallbackId = freeIds[0] || allDistrictIds[0];
+                        p.districtId = String(fallbackId);
+                        roomState.districts[String(fallbackId)] = p.id;
+                        console.log(`🤖 [Room ${roomId}] NPC ${p.username} に緊急スポーン: ${fallbackId}`);
+                    }
+                });
+
                 roomState.status = 'playing';
                 roomState.turn = 1;
                 

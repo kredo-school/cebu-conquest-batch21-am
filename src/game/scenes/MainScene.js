@@ -472,7 +472,8 @@ export default class MainScene extends Phaser.Scene {
 
   _syncPlayers(players) {
     Object.values(this.otherPlayers).forEach((p) => {
-      if (p.dot) p.dot.destroy();
+      if (p.dot)   p.dot.destroy();
+      if (p.label) p.label.destroy();
     });
     this.otherPlayers = {};
 
@@ -480,8 +481,15 @@ export default class MainScene extends Phaser.Scene {
       const rawId = data.districtId || data.currentDistrict || data.pos;
       const dId = normalizeId(rawId);
 
+      if (!dId) {
+        if (import.meta.env.DEV) {
+          console.warn(`[MainScene] Player ${playerId} (${data.username}) has no valid districtId:`, data);
+        }
+        return;
+      }
+
       if (playerId === socket.id) {
-        this._myTeam = data.team?.toLowerCase() ?? null; // ← 追加：チームを記憶
+        this._myTeam = data.team?.toLowerCase() ?? null;
         this.currentDistrictId = dId;
         this._placePlayer(dId);
         this.isSelectionMode = false;
@@ -490,12 +498,29 @@ export default class MainScene extends Phaser.Scene {
 
       const d = this.districts[dId];
       if (d && d.center) {
-        this.otherPlayers[playerId] = {
-          dot: this.add
-            .circle(d.center.x, d.center.y, 16, COLOR.ENEMY_DOT)
-            .setDepth(900)
-            .setStrokeStyle(5, 0x000000),
-        };
+        const isNpc = data.isNpc === true;
+        const dotColor = isNpc ? 0xff00ff : COLOR.ENEMY_DOT;
+
+        const dot = this.add
+          .circle(d.center.x, d.center.y, 16, dotColor)
+          .setDepth(900)
+          .setStrokeStyle(5, 0x000000);
+
+        let label = null;
+        if (isNpc) {
+          label = this.add
+            .text(d.center.x, d.center.y - 24, '🤖', {
+              fontSize: '16px',
+              stroke: '#000',
+              strokeThickness: 2,
+            })
+            .setOrigin(0.5)
+            .setDepth(901);
+        }
+
+        this.otherPlayers[playerId] = { dot, label };
+      } else if (import.meta.env.DEV) {
+        console.warn(`[MainScene] District ${dId} not found for player ${playerId}`);
       }
     });
   }
