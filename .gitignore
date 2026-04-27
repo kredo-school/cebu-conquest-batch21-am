@@ -23,6 +23,8 @@ yarn-error.log*
 
 # Claude Code
 CLAUDE.md
+.claude/
+instructions/
 
 # Environment variables
 .env
@@ -31,3 +33,6 @@ CLAUDE.md
 
 # DB接続情報と秘密鍵をGit管理から外す
 config/database.php
+
+
+
