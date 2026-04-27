@@ -104,7 +104,8 @@ function calculateFinalStats(roomId, playerId) {
 }
 
 function resolveBattle(atk, def) {
-    const winProb = atk / (atk + def);
+    const total = atk + def;
+    const winProb = total === 0 ? 0.5 : atk / total;
     const dice = Math.random();
     return { isWin: dice < winProb, prob: winProb };
 }
@@ -119,6 +120,8 @@ function processNpcTurn(roomId) {
     const npcId = roomState.turnOwnerId;
     const npc = roomState.players[npcId];
     if (!npc || !npc.isNpc) return;
+
+    npc.isDefending = false;
 
     const stats = calculateFinalStats(roomId, npcId);
     const neighbors = ADJACENT_DISTRICTS[String(npc.districtId)] || [];
@@ -306,7 +309,8 @@ io.on('connection', (socket) => {
             team: teamInfo.id,
             teamColor: teamInfo.color,
             isReady: false,
-            isNpc: false
+            isNpc: false,
+            isDefending: false,
         };
         
         console.log(`🏠 Room[${roomId}] Created (Max: ${roomState.maxPlayers}) by ${socket.id}`);
@@ -375,7 +379,8 @@ io.on('connection', (socket) => {
             team: teamInfo.id,
             teamColor: teamInfo.color,
             isReady: false,
-            isNpc: false
+            isNpc: false,
+            isDefending: false,
         };
 
         console.log(`👤 Joined Room[${roomId}]`);
@@ -406,12 +411,13 @@ io.on('connection', (socket) => {
             username: `猛将ラプパプ(${teamInfo.name})`,
             dbUserId: null, token: null, godName: "セブの精霊",
             hp: 120, maxHp: 120, ap: 100, maxAp: 100,
-            atk: 75, def: 55, 
+            atk: 75, def: 55,
             team: teamInfo.id,
             teamColor: teamInfo.color,
             isReady: true,
             isNpc: true,
-            districtId: null 
+            districtId: null,
+            isDefending: false,
         };
 
         io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`🤖 ${roomState.players[npcId].username} が参戦しました！`);
@@ -490,49 +496,115 @@ io.on('connection', (socket) => {
         if (!roomId) return;
         const roomState = rooms.get(roomId);
         if (!roomState) return;
-
         if (roomState.turnOwnerId !== socket.id) return;
-        const p = roomState.players[socket.id];
-        const targetId = String(data.targetId);
-        const stats = calculateFinalStats(roomId, socket.id);
 
-        if (data.type === 'attack') {
-            p.ap -= 5;
-            const defenderId = roomState.districts[targetId];
-            const defValue = defenderId ? calculateFinalStats(roomId, defenderId).def : 30;
-            const result = resolveBattle(stats.atk, defValue);
-
-            if (result.isWin) {
-                roomState.districts[targetId] = socket.id;
-                p.districtId = targetId;
-                io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`⚔️ ${p.username}: ${targetId} を制圧！`);
-
-                if (!p.isNpc && p.token) {
-                    try {
-                        const response = await fetch(`${API_BASE_URL}capture.php`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${p.token}` },
-                            body: JSON.stringify({ territory_id: parseInt(targetId) })
-                        });
-                        const dbResult = await response.json();
-                        console.log(`✅ [Room ${roomId} DB] 陣地 ${targetId} 制圧:`, dbResult.message || dbResult);
-                    } catch (err) {
-                        console.error(`❌ [Room ${roomId} DB] 陣地保存失敗:`, err);
-                    }
-                }
-            } else {
-                p.hp -= 20;
-                io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`❌ ${p.username}: ${targetId} への攻撃に失敗。`);
-            }
-        } else if (data.type === 'move') {
-            p.districtId = targetId;
-            io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`🚚 ${p.username}: ${targetId} へ本陣を移動。`);
-        } else if (data.type === 'stay') {
-            p.hp = Math.min(p.maxHp, p.hp + 20);
-            p.ap = Math.min(p.maxAp, p.ap + 35);
-            io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`🧘 ${p.username}: 休息を選択。`);
+        // レースコンディション対策：同一ターン内の二重送信を拒否
+        if (roomState.isProcessingAction) {
+            socket.emit(SERVER_EVENTS.ERROR_MESSAGE, "処理中です。少し待ってから再試行してください。");
+            return;
         }
+        roomState.isProcessingAction = true;
+        let doFinalize = true;
 
+        try {
+            const p = roomState.players[socket.id];
+            const targetId = String(data.targetId);
+            const stats = calculateFinalStats(roomId, socket.id);
+
+            // 毎アクション開始時に防御フラグをリセット（1ターン限定化）
+            p.isDefending = false;
+
+            // 隣接チェック（ADJACENT_DISTRICTS にデータがある地区のみ検証）
+            const neighbors = ADJACENT_DISTRICTS[String(p.districtId)];
+            if (
+                (data.type === 'attack' || data.type === 'move') &&
+                neighbors &&
+                !neighbors.includes(targetId)
+            ) {
+                socket.emit(SERVER_EVENTS.ERROR_MESSAGE, "隣接していない地区には移動・攻撃できません。");
+                doFinalize = false;
+                return;
+            }
+
+            if (data.type === 'attack') {
+                p.ap -= 5;
+                const defenderId = roomState.districts[targetId];
+                const defender  = defenderId ? roomState.players[defenderId] : null;
+                const defBase   = defenderId ? calculateFinalStats(roomId, defenderId).def : 30;
+                const defValue  = defBase * (defender?.isDefending ? 1.5 : 1);
+                const result = resolveBattle(stats.atk, defValue);
+
+                if (result.isWin) {
+                    roomState.districts[targetId] = socket.id;
+                    p.districtId = targetId;
+                    io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `⚔️ ${p.username}: ${targetId} を制圧！`);
+
+                    if (!p.isNpc && p.token) {
+                        try {
+                            const response = await fetch(`${API_BASE_URL}capture.php`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${p.token}` },
+                                body: JSON.stringify({ territory_id: parseInt(targetId) })
+                            });
+                            const dbResult = await response.json();
+                            console.log(`✅ [Room ${roomId} DB] 陣地 ${targetId} 制圧:`, dbResult.message || dbResult);
+                        } catch (err) {
+                            console.error(`❌ [Room ${roomId} DB] 陣地保存失敗:`, err);
+                        }
+                    }
+                } else {
+                    p.hp -= 20;
+                    io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `❌ ${p.username}: ${targetId} への攻撃に失敗。`);
+                }
+            } else if (data.type === 'move') {
+                p.districtId = targetId;
+                io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🚚 ${p.username}: ${targetId} へ本陣を移動。`);
+            } else if (data.type === 'stay') {
+                p.hp = Math.min(p.maxHp, p.hp + 20);
+                p.ap = Math.min(p.maxAp, p.ap + 35);
+                io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🧘 ${p.username}: 休息を選択。`);
+            }
+        } finally {
+            roomState.isProcessingAction = false;
+            if (doFinalize) finalizeTurn(roomId, socket.id);
+        }
+    });
+
+    // 🚀 【防御アクション】
+    socket.on(CLIENT_EVENTS.ACTION_DEFEND, () => {
+        const roomId = socket.roomId;
+        if (!roomId) return;
+        const roomState = rooms.get(roomId);
+        if (!roomState || roomState.turnOwnerId !== socket.id) return;
+        const p = roomState.players[socket.id];
+
+        p.isDefending = true;
+        p.ap = Math.max(0, p.ap - 5);
+        io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🛡️ ${p.username}: 守りを固めました（次の攻撃への防御力1.5倍）。`);
+        finalizeTurn(roomId, socket.id);
+    });
+
+    // 🚀 【逃走アクション】
+    socket.on(CLIENT_EVENTS.ACTION_ESCAPE, () => {
+        const roomId = socket.roomId;
+        if (!roomId) return;
+        const roomState = rooms.get(roomId);
+        if (!roomState || roomState.turnOwnerId !== socket.id) return;
+        const p = roomState.players[socket.id];
+
+        p.isDefending = false;
+        const myDistricts = Object.keys(roomState.districts)
+            .filter(id => roomState.districts[id] === socket.id);
+
+        if (myDistricts.length > 0) {
+            const dest = myDistricts[Math.floor(Math.random() * myDistricts.length)];
+            p.districtId = dest;
+            p.ap = Math.max(0, p.ap - 5);
+            io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `💨 ${p.username}: 自陣 ${dest} へ撤退しました。`);
+        } else {
+            p.hp = Math.max(0, p.hp - 50);
+            io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `💥 ${p.username}: 逃げ場がなくダメージを受けた！`);
+        }
         finalizeTurn(roomId, socket.id);
     });
 
@@ -593,14 +665,23 @@ io.on('connection', (socket) => {
         const roomId = data?.roomId || socket.roomId;
         if (!roomId) return;
         const roomState = rooms.get(roomId);
-        if (roomState && roomState.players[socket.id]) {
-            delete roomState.players[socket.id];
-            socket.leave(roomId);
-            socket.roomId = null;
-            if (Object.keys(roomState.players).length === 0) {
-                rooms.delete(roomId);
+        if (!roomState || !roomState.players[socket.id]) return;
+
+        const wasTurnOwner = (roomState.turnOwnerId === socket.id);
+        delete roomState.players[socket.id];
+        socket.leave(roomId);
+        socket.roomId = null;
+
+        const remaining = Object.keys(roomState.players);
+        if (remaining.length === 0) {
+            rooms.delete(roomId);
+        } else {
+            io.to(roomId).emit(SERVER_EVENTS.PLAYER_DISCONNECTED, socket.id);
+            // ターン持ち主が退出した場合はターンを強制進行（disconnect と同じ対策）
+            if (wasTurnOwner && roomState.status === 'playing') {
+                roomState.isProcessingAction = false;
+                finalizeTurn(roomId, socket.id);
             } else {
-                io.to(roomId).emit(SERVER_EVENTS.PLAYER_DISCONNECTED, socket.id);
                 io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
             }
         }
@@ -610,19 +691,27 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log(`❌ Disconnected: ${socket.id}`);
         const roomId = socket.roomId;
-        
-        if (roomId) {
-            const roomState = rooms.get(roomId);
-            if (roomState && roomState.players[socket.id]) {
-                delete roomState.players[socket.id];
-                
-                if (Object.keys(roomState.players).length === 0) {
-                    rooms.delete(roomId);
-                    console.log(`🗑️ Room ${roomId} has been deleted.`);
-                } else {
-                    io.to(roomId).emit(SERVER_EVENTS.PLAYER_DISCONNECTED, socket.id);
-                    io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
-                }
+        if (!roomId) return;
+
+        const roomState = rooms.get(roomId);
+        if (!roomState || !roomState.players[socket.id]) return;
+
+        const wasTurnOwner = (roomState.turnOwnerId === socket.id);
+        delete roomState.players[socket.id];
+
+        const remaining = Object.keys(roomState.players);
+        if (remaining.length === 0) {
+            rooms.delete(roomId);
+            console.log(`🗑️ Room ${roomId} has been deleted.`);
+        } else {
+            io.to(roomId).emit(SERVER_EVENTS.PLAYER_DISCONNECTED, socket.id);
+            // ターン持ち主が切断した場合はターンを強制進行（進行不能バグ防止）
+            // socket.id は削除済みのため indexOf=-1 → nextIndex=0 → 残存先頭プレイヤーへ
+            if (wasTurnOwner && roomState.status === 'playing') {
+                roomState.isProcessingAction = false; // ロックが残っていれば解除
+                finalizeTurn(roomId, socket.id);
+            } else {
+                io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
             }
         }
     });
