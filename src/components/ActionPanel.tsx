@@ -5,7 +5,7 @@ import SoundManager from '../game/SoundManager'; // 🚀 追加：クリック�
 
 export const ActionPanel: React.FC = () => {
   const { 
-    turn, selectedDistrictId, isMyTurn, stamina, activeBuffs,
+    turn, selectedDistrictId, isMyTurn, ap, activeBuffs,
     attack, stay
   } = useGameStore();
 
@@ -42,15 +42,16 @@ export const ActionPanel: React.FC = () => {
       <div className="absolute bottom-12 left-0 right-0 flex flex-col items-center pointer-events-none px-12 z-50">
         <div className="glass-panel p-8 w-full max-w-xl flex flex-col items-center gap-6 pointer-events-auto border-t-2 border-orange-500 shadow-2xl">
           <div className="text-center">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mb-2 block">Tactical Deployment</span>
-            <h2 className={`text-2xl font-black italic uppercase tracking-tighter ${selectedDistrictId ? 'text-white' : 'text-orange-600 animate-pulse'}`}>
+            {/* 🚀 修正: font-fixを追加 */}
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mb-2 block font-fix">Tactical Deployment</span>
+            <h2 className={`text-2xl font-black italic uppercase tracking-tighter font-fix ${selectedDistrictId ? 'text-white' : 'text-orange-600 animate-pulse'}`}>
               {selectedDistrictId ? `📍 Target: Sector ${selectedDistrictId}` : '🗺️ Select Deployment Zone'}
             </h2>
           </div>
           <button
             onClick={handleDeploy}
             disabled={!selectedDistrictId}
-            className={`px-24 py-5 rounded-lg font-black italic tracking-widest text-xl transition-all shadow-2xl
+            className={`px-24 py-5 rounded-lg font-black italic tracking-widest text-xl transition-all shadow-2xl font-fix
               ${selectedDistrictId 
                 ? 'bg-orange-600 text-white hover:bg-orange-500 active:scale-95' 
                 : 'bg-slate-800 text-slate-600 cursor-not-allowed opacity-50'}`}
@@ -68,14 +69,15 @@ export const ActionPanel: React.FC = () => {
       <div className="absolute bottom-12 left-0 right-0 flex justify-center pointer-events-none z-50">
         <div className="bg-slate-900/80 backdrop-blur-md px-12 py-4 rounded-full border border-slate-800 flex items-center gap-4 animate-pulse">
           <span className="w-2 h-2 bg-slate-500 rounded-full"></span>
-          <span className="text-xs font-black text-slate-500 uppercase tracking-[0.3em]">Awaiting Hostile Command...</span>
+          {/* 🚀 修正: font-fixを追加 */}
+          <span className="text-xs font-black text-slate-500 uppercase tracking-[0.3em] font-fix">Awaiting Hostile Command...</span>
         </div>
       </div>
     );
   }
 
   // 3. [Turn 1以降] 自分のターン
-  const canAttack = selectedDistrictId && stamina >= 5;
+  const canAttack = selectedDistrictId && ap >= 5;
 
   return (
     <div className="absolute bottom-12 left-72 right-12 flex items-end justify-between pointer-events-none z-50">
@@ -106,8 +108,9 @@ export const ActionPanel: React.FC = () => {
                   </span>
                 </div>
                 <div className="flex flex-col items-center text-center mt-auto">
-                  <span className="text-[11px] font-black text-slate-100 tracking-wider mb-1 line-clamp-1">{buff.name}</span>
-                  <span className="text-[9px] text-emerald-400 font-black uppercase">{buff.effect}</span>
+                  {/* 🚀 修正: font-fixを追加 */}
+                  <span className="text-[11px] font-black text-slate-100 tracking-wider mb-1 line-clamp-1 font-fix">{buff.name}</span>
+                  <span className="text-[9px] text-emerald-400 font-black uppercase font-fix">{buff.effect}</span>
                 </div>
               </div>
             );
@@ -136,7 +139,8 @@ export const ActionPanel: React.FC = () => {
               : 'bg-slate-900/90 text-slate-500 border border-slate-700 cursor-not-allowed backdrop-blur-md shadow-lg'}`}
         >
           <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: '"FILL" 1' }}>swords</span>
-          <span>攻撃</span>
+          {/* 🚀 修正: font-fixを追加 */}
+          <span className="font-fix">攻撃</span>
         </button>
 
         {/* Stay Button */}
@@ -148,7 +152,8 @@ export const ActionPanel: React.FC = () => {
           className="group bg-slate-900 border border-slate-700 text-slate-300 rounded-2xl font-bold hover:bg-slate-800 hover:text-white transition-all active:scale-95 flex flex-col items-center justify-center gap-1 w-36 h-24 text-sm shadow-[0_10px_30px_rgba(0,0,0,0.5)]"
         >
           <span className="material-symbols-outlined text-emerald-400 text-2xl group-hover:scale-110 transition-transform">monitoring</span>
-          <span>Stay (回復)</span>
+          {/* 🚀 修正: font-fixを追加 */}
+          <span className="font-fix">Stay (回復)</span>
         </button>
 
       </div>

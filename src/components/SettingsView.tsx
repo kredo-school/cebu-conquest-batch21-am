@@ -42,14 +42,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
               <span className="material-symbols-outlined text-[#fa7000] text-3xl">arrow_back</span>
             </button>
             <div className="flex flex-col text-left">
-              <h1 className="text-xl font-bold tracking-tight text-white uppercase leading-none">Cebu Conquest</h1>
-              <p className="text-[10px] text-[#fa7000] font-black tracking-widest uppercase mt-1">Settings / 設定</p>
+              {/* 🚀 修正：font-fixを追加 */}
+              <h1 className="text-xl font-bold tracking-tight text-white uppercase leading-none font-fix">Cebu Conquest</h1>
+              {/* 🚀 修正：font-fixを追加 */}
+              <p className="text-[10px] text-[#fa7000] font-black tracking-widest uppercase mt-1 font-fix">Settings / 設定</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
             <div className="hidden md:block text-right">
-              <p className="text-[10px] text-slate-400 font-mono uppercase">UID: {myId?.substring(0,8).toUpperCase() || '82739405'}</p>
-              <p className="text-sm font-bold text-white italic">{playerName || "Operator"}</p>
+              {/* 🚀 修正：font-fixを追加 */}
+              <p className="text-[10px] text-slate-400 font-mono uppercase font-fix">UID: {myId?.substring(0,8).toUpperCase() || '82739405'}</p>
+              {/* 🚀 修正：font-fixを追加 */}
+              <p className="text-sm font-bold text-white italic font-fix">{playerName || "Operator"}</p>
             </div>
             <div className="size-10 rounded-full border-2 border-[#fa7000] overflow-hidden bg-slate-800">
                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${playerName}`} alt="avatar" />
@@ -76,7 +80,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
                 <section className="bg-white/5 rounded-xl p-8 border border-white/10 backdrop-blur-sm animate-fadeIn">
                   <div className="flex items-center gap-2 mb-8 border-b border-white/5 pb-4 text-left">
                     <span className="material-symbols-outlined text-[#fa7000]">volume_up</span>
-                    <h2 className="text-lg font-bold text-white uppercase tracking-wider">Sound Settings</h2>
+                    {/* 🚀 修正：font-fixを追加 */}
+                    <h2 className="text-lg font-bold text-white uppercase tracking-wider font-fix">Sound Settings</h2>
                   </div>
                   <div className="space-y-10">
                     <VolumeSlider label="マスター音量" value={masterVol} onChange={setMasterVol} />
@@ -90,15 +95,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
               {activeTab === 'gameplay' && (
                 <section className="bg-white/5 rounded-xl p-8 border border-white/10 backdrop-blur-sm animate-fadeIn text-left">
                   <header className="mb-10">
-                    <h2 className="text-4xl font-black tracking-tight text-white uppercase leading-none">Gameplay</h2>
-                    <p className="text-[#fa7000]/70 mt-2 font-medium italic text-sm">Fine-tune your tactical experience</p>
+                    {/* 🚀 修正：font-fixを追加 */}
+                    <h2 className="text-4xl font-black tracking-tight text-white uppercase leading-none font-fix">Gameplay</h2>
+                    {/* 🚀 修正：font-fixを追加 */}
+                    <p className="text-[#fa7000]/70 mt-2 font-medium italic text-sm font-fix">Fine-tune your tactical experience</p>
                   </header>
                   <div className="space-y-10">
                     <div className="space-y-4">
-                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Graphics Quality</h3>
+                      {/* 🚀 修正：font-fixを追加 */}
+                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] font-fix">Graphics Quality</h3>
                       <div className="flex h-12 w-full items-center justify-center rounded-xl bg-white/5 p-1 border border-white/10">
                         {['low', 'medium', 'high', 'ultra'].map((q) => (
-                          <label key={q} className={`flex cursor-pointer h-full grow items-center justify-center rounded-lg px-2 text-[10px] font-black transition-all uppercase ${quality === q ? 'bg-[#fa7000] text-white shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}>
+                          <label key={q} className={`flex cursor-pointer h-full grow items-center justify-center rounded-lg px-2 text-[10px] font-black transition-all uppercase font-fix ${quality === q ? 'bg-[#fa7000] text-white shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}>
                             {q}
                             <input type="radio" className="hidden" value={q} checked={quality === q} onChange={(e) => setQuality(e.target.value)} />
                           </label>
@@ -106,10 +114,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
                       </div>
                     </div>
                     <div className="space-y-4">
-                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Frame Rate Limit</h3>
+                      {/* 🚀 修正：font-fixを追加 */}
+                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] font-fix">Frame Rate Limit</h3>
                       <div className="grid grid-cols-3 gap-3">
                         {['30 FPS', '60 FPS', 'Unlimited'].map((f) => (
-                          <button key={f} onClick={() => setFps(f)} className={`py-3 rounded-xl border transition-all text-[10px] font-black uppercase ${fps === f ? 'border-[#fa7000] bg-[#fa7000]/10 text-[#fa7000]' : 'border-white/10 bg-white/5 text-slate-500'}`}>
+                          <button key={f} onClick={() => setFps(f)} className={`py-3 rounded-xl border transition-all text-[10px] font-black uppercase font-fix ${fps === f ? 'border-[#fa7000] bg-[#fa7000]/10 text-[#fa7000]' : 'border-white/10 bg-white/5 text-slate-500'}`}>
                             {f}
                           </button>
                         ))}
@@ -124,7 +133,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
                 <section className="bg-white/5 rounded-xl p-8 border border-white/10 backdrop-blur-sm animate-fadeIn">
                   <div className="flex items-center gap-2 mb-8 border-b border-white/5 pb-4 text-left">
                     <span className="material-symbols-outlined text-[#fa7000]">notifications</span>
-                    <h2 className="text-lg font-bold text-white uppercase tracking-wider">Notifications</h2>
+                    {/* 🚀 修正：font-fixを追加 */}
+                    <h2 className="text-lg font-bold text-white uppercase tracking-wider font-fix">Notifications</h2>
                   </div>
                   <div className="space-y-4">
                     <ToggleItem label="対戦リクエストを受け取る" active={allowRequests} onToggle={() => setAllowRequests(!allowRequests)} />
@@ -138,21 +148,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
                 <section className="bg-white/5 rounded-xl p-8 border border-white/10 backdrop-blur-sm animate-fadeIn" id="account">
                   <div className="flex items-center gap-2 mb-8 border-b border-white/5 pb-4 text-left">
                     <span className="material-symbols-outlined text-[#fa7000]">account_circle</span>
-                    <h2 className="text-lg font-bold text-white uppercase tracking-wider">Account Management</h2>
+                    {/* 🚀 修正：font-fixを追加 */}
+                    <h2 className="text-lg font-bold text-white uppercase tracking-wider font-fix">Account Management</h2>
                   </div>
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
                     <div className="p-6 bg-[#23180f]/50 rounded-lg border border-white/5 flex-1 text-left">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] mb-2 font-bold leading-none">Current Operator ID</p>
-                      <p className="text-2xl font-mono font-bold text-white tracking-[0.2em]">
+                      {/* 🚀 修正：font-fixを追加 */}
+                      <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] mb-2 font-bold leading-none font-fix">Current Operator ID</p>
+                      {/* 🚀 修正：font-fixを追加 */}
+                      <p className="text-2xl font-mono font-bold text-white tracking-[0.2em] font-fix">
                         {myId ? `${myId.substring(0,4)} - ${myId.substring(4,8)}`.toUpperCase() : '8273 - 9405'}
                       </p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3">
-                      <button className="flex items-center justify-center gap-2 px-8 py-4 bg-[#fa7000] hover:bg-[#fa7000]/90 text-white font-black text-xs uppercase rounded-lg transition-all shadow-[0_0_20px_rgba(250,112,0,0.3)] active:scale-95">
+                      <button className="flex items-center justify-center gap-2 px-8 py-4 bg-[#fa7000] hover:bg-[#fa7000]/90 text-white font-black text-xs uppercase rounded-lg transition-all shadow-[0_0_20px_rgba(250,112,0,0.3)] active:scale-95 font-fix">
                         <span className="material-symbols-outlined text-sm">link</span>
                         Link Account
                       </button>
-                      <button onClick={handleLogout} className="flex items-center justify-center gap-2 px-8 py-4 bg-transparent border border-white/20 hover:bg-red-500/10 hover:border-red-500/50 text-slate-400 hover:text-red-500 font-black text-xs uppercase rounded-lg transition-all active:scale-95">
+                      <button onClick={handleLogout} className="flex items-center justify-center gap-2 px-8 py-4 bg-transparent border border-white/20 hover:bg-red-500/10 hover:border-red-500/50 text-slate-400 hover:text-red-500 font-black text-xs uppercase rounded-lg transition-all active:scale-95 font-fix">
                         <span className="material-symbols-outlined text-sm">logout</span>
                         Logout
                       </button>
@@ -163,7 +176,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
 
               {/* Bottom Return Button */}
               <div className="flex justify-center pt-10 pb-12">
-                <button onClick={onBack} className="group relative px-16 py-4 overflow-hidden rounded-full bg-[#23180f] border border-[#fa7000]/50 text-white font-black tracking-[0.3em] uppercase transition-all hover:border-[#fa7000] hover:shadow-[0_0_30px_rgba(250,112,0,0.2)] active:scale-95">
+                <button onClick={onBack} className="group relative px-16 py-4 overflow-hidden rounded-full bg-[#23180f] border border-[#fa7000]/50 text-white font-black tracking-[0.3em] uppercase transition-all hover:border-[#fa7000] hover:shadow-[0_0_30px_rgba(250,112,0,0.2)] active:scale-95 font-fix">
                   <div className="absolute inset-0 bg-[#fa7000]/10 group-hover:bg-[#fa7000]/20 transition-all"></div>
                   <div className="relative flex items-center gap-2">
                     <span className="material-symbols-outlined">chevron_left</span>
@@ -188,7 +201,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
 // --- Sub-Components ---
 
 const NavButton = ({ active, onClick, icon, label }: any) => (
-  <button onClick={onClick} className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-left group ${active ? 'bg-[#fa7000]/20 border-l-4 border-[#fa7000] text-white' : 'hover:bg-white/5 text-slate-400 hover:text-slate-200'}`}>
+  // 🚀 修正：font-fixを追加
+  <button onClick={onClick} className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-left group font-fix ${active ? 'bg-[#fa7000]/20 border-l-4 border-[#fa7000] text-white' : 'hover:bg-white/5 text-slate-400 hover:text-slate-200'}`}>
     <span className={`material-symbols-outlined ${active ? 'text-[#fa7000]' : 'group-hover:text-[#fa7000]'} transition-colors`}>{icon}</span>
     <span className={`text-sm font-bold ${active ? '' : 'font-medium'}`}>{label}</span>
   </button>
@@ -197,8 +211,10 @@ const NavButton = ({ active, onClick, icon, label }: any) => (
 const VolumeSlider = ({ label, value, onChange }: any) => (
   <div className="flex flex-col gap-3 text-left">
     <div className="flex justify-between items-end">
-      <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">{label}</label>
-      <span className="text-lg font-mono font-bold text-[#fa7000]">{value}%</span>
+      {/* 🚀 修正：font-fixを追加 */}
+      <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] font-fix">{label}</label>
+      {/* 🚀 修正：font-fixを追加 */}
+      <span className="text-lg font-mono font-bold text-[#fa7000] font-fix">{value}%</span>
     </div>
     <input type="range" min="0" max="100" value={value} onChange={(e) => onChange(parseInt(e.target.value))} className="w-full h-1.5 bg-slate-800 rounded-full appearance-none cursor-pointer accent-[#fa7000]" />
   </div>
@@ -206,7 +222,8 @@ const VolumeSlider = ({ label, value, onChange }: any) => (
 
 const ToggleItem = ({ label, active, onToggle }: any) => (
   <div className="flex items-center justify-between py-4 border-b border-white/5 last:border-0">
-    <p className="text-sm font-bold text-slate-300">{label}</p>
+    {/* 🚀 修正：font-fixを追加 */}
+    <p className="text-sm font-bold text-slate-300 font-fix">{label}</p>
     <button onClick={onToggle} className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors ${active ? 'bg-[#fa7000]' : 'bg-slate-700'}`}>
       <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${active ? 'translate-x-7' : 'translate-x-1'}`}></span>
     </button>

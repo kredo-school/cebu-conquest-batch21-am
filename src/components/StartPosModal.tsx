@@ -21,88 +21,41 @@ interface Props {
 
 export const StartPosModal: React.FC<Props> = ({ onSelect }) => {
   return (
-    <div className="start-modal-overlay">
-      <div className="start-modal-content">
-        <div className="modal-header">
-          <span className="icon">🚩</span>
-          <h2>TERRITORY SELECTION</h2>
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fadeIn">
+      <div className="w-full max-w-[450px] bg-slate-900 border-2 border-orange-500 p-8 rounded-[20px] text-center shadow-[0_0_30px_rgba(249,115,22,0.3)] flex flex-col max-h-[85vh]">
+        
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <span className="text-2xl">🚩</span>
+          {/* 🚀 修正: font-fixを追加 */}
+          <h2 className="text-2xl font-black text-orange-500 italic tracking-[2px] uppercase font-fix m-0">TERRITORY SELECTION</h2>
         </div>
         
-        <p className="description">
+        {/* 🚀 修正: font-fixを追加 */}
+        <p className="text-slate-400 text-sm leading-relaxed mb-6 font-fix">
           Please choose the district that will become your first territory.<br />
-          <span>司令官、最初の拠点をリストから選定してください。</span>
+          <span className="text-xs text-slate-500 block mt-1 font-fix">司令官、最初の拠点をリストから選定してください。</span>
         </p>
 
-        <div className="button-list">
+        {/* 🚀 修正: index.css の custom-scrollbar を適用 */}
+        <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-2 text-left">
           {START_CANDIDATES.map(district => (
             <button 
               key={district.id} 
               onClick={() => onSelect(district.id)}
-              className="start-button"
+              className="flex items-center justify-between p-4 bg-slate-800/50 border border-slate-700 hover:bg-orange-500 hover:border-orange-500 hover:text-slate-900 rounded-lg transition-all group pointer-events-auto"
             >
-              <span className="district-id">ID:{district.id}</span>
-              <span className="district-name">{district.name}</span>
+              {/* 🚀 修正: font-fixを追加 */}
+              <span className="font-mono text-xs opacity-60 font-fix group-hover:opacity-100">ID:{district.id}</span>
+              <span className="font-black text-[15px] font-fix">{district.name}</span>
             </button>
           ))}
         </div>
       </div>
       
+      {/* 🚀 コンポーネント固有のアニメーションのみ残し、他は index.css に集約 */}
       <style>{`
-        .start-modal-overlay {
-          position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-          background: rgba(0, 0, 0, 0.85);
-          display: flex; align-items: center; justify-content: center;
-          z-index: 1000;
-          backdrop-filter: blur(4px);
-        }
-        .start-modal-content {
-          background: #1a1a2e;
-          padding: 40px;
-          border-radius: 20px;
-          border: 2px solid #f1c40f;
-          text-align: center;
-          color: white;
-          width: 90%;
-          max-width: 450px;
-          box-shadow: 0 0 30px rgba(241, 196, 15, 0.3);
-        }
-        .modal-header {
-          display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 10px;
-        }
-        .modal-header h2 { color: #f1c40f; margin: 0; font-size: 24px; letter-spacing: 2px; }
-        .description { font-size: 14px; color: #94a3b8; margin-bottom: 25px; line-height: 1.6; }
-        .description span { font-size: 12px; color: #64748b; }
-
-        .button-list {
-          display: flex; flex-direction: column; gap: 8px;
-          max-height: 400px; /* リストが長いのでスクロール可能に */
-          overflow-y: auto;
-          padding-right: 10px;
-        }
-        
-        /* スクロールバーのカスタマイズ */
-        .button-list::-webkit-scrollbar { width: 6px; }
-        .button-list::-webkit-scrollbar-thumb { background: #34495e; border-radius: 3px; }
-
-        .start-button {
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 15px 20px;
-          background: #16213e;
-          border: 1px solid #0f3460;
-          border-radius: 8px;
-          color: white;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          text-align: left;
-        }
-        .start-button:hover {
-          background: #f1c40f;
-          color: #1a1a2e;
-          transform: translateX(5px);
-          border-color: #f1c40f;
-        }
-        .district-id { font-family: monospace; opacity: 0.6; font-size: 12px; }
-        .district-name { font-weight: bold; font-size: 15px; }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
       `}</style>
     </div>
   );
