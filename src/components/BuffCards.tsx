@@ -9,7 +9,8 @@ export const BuffCards: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center py-6 opacity-30">
         <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-slate-700 to-transparent mb-2"></div>
-        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em]">
+        {/* 🚀 修正: font-fixを追加 */}
+        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] font-fix">
           - NO SPECIALTY DATA -
         </p>
         <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-slate-700 to-transparent mt-2"></div>
@@ -31,22 +32,26 @@ export const BuffCards: React.FC = () => {
             {/* ラベル */}
             <div className="flex items-center gap-1.5 mb-1">
               <span className="w-1 h-1 bg-brand-500 rounded-full animate-pulse"></span>
-              <span className="text-[8px] font-black text-brand-500 uppercase tracking-widest opacity-80">
+              {/* 🚀 修正: font-fixを追加 */}
+              <span className="text-[8px] font-black text-brand-500 uppercase tracking-widest opacity-80 font-fix">
                 Tactical Specialty
               </span>
             </div>
 
             {/* バフ名 */}
-            <div className="text-xs font-black text-white uppercase italic tracking-wider mb-1">
+            {/* 🚀 修正: font-fixを追加 */}
+            <div className="text-xs font-black text-white uppercase italic tracking-wider mb-1 font-fix">
               {buff.name}
             </div>
 
             {/* 効果内容 */}
             <div className="flex items-center gap-1">
-              <span className="text-[10px] text-emerald-500 font-black tracking-tighter">
+              {/* 🚀 修正: font-fixを追加 */}
+              <span className="text-[10px] text-emerald-500 font-black tracking-tighter font-fix">
                 [ ACTIVE ]
               </span>
-              <span className="text-[11px] text-emerald-400 font-bold tracking-tight">
+              {/* 🚀 修正: font-fixを追加 */}
+              <span className="text-[11px] text-emerald-400 font-bold tracking-tight font-fix">
                 {buff.effect}
               </span>
             </div>

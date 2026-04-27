@@ -2,21 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
-/* --- 1. 基本レイアウト設定 --- */
+/* --- 1. 基本レイアウト設定：OS・ブラウザ間の差異を極限まで排除 --- */
 :root {
   margin: 0;
   padding: 0;
   overflow: hidden;
+  /* 🚀 Windowsでスクロールバーが出ても画面が横にズレないように領域を予約 */
+  scrollbar-gutter: stable; 
 }
 
-body {
+html, body {
   margin: 0;
   padding: 0;
+  /* 🚀 画面サイズをOSに任せず、100%で完全に固定 */
   width: 100vw;
   height: 100vh;
   display: block; 
-  background-color: #020617; /* slate-950に近い色で固定 */
+  background-color: #020617; /* slate-950 */
   color: #f1f5f9;
+  
+  /* 🚀 Mac/Windows間でのフォントの太さ・描画の差異を解消 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  
+  /* 🚀 全体の行高を固定し、テキストの高さによるレイアウトズレを防止 */
+  line-height: 1.5;
 }
 
 /* --- 2. タクティカルUIコンポーネント --- */
@@ -26,6 +37,13 @@ body {
     background: rgba(10, 10, 10, 0.85);
     backdrop-filter: blur(16px);
     border: 1px solid rgba(249, 115, 22, 0.2);
+  }
+
+  /* 🚀 重要な数値やラベルの「ベースライン」をOS間で強制一致させるクラス */
+  .font-fix {
+    line-height: 1.2;
+    display: inline-block;
+    vertical-align: middle;
   }
 
   /* 画面全体の走査線エフェクト */
@@ -46,18 +64,22 @@ body {
   .phase-animation-container {
     animation: phase-bounce-zoom 3.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
   }
+}
 
-  /* カスタムスクロールバー（システムログ用） */
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(15, 23, 42, 0.1);
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #f97316;
-    border-radius: 10px;
-  }
+/* 🚀 全OS・全ブラウザ共通：Windowsの太いスクロールバーをMac風の細いデザインに強制統一 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(249, 115, 22, 0.4); /* ブランドカラー：オレンジ */
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(249, 115, 22, 0.7);
 }
 
 /* --- 3. アニメーション定義 --- */
@@ -101,7 +123,7 @@ body {
   background-position: center bottom;
 }
 
-/* --- 5. 標準タグの上書き --- */
+/* --- 5. 標準タグの上書き：意図しないマージンや挙動を制限 --- */
 a {
   font-weight: 500;
   color: #fb923c;
@@ -120,4 +142,15 @@ button {
   font-family: inherit;
   cursor: pointer;
   transition: all 0.2s;
+  /* 🚀 ボタン内のテキスト高さもピクセル単位で統一 */
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 🚀 画像のベースラインによる隙間を排除 */
+img, svg {
+  display: block;
+  vertical-align: middle;
 }

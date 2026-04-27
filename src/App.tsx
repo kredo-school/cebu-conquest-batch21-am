@@ -11,11 +11,12 @@ import { LoginView } from './components/LoginView';
 import { LobbySetupView } from './components/LobbySetupView'; 
 import { LobbyView } from './components/LobbyView'; 
 import { GodSelectionView } from './components/GodSelectionView';
+import { WaitingView } from './components/WaitingView'; 
 import { BattleModal } from './components/BattleModal'; 
 import { SettingsView } from './components/SettingsView'; 
 import { RankingView } from './components/RankingView'; 
 import { HelpModal } from './components/HelpModal'; 
-import { ActionPanel } from './components/ActionPanel'; // 🚀 追加：ActionPanelをインポート
+import { InventoryModal } from './components/InventoryModal'; 
 
 // 🔴 ブリッジ定数とイベント定数
 import { PHASER_TO_REACT, REACT_TO_PHASER } from './game/events/PhaserBridge';
@@ -25,39 +26,40 @@ import SoundManager from './game/SoundManager';
 const App: React.FC = () => {
   const { 
     login, setStatus, syncServerState, addLog,
-    turn, playerName: storePlayerName, selectedDistrictId,
-    openPrediction, isGameOver, roomId, players 
+    playerName: storePlayerName,
+    openPrediction, isGameOver, roomId, players, setView, view
   } = useGameStore();
   
   const gameRef = useRef<any>(null);
   
-  // 🚀 ビュー管理
-  const [view, setView] = useState<'login' | 'setup' | 'lobby' | 'selection' | 'game' | 'ranking'>('login');
+  const [isDeploying, setIsDeploying] = useState(false); 
   const [showSettings, setShowSettings] = useState(false); 
   const [showHelp, setShowHelp] = useState(false); 
+  const [showInventory, setShowInventory] = useState(false); 
   const [playerName, setLocalPlayerName] = useState('');
 
-  // 🚀 ランキング画面制御用の関数
-  const handleOpenRanking = () => setView('ranking');
-  const handleCloseRanking = () => setView('setup');
-
-  // view 変化に応じた BGM 切り替え
-  useEffect(() => {
-    const bgmKey: Record<string, string> = { 
-      login: 'lobby', 
-      setup: 'lobby', 
-      lobby: 'lobby', 
-      ranking: 'title',
-      game: 'battle'
-    };
-    if (bgmKey[view]) SoundManager.playBgm(bgmKey[view]);
-  }, [view]);
+  const triggerDeploySequence = useCallback(() => {
+    if (isDeploying) return;
+    setIsDeploying(true); 
+    
+    setTimeout(() => {
+      setIsDeploying(false);
+      setView('game');
+    }, 2500);
+  }, [isDeploying, setView]);
 
   useEffect(() => {
     (window as any).useGameStore = useGameStore;
 
     socket.on('connect', () => {
       if (socket.id) setStatus({ myId: socket.id });
+    });
+
+    socket.on(SERVER_EVENTS.GAME_START, () => setView('selection'));
+
+    socket.on("COMMENCE_OPERATION", () => {
+      addLog("🚀 全員のリンクを検知。出撃シークエンスを開始します。");
+      triggerDeploySequence(); 
     });
 
     socket.on(SERVER_EVENTS.TURN_START, (data) => {
@@ -72,13 +74,7 @@ const App: React.FC = () => {
       if (socket.id) syncServerState(state, socket.id);
     });
 
-    socket.on(SERVER_EVENTS.GAME_START, () => {
-      setView('selection');
-      addLog("🚀 マッチング完了。守護神の加護を選択してください");
-    });
-
     socket.on(SERVER_EVENTS.GAME_OVER, (data) => {
-      addLog(data.winnerId === socket.id ? "🏆 MISSION COMPLETE" : "🚨 MISSION FAILED");
       setStatus({ isGameOver: true, winnerId: data.winnerId });
     });
 
@@ -102,17 +98,18 @@ const App: React.FC = () => {
     window.addEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleDistrictSelected);
 
     return () => {
-      socket.off('connect');
       socket.off(SERVER_EVENTS.TURN_START);
       socket.off(SERVER_EVENTS.SYNC_STATE);
       socket.off(SERVER_EVENTS.GAME_START);
-      socket.off(SERVER_EVENTS.GAME_OVER);
+      socket.off("COMMENCE_OPERATION"); 
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleDistrictSelected);
     };
-  }, [setStatus, syncServerState, addLog, openPrediction]);
+  }, [setStatus, syncServerState, addLog, openPrediction, triggerDeploySequence, setView]);
 
-  // 各種ハンドラー
+  const handleOpenRanking = () => setView('ranking');
+  const handleCloseRanking = () => setView('setup');
+
   const handleLoginSubmit = async (name: string) => {
     setLocalPlayerName(name);
     await login(name); 
@@ -120,51 +117,19 @@ const App: React.FC = () => {
     setView('setup'); 
   };
 
-  const handleJoinSuccess = (joinedRoomId: string) => {
-    setStatus({ roomId: joinedRoomId });
-    setView('lobby'); 
-  };
+  const handleSelectionComplete = useCallback(() => {
+    setView('waiting');
+  }, [setView]);
 
-  const handleFinalDeploy = () => {
-    if (selectedDistrictId) {
-      socket.emit(CLIENT_EVENTS.PLAYER_READY, { username: playerName || storePlayerName || 'Guest', startDistrictId: selectedDistrictId });
-      window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, { detail: { districtId: selectedDistrictId } }));
-      setStatus({ selectedDistrictId: null });
-    }
-  };
-
-  const handleSelectionComplete = useCallback(() => setView('game'), []);
-
-  // --- 🎥 ビューのレンダリング決定 ---
+  // --- 🖼️ レンダリング決定 ---
   let mainContent;
+
   if (view === 'login') {
-    mainContent = (
-      <LoginView 
-        onLogin={handleLoginSubmit} 
-        onOpenSettings={() => setShowSettings(true)} 
-        onOpenHelp={() => setShowHelp(true)} 
-      />
-    );
+    mainContent = <LoginView onLogin={handleLoginSubmit} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} />;
   } else if (view === 'setup') {
-    mainContent = (
-      <LobbySetupView 
-        onJoinSuccess={handleJoinSuccess} 
-        onOpenSettings={() => setShowSettings(true)} 
-        onOpenHelp={() => setShowHelp(true)}
-        onOpenRanking={handleOpenRanking}
-      />
-    );
+    mainContent = <LobbySetupView onJoinSuccess={(id) => { setStatus({ roomId: id }); setView('lobby'); }} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onOpenRanking={handleOpenRanking} />;
   } else if (view === 'lobby') {
-    mainContent = (
-      <LobbyView 
-        roomId={roomId} 
-        players={players} 
-        onOpenSettings={() => setShowSettings(true)} 
-        onOpenHelp={() => setShowHelp(true)} 
-        onOpenRanking={handleOpenRanking}
-        onAbort={() => setView('setup')}
-      />
-    );
+    mainContent = <LobbyView roomId={roomId} players={players} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onOpenRanking={handleOpenRanking} onAbort={() => setView('setup')} />;
   } else if (view === 'selection') {
     mainContent = (
       <GodSelectionView 
@@ -173,30 +138,29 @@ const App: React.FC = () => {
         onOpenHelp={() => setShowHelp(true)} 
       />
     );
+  } else if (view === 'waiting') {
+    mainContent = <WaitingView onStart={triggerDeploySequence} />;
   } else if (view === 'ranking') {
-    mainContent = (
-      <RankingView 
-        onOpenSettings={() => setShowSettings(true)} 
-        onOpenHelp={() => setShowHelp(true)}
-        onBack={handleCloseRanking}
-      />
-    );
+    mainContent = <RankingView onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onBack={handleCloseRanking} />;
   } else {
-    // ⚔️ ゲーム画面
+    // ⚔️ ゲーム本編
     mainContent = (
-      <div className="flex w-screen h-screen overflow-hidden bg-slate-950 text-slate-100 font-body">
-        <Sidebar />
-        <div className="flex-1 relative overflow-hidden flex flex-col">
+      // 🚀 修正: w-screen h-screen を w-full h-full に変更し、入れ子によるWindowsの小数点計算ズレを防止
+      <div className="flex w-full h-full overflow-hidden bg-slate-950">
+        <Sidebar 
+          onOpenSettings={() => setShowSettings(true)} 
+          onOpenHelp={() => setShowHelp(true)} 
+          onOpenInventory={() => setShowInventory(true)} 
+        />
+        
+        <main className="flex-1 relative overflow-hidden flex flex-col items-center justify-center">
           <div className="absolute inset-0 z-0">
             <PhaserGameView ref={gameRef} playerName={playerName || storePlayerName} />
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(249,115,22,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(249,115,22,0.05)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(249,115,22,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(249,115,22,0.08)_1px,transparent_1px)] bg-[size:50px_50px] pointer-events-none"></div>
           </div>
-          <div className="relative z-10 w-full h-full pointer-events-none flex flex-col">
-            <HUD onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} />
-            
-            {/* 🚀 追加：ここにActionPanelを配置！ */}
-            <ActionPanel />
 
+          <div className="relative z-10 w-full h-full pointer-events-none flex flex-col">
+            <HUD />
             <BattleModal />
             <ResultView 
               onRestart={() => window.location.reload()} 
@@ -204,26 +168,40 @@ const App: React.FC = () => {
               onOpenHelp={() => setShowHelp(true)}
               onOpenRanking={handleOpenRanking}
             />
-            {/* Turn0時のデプロイボタンは ActionPanel に移行したため削除（または重複回避のため非表示） */}
           </div>
-        </div>
+        </main>
       </div>
     );
   }
 
   return (
-    <div className="relative w-screen h-screen bg-slate-950 overflow-hidden">
+    // 🚀 修正：フォントアンチエイリアスと基準フォント（font-body）をルートに設定し、全画面でのOS差異を完全に吸収
+    <div className="relative w-screen h-screen bg-slate-950 text-slate-200 font-body antialiased overflow-hidden select-none">
       {mainContent}
-      {showSettings && (
-        <div className="fixed inset-0 z-[99999] pointer-events-auto">
-          <SettingsView onBack={() => setShowSettings(false)} />
+      
+      {/* 🚀 出撃ローディング演出 */}
+      {isDeploying && (
+        <div className="fixed inset-0 z-[200000] bg-slate-950 flex flex-col items-center justify-center animate-fadeIn">
+          <div className="text-center">
+            <div className="text-brand-500 text-sm font-black tracking-[0.6em] uppercase mb-6 animate-pulse">Neural Link Established</div>
+            <div className="text-6xl font-black text-white italic tracking-tighter uppercase mb-4">Deploying Squad...</div>
+            <div className="h-1.5 w-80 bg-slate-800 mx-auto overflow-hidden rounded-full border border-white/5">
+              <div className="h-full bg-brand-500 animate-[progressBar_2.5s_ease-in-out_forwards]"></div>
+            </div>
+          </div>
         </div>
       )}
-      {showHelp && (
-        <div className="fixed inset-0 z-[100000] pointer-events-auto">
-          <HelpModal onClose={() => setShowHelp(false)} />
-        </div>
-      )}
+
+      {/* 共通モーダル */}
+      {showSettings && <div className="fixed inset-0 z-[99999]"><SettingsView onBack={() => setShowSettings(false)} /></div>}
+      {showHelp && <div className="fixed inset-0 z-[100000]"><HelpModal onClose={() => setShowHelp(false)} /></div>}
+      {showInventory && <div className="fixed inset-0 z-[150000]"><InventoryModal onClose={() => setShowInventory(false)} /></div>}
+
+      <style>{`
+        @keyframes progressBar { 0% { width: 0%; } 100% { width: 100%; } }
+        .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      `}</style>
     </div>
   );
 };

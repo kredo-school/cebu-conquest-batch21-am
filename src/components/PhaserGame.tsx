@@ -73,10 +73,12 @@ export const PhaserGameView = forwardRef<any, PhaserGameProps>((props, ref) => {
   }, [playerName]);
 
   return (
+    // 🚀 修正：インラインスタイルの `height: "100vh"` を廃止し、親に追従する `w-full h-full` に変更。
+    // これにより、Windowsでの小数点以下のピクセル計算ズレ（スクロールバーの発生）を防ぎます。
     <div 
       ref={containerRef} 
       id="phaser-container" 
-      style={{ flex: 1, height: "100vh", position: "relative", overflow: "hidden" }} 
+      className="w-full h-full relative overflow-hidden flex-1"
     />
   );
 });

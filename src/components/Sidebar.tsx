@@ -1,146 +1,139 @@
 import React from 'react';
 import { useGameStore } from '../store';
 
-export const Sidebar: React.FC = () => {
+interface SidebarProps {
+  onOpenSettings: () => void;
+  onOpenHelp: () => void;
+  onOpenInventory: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, onOpenHelp, onOpenInventory }) => {
   const { 
-    hp, maxHp, stamina, maxStamina, blessing, turn, logs, atk, def,
-    endTurn, isMyTurn, isSubmitted,
-    isUnderAttack // 🚀 Storeから被弾状態を取得
+    hp, maxHp, ap, blessing, turn, logs, atk, def,
+    isMyTurn, isUnderAttack 
   } = useGameStore();
 
   return (
     <>
-      {/* 🚀 サイドバー用のアラートアニメーション定義 */}
       <style>{`
         @keyframes pulse-red {
             0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); border-color: rgba(239, 68, 68, 0.5); }
             70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); border-color: rgba(239, 68, 68, 1); }
             100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); border-color: rgba(239, 68, 68, 0.5); }
         }
-        @keyframes pulse-warning-text {
-            0%, 100% { color: #f87171; opacity: 1; }
-            50% { color: #f97316; opacity: 0.8; }
-        }
         .animate-pulse-red { animation: pulse-red 2s infinite; }
-        .animate-warning-text { animation: pulse-warning-text 1.5s infinite; }
+        
+        /* 🚀 全OSでスクロールバーの外観を統一 */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.1); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #f97316; border-radius: 10px; }
+        
+        /* 🚀 テキストのベースラインをOS間で統一 */
+        .font-fix { line-height: 1.2; }
       `}</style>
 
-      {/* 🚀 App.tsxのflexレイアウトに合わせて、固定(fixed)を解除し、h-fullで高さを確保 */}
-      <aside className="w-80 h-full bg-[#0f172a] border-r border-slate-800 flex flex-col z-50 shadow-2xl overflow-y-auto custom-scrollbar font-body select-none">
+      {/* 🚀 サイドバー本体：h-screenで固定し、OSによる隙間の発生を防ぐ */}
+      <aside className="fixed left-0 top-0 bottom-0 z-40 flex flex-col bg-slate-950 w-80 border-r border-slate-800 shadow-2xl overflow-hidden font-body select-none">
         
-        {/* --- 1. Top: Turn & Status Pill (画像上部) --- */}
-        <div className="px-6 py-8">
-          <div className="flex items-center gap-4 mb-8">
-            {/* Turn Number Box */}
-            <div className="w-14 h-14 bg-slate-800 rounded border border-slate-700 flex items-center justify-center">
-              <div className="text-3xl font-black text-orange-500 italic">{turn}</div>
+        {/* --- 1 & 2. Status Area: 上端に固定（flex-none） --- */}
+        <div className="flex-none p-6 space-y-6 overflow-y-auto custom-scrollbar">
+          {/* Turn & Status Indicator [cite: 37, 53] */}
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded bg-slate-900 flex items-center justify-center border border-slate-800 shadow-inner">
+              <div className="text-2xl font-black text-orange-500 italic font-fix">{turn}</div>
             </div>
-            {/* Status Pill: 画像の茶色〜オレンジのグラデーションを再現 */}
-            <div className="flex flex-col justify-center">
-              <div className={`inline-flex items-center justify-center px-6 py-3 rounded-full border shadow-xl transition-all ${
-                isMyTurn ? 'bg-gradient-to-r from-[#3d2414] via-[#52331f] to-[#3d2414] border-[#7a482b]' : 'bg-slate-800 border-slate-700 opacity-50'
-              }`}>
-                <span className="text-[#fa7000] font-[900] tracking-[0.25em] text-xs uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-                  {isMyTurn ? 'PLAYER TURN' : 'ENEMY TURN'}
-                </span>
+            <div className={`inline-flex items-center justify-center px-6 py-3 rounded-full border shadow-2xl transition-all ${
+              isUnderAttack ? 'bg-red-950/40 border-red-500 animate-pulse-red' : 
+              (isMyTurn ? 'bg-gradient-to-r from-[#3d2414] via-[#52331f] to-[#3d2414] border-[#7a482b]' : 'bg-slate-900 border-slate-800 opacity-50')
+            }`}>
+              <span className={`font-[900] tracking-[0.25em] text-xs uppercase font-fix ${isUnderAttack ? 'text-red-500' : 'text-[#fa7000]'}`}>
+                {isMyTurn ? 'PLAYER TURN' : (isUnderAttack ? 'ENEMY ALERT' : 'STANDBY')}
+              </span>
+            </div>
+          </div>
+
+          {/* Gauges: HP & AP (Stamina) [cite: 35, 36, 43] */}
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <div className="flex justify-between items-end">
+                <span className="text-[10px] font-black uppercase text-slate-500">HP {hp}/{maxHp}</span>
+              </div>
+              <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                <div className="h-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] transition-all duration-500" style={{ width: `${(hp/maxHp)*100}%` }} />
               </div>
             </div>
-          </div>
 
-          {/* Sector Navigation (画像通りのリスト) */}
-          <nav className="space-y-2">
-            <div className="flex items-center gap-3 p-3 rounded bg-slate-800/80 text-green-400 border-l-4 border-green-500 shadow-inner">
-              <span className="material-symbols-outlined text-base">map</span>
-              <span className="text-[10px] font-black uppercase tracking-wider">マクタン島</span>
-            </div>
-            {['ラプ＝ラプ市', 'セントラルエリア', 'サント・ニーニョ教会'].map((name, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800/30 transition-all cursor-pointer">
-                <span className="material-symbols-outlined text-base">
-                  {i === 0 ? 'grid_view' : i === 1 ? 'location_city' : 'location_on'}
-                </span>
-                <span className="text-[10px] font-black uppercase tracking-wider">{name}</span>
+            <div className="space-y-2">
+              <div className="flex justify-between items-end">
+                <span className="text-[10px] font-black uppercase text-slate-500">AP (STAMINA) {ap}%</span>
               </div>
-            ))}
-          </nav>
-        </div>
+              <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                <div className="h-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)] transition-all duration-500" style={{ width: `${ap}%` }} />
+              </div>
+            </div>
 
-        {/* --- 2. Middle: Status Gauges (画像中央) --- */}
-        <div className="px-6 space-y-8 flex-grow">
-          
-          {/* 🔴 HP Bar (被弾時に赤く警告表示) */}
-          <div className={`transition-all duration-300 space-y-3 ${isUnderAttack ? 'p-3 rounded-lg bg-red-950/20 border border-red-500/30 animate-pulse-red' : ''}`}>
-            <div className="flex justify-between items-end">
-              <span className={`text-[10px] font-black uppercase tracking-widest ${isUnderAttack ? 'text-red-400' : 'text-slate-400'}`}>HP {hp}/{maxHp || 100}</span>
-              {isUnderAttack ? (
-                <span className="text-[10px] font-bold text-red-500 animate-warning-text">UNDER ATTACK</span>
-              ) : (
-                <span className={`text-[10px] font-bold ${hp < 30 ? 'text-red-500 animate-pulse' : 'text-green-500'}`}>
-                  {hp < 30 ? 'CRITICAL' : 'OPTIMAL'}
-                </span>
-              )}
+            {/* Combat Stats [cite: 43] */}
+            <div className="grid grid-cols-2 gap-3 text-left">
+              <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 flex flex-col items-center">
+                <span className="material-symbols-outlined text-orange-500 text-lg">swords</span>
+                <div className="text-[8px] text-slate-600 font-bold uppercase mt-1">ATTACK</div>
+                <div className="text-xl font-black text-slate-100 italic font-fix">{atk}</div>
+              </div>
+              <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 flex flex-col items-center">
+                <span className="material-symbols-outlined text-blue-400 text-lg">shield</span>
+                <div className="text-[8px] text-slate-600 font-bold uppercase mt-1">DEFEND</div>
+                <div className="text-xl font-black text-slate-100 italic font-fix">{def}</div>
+              </div>
             </div>
-            <div className="h-2.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-              <div 
-                className={`h-full transition-all duration-500 ${isUnderAttack ? 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.6)]' : 'bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.6)]'}`} 
-                style={{ width: `${(hp / (maxHp || 100)) * 100}%` }}
-              />
-            </div>
-          </div>
 
-          {/* Stamina Bar (被弾時は暗くする) */}
-          <div className={`space-y-3 transition-opacity duration-300 ${isUnderAttack ? 'opacity-40' : 'opacity-100'}`}>
-            <div className="flex justify-between items-end">
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">スタミナ {stamina}%</span>
-              <span className="text-[10px] font-bold text-orange-400">STABLE</span>
-            </div>
-            <div className="h-2.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-              <div 
-                className="h-full bg-orange-500 transition-all duration-500 shadow-[0_0_12px_rgba(249,115,22,0.6)]" 
-                style={{ width: `${stamina}%` }}
-              />
-            </div>
-          </div>
+            {/* Faith Level & Inventory Button  */}
+            <div className="space-y-3">
+              <div className="bg-indigo-950/30 p-4 rounded-xl border border-indigo-500/20 flex items-center justify-between shadow-inner">
+                <div className="text-left">
+                  <div className="text-[9px] font-black uppercase text-indigo-400 tracking-widest">Faith Level</div>
+                  <div className="text-base font-bold text-slate-100 italic font-fix">High: {blessing.toFixed(1)}</div>
+                </div>
+                <span className="material-symbols-outlined text-indigo-400 text-xl animate-pulse">auto_awesome</span>
+              </div>
 
-          {/* 🔴 ATK / DEF Stats Grid (被弾時に赤く警告表示) */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className={`p-4 rounded-xl border flex flex-col items-center justify-center shadow-inner transition-all duration-300 ${isUnderAttack ? 'bg-red-900/10 border-red-500/40 animate-pulse-red' : 'bg-slate-950/40 border-slate-800'}`}>
-              <span className={`material-symbols-outlined text-xl mb-1 ${isUnderAttack ? 'text-red-500' : 'text-orange-500'}`}>swords</span>
-              <div className={`text-[8px] font-black uppercase tracking-tighter ${isUnderAttack ? 'text-red-400' : 'text-slate-500'}`}>Attack</div>
-              <div className="text-2xl font-black text-slate-100 italic">{atk}</div>
+              <button 
+                onClick={onOpenInventory}
+                className="w-full py-3 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 hover:border-emerald-500/50 rounded-xl flex items-center justify-center gap-3 transition-all group pointer-events-auto"
+              >
+                <span className="material-symbols-outlined text-emerald-400 group-hover:scale-110 transition-transform">inventory_2</span>
+                <span className="text-xs font-black text-emerald-400 uppercase tracking-widest font-fix">Inventory</span>
+              </button>
             </div>
-            <div className={`p-4 rounded-xl border flex flex-col items-center justify-center shadow-inner transition-all duration-300 ${isUnderAttack ? 'bg-red-900/10 border-red-500/40 animate-pulse-red' : 'bg-slate-950/40 border-slate-800'}`}>
-              <span className={`material-symbols-outlined text-xl mb-1 ${isUnderAttack ? 'text-red-400' : 'text-blue-400'}`}>shield</span>
-              <div className={`text-[8px] font-black uppercase tracking-tighter ${isUnderAttack ? 'text-red-400' : 'text-slate-500'}`}>Defend</div>
-              <div className="text-2xl font-black text-slate-100 italic">{def}</div>
-            </div>
-          </div>
-
-          {/* Faith Level (被弾時は暗くする) */}
-          <div className={`bg-indigo-900/10 p-5 rounded-xl border border-indigo-500/20 flex items-center justify-between shadow-inner transition-opacity duration-300 ${isUnderAttack ? 'opacity-40' : 'opacity-100'}`}>
-            <div>
-              <div className="text-[9px] font-black uppercase text-indigo-400 tracking-[0.2em]">Faith Level</div>
-              <div className="text-base font-black text-slate-100 italic">High: {Math.round(blessing * 10)}</div>
-            </div>
-            <span className="material-symbols-outlined text-indigo-400 text-2xl animate-pulse" style={{ fontVariationSettings: '"FILL" 1' }}>auto_awesome</span>
           </div>
         </div>
 
-        {/* --- 3. Bottom: System Log (画像下部) --- */}
-        <div className="p-4 border-t border-slate-800 bg-[#020617]/50 mt-auto">
-          {/* 🔴 ログヘッダー (被弾時に文言と色を変更) */}
-          <div className="flex items-center gap-2 mb-3 px-2">
-            <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${isUnderAttack ? 'bg-red-500' : 'bg-orange-500'}`}></span>
-            <span className={`text-[9px] font-black uppercase tracking-widest ${isUnderAttack ? 'text-red-400 animate-warning-text' : 'text-slate-500'}`}>
-              {isUnderAttack ? 'ALERT: COMBAT IN PROGRESS' : 'Tactical Feed'}
-            </span>
-          </div>
-          <div className="bg-[#020617] rounded border border-slate-800 h-40 p-4 text-[10px] font-mono text-slate-400 custom-scrollbar overflow-y-auto space-y-1.5 leading-tight">
-            {logs.map((log, i) => (
-              <p key={i} className={i === 0 ? 'text-orange-400' : 'opacity-60'}>
-                <span className="text-slate-700 mr-2">[{new Date().toLocaleTimeString([], {hour12: false, hour: '2-digit', minute:'2-digit'})}]</span>
-                {log}
-              </p>
-            ))}
+        {/* --- 3. Log Area: 残りのスペースを埋めて下端に吸着（flex-1 + justify-end） [cite: 32, 53] --- */}
+        <div className="flex-1 flex flex-col justify-end min-h-0 bg-slate-950">
+          <div className="p-4 border-t border-white/5 bg-black/20">
+            <div className="flex items-center justify-between mb-3 px-1">
+              <div className="flex items-center gap-2 text-left">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
+                <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest font-fix">SYSTEM LOG</span>
+              </div>
+              
+              <div className="flex gap-4">
+                <button onClick={onOpenHelp} className="text-slate-600 hover:text-cyan-400 transition-colors pointer-events-auto" title="Help">
+                  <span className="material-symbols-outlined text-lg">help</span>
+                </button>
+                <button onClick={onOpenSettings} className="text-slate-600 hover:text-orange-400 transition-colors pointer-events-auto" title="Settings">
+                  <span className="material-symbols-outlined text-lg">settings</span>
+                </button>
+              </div>
+            </div>
+            
+            <div className="bg-black/40 rounded border border-white/5 h-36 p-3 text-[10px] font-mono text-slate-500 custom-scrollbar overflow-y-auto space-y-1.5 text-left">
+              {logs.map((log, i) => (
+                <p key={i} className={`leading-relaxed ${i === 0 ? 'text-orange-400 font-bold' : 'opacity-60'}`}>
+                  <span className="text-slate-800 mr-2">[{new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}]</span>
+                  {log}
+                </p>
+              ))}
+            </div>
           </div>
         </div>
       </aside>

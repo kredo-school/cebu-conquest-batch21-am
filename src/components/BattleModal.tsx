@@ -7,7 +7,7 @@ export const BattleModal: React.FC = () => {
     // ⚔️ 予測モーダル用
     predictionModalOpen, 
     targetDistrictInfo, 
-    atk, blessing, attack, move, closePrediction, stamina,
+    atk, blessing, attack, move, closePrediction, ap,
     // 🚨 被弾アラート用に追加
     isMyTurn, escape, addLog,
     // 🚀 修正：useStateではなく、Store(グローバル)から呼び出す！
@@ -69,7 +69,7 @@ export const BattleModal: React.FC = () => {
     finalAtk = atk * blessing;
     enemyDef = targetDistrictInfo.enemyDef || 40;
     winRate = (finalAtk / (finalAtk + enemyDef)) * 100;
-    canAction = stamina >= AP_COST;
+    canAction = ap >= AP_COST;
 
     if (isMyTerritory) {
       themeColor = 'text-blue-400';
@@ -142,10 +142,11 @@ export const BattleModal: React.FC = () => {
             <div className="flex flex-col items-center gap-4 bg-slate-900/90 backdrop-blur-xl border-y border-red-500/50 py-8 px-24 shadow-[0_0_50px_rgba(239,68,68,0.5)]">
               <span className="material-symbols-outlined text-red-500 text-6xl animate-pulse">warning</span>
               <div className="text-center">
-                <h2 className="text-4xl font-black text-white italic tracking-tighter mb-1 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]">
+                {/* 🚀 修正: font-fixを追加 */}
+                <h2 className="text-4xl font-black text-white italic tracking-tighter mb-1 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)] font-fix">
                   INCOMING ATTACK
                 </h2>
-                <p className="text-red-400 text-xs font-bold tracking-[0.3em] uppercase">
+                <p className="text-red-400 text-xs font-bold tracking-[0.3em] uppercase font-fix">
                   Opponent's Turn in Progress
                 </p>
               </div>
@@ -155,11 +156,11 @@ export const BattleModal: React.FC = () => {
           <div className="absolute bottom-12 right-12 flex gap-4 pointer-events-auto animate-slide-in-right">
             <button onClick={handleDefense} className="w-32 h-32 bg-slate-900/95 backdrop-blur-md border-2 border-blue-500/40 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-blue-900/50 hover:border-blue-400 transition-all shadow-[0_10px_30px_rgba(0,0,0,0.5)] group active:scale-95">
               <span className="material-symbols-outlined text-blue-400 text-4xl group-hover:scale-110 transition-transform drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]">shield</span>
-              <span className="text-xs font-black text-blue-100 uppercase tracking-widest">DEFENSE</span>
+              <span className="text-xs font-black text-blue-100 uppercase tracking-widest font-fix">DEFENSE</span>
             </button>
             <button onClick={handleEscape} className="w-32 h-32 bg-slate-900/95 backdrop-blur-md border-2 border-red-500/40 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-red-900/50 hover:border-red-400 transition-all shadow-[0_10px_30px_rgba(0,0,0,0.5)] group active:scale-95">
               <span className="material-symbols-outlined text-red-400 text-4xl group-hover:scale-110 transition-transform drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]">directions_run</span>
-              <span className="text-xs font-black text-red-100 uppercase tracking-widest">ESCAPE</span>
+              <span className="text-xs font-black text-red-100 uppercase tracking-widest font-fix">ESCAPE</span>
             </button>
           </div>
         </div>
@@ -178,14 +179,14 @@ export const BattleModal: React.FC = () => {
             
             <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-4">
               <span className="text-xl">{icon}</span>
-              <h2 className={`text-sm font-black tracking-widest uppercase ${themeColor}`}>
+              <h2 className={`text-sm font-black tracking-widest uppercase ${themeColor} font-fix`}>
                 {title}
               </h2>
             </div>
 
             <div className="mb-6 relative z-10">
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Target Sector</p>
-              <div className="text-2xl font-black text-white italic tracking-tighter">
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1 font-fix">Target Sector</p>
+              <div className="text-2xl font-black text-white italic tracking-tighter font-fix">
                 {targetDistrictInfo.name}
               </div>
             </div>
@@ -193,16 +194,16 @@ export const BattleModal: React.FC = () => {
             {isEnemy && (
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-6 relative z-10">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs text-slate-400 font-bold">Your ATK (Est.)</span>
-                  <span className="text-sm font-black text-blue-400">{finalAtk.toFixed(0)}</span>
+                  <span className="text-xs text-slate-400 font-bold font-fix">Your ATK (Est.)</span>
+                  <span className="text-sm font-black text-blue-400 font-fix">{finalAtk.toFixed(0)}</span>
                 </div>
                 <div className="flex justify-between items-center mb-4">
-                  <span className="text-xs text-slate-400 font-bold">Enemy DEF (Est.)</span>
-                  <span className="text-sm font-black text-red-400">{enemyDef}</span>
+                  <span className="text-xs text-slate-400 font-bold font-fix">Enemy DEF (Est.)</span>
+                  <span className="text-sm font-black text-red-400 font-fix">{enemyDef}</span>
                 </div>
                 <div className="border-t border-slate-800 pt-3 flex justify-between items-end">
-                  <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Win Probability</span>
-                  <div className="text-3xl font-black text-orange-500 drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]">
+                  <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest font-fix">Win Probability</span>
+                  <div className="text-3xl font-black text-orange-500 drop-shadow-[0_0_10px_rgba(249,115,22,0.4)] font-fix">
                     {winRate.toFixed(1)}<span className="text-sm">%</span>
                   </div>
                 </div>
@@ -211,7 +212,7 @@ export const BattleModal: React.FC = () => {
 
             {!isEnemy && (
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-6 relative z-10">
-                <p className="text-xs text-slate-400 font-bold leading-relaxed">
+                <p className="text-xs text-slate-400 font-bold leading-relaxed font-fix">
                   {isMyTerritory 
                     ? "本陣をこの地区に移動します。移動後はこの地区からの隣接エリアにしか攻撃できなくなります。" 
                     : "この地区は現在無人です。戦闘なしで無血占領し、領土を拡大することが可能です。"}
@@ -221,10 +222,10 @@ export const BattleModal: React.FC = () => {
 
             <div className="flex gap-3 relative z-10">
               <button onClick={closePrediction} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-black py-3 rounded-lg text-xs uppercase tracking-widest transition-all">
-                CANCEL
+                <span className="font-fix">CANCEL</span>
               </button>
               <button onClick={handleExecute} disabled={!canAction} className={`flex-[2] text-white font-black py-3 rounded-lg text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 ${canAction ? btnClass : 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none'}`}>
-                {canAction ? `${actionText} (-${AP_COST} AP)` : 'NO AP'}
+                <span className="font-fix">{canAction ? `${actionText} (-${AP_COST} AP)` : 'NO AP'}</span>
               </button>
             </div>
           </div>
