@@ -1,18 +1,20 @@
 import React from 'react';
 
-// ✅ 地区リスト：MainScene.js の ID と完全に一致させています
+// ✅ 本番マップの spotId（5桁）に対応
+// ※ このIDリストはTMJの spotName レイヤーに実在するIDのみ記載すること
 const START_CANDIDATES = [
-  { id: 101, name: "West Hills (西の丘)" },
-  { id: 102, name: "Downtown & Port (中心地)" },
-  { id: 103, name: "Commercial District (商業区)" },
-  { id: 104, name: "Residential Area (住宅街)" },
-  { id: 105, name: "Central Park (中央公園)" },
-  { id: 201, name: "Adventure Zone (北拠点)" },
-  { id: 202, name: "Northern Forest (北の森)" },
-  { id: 301, name: "East Coast (東海岸)" },
-  { id: 302, name: "Marine Base (海上基地)" },
-  { id: 401, name: "South Gate (南拠点)" },
-  { id: 402, name: "Southern Jungle (南のジャングル)" },
+  // ── セブ市街地エリア（エリアID: 11）──
+  { id: 11101, name: "Maya Port（マヤ港）" },
+  { id: 11102, name: "Sugarcane Field（サトウキビ畑）" },
+  { id: 11108, name: "Farmer House（農家）" },
+  { id: 11112, name: "Bogo Transit Terminal（ボゴバスターミナル）" },
+  { id: 11113, name: "Bogo Hilltop Shrine（ボゴ丘の神社）" },
+  // ── セブ市街地（エリアID: 13）──
+  { id: 13101, name: "IT Park（ITパーク）" },
+  { id: 13102, name: "Waterfront Hotel（ウォーターフロントホテル）" },
+  { id: 13103, name: "Ayala Malls Center（アヤラモール）" },
+  { id: 13204, name: "Basilica del Santo Nino（サント・ニーニョ大聖堂）" },
+  // ── 必要に応じて本番TMJのspotNameレイヤーを確認して追加する ──
 ];
 
 interface Props {

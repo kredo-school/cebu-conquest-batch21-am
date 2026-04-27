@@ -24,27 +24,58 @@ const TEAM_CONFIG = [
 // 🚀 【27地区マスタ】すべての地区のバフと優先度
 // ==========================================
 const DISTRICTS_MASTER = {
-    "11101": { name: "チチャロン地区", priority: 3, buff: { atk: 10, def: 0 } },
-    "11102": { name: "マンゴー地区", priority: 9, buff: { atk: 12, def: 12 } },
-    "11103": { name: "エナジー地区", priority: 8, buff: { atk: 5, def: 5 } },
-    "11104": { name: "コータル地区", priority: 4, buff: { atk: 5, def: 5 } },
-    "11105": { name: "アドベンチャー地区", priority: 6, buff: { atk: 10, def: 0 } },
-    "11112": { name: "ショッピング特区", priority: 7, buff: { atk: 5, def: 15 } },
-    "11113": { name: "ダウンタウン", priority: 5, buff: { atk: 8, def: 8 } },
-    "11119": { name: "マリン・ジャイアント", priority: 10, buff: { atk: 25, def: 0 } },
-    "11120": { name: "ヘリテージ・グルメ", priority: 8, buff: { atk: 0, def: 25 } },
-    // 11127まで同様に定義（データ量＝重厚さ）
+    // ── セブ市街地エリア（エリアID: 11）──
+    "11101": { name: "Maya Port（マヤ港）", priority: 5, buff: { atk: 8, def: 8 } },
+    "11102": { name: "Sugarcane Field（サトウキビ畑）", priority: 4, buff: { atk: 5, def: 5 } },
+    "11103": { name: "Northern Hills（北の丘）", priority: 5, buff: { atk: 10, def: 5 } },
+    "11104": { name: "Coastal Road（沿岸道路）", priority: 4, buff: { atk: 5, def: 10 } },
+    "11105": { name: "Central Cebu（セブ中央）", priority: 6, buff: { atk: 8, def: 8 } },
+    "11106": { name: "Harbor Gate（港門）", priority: 5, buff: { atk: 10, def: 5 } },
+    "11108": { name: "Farmer House（農家）", priority: 3, buff: { atk: 5, def: 5 } },
+    "11109": { name: "River Crossing（川渡り）", priority: 4, buff: { atk: 5, def: 10 } },
+    "11112": { name: "Bogo Transit Terminal（ボゴバスターミナル）", priority: 7, buff: { atk: 5, def: 15 } },
+    "11113": { name: "Bogo Hilltop Shrine（ボゴ丘の神社）", priority: 8, buff: { atk: 12, def: 12 } },
+    "11115": { name: "Coastal Outpost（沿岸前哨基地）", priority: 5, buff: { atk: 10, def: 5 } },
+    "11116": { name: "Western Ridge（西の尾根）", priority: 5, buff: { atk: 8, def: 8 } },
+    "11117": { name: "Sacred Spring（聖泉）", priority: 6, buff: { atk: 0, def: 20 } },
+    "11118": { name: "Jungle Path（ジャングルの道）", priority: 4, buff: { atk: 10, def: 5 } },
+    "11119": { name: "Marine Giant（海の巨人）", priority: 10, buff: { atk: 25, def: 0 } },
+    "11120": { name: "Heritage Gourmet（ヘリテージグルメ）", priority: 8, buff: { atk: 0, def: 25 } },
+    "11121": { name: "Sunset Cove（夕日の入り江）", priority: 6, buff: { atk: 10, def: 10 } },
+    // ── 北部エリア（エリアID: 13）──
+    "13101": { name: "IT Park（ITパーク）", priority: 9, buff: { atk: 15, def: 10 } },
+    "13102": { name: "Waterfront Hotel（ウォーターフロントホテル）", priority: 7, buff: { atk: 10, def: 10 } },
+    "13103": { name: "Ayala Malls Center（アヤラモール）", priority: 8, buff: { atk: 5, def: 15 } },
+    "13201": { name: "Carbon Market（カーボンマーケット）", priority: 6, buff: { atk: 8, def: 8 } },
+    "13204": { name: "Basilica del Santo Nino（サント・ニーニョ大聖堂）", priority: 9, buff: { atk: 0, def: 25 } },
 };
 
 // 🚀 【全地区連結】島全体を網羅した隣接リスト（NPCの移動経路）
 const ADJACENT_DISTRICTS = {
+    // ── セブ市街地エリア（エリアID: 11）──
     "11101": ["11102", "11104", "11105", "11120"],
     "11102": ["11101", "11104", "11106", "11108"],
-    "11108": ["11102", "11109", "11112"],
-    "11112": ["11108", "11113", "11116", "11119"],
+    "11103": ["11101", "11105", "11201", "11301"],
+    "11104": ["11101", "11102", "11105", "11401"],
+    "11105": ["11101", "11103", "11104", "11301"],
+    "11106": ["11102", "11108"],
+    "11108": ["11102", "11106", "11109", "11112"],
+    "11109": ["11108", "11112", "11113"],
+    "11112": ["11108", "11109", "11113", "11116", "11119"],
     "11113": ["11109", "11112", "11117", "11118", "11119"],
-    "11119": ["11112", "11113", "11115", "11118", "11120"],
-    "11120": ["11116", "11119", "11101"]
+    "11115": ["11118", "11119"],
+    "11116": ["11112", "11119", "11120"],
+    "11117": ["11113", "11118"],
+    "11118": ["11113", "11115", "11117", "11119"],
+    "11119": ["11112", "11113", "11115", "11118", "11120", "11121"],
+    "11120": ["11101", "11116", "11119", "11121"],
+    "11121": ["11119", "11120"],
+    // ── 北部エリア（エリアID: 13）──
+    "13101": ["13102", "13103"],
+    "13102": ["13101", "13103", "13201"],
+    "13103": ["13101", "13102", "13201", "13204"],
+    "13201": ["13102", "13103", "13204"],
+    "13204": ["13103", "13201"],
 };
 
 // ==========================================
