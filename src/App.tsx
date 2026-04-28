@@ -21,12 +21,12 @@ import { InventoryModal } from './components/InventoryModal';
 // 🔴 ブリッジ定数とイベント定数
 import { PHASER_TO_REACT, REACT_TO_PHASER } from './game/events/PhaserBridge';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
-import SoundManager from './game/SoundManager';
 
 const App: React.FC = () => {
   const { 
     login, setStatus, syncServerState, addLog,
     playerName: storePlayerName,
+    token, // 🚀 追加：トークンの状態を取得
     openPrediction, isGameOver, roomId, players, setView, view
   } = useGameStore();
   
@@ -37,6 +37,16 @@ const App: React.FC = () => {
   const [showHelp, setShowHelp] = useState(false); 
   const [showInventory, setShowInventory] = useState(false); 
   const [playerName, setLocalPlayerName] = useState('');
+
+  // 🚀 1. トークン管理の厳格化（ガード機能）
+  // ログインしていない（トークンがない）状態でゲーム関連の画面を表示しようとしたら強制的にログインへ戻す
+  useEffect(() => {
+    const gameViews = ['setup', 'lobby', 'selection', 'waiting', 'game', 'ranking'];
+    if (!token && gameViews.includes(view)) {
+      addLog("⚠️ セキュリティ警告：不正なアクセスを検知。ログインが必要です。");
+      setView('login');
+    }
+  }, [view, token, setView, addLog]);
 
   const triggerDeploySequence = useCallback(() => {
     if (isDeploying) return;
@@ -112,7 +122,7 @@ const App: React.FC = () => {
 
   const handleLoginSubmit = async (name: string) => {
     setLocalPlayerName(name);
-    await login(name); 
+    // 🚀 LoginView側ですでに store の login を呼んでいるため、ここでは接続と遷移を行う
     socket.connect();
     setView('setup'); 
   };
@@ -145,7 +155,6 @@ const App: React.FC = () => {
   } else {
     // ⚔️ ゲーム本編
     mainContent = (
-      // 🚀 修正: w-screen h-screen を w-full h-full に変更し、入れ子によるWindowsの小数点計算ズレを防止
       <div className="flex w-full h-full overflow-hidden bg-slate-950">
         <Sidebar 
           onOpenSettings={() => setShowSettings(true)} 
@@ -175,7 +184,6 @@ const App: React.FC = () => {
   }
 
   return (
-    // 🚀 修正：フォントアンチエイリアスと基準フォント（font-body）をルートに設定し、全画面でのOS差異を完全に吸収
     <div className="relative w-screen h-screen bg-slate-950 text-slate-200 font-body antialiased overflow-hidden select-none">
       {mainContent}
       
@@ -183,10 +191,10 @@ const App: React.FC = () => {
       {isDeploying && (
         <div className="fixed inset-0 z-[200000] bg-slate-950 flex flex-col items-center justify-center animate-fadeIn">
           <div className="text-center">
-            <div className="text-brand-500 text-sm font-black tracking-[0.6em] uppercase mb-6 animate-pulse">Neural Link Established</div>
+            <div className="text-orange-500 text-sm font-black tracking-[0.6em] uppercase mb-6 animate-pulse">Neural Link Established</div>
             <div className="text-6xl font-black text-white italic tracking-tighter uppercase mb-4">Deploying Squad...</div>
             <div className="h-1.5 w-80 bg-slate-800 mx-auto overflow-hidden rounded-full border border-white/5">
-              <div className="h-full bg-brand-500 animate-[progressBar_2.5s_ease-in-out_forwards]"></div>
+              <div className="h-full bg-orange-500 animate-[progressBar_2.5s_ease-in-out_forwards]"></div>
             </div>
           </div>
         </div>
