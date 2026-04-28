@@ -18,7 +18,8 @@ const GOD_TRAITS: Record<number, { name: string; traits: string[]; role: string;
 };
 
 export const WaitingView: React.FC<WaitingViewProps> = ({ onStart }) => {
-  const { players, myId, chatLogs } = useGameStore();
+  // 🚀 修正：maxPlayers を Store から取得
+  const { players, myId, chatLogs, maxPlayers } = useGameStore();
   const [chatInput, setChatInput] = useState('');
 
   const myPlayer = players.find(p => p.id === myId);
@@ -76,7 +77,8 @@ export const WaitingView: React.FC<WaitingViewProps> = ({ onStart }) => {
             </div>
             <div className="text-right">
               <p className="text-slate-400 text-xs uppercase tracking-widest font-bold font-fix">Room Capacity</p>
-              <p className="text-4xl font-black text-white font-fix">{players.length} <span className="text-orange-600">/ 4</span></p>
+              {/* 🚀 修正：/ 4 を / {maxPlayers} に変更し、Store と同期 */}
+              <p className="text-4xl font-black text-white font-fix">{players.length} <span className="text-orange-600">/ {maxPlayers}</span></p>
             </div>
           </div>
 
