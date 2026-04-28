@@ -69,7 +69,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
     try {
       if (isRegisterMode) {
         // 📡 本物の登録 API へのリクエスト
-        const res = await fetch("http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api/register.php", {
+        const res = await fetch("http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api/login.php", {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

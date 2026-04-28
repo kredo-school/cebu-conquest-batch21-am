@@ -1,15 +1,15 @@
 <?php
 
 // CORS対策 (ReactからのPOSTリクエストを許可)
-header("Access-Control-Allow-Origin: http://localhost:5173");
+header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Content-Type: application/json; charset=UTF-8");
 header("X-Content-Type-Options: nosniff"); // 追加：ブラウザによるMIMEタイプ推測を禁止
 
-// プリフライトリクエストの処理
+// 2. OPTIONSリクエストへの即答（いっせいさんの指定通り 200 を返す）
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-  http_response_code(204); // 「中身はないけどOKだよ」とブラウザに伝える
+  header("HTTP/1.1 200 OK");
   exit();
 }
 
@@ -34,7 +34,7 @@ $security_question = trim($input['security_question'] ?? '');
 $security_answer = trim($input['security_answer'] ?? '');
 
 // ✨ $security_question と $security_answer もチェック対象に入れる
-if (!$username || !$password || !$security_question || !$security_answer) {
+if (!$username || !$password) {
   http_response_code(400);
   echo json_encode(['status' => 'error', 'message' => 'ユーザー名とパスワードを入力してください']);
   exit;
@@ -65,25 +65,31 @@ try {
   $message = "";
 
   if ($user) {
-    // --- 既存ユーザーの場合：パスワード検証 ---
-    // パスワードがハッシュ化されていない古いデータへの対策も含め検証
+    // --- 【A. 既存ユーザー：ログイン処理】 ---
     if (!password_verify($password, $user['password'])) {
-      $pdo->rollBack();
-      http_response_code(401);
-      echo json_encode(['status' => 'error', 'message' => 'パスワードが正しくありません']);
-      exit;
+      throw new Exception("パスワードが正しくありません", 401);
     }
     $message = "You have successfully logged in!";
   } else {
     // --- 新規ユーザーの場合：登録処理 ---
 
+    // 登録の時だけ、質問と答えがあるかチェックする
+    if (!$security_question || !$security_answer) {
+      throw new Exception("新規登録には秘密の質問と答えが必要です", 400);
+    }
+
+    // 文字数制限
+    if (mb_strlen($username) < 3 || mb_strlen($username) > 15) {
+      throw new Exception("ユーザー名は3〜15文字で入力してください", 400);
+    }
+    if (strlen($password) < 8) {
+      throw new Exception("パスワードは8文字以上で設定してください", 400);
+    }
+
     // 人数制限チェック（最大2名）
     $countStmt = $pdo->query("SELECT COUNT(*) FROM users");
-    if ($countStmt->fetchColumn() >= 4) { //ここを２に変えると２人の接続に制限できる！！
-      $pdo->rollBack();
-      http_response_code(403);
-      echo json_encode(['status' => 'error', 'message' => '満員です（最大2名まで）']);
-      exit;
+    if ($countStmt->fetchColumn() >= 4) {
+      throw new Exception("満員です（最大4名まで）", 403);
     }
 
     // パスワードをハッシュ化して保存
@@ -92,7 +98,7 @@ try {
     $playerColor = sprintf('#%06X', mt_rand(0, 0xFFFFFF));
 
     $insertSql = "INSERT INTO users (username, password, security_question, security_answer, player_color, max_hp, current_hp, stamina, atk, def)
-                  VALUES (?, ?, ?, ?, ?, 100, 100, 100, 100, 100)";
+                      VALUES (?, ?, ?, ?, ?, 100, 100, 100, 100, 100)";
     $insertStmt = $pdo->prepare($insertSql);
 
     // ここで実行。失敗した場合はcatchに飛びます
@@ -133,13 +139,16 @@ try {
       ]
     ]
   ], JSON_UNESCAPED_UNICODE);
-} catch (PDOException $e) { // PDO特有のエラーをキャッチ
-  if ($pdo->inTransaction()) $pdo->rollBack();
-  http_response_code(500);
-  // 開発用：具体的なエラー理由を表示（本番では message を伏せるのが安全）
-  echo json_encode(['status' => 'error', 'message' => 'DBエラー: ' . $e->getMessage()]);
+  
 } catch (Exception $e) {
-  if ($pdo->inTransaction()) $pdo->rollBack();
-  http_response_code(500);
-  echo json_encode(['status' => 'error', 'message' => 'サーバーエラー: ' . $e->getMessage()]);
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    
+    // HTTPステータスコードをセット（例外にコードがあればそれ、なければ500）
+    $code = ($e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500;
+    http_response_code($code);
+    
+    echo json_encode([
+        'status' => 'error', 
+        'message' => $e->getMessage()
+    ]);
 }
