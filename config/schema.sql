@@ -33,6 +33,8 @@ CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) DEFAULT 'dummy_pass',
+    security_question VARCHAR(255) NOT NULL,
+    security_answer VARCHAR(255) NOT NULL,
     player_color VARCHAR(20) DEFAULT '#3498db',
     max_hp INT DEFAULT 100, 
     current_hp INT DEFAULT 100,

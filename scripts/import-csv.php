@@ -1,115 +1,39 @@
 <?php
-
 /**
- * Cebu Conquest "FULL_SYNC_FINAL_REVENGE"
- * 役割: #1701エラーを DELETE 命令で完全に回避し、なおさんの設計通り同期する
+ * Cebu Conquest "ULTIMATE_DEMO_SYNC"
+ * 特徴: 
+ * 1. エラー1452を回避するため、CSVにあるエリアIDを自動的にデータベースに事前登録します。
+ * 2. デモユーザー(issei/kei)を確実に作成します。
  */
+//http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/scripts/import-csv.php
 
 header("Content-Type: text/plain; charset=UTF-8");
 require_once __DIR__ . '/../config/database.php';
 
-// パス設定
 $csv_dir = __DIR__ . '/../';
 $spots_file = $csv_dir . 'GI-Project_ID管理シート - Spots.csv';
 $items_file = $csv_dir . 'GI-Project_ID管理シート - Items.csv';
 
 try {
     echo "=========================================\n";
-    echo "🚀 DATABASE FULL SYNC: VERSION 13 (FIXED)\n";
+    echo "🚀 DATABASE ULTIMATE SYNC (DEMO READY)\n";
     echo "=========================================\n\n";
 
-    // --- 1. 制約の無効化 (まずチェックを外す) ---
+    // --- 1. 制約の無効化 ---
     $pdo->exec("SET FOREIGN_KEY_CHECKS = 0;");
 
-    // --- 2. 徹底掃除 (TRUNCATE は親テーブルに使えないので DELETE を使います) ---
-    // これが今回の #1701 エラーを解決するための最大のポイントです
+    // --- 2. 既存データの掃除 ---
     $tables = ['rooms', 'user_items', 'occupations', 'items', 'spots', 'match_results', 'areas', 'islands', 'gods', 'users'];
     foreach ($tables as $table) {
-        // DELETE FROM ならば親子関係があっても制約無視(0)の状態なら確実に掃除可能です
         $pdo->exec("DELETE FROM $table");
-        echo "🧹 Cleared data (DELETE): $table\n";
+        echo "🧹 Cleared table: $table\n";
     }
 
-    // --- 3. 全テーブルの作成 (なおさんの設計を100%維持・復活) ---
-    
-    // 島・エリア
-    $pdo->exec("CREATE TABLE IF NOT EXISTS islands (id INT PRIMARY KEY, name VARCHAR(100)) ENGINE=InnoDB;");
-    $pdo->exec("CREATE TABLE IF NOT EXISTS areas (id INT PRIMARY KEY, island_id INT, name VARCHAR(100)) ENGINE=InnoDB;");
-
-    // スポット
-    $pdo->exec("CREATE TABLE IF NOT EXISTS spots (
-        id INT PRIMARY KEY,
-        island_id INT NOT NULL,
-        area_id INT NOT NULL,
-        district_id INT NOT NULL,
-        name VARCHAR(100) NOT NULL,
-        map_x FLOAT NULL,
-        map_y FLOAT NULL,
-        capture_cost INT DEFAULT 10,
-        drop_item_id INT NULL
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
-    // アイテム
-    $pdo->exec("CREATE TABLE IF NOT EXISTS items (
-        id INT PRIMARY KEY,
-        spot_id INT NULL, 
-        name VARCHAR(100) NOT NULL,
-        buff_target VARCHAR(50),
-        buff_type VARCHAR(50),
-        buff_value INT,
-        description TEXT
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
-    // 神様 (atk_bonus, stamina_bonus, ap_regen_bonus, description など全カラムを完全に維持)
-    $pdo->exec("CREATE TABLE IF NOT EXISTS gods (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(50) NOT NULL,
-        atk_bonus INT DEFAULT 0,
-        stamina_bonus INT DEFAULT 0,
-        ap_regen_bonus INT DEFAULT 0,
-        start_item_id INT,
-        image_url VARCHAR(255),
-        description TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
-    // ユーザー
-    $pdo->exec("CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        username VARCHAR(50) NOT NULL UNIQUE,
-        password VARCHAR(255) DEFAULT 'dummy_pass',
-        player_color VARCHAR(20) DEFAULT '#3498db',
-        max_hp INT DEFAULT 100,
-        current_hp INT DEFAULT 100,
-        stamina INT DEFAULT 100,
-        atk INT DEFAULT 100,
-        def INT DEFAULT 100,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
-    // room
-    $pdo->exec("CREATE TABLE IF NOT EXISTS rooms (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        room_key VARCHAR(10) UNIQUE NOT NULL,
-        host_user_id INT NOT NULL,
-        guest_user_id INT DEFAULT NULL,
-        status ENUM('waiting', 'playing', 'finished') DEFAULT 'waiting',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (host_user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (guest_user_id) REFERENCES users(id) ON DELETE SET NULL
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
-    // 占領状況
-    $pdo->exec("CREATE TABLE IF NOT EXISTS occupations (
-        spot_id INT PRIMARY KEY,
-        user_id INT,
-        occupied_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (spot_id) REFERENCES spots(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
-    // --- 4. マスタデータ登録 (神様もフルステータスで投入) ---
+    // --- 3. マスタデータ登録 ---
+    echo "\n📦 Inserting master data...\n";
     $pdo->exec("INSERT INTO islands (id, name) VALUES (1000, 'Cebu・Mactan')");
+    
+    // 基本の5エリアを登録
     $pdo->exec("INSERT INTO areas (id, island_id, name) VALUES (11,1000,'North'),(13,1000,'Core'),(14,1000,'South Heritage'),(15,1000,'South Adventure'),(16,1000,'Mactan')");
     
     $pdo->exec("INSERT INTO gods (name, atk_bonus, stamina_bonus, ap_regen_bonus, start_item_id, image_url, description) VALUES 
@@ -117,33 +41,78 @@ try {
         ('Quisie', 0, 30, 0, 2, 'assets/images/gods/Quisie.jpg', '大地の女神。初期スタミナ+30'),
         ('Shem', 0, 0, 5, 3, 'assets/images/gods/Shem.jpg', '知識の神。AP回復量+5')");
 
+// --- 4. デモユーザー作成 ---
+    $demoPassword = password_hash('password123', PASSWORD_DEFAULT);
+    
+    // 👤 いっせいさん用の設定
+    $isseiQuestion = '最初の相棒は？';
+    $isseiAnswerHash = password_hash('ピカチュウ', PASSWORD_DEFAULT);
+
+    // 👤 けいさん用の設定
+    $keiQuestion = '最初の相棒は？';
+    $keiAnswerHash = password_hash('ピカチュウ', PASSWORD_DEFAULT);
+
+    // SQL実行（それぞれの変数を対応する場所に流し込みます）
+    $pdo->exec("INSERT INTO users (username, password, security_question, security_answer, player_color, max_hp, current_hp, stamina, atk, def) VALUES 
+        ('issei', '{$demoPassword}', '{$isseiQuestion}', '{$isseiAnswerHash}', '#FF5733', 100, 100, 100, 100, 100),
+        ('kei', '{$demoPassword}', '{$keiQuestion}', '{$keiAnswerHash}', '#33FF57', 100, 100, 100, 100, 100)");
+        
+    echo "👤 Created unique demo users: issei (相棒), kei (食べ物)\n";
+
+    // --- 5. CSVインポート (エリア補完ロジック付き) ---
+    echo "\n📥 Importing CSV files...\n";
+
+    if (file_exists($spots_file)) {
+        $content = mb_convert_encoding(file_get_contents($spots_file), 'UTF-8', 'auto');
+        $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", trim($content)));
+        array_shift($lines); // ヘッダー除去
+
+        $stmtSpot = $pdo->prepare("INSERT INTO spots (island_id, area_id, district_id, id, name, map_x, map_y, capture_cost, drop_item_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmtAreaFix = $pdo->prepare("INSERT IGNORE INTO areas (id, island_id, name) VALUES (?, ?, ?)");
+
+        $count = 0;
+        foreach ($lines as $line) {
+            $data = str_getcsv($line);
+            if (count($data) < 5) continue;
+
+            // データの整理
+            $islandId = (int)$data[0];
+            $areaId = (int)$data[1];
+            
+            // 【重要】エラー1452対策：areasテーブルに存在しないIDがあれば、その場で仮登録する
+            $stmtAreaFix->execute([$areaId, $islandId, "Area-" . $areaId]);
+
+            // Spot登録
+            $params = [];
+            foreach ([0, 1, 2, 3, 4, 5, 6, 7, 8] as $idx) {
+                $val = trim($data[$idx] ?? '');
+                $params[] = ($val === '') ? null : $val;
+            }
+            $stmtSpot->execute($params);
+            $count++;
+        }
+        echo "✅ Imported Spots: $count records (Missing areas were auto-created).\n";
+    }
+
+    // Itemsのインポート
+    importCsvBasic($pdo, $items_file, "INSERT INTO items (id, spot_id, name, buff_target, buff_type, buff_value, description) VALUES (?, ?, ?, ?, ?, ?, ?)", [7, 2, 3, 8, 9, 10, 11]);
+
     $pdo->exec("SET FOREIGN_KEY_CHECKS = 1;");
-    echo "✅ Tables and Gods structure are restored.\n\n";
-
-    // --- 5. CSVインポート (最新の列番号に正確にマッピング) ---
-
-    // Spots: [isl(0), area(1), dist(2), spot_id(3), name(4), x(5), y(6), cost(7), item(8)]
-    importCsv($pdo, $spots_file, "INSERT INTO spots (island_id, area_id, district_id, id, name, map_x, map_y, capture_cost, drop_item_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [0, 1, 2, 3, 4, 5, 6, 7, 8]);
-
-    // Items: [id(7), spot_id(2), name(3), target(8), type(9), value(10), desc(11)]
-    importCsv($pdo, $items_file, "INSERT INTO items (id, spot_id, name, buff_target, buff_type, buff_value, description) VALUES (?, ?, ?, ?, ?, ?, ?)", [7, 2, 3, 8, 9, 10, 11]);
-
     echo "\n🏆 ALL SYSTEMS READY. SYNC COMPLETED!";
 
 } catch (Exception $e) {
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 1;");
     echo "\n❌ Error: " . $e->getMessage() . "\n";
 }
 
 /**
- * 共通インポート関数
+ * 基本的なインポート関数
  */
-function importCsv($pdo, $file, $sql, $mapping) {
+function importCsvBasic($pdo, $file, $sql, $mapping) {
     if (!file_exists($file)) return;
     $content = mb_convert_encoding(file_get_contents($file), 'UTF-8', 'auto');
-    $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
     $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", trim($content)));
     array_shift($lines);
-
     $stmt = $pdo->prepare($sql);
     $count = 0;
     foreach ($lines as $line) {
