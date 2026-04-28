@@ -28,25 +28,25 @@ const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   11104: { name: "ITパークの光回線", effect: "命中率UP" },
   11105: { name: "セブ・ゴールド・マンゴー", effect: "全ステータス +5%" },
   11119: { name: "マリン・バースト", effect: "ATK +10" },
-  11120: { name: "ヘリテージ・スパイス", effect: "DEF +10" },
+  11120: { name: "ヘリテージ_スパイス", effect: "DEF +10" },
 };
 
-const API_BASE = "http://localhost/cebu-conquest/cebu-conquest-batch21-am/api";
+// 🚀 修正：なおさんの指示通り URL を変更 (Cebu_Conquest を追加)
+const API_BASE = "http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api";
 
-// 🚀 View名の定義
 type ViewType = 'login' | 'setup' | 'lobby' | 'selection' | 'waiting' | 'game' | 'ranking';
 
 interface GameState {
   view: ViewType;
-  setView: (view: ViewType) => void; // 🚀 App.tsx で必要なメソッドを追加 
+  setView: (view: ViewType) => void;
   token: string | null;
   isAuthenticated: boolean;
   isServerOnline: boolean; 
-  hp: number; // [cite: 35]
+  hp: number;
   maxHp: number;
-  ap: number; // 
+  ap: number;
   maxAp: number; 
-  blessing: number; // 
+  blessing: number;
   atk: number; 
   def: number;
   turn: number; 
@@ -55,7 +55,7 @@ interface GameState {
   chatLogs: ChatMessage[]; 
   roomId: string;
   players: any[];
-  maxPlayers: number; // 
+  maxPlayers: number;
   districts: Record<string, string>;
   currentDistrictName: string;
   selectedDistrictId: number | null;
@@ -78,21 +78,21 @@ interface GameState {
   isUnderAttack: boolean;
   setUnderAttack: (status: boolean) => void;
 
-  login: (username: string, password?: string) => Promise<boolean>; // [cite: 11, 12]
+  login: (username: string, password?: string) => Promise<boolean>;
   logout: () => void;
   nextTurn: () => void; 
-  selectGod: (id: number) => void; // 
+  selectGod: (id: number) => void;
   setPlayerName: (name: string) => void; 
   authenticatedFetch: (url: string, options?: RequestInit) => Promise<any>;
   openPrediction: (id: number, name: string, isMyTerritory?: boolean, isNeutral?: boolean) => void;
   closePrediction: () => void;
-  updateBuffs: () => void; // [cite: 19, 53]
+  updateBuffs: () => void;
   setStatus: (status: Partial<GameState>) => void;
-  syncServerState: (data: any, myId: string) => void; // [cite: 22, 53]
-  attack: (targetId: number) => void; // [cite: 21, 53]
+  syncServerState: (data: any, myId: string) => void;
+  attack: (targetId: number) => void;
   move: (targetId: number) => void;
-  stay: () => void; // [cite: 21, 53]
-  defend: () => void; // [cite: 33]
+  stay: () => void;
+  defend: () => void;
   escape: () => void;
   endTurn: () => void; 
   addLog: (text: string) => void;
@@ -104,19 +104,19 @@ interface GameState {
 
 export const useGameStore = create<GameState>((set, get) => ({
   view: 'login',
-  setView: (view) => set({ view }), // 🚀 実装を追加 
+  setView: (view) => set({ view }),
   token: typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null,
   isAuthenticated: !!(typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null),
   isServerOnline: socket.connected, 
   hp: 100, maxHp: 100,
-  ap: 100, maxAp: 100, // [cite: 36]
+  ap: 100, maxAp: 100,
   blessing: 1.0, atk: 50, def: 40,
   turn: 0, maxTurn: 10,
   logs: ["🌞 ミッション開始。出撃地点を選択してください。"],
   chatLogs: [], 
   roomId: '',
   players: [],
-  maxPlayers: 2, // 
+  maxPlayers: 2, 
   districts: {},
   currentDistrictName: "地点未選択", selectedDistrictId: null,
   playerName: "", myId: "",
@@ -156,7 +156,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           maxHp: user.max_hp || 100,
           atk: user.atk || 50,
           def: user.def || 40,
-          ap: user.ap || user.stamina || 100, // APへ統一 [cite: 36]
+          ap: user.ap || user.stamina || 100,
           maxAp: user.max_ap || 100,
         });
         get().addLog(`🔐 認証完了。コマンダー ${user.username} ログイン。`);
@@ -221,17 +221,20 @@ export const useGameStore = create<GameState>((set, get) => ({
     const currentState = get();
 
     const rawPlayers = data.players ?? {};
-    const playersArray = Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers);
-    const myPlayerData = Array.isArray(rawPlayers) ? rawPlayers.find((p: any) => p.id === myId) : rawPlayers[myId];
+    let playersArray = Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers);
+    playersArray = playersArray.filter((p: any) => p && p.id); // 幽霊プレイヤーを排除
+
+    const myPlayerData = playersArray.find((p: any) => p.id === myId);
     
     const nextHp = myPlayerData?.hp ?? currentState.hp;
-    const nextAp = myPlayerData?.ap ?? myPlayerData?.stamina ?? currentState.ap; // [cite: 36]
+    const nextAp = myPlayerData?.ap ?? myPlayerData?.stamina ?? currentState.ap;
     const nextAtk = myPlayerData?.atk ?? currentState.atk;
     const nextDef = myPlayerData?.def ?? currentState.def;
-    const nextBlessing = myPlayerData?.faith ?? myPlayerData?.blessing ?? currentState.blessing; //
+    const nextBlessing = myPlayerData?.faith ?? myPlayerData?.blessing ?? currentState.blessing;
     const nextTurn = data.turn ?? currentState.turn;
     const isMe = data.turnOwnerId === myId;
     const isGameOver = data.isGameOver ?? currentState.isGameOver;
+    const nextMaxPlayers = (data.maxPlayers && data.maxPlayers > 0) ? data.maxPlayers : currentState.maxPlayers;
 
     if (
       currentState.hp !== nextHp ||
@@ -242,6 +245,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       currentState.turn !== nextTurn ||
       currentState.isMyTurn !== isMe ||
       currentState.isGameOver !== isGameOver ||
+      currentState.maxPlayers !== nextMaxPlayers ||
       JSON.stringify(currentState.districts) !== JSON.stringify(data.districts) ||
       JSON.stringify(currentState.players) !== JSON.stringify(playersArray)
     ) {
@@ -249,7 +253,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         ...state,
         myId: myId,
         roomId: data.roomId ?? state.roomId,
-        maxPlayers: data.maxPlayers ?? state.maxPlayers, // 人数同期 
+        maxPlayers: nextMaxPlayers, 
         hp: nextHp,
         maxHp: myPlayerData?.maxHp ?? state.maxHp,
         ap: nextAp,
@@ -266,9 +270,9 @@ export const useGameStore = create<GameState>((set, get) => ({
         winnerId: data.winnerId ?? state.winnerId
       }));
 
-      const playersAsObject = Array.isArray(data.players)
-        ? data.players.reduce((acc: any, p: any) => { acc[p.id] = p; return acc; }, {})
-        : (data.players ?? {});
+      const playersAsObject = playersArray.reduce((acc: any, p: any) => { 
+        acc[p.id] = p; return acc; 
+      }, {});
 
       window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: playersAsObject } }));
       get().updateBuffs();
@@ -301,7 +305,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   stay: () => { 
     const { isMyTurn } = get();
     if (!isMyTurn) return;
-    socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'stay' }); // [cite: 21]
+    socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'stay' }); 
     get().addLog("🧘 休息中。"); 
     window.dispatchEvent(new CustomEvent('ACTION_STAY'));
   },
@@ -309,7 +313,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   defend: () => {
     const { isMyTurn } = get();
     if (!isMyTurn) return;
-    socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'defend' }); // [cite: 33]
+    socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'defend' }); 
     get().addLog("🛡️ 防御体勢を構築。");
   },
 
