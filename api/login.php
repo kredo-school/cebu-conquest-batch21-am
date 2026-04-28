@@ -30,8 +30,11 @@ require_once __DIR__ . '/jwt-helper.php';
 $input = json_decode(file_get_contents("php://input"), true);
 $username = trim($input['username'] ?? '');
 $password = $input['password'] ?? '';
+$security_question = trim($input['security_question'] ?? '');
+$security_answer = trim($input['security_answer'] ?? '');
 
-if (!$username || !$password) {
+// ✨ $security_question と $security_answer もチェック対象に入れる
+if (!$username || !$password || !$security_question || !$security_answer) {
   http_response_code(400);
   echo json_encode(['status' => 'error', 'message' => 'ユーザー名とパスワードを入力してください']);
   exit;
@@ -85,14 +88,21 @@ try {
 
     // パスワードをハッシュ化して保存
     $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+    $hashedAnswer = password_hash($security_answer, PASSWORD_DEFAULT);
     $playerColor = sprintf('#%06X', mt_rand(0, 0xFFFFFF));
 
-    $insertSql = "INSERT INTO users (username, password, player_color, max_hp, current_hp, stamina, atk, def)
-                      VALUES (?, ?, ?, 100, 100, 100, 100, 100)";
+    $insertSql = "INSERT INTO users (username, password, security_question, security_answer, player_color, max_hp, current_hp, stamina, atk, def)
+                  VALUES (?, ?, ?, ?, ?, 100, 100, 100, 100, 100)";
     $insertStmt = $pdo->prepare($insertSql);
 
     // ここで実行。失敗した場合はcatchに飛びます
-    $insertStmt->execute([$username, $hashedPassword, $playerColor]);
+    $insertStmt->execute([
+      $username,
+      $hashedPassword,
+      $security_question,
+      $hashedAnswer,
+      $playerColor
+    ]);
 
     // 登録した情報を再取得
     $stmt->execute([$username]);
@@ -123,14 +133,13 @@ try {
       ]
     ]
   ], JSON_UNESCAPED_UNICODE);
-
 } catch (PDOException $e) { // PDO特有のエラーをキャッチ
-    if ($pdo->inTransaction()) $pdo->rollBack();
-    http_response_code(500);
-    // 開発用：具体的なエラー理由を表示（本番では message を伏せるのが安全）
-    echo json_encode(['status' => 'error', 'message' => 'DBエラー: ' . $e->getMessage()]);
+  if ($pdo->inTransaction()) $pdo->rollBack();
+  http_response_code(500);
+  // 開発用：具体的なエラー理由を表示（本番では message を伏せるのが安全）
+  echo json_encode(['status' => 'error', 'message' => 'DBエラー: ' . $e->getMessage()]);
 } catch (Exception $e) {
-    if ($pdo->inTransaction()) $pdo->rollBack();
-    http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => 'サーバーエラー: ' . $e->getMessage()]);
+  if ($pdo->inTransaction()) $pdo->rollBack();
+  http_response_code(500);
+  echo json_encode(['status' => 'error', 'message' => 'サーバーエラー: ' . $e->getMessage()]);
 }
