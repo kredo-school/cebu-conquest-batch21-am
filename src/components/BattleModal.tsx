@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, memo } from 'react';
 import { useGameStore } from '../store';
 import SoundManager from '../game/SoundManager';
 
-// 🚀 島ID定数（他のコンポーネントと統一）
+// 🚀 島ID定数（GDD v3.0準拠 [cite: 70, 75, 77]）
 const ISLAND_NAMES: Record<number, string> = {
   11: "CEBU MAINLAND",
   12: "MACTAN ISLAND",
@@ -11,18 +11,17 @@ const ISLAND_NAMES: Record<number, string> = {
   15: "SIQUIJOR"
 };
 
-export const BattleModal: React.FC = () => {
+// 🚀 React.memoでラップし、不要なレンダリングをガード 
+export const BattleModal: React.FC = memo(() => {
   const { 
-    // ⚔️ 予測モーダル用
     predictionModalOpen, 
     targetDistrictInfo, 
     atk, blessing, attack, move, closePrediction, ap,
-    // 🚨 被弾アラート用
     isMyTurn, escape, addLog,
     isUnderAttack, setUnderAttack 
   } = useGameStore();
 
-  // 🚀 5桁ID解析ロジック
+  // 🚀 5桁ID解析ロジック [cite: 65, 67]
   const targetParsed = useMemo(() => {
     if (!targetDistrictInfo) return null;
     const id = targetDistrictInfo.id;
@@ -34,9 +33,7 @@ export const BattleModal: React.FC = () => {
     };
   }, [targetDistrictInfo]);
 
-  // ==========================================
-  // 🚨 1. 敵からの被弾アラート用ロジック
-  // ==========================================
+  // 🚨 敵からの被弾アラート用ロジック
   useEffect(() => {
     const handleIncomingAttack = () => {
       if (!useGameStore.getState().isMyTurn) {
@@ -44,7 +41,6 @@ export const BattleModal: React.FC = () => {
         try { SoundManager.playSe('alert'); } catch(e) {}
       }
     };
-
     window.addEventListener('INCOMING_ATTACK', handleIncomingAttack);
     return () => window.removeEventListener('INCOMING_ATTACK', handleIncomingAttack);
   }, [setUnderAttack]);
@@ -61,9 +57,7 @@ export const BattleModal: React.FC = () => {
     setUnderAttack(false);
   };
 
-  // ==========================================
-  // ⚔️ 2. こちらからの攻撃・移動予測用ロジック
-  // ==========================================
+  // ⚔️ バトルロジック変数（GDD v3.0準拠 [cite: 54, 57]）
   let isMyTerritory = false;
   let isNeutral = false;
   let isEnemy = false;
@@ -85,6 +79,7 @@ export const BattleModal: React.FC = () => {
     isNeutral = targetDistrictInfo.isNeutral || false;
     isEnemy = !isMyTerritory && !isNeutral;
 
+    // 🚀 GDD v3.0 計算式: P = A / (A + D) [cite: 54, 57]
     finalAtk = atk * blessing;
     enemyDef = targetDistrictInfo.enemyDef || 40;
     winRate = (finalAtk / (finalAtk + enemyDef)) * 100;
@@ -109,6 +104,7 @@ export const BattleModal: React.FC = () => {
 
   const handleExecute = () => {
     if (!targetDistrictInfo) return;
+    try { SoundManager.playSe('click'); } catch(e) {}
     if (isMyTerritory) {
       move(targetDistrictInfo.id);
     } else {
@@ -116,6 +112,7 @@ export const BattleModal: React.FC = () => {
     }
   };
 
+  // 表示判定
   if (!predictionModalOpen && !isUnderAttack) return null;
 
   return (
@@ -135,9 +132,8 @@ export const BattleModal: React.FC = () => {
           0% { transform: translateX(100%); opacity: 0; }
           100% { transform: translateX(0); opacity: 1; }
         }
-        .animate-slide-in-right { transform: translateX(100%); opacity: 0; animation: slide-in-right 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards; animation-delay: 2s; }
+        .animate-slide-in-right { transform: translateX(100%); opacity: 0; animation: slide-in-right 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
         .font-fix { line-height: 1.2; }
-        
         @keyframes fadeIn {
           from { opacity: 0; transform: scale(0.95); }
           to { opacity: 1; transform: scale(1); }
@@ -152,48 +148,47 @@ export const BattleModal: React.FC = () => {
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-slide-up-exit">
             <div className="flex flex-col items-center gap-4 bg-slate-900/90 backdrop-blur-xl border-y border-red-500/50 py-8 px-24 shadow-[0_0_50px_rgba(239,68,68,0.5)]">
               <span className="material-symbols-outlined text-red-500 text-6xl animate-pulse">warning</span>
-              <div className="text-center text-left">
-                <h2 className="text-4xl font-black text-white italic tracking-tighter mb-1 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)] font-fix">INCOMING ATTACK</h2>
-                <p className="text-red-400 text-xs font-bold tracking-[0.3em] uppercase font-fix">Opponent's Turn in Progress</p>
+              <div className="text-center">
+                <h2 className="text-4xl font-black text-white italic tracking-tighter mb-1 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)] font-fix text-left">INCOMING ATTACK</h2>
+                <p className="text-red-400 text-xs font-bold tracking-[0.3em] uppercase font-fix text-left">Opponent's Turn in Progress</p>
               </div>
             </div>
           </div>
-          <div className="absolute bottom-12 right-12 flex gap-4 pointer-events-auto animate-slide-in-right">
+          <div className="absolute bottom-12 right-12 flex gap-4 pointer-events-auto animate-slide-in-right" style={{ animationDelay: '2s' }}>
             <button onClick={handleDefense} className="w-32 h-32 bg-slate-900/95 backdrop-blur-md border-2 border-blue-500/40 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-blue-900/50 hover:border-blue-400 transition-all shadow-[0_10px_30px_rgba(0,0,0,0.5)] group active:scale-95">
               <span className="material-symbols-outlined text-blue-400 text-4xl group-hover:scale-110 transition-transform">shield</span>
-              <span className="text-xs font-black text-blue-100 uppercase tracking-widest font-fix text-left">DEFENSE</span>
+              <span className="text-xs font-black text-blue-100 uppercase tracking-widest font-fix">DEFENSE</span>
             </button>
             <button onClick={handleEscape} className="w-32 h-32 bg-slate-900/95 backdrop-blur-md border-2 border-red-500/40 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-red-900/50 hover:border-red-400 transition-all shadow-[0_10px_30px_rgba(0,0,0,0.5)] group active:scale-95">
               <span className="material-symbols-outlined text-red-400 text-4xl group-hover:scale-110 transition-transform">directions_run</span>
-              <span className="text-xs font-black text-red-100 uppercase tracking-widest font-fix text-left">ESCAPE</span>
+              <span className="text-xs font-black text-red-100 uppercase tracking-widest font-fix">ESCAPE</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* ⚔️ 攻撃・移動予測 UI */}
+      {/* ⚔️ 攻撃・移動予測 UI [cite: 53] */}
       {predictionModalOpen && targetDistrictInfo && targetParsed && (
-        <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm select-none">
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm select-none pointer-events-auto">
           <div className={`relative bg-slate-900 border-2 ${borderColor} w-[380px] rounded-2xl p-6 shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden animate-fadeIn`}>
             
             <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-xl">{icon}</span>
-                <h2 className={`text-[11px] font-black tracking-widest uppercase ${themeColor} font-fix text-left`}>
+                <h2 className={`text-[11px] font-black tracking-widest uppercase ${themeColor} font-fix`}>
                   {title}
                 </h2>
               </div>
-              {/* 🚀 セクター番号バッジ */}
               <div className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-[10px] font-mono text-slate-400">
                 SEC-{targetParsed.sectorCode}
               </div>
             </div>
 
-            <div className="mb-6 relative z-10 flex flex-col items-start">
+            <div className="mb-6 relative z-10 text-left">
               <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest mb-1 font-fix">
                 {targetParsed.islandName}
               </span>
-              <div className="text-2xl font-black text-white italic tracking-tighter font-fix text-left">
+              <div className="text-2xl font-black text-white italic tracking-tighter font-fix uppercase">
                 {targetDistrictInfo.name}
               </div>
             </div>
@@ -201,15 +196,15 @@ export const BattleModal: React.FC = () => {
             {isEnemy && (
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-6 relative z-10">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs text-slate-400 font-bold font-fix text-left">Your ATK (Est.)</span>
+                  <span className="text-xs text-slate-400 font-bold font-fix">Your ATK (Est.)</span>
                   <span className="text-sm font-black text-blue-400 font-fix">{finalAtk.toFixed(0)}</span>
                 </div>
                 <div className="flex justify-between items-center mb-4">
-                  <span className="text-xs text-slate-400 font-bold font-fix text-left">Enemy DEF (Est.)</span>
+                  <span className="text-xs text-slate-400 font-bold font-fix">Enemy DEF (Est.)</span>
                   <span className="text-sm font-black text-red-400 font-fix">{enemyDef}</span>
                 </div>
                 <div className="border-t border-slate-800 pt-3 flex justify-between items-end">
-                  <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest font-fix text-left">Win Probability</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest font-fix">Win Probability</span>
                   <div className="text-3xl font-black text-orange-500 drop-shadow-[0_0_10px_rgba(249,115,22,0.4)] font-fix">
                     {winRate.toFixed(1)}<span className="text-sm">%</span>
                   </div>
@@ -218,8 +213,8 @@ export const BattleModal: React.FC = () => {
             )}
 
             {!isEnemy && (
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-6 relative z-10">
-                <p className="text-[11px] text-slate-400 font-bold leading-relaxed font-fix text-left">
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-6 relative z-10 text-left">
+                <p className="text-[11px] text-slate-400 font-bold leading-relaxed font-fix">
                   {isMyTerritory 
                     ? "本陣をこの地区に移動します。移動後はこの地区からの隣接エリアにしか攻撃できなくなります。" 
                     : "この地区は現在無人です。戦闘なしで無血占領し、領土を拡大することが可能です。"}
@@ -228,10 +223,17 @@ export const BattleModal: React.FC = () => {
             )}
 
             <div className="flex gap-3 relative z-10">
-              <button onClick={closePrediction} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-black py-3 rounded-lg text-xs uppercase tracking-widest transition-all">
+              <button 
+                onClick={closePrediction} 
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-black py-3 rounded-lg text-xs uppercase tracking-widest transition-all active:scale-95"
+              >
                 <span className="font-fix">CANCEL</span>
               </button>
-              <button onClick={handleExecute} disabled={!canAction} className={`flex-[2] text-white font-black py-3 rounded-lg text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 ${canAction ? btnClass : 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none'}`}>
+              <button 
+                onClick={handleExecute} 
+                disabled={!canAction} 
+                className={`flex-[2] text-white font-black py-3 rounded-lg text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 ${canAction ? btnClass : 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none'}`}
+              >
                 <span className="font-fix">{canAction ? `${actionText} (-${AP_COST} AP)` : 'NO AP'}</span>
               </button>
             </div>
@@ -240,4 +242,4 @@ export const BattleModal: React.FC = () => {
       )}
     </>
   );
-};
+});

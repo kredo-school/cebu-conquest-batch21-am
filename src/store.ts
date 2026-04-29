@@ -9,7 +9,7 @@ interface ChatMessage {
   timestamp: string;
 }
 
-// 🚀 神々のデータ (GDD v3.0 準拠 [cite: 44])
+// 🚀 神々のデータ (GDD v3.0 準拠 [cite: 36])
 const GODS_DATA = [
   { id: 1, name: "LAPU-LAPU", role: "WAR GOD", bonus: "ATK +20", img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "島嶼戦における近接攻撃ダメージを25%上昇させ、物理防御力を強化する。" },
   { id: 2, name: "SEBUNA", role: "HARVEST", bonus: "MAX AP +30", img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400", desc: "全分隊員のタクティカルアビリティのクールダウンを15%短縮する。" },
@@ -21,7 +21,7 @@ const GODS_DATA = [
   { id: 8, name: "IDANALE", role: "RECON", bonus: "SCAN", img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=400", desc: "障害物越しの敵やリソースをハイライト表示する。" },
 ];
 
-// 🚀 本番5桁ID体系に対応 [cite: 71, 78]
+// 🚀 本番5桁ID体系に対応 [cite: 70, 76, 82]
 const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   11101: { name: "絶品特製チチャロン", effect: "ATK +15%" },
   11102: { name: "夜明けのエナジードリンク", effect: "AP回復速度UP" },
@@ -44,7 +44,7 @@ interface GameState {
   hasSeenTutorial: boolean; 
   errorMessage: string | null;
   isServerOnline: boolean; 
-  zoomLevel: number; // 🚀 追加：LOD連携用
+  zoomLevel: number; 
   hp: number;
   maxHp: number;
   ap: number;
@@ -85,7 +85,7 @@ interface GameState {
   logout: () => void;
   showError: (message: string) => void;
   hideError: () => void;
-  setZoomLevel: (zoom: number) => void; // 🚀 追加：LOD連携用
+  setZoomLevel: (zoom: number) => void; 
   completeTutorial: () => void; 
   nextTurn: () => void; 
   selectGod: (id: number) => void;
@@ -117,7 +117,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   hasSeenTutorial: typeof window !== 'undefined' ? localStorage.getItem('cebu_conquest_tutorial_seen') === 'true' : false,
   errorMessage: null,
   isServerOnline: socket.connected, 
-  zoomLevel: 1.0, // 🚀 追加：初期ズーム値
+  zoomLevel: 1.0, 
   hp: 100, maxHp: 100,
   ap: 100, maxAp: 100,
   blessing: 1.0, atk: 50, def: 40,
@@ -188,7 +188,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   showError: (message) => set({ errorMessage: message }),
   hideError: () => set({ errorMessage: null }),
 
-  // 🚀 ズームレベル更新アクション
   setZoomLevel: (zoom) => set({ zoomLevel: zoom }),
 
   completeTutorial: () => {
@@ -240,6 +239,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   closePrediction: () => set({ predictionModalOpen: false, targetDistrictInfo: null }),
 
+  // 🚀 修正：サーバーからの同期処理を完全にアップデート [cite: 108]
   syncServerState: (data, myId) => {
     if (!data) return;
     const currentState = get();
@@ -250,6 +250,8 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     const myPlayerData = playersArray.find((p: any) => p.id === myId);
     
+    // 🚀 ポイント：自分の現在地（5桁ID）を同期し Phaser に渡す準備をする
+    const nextDistrictId = myPlayerData?.districtId ?? myPlayerData?.location ?? currentState.selectedDistrictId;
     const nextHp = myPlayerData?.hp ?? currentState.hp;
     const nextAp = myPlayerData?.ap ?? myPlayerData?.stamina ?? currentState.ap;
     const nextAtk = myPlayerData?.atk ?? currentState.atk;
@@ -260,9 +262,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     const isGameOver = data.isGameOver ?? currentState.isGameOver;
     const nextMaxPlayers = (data.maxPlayers && data.maxPlayers > 0) ? data.maxPlayers : currentState.maxPlayers;
 
+    // 🚀 最適化：変化があった時だけ一括更新
     if (
       currentState.hp !== nextHp ||
       currentState.ap !== nextAp ||
+      currentState.selectedDistrictId !== nextDistrictId || // 🚀 監視対象に追加
       currentState.atk !== nextAtk ||
       currentState.def !== nextDef ||
       currentState.blessing !== nextBlessing ||
@@ -281,6 +285,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         hp: nextHp,
         maxHp: myPlayerData?.maxHp ?? state.maxHp,
         ap: nextAp,
+        selectedDistrictId: nextDistrictId, // 🚀 ここで現在地をストアに固定
         atk: nextAtk,
         def: nextDef,
         blessing: nextBlessing,
@@ -298,6 +303,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         acc[p.id] = p; return acc; 
       }, {});
 
+      // 🚀 Phaser 側へ最新マップデータの描画を依頼
       window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: playersAsObject } }));
       get().updateBuffs();
     }

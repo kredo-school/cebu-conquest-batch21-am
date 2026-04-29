@@ -7,7 +7,7 @@ interface SidebarProps {
   onOpenInventory: () => void;
 }
 
-// 🚀 島ID定数
+// 🚀 島ID定数（GDD v3.0 準拠） [cite: 70, 75, 77, 79, 81]
 const ISLAND_NAMES: Record<number, string> = {
   11: "CEBU",
   12: "MACTAN",
@@ -16,13 +16,12 @@ const ISLAND_NAMES: Record<number, string> = {
   15: "SIQUIJOR"
 };
 
-// 🚀 最適化：React.memoでラップし、不要な再描画を物理的にシャットアウト
+// 🚀 最適化：React.memo でラップし、不要な再描画をガード [cite: 116]
 export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHelp, onOpenInventory }) => {
-  // 🚀 最適化：個別のセレクタを使用して、必要な値の変化にのみ反応させる
+  // 🚀 個別のセレクタを使用して、必要な値の変化にのみ反応 [cite: 25, 88]
   const hp = useGameStore(state => state.hp);
   const maxHp = useGameStore(state => state.maxHp);
   const ap = useGameStore(state => state.ap);
-  const blessing = useGameStore(state => state.blessing);
   const turn = useGameStore(state => state.turn);
   const logs = useGameStore(state => state.logs);
   const atk = useGameStore(state => state.atk);
@@ -32,7 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
   const districts = useGameStore(state => state.districts);
   const myId = useGameStore(state => state.myId);
 
-  // 🚀 領土要約の計算をメモ化
+  // 🚀 5桁ID体系に基づいた領土要約のメモ化 [cite: 63, 65, 67]
   const territorySummary = useMemo(() => {
     const myDistricts = Object.entries(districts)
       .filter(([_, ownerId]) => ownerId === myId)
@@ -46,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
     });
 
     return Object.entries(groups).sort();
-  }, [districts, myId]); // districtsかmyIdが変わった時だけ再計算
+  }, [districts, myId]);
 
   return (
     <>
@@ -58,14 +57,13 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
         }
         .animate-pulse-red { animation: pulse-red 2s infinite; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.1); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #f97316; border-radius: 10px; }
         .font-fix { line-height: 1.2; }
       `}</style>
 
       <aside className="fixed left-0 top-0 bottom-0 z-40 flex flex-col bg-slate-950 w-80 border-r border-slate-800 shadow-2xl overflow-hidden font-body select-none text-left">
         
-        {/* --- 1. Status Area --- */}
+        {/* --- 1. Status Area --- [cite: 25, 128] */}
         <div className="flex-none p-6 pb-2 space-y-6">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded bg-slate-900 flex items-center justify-center border border-slate-800 shadow-inner">
@@ -113,7 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
           </div>
         </div>
 
-        {/* --- 2. Territory Control Area --- */}
+        {/* --- 2. Territory Control Area --- [cite: 72, 128] */}
         <div className="flex-1 px-6 py-2 overflow-y-auto custom-scrollbar">
           <div className="flex items-center gap-2 mb-3">
             <span className="w-1 h-3 bg-orange-500"></span>
@@ -145,21 +143,21 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
           </div>
         </div>
 
-        {/* --- 3. Inventory & System Area --- */}
+        {/* --- 3. Inventory & System Area --- [cite: 128] */}
         <div className="flex-none px-6 py-4 space-y-3">
           <button 
             onClick={onOpenInventory}
             className="w-full py-2.5 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 hover:border-emerald-500/50 rounded flex items-center justify-center gap-2 transition-all group pointer-events-auto"
           >
             <span className="material-symbols-outlined text-emerald-400 text-sm group-hover:scale-110 transition-transform">inventory_2</span>
-            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest font-fix">Inventory</span>
+            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest font-fix text-left">Inventory</span>
           </button>
 
           <div className="border-t border-white/5 pt-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
-                <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest font-fix">System Log</span>
+                <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest font-fix text-left">System Log</span>
               </div>
               <div className="flex gap-3">
                 <button onClick={onOpenHelp} className="text-slate-600 hover:text-cyan-400 transition-colors pointer-events-auto">
@@ -173,7 +171,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
             
             <div className="bg-black/40 rounded border border-white/5 h-32 p-3 text-[9px] font-mono text-slate-500 custom-scrollbar overflow-y-auto space-y-1.5">
               {logs.map((log, i) => (
-                <p key={i} className={`${i === 0 ? 'text-orange-400 font-bold' : 'opacity-60'}`}>
+                <p key={i} className={`${i === 0 ? 'text-orange-400 font-bold text-left' : 'opacity-60 text-left'}`}>
                   <span className="text-slate-800 mr-1">[{new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}]</span>
                   {log}
                 </p>
