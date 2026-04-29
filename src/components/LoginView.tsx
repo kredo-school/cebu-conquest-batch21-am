@@ -24,30 +24,29 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
   const [stayLoggedIn, setStayLoggedIn] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // 🚀 追加：パスワード表示切り替えフラグ
+  const [showPassword, setShowPassword] = useState(false);
+
   const [mode, setMode] = useState<'login' | 'recovery_user' | 'recovery_answer' | 'reset'>('login');
   const [customQuestion, setCustomQuestion] = useState(''); 
   const [securityAnswer, setSecurityAnswer] = useState(''); 
   const [activeIntel, setActiveIntel] = useState<string | null>(null);
 
-  // 🚀 1. 入力バリデーション（水際対策）
+  // 🚀 1. 入力バリデーション（制限なし：英語・数字どちらでもOK [cite: 53]）
   const validateInputs = (): boolean => {
     setErrorMsg(null);
     
-    // ユーザー名: 3-15文字、英数字のみ
-    const usernameRegex = /^[a-zA-Z0-9]{3,15}$/;
-    if (!usernameRegex.test(username)) {
-      setErrorMsg("User IDは3〜15文字の英数字で入力してください。");
+    const alphanumericRegex = /^[a-zA-Z0-9]+$/;
+    if (!alphanumericRegex.test(username)) {
+      setErrorMsg("User IDは英語か数字で入力してください。");
       return false;
     }
 
-    // パスワード: 3文字以上、英数字混合必須
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{3,}$/;
-    if (!passwordRegex.test(password)) {
-      setErrorMsg("Passwordは3文字以上で、英字と数字を両方含めてください。");
+    if (!alphanumericRegex.test(password)) {
+      setErrorMsg("Passwordは英語か数字で入力してください。");
       return false;
     }
 
-    // 登録時は質問と回答が必須
     if (isRegisterMode) {
       if (!customQuestion.trim() || !securityAnswer.trim()) {
         setErrorMsg("秘密の質問と回答を設定してください。");
@@ -57,18 +56,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
     return true;
   };
 
-  // 🚀 2 & 3. 送信処理 ＋ ローディング演出 ＋ エラーハンドリング
+  // 🚀 2 & 3. 送信処理（通信先を login.php に集約 [cite: 11, 12]）
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateInputs()) return;
 
     setIsLoading(true);
     setErrorMsg(null);
-    addLog(isRegisterMode ? "📡 Initiating registration protocol..." : "🔑 Authenticating credentials...");
+    addLog(isRegisterMode ? "📡 Initiating global registration sequence..." : "🔑 Verifying credentials...");
 
     try {
       if (isRegisterMode) {
-        // 📡 本物の登録 API へのリクエスト
         const res = await fetch("http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api/login.php", {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -76,7 +74,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
             username: username,
             password: password,
             security_question: customQuestion,
-            security_answer: securityAnswer
+            security_answer: securityAnswer,
+            action: 'register' 
           })
         });
 
@@ -88,11 +87,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
           setIsRegisterMode(false);
           setPassword('');
         } else {
-          // 重複チェックなどのエラー表示
           setErrorMsg(data.message || "そのユーザー名は既に占領されています。");
         }
       } else {
-        // 🔑 ログイン処理 (Storeのlogin関数を呼び出し [cite: 12])
         const success = await login(username, password);
         if (success) {
           addLog("🔐 Identity Verified. Accessing Command Center...");
@@ -102,7 +99,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
         }
       }
     } catch (error) {
-      setErrorMsg("SERVER ERROR: 本部との通信に失敗。CORS設定またはネットワークを確認せよ。");
+      setErrorMsg("SERVER ERROR: 本部との通信に失敗。CORS設定等を確認せよ。");
     } finally {
       setIsLoading(false);
     }
@@ -145,17 +142,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
         </div>
 
         <div className="w-full max-w-sm bg-slate-900/60 backdrop-blur-xl p-6 rounded-2xl border border-slate-800 shadow-2xl relative overflow-hidden text-left mb-8 transition-all">
-          {/* 🚀 3. スキャン演出 */}
           {isLoading && <div className="absolute inset-0 z-30 pointer-events-none scanning-line" />}
           
           <div className={`absolute top-0 left-0 w-full h-1 transition-colors duration-500 ${mode === 'login' ? (isRegisterMode ? 'bg-cyan-500' : 'bg-orange-500') : 'bg-yellow-500'}`}></div>
 
           {mode === 'recovery_user' ? (
             <form className="space-y-4 animate-fadeIn" onSubmit={handleIdentifyUser}>
-              <div className="mb-4">
-                <h2 className="text-xl font-black text-white italic font-fix uppercase leading-none">Find Account</h2>
-                <p className="text-yellow-500 text-[10px] uppercase font-bold tracking-tight font-fix mt-2">Enter User ID to initiate recovery</p>
-              </div>
+              <div className="mb-4"><h2 className="text-xl font-black text-white italic font-fix uppercase leading-none">Find Account</h2><p className="text-yellow-500 text-[10px] uppercase font-bold tracking-tight font-fix mt-2">Enter User ID to initiate recovery</p></div>
               <input type="text" className="w-full bg-slate-950/50 border border-slate-800 text-white px-4 py-2.5 rounded-lg outline-none font-fix" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
               <button type="submit" className="w-full font-black py-3 bg-yellow-600 hover:bg-yellow-500 text-black rounded-lg shadow-lg text-sm uppercase font-fix transition-all">Identify Operator</button>
               <button type="button" onClick={() => setMode('login')} className="w-full border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold py-2.5 rounded-lg text-sm uppercase flex justify-center items-center gap-2 mt-2"><span className="material-symbols-outlined text-lg">login</span><span className="font-fix">Return to Login</span></button>
@@ -163,10 +156,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
 
           ) : mode === 'recovery_answer' ? (
             <form className="space-y-4 animate-fadeIn" onSubmit={handleVerifyAnswer}>
-              <div className="mb-4">
-                <h2 className="text-xl font-black text-white italic font-fix uppercase leading-none">Identity Check</h2>
-                <p className="text-yellow-400 text-xs font-bold font-fix mt-2 italic">Hint: {customQuestion || "(Security Question)"}</p>
-              </div>
+              <div className="mb-4"><h2 className="text-xl font-black text-white italic font-fix uppercase leading-none">Identity Check</h2><p className="text-yellow-400 text-xs font-bold font-fix mt-2 italic">Hint: {customQuestion || "(Security Question)"}</p></div>
               <input type="text" className="w-full bg-slate-950/50 border border-slate-800 text-orange-400 px-4 py-2.5 rounded-lg outline-none font-fix" placeholder="Your Answer" value={securityAnswer} onChange={(e) => setSecurityAnswer(e.target.value)} />
               <button type="submit" className="w-full font-black py-3 bg-yellow-600 hover:bg-yellow-500 text-black rounded-lg shadow-lg text-sm uppercase font-fix transition-all">Verify Credentials</button>
               <button type="button" onClick={() => setMode('login')} className="w-full border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold py-2.5 rounded-lg text-sm uppercase flex justify-center items-center gap-2 mt-2"><span className="material-symbols-outlined text-lg">login</span><span className="font-fix">Abort Protocol</span></button>
@@ -175,38 +165,43 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
           ) : mode === 'reset' ? (
             <form className="space-y-4 animate-fadeIn" onSubmit={(e) => { e.preventDefault(); alert('Updated.'); setMode('login'); }}>
               <div className="mb-4"><h2 className="text-xl font-black text-white italic font-fix uppercase leading-none">New Credentials</h2><p className="text-green-500 text-[10px] uppercase font-bold tracking-tight font-fix mt-2">Access Granted. Set password.</p></div>
-              <input type="password" required className="w-full bg-slate-950/50 border border-slate-800 text-white px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm font-fix" placeholder="••••••••" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+              <div className="relative">
+                <input type={showPassword ? "text" : "password"} required className="w-full bg-slate-950/50 border border-slate-800 text-white px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm font-fix" placeholder="New Password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-orange-400 transition-colors">
+                  <span className="material-symbols-outlined text-lg">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                </button>
+              </div>
               <button type="submit" className="w-full font-black py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg shadow-lg uppercase text-sm font-fix">Update & Return</button>
             </form>
 
           ) : (
             <form className="space-y-4" onSubmit={handleAuthSubmit}>
-              {/* 🚀 2. エラーメッセージ */}
-              {errorMsg && (
-                <div className="bg-red-500/10 border border-red-500/50 p-2 rounded text-[10px] text-red-400 font-bold animate-fadeIn">
-                  ⚠️ {errorMsg}
-                </div>
-              )}
+              {errorMsg && <div className="bg-red-500/10 border border-red-500/50 p-2 rounded text-[10px] text-red-400 font-bold animate-fadeIn">⚠️ {errorMsg}</div>}
 
               <div className="space-y-1.5">
                 <label className="block text-[10px] font-bold text-slate-400 tracking-widest uppercase ml-1 font-fix">User ID</label>
                 <div className="relative group">
                   <span className="absolute inset-y-0 left-0 pl-3 flex items-center material-symbols-outlined text-slate-500 text-lg">person</span>
-                  <input type="text" disabled={isLoading} className="w-full bg-slate-950/50 border border-slate-800 text-white pl-10 pr-4 py-2.5 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all font-fix disabled:opacity-50" placeholder="3-15 chars, alphanumeric" value={username} onChange={(e) => setUsername(e.target.value)} />
+                  <input type="text" disabled={isLoading} className="w-full bg-slate-950/50 border border-slate-800 text-white pl-10 pr-4 py-2.5 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all font-fix disabled:opacity-50" placeholder="English or Digits" value={username} onChange={(e) => setUsername(e.target.value)} />
                 </div>
               </div>
+
               <div className="space-y-1.5">
                 <label className="block text-[10px] font-bold text-slate-400 tracking-widest uppercase ml-1 font-fix">Password</label>
                 <div className="relative group">
                   <span className="absolute inset-y-0 left-0 pl-3 flex items-center material-symbols-outlined text-slate-500 text-lg">lock</span>
-                  <input type="password" disabled={isLoading} className="w-full bg-slate-950/50 border border-slate-800 text-white pl-10 pr-4 py-2.5 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all font-fix disabled:opacity-50" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+                  {/* 🚀 パスワード表示切り替え対応 */}
+                  <input type={showPassword ? "text" : "password"} disabled={isLoading} className="w-full bg-slate-950/50 border border-slate-800 text-white pl-10 pr-10 py-2.5 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all font-fix disabled:opacity-50" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+                  <button type="button" disabled={isLoading} onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-orange-400 transition-colors pointer-events-auto">
+                    <span className="material-symbols-outlined text-lg">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                  </button>
                 </div>
               </div>
 
               {isRegisterMode && (
                 <div className="space-y-3 pt-2 animate-fadeIn border-t border-slate-800/50 mt-2">
                   <p className="text-[9px] text-cyan-400 font-bold tracking-widest uppercase ml-1">Custom Security Protocol</p>
-                  <input type="text" disabled={isLoading} className="w-full bg-slate-950/50 border border-slate-800 text-slate-300 px-4 py-2 rounded-lg text-xs outline-none font-fix focus:border-cyan-500 disabled:opacity-50" placeholder="質問 (例: 最初の相棒は？)" value={customQuestion} onChange={(e) => setCustomQuestion(e.target.value)} />
+                  <input type="text" disabled={isLoading} className="w-full bg-slate-950/50 border border-slate-800 text-slate-300 px-4 py-2 rounded-lg text-xs outline-none font-fix focus:border-cyan-500 disabled:opacity-50" placeholder="秘密の質問 (例: ラッキーナンバーは？)" value={customQuestion} onChange={(e) => setCustomQuestion(e.target.value)} />
                   <input type="text" disabled={isLoading} className="w-full bg-slate-950/50 border border-slate-800 text-white px-4 py-2 rounded-lg outline-none text-xs font-fix focus:border-cyan-500 disabled:opacity-50" placeholder="その答え" value={securityAnswer} onChange={(e) => setSecurityAnswer(e.target.value)} />
                 </div>
               )}
@@ -233,7 +228,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
                 <div className="relative flex justify-center text-[10px] uppercase text-center"><span className="bg-slate-900 px-2 text-slate-500 font-fix">{isRegisterMode ? 'Already an Operator?' : 'New Recruit?'}</span></div>
               </div>
 
-              <button type="button" disabled={isLoading} onClick={() => { setIsRegisterMode(!isRegisterMode); setErrorMsg(null); }} className="w-full border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold py-2.5 rounded-lg transition-colors text-sm uppercase tracking-wide flex justify-center items-center gap-2 disabled:opacity-50">
+              <button type="button" disabled={isLoading} onClick={() => { setIsRegisterMode(!isRegisterMode); setErrorMsg(null); setShowPassword(false); }} className="w-full border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold py-2.5 rounded-lg transition-colors text-sm uppercase tracking-wide flex justify-center items-center gap-2 disabled:opacity-50">
                 <span className="material-symbols-outlined text-lg">{isRegisterMode ? 'login' : 'person_add'}</span>
                 <span className="font-fix">{isRegisterMode ? 'BACK TO LOGIN' : 'CREATE NEW ACCOUNT'}</span>
               </button>
@@ -278,7 +273,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
       <style>{`
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-        /* スキャン線の演出 */
         .scanning-line {
           height: 2px;
           background: #06b6d4;
