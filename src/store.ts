@@ -42,8 +42,9 @@ interface GameState {
   token: string | null;
   isAuthenticated: boolean;
   hasSeenTutorial: boolean; 
-  errorMessage: string | null; // 🚀 追加
+  errorMessage: string | null;
   isServerOnline: boolean; 
+  zoomLevel: number; // 🚀 追加：LOD連携用
   hp: number;
   maxHp: number;
   ap: number;
@@ -82,8 +83,9 @@ interface GameState {
 
   login: (username: string, password?: string) => Promise<boolean>;
   logout: () => void;
-  showError: (message: string) => void; // 🚀 追加
-  hideError: () => void; // 🚀 追加
+  showError: (message: string) => void;
+  hideError: () => void;
+  setZoomLevel: (zoom: number) => void; // 🚀 追加：LOD連携用
   completeTutorial: () => void; 
   nextTurn: () => void; 
   selectGod: (id: number) => void;
@@ -113,8 +115,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   token: typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null,
   isAuthenticated: !!(typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null),
   hasSeenTutorial: typeof window !== 'undefined' ? localStorage.getItem('cebu_conquest_tutorial_seen') === 'true' : false,
-  errorMessage: null, // 🚀 追加
+  errorMessage: null,
   isServerOnline: socket.connected, 
+  zoomLevel: 1.0, // 🚀 追加：初期ズーム値
   hp: 100, maxHp: 100,
   ap: 100, maxAp: 100,
   blessing: 1.0, atk: 50, def: 40,
@@ -182,9 +185,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     window.location.reload();
   },
 
-  // 🚀 エラー通知ロジックを追加
   showError: (message) => set({ errorMessage: message }),
   hideError: () => set({ errorMessage: null }),
+
+  // 🚀 ズームレベル更新アクション
+  setZoomLevel: (zoom) => set({ zoomLevel: zoom }),
 
   completeTutorial: () => {
     if (typeof window !== 'undefined') {
@@ -376,13 +381,11 @@ socket.on(SERVER_EVENTS.GAME_LOG, (msg: string) => {
   useGameStore.getState().addLog(`🛰️ SERVER: ${msg}`);
 });
 
-// 🚀 修正：エラー時にUIに通知するように変更
 socket.on(SERVER_EVENTS.ERROR_MESSAGE, (msg: string) => {
   useGameStore.getState().showError(msg); 
   useGameStore.getState().addLog(`⚠️ SERVER: ${msg}`);
 });
 
-// 🚀 追加：アクション拒否（AP不足等）をキャッチして通知
 socket.on(SERVER_EVENTS.ACTION_REJECTED, (data: any) => {
   const msg = data.reason || data.message || "ACTION REJECTED";
   useGameStore.getState().showError(msg);

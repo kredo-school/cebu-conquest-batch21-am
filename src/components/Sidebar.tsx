@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, memo } from 'react';
 import { useGameStore } from '../store';
 
 interface SidebarProps {
@@ -7,11 +7,46 @@ interface SidebarProps {
   onOpenInventory: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, onOpenHelp, onOpenInventory }) => {
-  const { 
-    hp, maxHp, ap, blessing, turn, logs, atk, def,
-    isMyTurn, isUnderAttack 
-  } = useGameStore();
+// 🚀 島ID定数
+const ISLAND_NAMES: Record<number, string> = {
+  11: "CEBU",
+  12: "MACTAN",
+  13: "BOHOL",
+  14: "NEGROS",
+  15: "SIQUIJOR"
+};
+
+// 🚀 最適化：React.memoでラップし、不要な再描画を物理的にシャットアウト
+export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHelp, onOpenInventory }) => {
+  // 🚀 最適化：個別のセレクタを使用して、必要な値の変化にのみ反応させる
+  const hp = useGameStore(state => state.hp);
+  const maxHp = useGameStore(state => state.maxHp);
+  const ap = useGameStore(state => state.ap);
+  const blessing = useGameStore(state => state.blessing);
+  const turn = useGameStore(state => state.turn);
+  const logs = useGameStore(state => state.logs);
+  const atk = useGameStore(state => state.atk);
+  const def = useGameStore(state => state.def);
+  const isMyTurn = useGameStore(state => state.isMyTurn);
+  const isUnderAttack = useGameStore(state => state.isUnderAttack);
+  const districts = useGameStore(state => state.districts);
+  const myId = useGameStore(state => state.myId);
+
+  // 🚀 領土要約の計算をメモ化
+  const territorySummary = useMemo(() => {
+    const myDistricts = Object.entries(districts)
+      .filter(([_, ownerId]) => ownerId === myId)
+      .map(([id]) => Number(id));
+
+    const groups: Record<number, number[]> = {};
+    myDistricts.forEach(id => {
+      const islandId = Math.floor(id / 1000);
+      if (!groups[islandId]) groups[islandId] = [];
+      groups[islandId].push(id);
+    });
+
+    return Object.entries(groups).sort();
+  }, [districts, myId]); // districtsかmyIdが変わった時だけ再計算
 
   return (
     <>
@@ -22,22 +57,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, onOpenHelp, on
             100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); border-color: rgba(239, 68, 68, 0.5); }
         }
         .animate-pulse-red { animation: pulse-red 2s infinite; }
-        
-        /* 🚀 全OSでスクロールバーの外観を統一 */
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.1); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #f97316; border-radius: 10px; }
-        
-        /* 🚀 テキストのベースラインをOS間で統一 */
         .font-fix { line-height: 1.2; }
       `}</style>
 
-      {/* 🚀 サイドバー本体：h-screenで固定し、OSによる隙間の発生を防ぐ */}
-      <aside className="fixed left-0 top-0 bottom-0 z-40 flex flex-col bg-slate-950 w-80 border-r border-slate-800 shadow-2xl overflow-hidden font-body select-none">
+      <aside className="fixed left-0 top-0 bottom-0 z-40 flex flex-col bg-slate-950 w-80 border-r border-slate-800 shadow-2xl overflow-hidden font-body select-none text-left">
         
-        {/* --- 1 & 2. Status Area: 上端に固定（flex-none） --- */}
-        <div className="flex-none p-6 space-y-6 overflow-y-auto custom-scrollbar">
-          {/* Turn & Status Indicator [cite: 37, 53] */}
+        {/* --- 1. Status Area --- */}
+        <div className="flex-none p-6 pb-2 space-y-6">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded bg-slate-900 flex items-center justify-center border border-slate-800 shadow-inner">
               <div className="text-2xl font-black text-orange-500 italic font-fix">{turn}</div>
@@ -52,14 +81,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, onOpenHelp, on
             </div>
           </div>
 
-          {/* Gauges: HP & AP (Stamina) [cite: 35, 36, 43] */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div className="space-y-2">
               <div className="flex justify-between items-end">
                 <span className="text-[10px] font-black uppercase text-slate-500">HP {hp}/{maxHp}</span>
               </div>
               <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-                <div className="h-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] transition-all duration-500" style={{ width: `${(hp/maxHp)*100}%` }} />
+                <div className="h-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] transition-all duration-500" style={{ width: `${(hp/(maxHp || 100))*100}%` }} />
               </div>
             </div>
 
@@ -72,64 +100,81 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, onOpenHelp, on
               </div>
             </div>
 
-            {/* Combat Stats [cite: 43] */}
-            <div className="grid grid-cols-2 gap-3 text-left">
-              <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 flex flex-col items-center">
-                <span className="material-symbols-outlined text-orange-500 text-lg">swords</span>
-                <div className="text-[8px] text-slate-600 font-bold uppercase mt-1">ATTACK</div>
-                <div className="text-xl font-black text-slate-100 italic font-fix">{atk}</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-slate-900/50 p-2 rounded border border-slate-800 flex flex-col items-center">
+                <span className="text-[8px] text-slate-600 font-bold uppercase mb-1">ATK</span>
+                <div className="text-lg font-black text-slate-100 italic font-fix">{atk}</div>
               </div>
-              <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 flex flex-col items-center">
-                <span className="material-symbols-outlined text-blue-400 text-lg">shield</span>
-                <div className="text-[8px] text-slate-600 font-bold uppercase mt-1">DEFEND</div>
-                <div className="text-xl font-black text-slate-100 italic font-fix">{def}</div>
+              <div className="bg-slate-900/50 p-2 rounded border border-slate-800 flex flex-col items-center">
+                <span className="text-[8px] text-slate-600 font-bold uppercase mb-1">DEF</span>
+                <div className="text-lg font-black text-slate-100 italic font-fix">{def}</div>
               </div>
-            </div>
-
-            {/* Faith Level & Inventory Button  */}
-            <div className="space-y-3">
-              <div className="bg-indigo-950/30 p-4 rounded-xl border border-indigo-500/20 flex items-center justify-between shadow-inner">
-                <div className="text-left">
-                  <div className="text-[9px] font-black uppercase text-indigo-400 tracking-widest">Faith Level</div>
-                  <div className="text-base font-bold text-slate-100 italic font-fix">High: {blessing.toFixed(1)}</div>
-                </div>
-                <span className="material-symbols-outlined text-indigo-400 text-xl animate-pulse">auto_awesome</span>
-              </div>
-
-              <button 
-                onClick={onOpenInventory}
-                className="w-full py-3 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 hover:border-emerald-500/50 rounded-xl flex items-center justify-center gap-3 transition-all group pointer-events-auto"
-              >
-                <span className="material-symbols-outlined text-emerald-400 group-hover:scale-110 transition-transform">inventory_2</span>
-                <span className="text-xs font-black text-emerald-400 uppercase tracking-widest font-fix">Inventory</span>
-              </button>
             </div>
           </div>
         </div>
 
-        {/* --- 3. Log Area: 残りのスペースを埋めて下端に吸着（flex-1 + justify-end） [cite: 32, 53] --- */}
-        <div className="flex-1 flex flex-col justify-end min-h-0 bg-slate-950">
-          <div className="p-4 border-t border-white/5 bg-black/20">
-            <div className="flex items-center justify-between mb-3 px-1">
-              <div className="flex items-center gap-2 text-left">
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
-                <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest font-fix">SYSTEM LOG</span>
+        {/* --- 2. Territory Control Area --- */}
+        <div className="flex-1 px-6 py-2 overflow-y-auto custom-scrollbar">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-1 h-3 bg-orange-500"></span>
+            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Territory Control</span>
+          </div>
+          
+          <div className="space-y-4">
+            {territorySummary.length > 0 ? territorySummary.map(([islandId, ids]) => (
+              <div key={islandId} className="bg-slate-900/30 border border-white/5 rounded-lg p-3">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[10px] font-bold text-orange-500/80 font-fix uppercase">
+                    {ISLAND_NAMES[Number(islandId)] || "UNKNOWN"}
+                  </span>
+                  <span className="text-[9px] text-slate-500 font-mono">x{ids.length}</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {ids.map(id => (
+                    <div key={id} className="px-2 py-0.5 bg-black/40 border border-slate-800 rounded text-[9px] text-slate-300 font-mono">
+                      {id % 1000}
+                    </div>
+                  ))}
+                </div>
               </div>
-              
-              <div className="flex gap-4">
-                <button onClick={onOpenHelp} className="text-slate-600 hover:text-cyan-400 transition-colors pointer-events-auto" title="Help">
-                  <span className="material-symbols-outlined text-lg">help</span>
+            )) : (
+              <div className="py-4 text-center border border-dashed border-slate-800 rounded-lg">
+                <span className="text-[9px] text-slate-600 uppercase font-bold tracking-tighter">No Territory Secured</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* --- 3. Inventory & System Area --- */}
+        <div className="flex-none px-6 py-4 space-y-3">
+          <button 
+            onClick={onOpenInventory}
+            className="w-full py-2.5 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 hover:border-emerald-500/50 rounded flex items-center justify-center gap-2 transition-all group pointer-events-auto"
+          >
+            <span className="material-symbols-outlined text-emerald-400 text-sm group-hover:scale-110 transition-transform">inventory_2</span>
+            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest font-fix">Inventory</span>
+          </button>
+
+          <div className="border-t border-white/5 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
+                <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest font-fix">System Log</span>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={onOpenHelp} className="text-slate-600 hover:text-cyan-400 transition-colors pointer-events-auto">
+                  <span className="material-symbols-outlined text-base">help</span>
                 </button>
-                <button onClick={onOpenSettings} className="text-slate-600 hover:text-orange-400 transition-colors pointer-events-auto" title="Settings">
-                  <span className="material-symbols-outlined text-lg">settings</span>
+                <button onClick={onOpenSettings} className="text-slate-600 hover:text-orange-400 transition-colors pointer-events-auto">
+                  <span className="material-symbols-outlined text-base">settings</span>
                 </button>
               </div>
             </div>
             
-            <div className="bg-black/40 rounded border border-white/5 h-36 p-3 text-[10px] font-mono text-slate-500 custom-scrollbar overflow-y-auto space-y-1.5 text-left">
+            <div className="bg-black/40 rounded border border-white/5 h-32 p-3 text-[9px] font-mono text-slate-500 custom-scrollbar overflow-y-auto space-y-1.5">
               {logs.map((log, i) => (
-                <p key={i} className={`leading-relaxed ${i === 0 ? 'text-orange-400 font-bold' : 'opacity-60'}`}>
-                  <span className="text-slate-800 mr-2">[{new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}]</span>
+                <p key={i} className={`${i === 0 ? 'text-orange-400 font-bold' : 'opacity-60'}`}>
+                  <span className="text-slate-800 mr-1">[{new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}]</span>
                   {log}
                 </p>
               ))}
@@ -139,4 +184,4 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, onOpenHelp, on
       </aside>
     </>
   );
-};
+});

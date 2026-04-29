@@ -10,7 +10,7 @@ interface LoginViewProps {
 const INTEL_DATA: Record<string, { title: string; subtitle: string; body: string; icon: string }> = {
   "Native PHP Engine": { title: "NO LARAVEL POLICY", subtitle: "PURE NATIVE ARCHITECTURE", icon: "groups", body: "本プロジェクトは、モダンフレームワークの魔法に頼らず、生のPHPによる堅牢なサーバー構築を証明するための実証実験である。ブラックボックスを排除した完全な制御を実現している。" },
   "Mentorship Records": { title: "GOD TEACHERS", subtitle: "UNBELIEVABLE GUIDANCE", icon: "military_tech", body: "セブの戦地には、数々の開発を潜り抜けた伝説のメンターたちが存在する。彼らの指導は時に厳しく、時に慈愛に満き、未熟なオペレーターを一流のエンジニアへと鍛え上げる。" },
-  "Mactan Archipelago Lore": { title: "ISLAND LORE", subtitle: "CEBU CONQUEST HISTORY", icon: "map", body: "1521年、マクタン島。ラプ＝ラプとマゼランの死闘からすべては始まった。この物語は、その魂を継承した現代のオペレーターたちが、セブの覇権を巡ってデジタルな領土を奪い合う戦記である。" }
+  "Mactan Archipelago Lore": { title: "ISLAND LORE", subtitle: "CEBU CONQUEST HISTORY", icon: "map", body: "1521年、マクタン島。ラプ＝ラプ とマゼランの死闘からすべては始まった。この物語は、その魂を継承した現代のオペレーターたちが、セブの覇権を巡ってデジタルな領土を奪い合う戦記である。" }
 };
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, onOpenHelp }) => {
@@ -23,8 +23,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [stayLoggedIn, setStayLoggedIn] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // 🚀 追加：パスワード表示切り替えフラグ
   const [showPassword, setShowPassword] = useState(false);
 
   const [mode, setMode] = useState<'login' | 'recovery_user' | 'recovery_answer' | 'reset'>('login');
@@ -32,21 +30,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
   const [securityAnswer, setSecurityAnswer] = useState(''); 
   const [activeIntel, setActiveIntel] = useState<string | null>(null);
 
-  // 🚀 1. 入力バリデーション（制限なし：英語・数字どちらでもOK [cite: 53]）
   const validateInputs = (): boolean => {
     setErrorMsg(null);
-    
     const alphanumericRegex = /^[a-zA-Z0-9]+$/;
     if (!alphanumericRegex.test(username)) {
       setErrorMsg("User IDは英語か数字で入力してください。");
       return false;
     }
-
     if (!alphanumericRegex.test(password)) {
       setErrorMsg("Passwordは英語か数字で入力してください。");
       return false;
     }
-
     if (isRegisterMode) {
       if (!customQuestion.trim() || !securityAnswer.trim()) {
         setErrorMsg("秘密の質問と回答を設定してください。");
@@ -56,44 +50,62 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
     return true;
   };
 
-  // 🚀 2 & 3. 送信処理（通信先を login.php に集約 [cite: 11, 12]）
+  // 🚀 送信処理：スキャンに「重み」を持たせる（最低2秒間待機）
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateInputs()) return;
 
     setIsLoading(true);
     setErrorMsg(null);
-    addLog(isRegisterMode ? "📡 Initiating global registration sequence..." : "🔑 Verifying credentials...");
+    addLog(isRegisterMode ? "📡 Initiating registration protocol..." : "🔑 Authenticating credentials...");
 
     try {
+      // 🚀 最低スキャン時間（2000ms = 2秒）を定義
+      const minWait = new Promise(resolve => setTimeout(resolve, 2000));
+
       if (isRegisterMode) {
-        const res = await fetch("http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api/login.php", {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: username,
-            password: password,
-            security_question: customQuestion,
-            security_answer: securityAnswer,
-            action: 'register' 
-          })
-        });
+        // 🚀 通信と最低待機タイマーを並列で実行
+        const [res] = await Promise.all([
+          fetch("http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api/login.php", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: username,
+              password: password,
+              security_question: customQuestion,
+              security_answer: securityAnswer,
+              action: 'register' 
+            })
+          }),
+          minWait
+        ]);
 
         const data = await res.json();
 
         if (data.status === 'success') {
           addLog(`✅ Registration Success: Commander ${username} is ready.`);
-          alert("登録完了！設定したパスワードでログインしてください。");
-          setIsRegisterMode(false);
-          setPassword('');
+          setIsLoading(false); 
+          setTimeout(() => {
+            alert("登録完了！設定したパスワードでログインしてください。");
+            setIsRegisterMode(false);
+            setPassword('');
+          }, 500);
+          return; 
         } else {
           setErrorMsg(data.message || "そのユーザー名は既に占領されています。");
         }
       } else {
-        const success = await login(username, password);
+        // 🔑 ログイン時も最低2秒間はスキャンを継続
+        const [success] = await Promise.all([
+          login(username, password),
+          minWait
+        ]);
+
         if (success) {
           addLog("🔐 Identity Verified. Accessing Command Center...");
-          onLogin(username); 
+          setIsLoading(false);
+          setTimeout(() => onLogin(username), 500);
+          return;
         } else {
           setErrorMsg("認証プロトコルに失敗しました（IDまたはPasswordの間違い）。");
         }
@@ -143,7 +155,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
 
         <div className="w-full max-w-sm bg-slate-900/60 backdrop-blur-xl p-6 rounded-2xl border border-slate-800 shadow-2xl relative overflow-hidden text-left mb-8 transition-all">
           {isLoading && <div className="absolute inset-0 z-30 pointer-events-none scanning-line" />}
-          
           <div className={`absolute top-0 left-0 w-full h-1 transition-colors duration-500 ${mode === 'login' ? (isRegisterMode ? 'bg-cyan-500' : 'bg-orange-500') : 'bg-yellow-500'}`}></div>
 
           {mode === 'recovery_user' ? (
@@ -153,7 +164,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
               <button type="submit" className="w-full font-black py-3 bg-yellow-600 hover:bg-yellow-500 text-black rounded-lg shadow-lg text-sm uppercase font-fix transition-all">Identify Operator</button>
               <button type="button" onClick={() => setMode('login')} className="w-full border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold py-2.5 rounded-lg text-sm uppercase flex justify-center items-center gap-2 mt-2"><span className="material-symbols-outlined text-lg">login</span><span className="font-fix">Return to Login</span></button>
             </form>
-
           ) : mode === 'recovery_answer' ? (
             <form className="space-y-4 animate-fadeIn" onSubmit={handleVerifyAnswer}>
               <div className="mb-4"><h2 className="text-xl font-black text-white italic font-fix uppercase leading-none">Identity Check</h2><p className="text-yellow-400 text-xs font-bold font-fix mt-2 italic">Hint: {customQuestion || "(Security Question)"}</p></div>
@@ -161,19 +171,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
               <button type="submit" className="w-full font-black py-3 bg-yellow-600 hover:bg-yellow-500 text-black rounded-lg shadow-lg text-sm uppercase font-fix transition-all">Verify Credentials</button>
               <button type="button" onClick={() => setMode('login')} className="w-full border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold py-2.5 rounded-lg text-sm uppercase flex justify-center items-center gap-2 mt-2"><span className="material-symbols-outlined text-lg">login</span><span className="font-fix">Abort Protocol</span></button>
             </form>
-
           ) : mode === 'reset' ? (
             <form className="space-y-4 animate-fadeIn" onSubmit={(e) => { e.preventDefault(); alert('Updated.'); setMode('login'); }}>
               <div className="mb-4"><h2 className="text-xl font-black text-white italic font-fix uppercase leading-none">New Credentials</h2><p className="text-green-500 text-[10px] uppercase font-bold tracking-tight font-fix mt-2">Access Granted. Set password.</p></div>
               <div className="relative">
                 <input type={showPassword ? "text" : "password"} required className="w-full bg-slate-950/50 border border-slate-800 text-white px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm font-fix" placeholder="New Password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-orange-400 transition-colors">
-                  <span className="material-symbols-outlined text-lg">{showPassword ? 'visibility_off' : 'visibility'}</span>
-                </button>
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-orange-400 transition-colors"><span className="material-symbols-outlined text-lg">{showPassword ? 'visibility_off' : 'visibility'}</span></button>
               </div>
               <button type="submit" className="w-full font-black py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg shadow-lg uppercase text-sm font-fix">Update & Return</button>
             </form>
-
           ) : (
             <form className="space-y-4" onSubmit={handleAuthSubmit}>
               {errorMsg && <div className="bg-red-500/10 border border-red-500/50 p-2 rounded text-[10px] text-red-400 font-bold animate-fadeIn">⚠️ {errorMsg}</div>}
@@ -190,7 +196,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
                 <label className="block text-[10px] font-bold text-slate-400 tracking-widest uppercase ml-1 font-fix">Password</label>
                 <div className="relative group">
                   <span className="absolute inset-y-0 left-0 pl-3 flex items-center material-symbols-outlined text-slate-500 text-lg">lock</span>
-                  {/* 🚀 パスワード表示切り替え対応 */}
                   <input type={showPassword ? "text" : "password"} disabled={isLoading} className="w-full bg-slate-950/50 border border-slate-800 text-white pl-10 pr-10 py-2.5 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all font-fix disabled:opacity-50" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
                   <button type="button" disabled={isLoading} onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-orange-400 transition-colors pointer-events-auto">
                     <span className="material-symbols-outlined text-lg">{showPassword ? 'visibility_off' : 'visibility'}</span>
@@ -247,21 +252,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
           ))}
         </div>
       </main>
-
-      {/* 詳細インテルモーダル */}
-      {activeIntel && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-lg bg-slate-900 border-2 border-orange-500/30 rounded-3xl p-8 relative shadow-[0_0_50px_rgba(249,115,22,0.2)]">
-            <button onClick={() => setActiveIntel(null)} className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"><span className="material-symbols-outlined text-3xl">close</span></button>
-            <div className="flex items-center gap-4 mb-6">
-              <div className="bg-orange-500/20 p-3 rounded-2xl"><span className="material-symbols-outlined text-orange-400 text-4xl">{INTEL_DATA[activeIntel].icon}</span></div>
-              <div className="text-left"><h2 className="text-2xl font-black text-white italic font-fix uppercase tracking-tighter">{INTEL_DATA[activeIntel].title}</h2><p className="text-orange-500 text-xs font-bold tracking-widest uppercase font-fix">{INTEL_DATA[activeIntel].subtitle}</p></div>
-            </div>
-            <div className="bg-slate-950/50 rounded-2xl p-6 border border-white/5 text-left mb-8"><p className="text-slate-300 leading-relaxed font-medium font-fix text-sm">{INTEL_DATA[activeIntel].body}</p></div>
-            <button onClick={() => setActiveIntel(null)} className="w-full py-4 bg-orange-600 hover:bg-orange-500 text-white font-black rounded-xl transition-all uppercase tracking-widest text-xs font-fix shadow-lg">Acknowledge & Close</button>
-          </div>
-        </div>
-      )}
 
       <footer className="relative z-20 bg-slate-950/80 backdrop-blur-md flex flex-col md:flex-row justify-between items-center w-full px-8 py-4 border-t border-slate-800 text-[10px]">
         <div className="text-orange-500 font-bold uppercase tracking-widest font-fix">© 2026 Batch21 [AM GI Offline]</div>

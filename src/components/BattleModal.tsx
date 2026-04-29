@@ -1,6 +1,15 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useGameStore } from '../store';
 import SoundManager from '../game/SoundManager';
+
+// 🚀 島ID定数（他のコンポーネントと統一）
+const ISLAND_NAMES: Record<number, string> = {
+  11: "CEBU MAINLAND",
+  12: "MACTAN ISLAND",
+  13: "BOHOL",
+  14: "NEGROS",
+  15: "SIQUIJOR"
+};
 
 export const BattleModal: React.FC = () => {
   const { 
@@ -8,20 +17,30 @@ export const BattleModal: React.FC = () => {
     predictionModalOpen, 
     targetDistrictInfo, 
     atk, blessing, attack, move, closePrediction, ap,
-    // 🚨 被弾アラート用に追加
+    // 🚨 被弾アラート用
     isMyTurn, escape, addLog,
-    // 🚀 修正：useStateではなく、Store(グローバル)から呼び出す！
     isUnderAttack, setUnderAttack 
   } = useGameStore();
+
+  // 🚀 5桁ID解析ロジック
+  const targetParsed = useMemo(() => {
+    if (!targetDistrictInfo) return null;
+    const id = targetDistrictInfo.id;
+    const islandId = Math.floor(id / 1000);
+    const sequence = id % 1000;
+    return {
+      islandName: ISLAND_NAMES[islandId] || "UNKNOWN SECTOR",
+      sectorCode: `${islandId}-${sequence}`
+    };
+  }, [targetDistrictInfo]);
 
   // ==========================================
   // 🚨 1. 敵からの被弾アラート用ロジック
   // ==========================================
   useEffect(() => {
     const handleIncomingAttack = () => {
-      // 念のため自分のターンでないことを確認
       if (!useGameStore.getState().isMyTurn) {
-        setUnderAttack(true); // 🚀 修正：グローバル状態をONにしてサイドバーも赤くする
+        setUnderAttack(true);
         try { SoundManager.playSe('alert'); } catch(e) {}
       }
     };
@@ -33,13 +52,13 @@ export const BattleModal: React.FC = () => {
   const handleDefense = () => {
     try { SoundManager.playSe('click'); } catch(e) {}
     addLog("🛡️ 防御態勢を展開！ダメージを軽減します。");
-    setUnderAttack(false); // 🚀 修正：グローバル状態をOFF
+    setUnderAttack(false);
   };
 
   const handleEscape = () => {
     try { SoundManager.playSe('click'); } catch(e) {}
     escape();
-    setUnderAttack(false); // 🚀 修正：グローバル状態をOFF
+    setUnderAttack(false);
   };
 
   // ==========================================
@@ -97,96 +116,84 @@ export const BattleModal: React.FC = () => {
     }
   };
 
-  // どちらも非表示ならレンダリングしない
   if (!predictionModalOpen && !isUnderAttack) return null;
 
   return (
     <>
-      {/* 🚨 アラート用のCSSアニメーション */}
       <style>{`
         @keyframes overlay-alarm {
           0%, 100% { background-color: rgba(239, 68, 68, 0); }
           50% { background-color: rgba(239, 68, 68, 0.15); }
         }
-        .animate-overlay-alarm {
-          animation: overlay-alarm 2s infinite ease-in-out;
-        }
+        .animate-overlay-alarm { animation: overlay-alarm 2s infinite ease-in-out; }
         @keyframes slide-up-exit {
           0% { transform: translateY(0); opacity: 1; }
           100% { transform: translateY(-100vh); opacity: 0; }
         }
-        .animate-slide-up-exit {
-          animation: slide-up-exit 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-          animation-delay: 2s;
-        }
+        .animate-slide-up-exit { animation: slide-up-exit 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards; animation-delay: 2s; }
         @keyframes slide-in-right {
           0% { transform: translateX(100%); opacity: 0; }
           100% { transform: translateX(0); opacity: 1; }
         }
-        .animate-slide-in-right {
-          transform: translateX(100%);
-          opacity: 0;
-          animation: slide-in-right 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-          animation-delay: 2s;
+        .animate-slide-in-right { transform: translateX(100%); opacity: 0; animation: slide-in-right 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards; animation-delay: 2s; }
+        .font-fix { line-height: 1.2; }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
         }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
       `}</style>
 
-      {/* ==========================================
-          🚨 被弾アラート UI (相手のターンに表示)
-         ========================================== */}
+      {/* 🚨 被弾アラート UI */}
       {isUnderAttack && !isMyTurn && (
         <div className="absolute inset-0 z-[200] pointer-events-none overflow-hidden">
           <div className="absolute inset-0 animate-overlay-alarm pointer-events-none border-[12px] border-red-500/20"></div>
-          
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-slide-up-exit">
             <div className="flex flex-col items-center gap-4 bg-slate-900/90 backdrop-blur-xl border-y border-red-500/50 py-8 px-24 shadow-[0_0_50px_rgba(239,68,68,0.5)]">
               <span className="material-symbols-outlined text-red-500 text-6xl animate-pulse">warning</span>
-              <div className="text-center">
-                {/* 🚀 修正: font-fixを追加 */}
-                <h2 className="text-4xl font-black text-white italic tracking-tighter mb-1 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)] font-fix">
-                  INCOMING ATTACK
-                </h2>
-                <p className="text-red-400 text-xs font-bold tracking-[0.3em] uppercase font-fix">
-                  Opponent's Turn in Progress
-                </p>
+              <div className="text-center text-left">
+                <h2 className="text-4xl font-black text-white italic tracking-tighter mb-1 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)] font-fix">INCOMING ATTACK</h2>
+                <p className="text-red-400 text-xs font-bold tracking-[0.3em] uppercase font-fix">Opponent's Turn in Progress</p>
               </div>
             </div>
           </div>
-
           <div className="absolute bottom-12 right-12 flex gap-4 pointer-events-auto animate-slide-in-right">
             <button onClick={handleDefense} className="w-32 h-32 bg-slate-900/95 backdrop-blur-md border-2 border-blue-500/40 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-blue-900/50 hover:border-blue-400 transition-all shadow-[0_10px_30px_rgba(0,0,0,0.5)] group active:scale-95">
-              <span className="material-symbols-outlined text-blue-400 text-4xl group-hover:scale-110 transition-transform drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]">shield</span>
-              <span className="text-xs font-black text-blue-100 uppercase tracking-widest font-fix">DEFENSE</span>
+              <span className="material-symbols-outlined text-blue-400 text-4xl group-hover:scale-110 transition-transform">shield</span>
+              <span className="text-xs font-black text-blue-100 uppercase tracking-widest font-fix text-left">DEFENSE</span>
             </button>
             <button onClick={handleEscape} className="w-32 h-32 bg-slate-900/95 backdrop-blur-md border-2 border-red-500/40 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-red-900/50 hover:border-red-400 transition-all shadow-[0_10px_30px_rgba(0,0,0,0.5)] group active:scale-95">
-              <span className="material-symbols-outlined text-red-400 text-4xl group-hover:scale-110 transition-transform drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]">directions_run</span>
-              <span className="text-xs font-black text-red-100 uppercase tracking-widest font-fix">ESCAPE</span>
+              <span className="material-symbols-outlined text-red-400 text-4xl group-hover:scale-110 transition-transform">directions_run</span>
+              <span className="text-xs font-black text-red-100 uppercase tracking-widest font-fix text-left">ESCAPE</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* ==========================================
-          ⚔️ 攻撃・移動予測 UI
-         ========================================== */}
-      {predictionModalOpen && targetDistrictInfo && (
+      {/* ⚔️ 攻撃・移動予測 UI */}
+      {predictionModalOpen && targetDistrictInfo && targetParsed && (
         <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm select-none">
-          <div className={`relative bg-slate-900 border-2 ${borderColor} w-[360px] rounded-2xl p-6 shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden`}>
+          <div className={`relative bg-slate-900 border-2 ${borderColor} w-[380px] rounded-2xl p-6 shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden animate-fadeIn`}>
             
-            <div className="absolute top-0 right-0 p-4 opacity-5">
-              <span className="material-symbols-outlined text-9xl">radar</span>
-            </div>
-            
-            <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-4">
-              <span className="text-xl">{icon}</span>
-              <h2 className={`text-sm font-black tracking-widest uppercase ${themeColor} font-fix`}>
-                {title}
-              </h2>
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{icon}</span>
+                <h2 className={`text-[11px] font-black tracking-widest uppercase ${themeColor} font-fix text-left`}>
+                  {title}
+                </h2>
+              </div>
+              {/* 🚀 セクター番号バッジ */}
+              <div className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-[10px] font-mono text-slate-400">
+                SEC-{targetParsed.sectorCode}
+              </div>
             </div>
 
-            <div className="mb-6 relative z-10">
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1 font-fix">Target Sector</p>
-              <div className="text-2xl font-black text-white italic tracking-tighter font-fix">
+            <div className="mb-6 relative z-10 flex flex-col items-start">
+              <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest mb-1 font-fix">
+                {targetParsed.islandName}
+              </span>
+              <div className="text-2xl font-black text-white italic tracking-tighter font-fix text-left">
                 {targetDistrictInfo.name}
               </div>
             </div>
@@ -194,15 +201,15 @@ export const BattleModal: React.FC = () => {
             {isEnemy && (
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-6 relative z-10">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs text-slate-400 font-bold font-fix">Your ATK (Est.)</span>
+                  <span className="text-xs text-slate-400 font-bold font-fix text-left">Your ATK (Est.)</span>
                   <span className="text-sm font-black text-blue-400 font-fix">{finalAtk.toFixed(0)}</span>
                 </div>
                 <div className="flex justify-between items-center mb-4">
-                  <span className="text-xs text-slate-400 font-bold font-fix">Enemy DEF (Est.)</span>
+                  <span className="text-xs text-slate-400 font-bold font-fix text-left">Enemy DEF (Est.)</span>
                   <span className="text-sm font-black text-red-400 font-fix">{enemyDef}</span>
                 </div>
                 <div className="border-t border-slate-800 pt-3 flex justify-between items-end">
-                  <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest font-fix">Win Probability</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest font-fix text-left">Win Probability</span>
                   <div className="text-3xl font-black text-orange-500 drop-shadow-[0_0_10px_rgba(249,115,22,0.4)] font-fix">
                     {winRate.toFixed(1)}<span className="text-sm">%</span>
                   </div>
@@ -212,7 +219,7 @@ export const BattleModal: React.FC = () => {
 
             {!isEnemy && (
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-6 relative z-10">
-                <p className="text-xs text-slate-400 font-bold leading-relaxed font-fix">
+                <p className="text-[11px] text-slate-400 font-bold leading-relaxed font-fix text-left">
                   {isMyTerritory 
                     ? "本陣をこの地区に移動します。移動後はこの地区からの隣接エリアにしか攻撃できなくなります。" 
                     : "この地区は現在無人です。戦闘なしで無血占領し、領土を拡大することが可能です。"}

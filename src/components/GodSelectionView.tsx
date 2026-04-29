@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, memo, useMemo } from 'react';
 import { useGameStore } from '../store';
-// 🔴 追加：ブリッジ定数のインポート
 import { REACT_TO_PHASER } from '../game/events/PhaserBridge';
 
 interface GodSelectionViewProps {
   onComplete: () => void;
   onOpenSettings: () => void;
   onOpenHelp: () => void;
-  onBack: () => void; // 🚀 追加
+  onBack: () => void;
 }
 
 const GOD_SLOTS = [
@@ -21,17 +20,27 @@ const GOD_SLOTS = [
   { id: 8, name: "イダナレの恵み", role: "RECON", bonus: "SCAN", img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=400", desc: "障害物越しにリソースクレートや敵の足跡をハイライト表示する。" },
 ];
 
-export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ 
+// 🚀 最適化：React.memoで画面全体の不要な再描画をガード
+export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({ 
   onComplete, 
-  onBack // 🚀 追加
+  onBack 
 }) => {
-  const { selectGod, players, myId, selectedGodId, maxPlayers } = useGameStore();
+  const selectGod = useGameStore(state => state.selectGod);
+  const players = useGameStore(state => state.players);
+  const myId = useGameStore(state => state.myId);
+  const selectedGodId = useGameStore(state => state.selectedGodId);
+  const maxPlayers = useGameStore(state => state.maxPlayers);
   
   const [pendingSelection, setPendingSelection] = useState<typeof GOD_SLOTS[0] | null>(null);
 
-  const humanPlayers = players.filter(p => !p.isNpc);
-  const totalCount = maxPlayers || 4;
-  const readyCount = humanPlayers.filter(p => p.selectedGodId || p.godId).length;
+  // 統計計算をメモ化
+  const readyInfo = useMemo(() => {
+    const humanPlayers = players.filter(p => !p.isNpc);
+    return {
+      total: maxPlayers || 4,
+      ready: humanPlayers.filter(p => p.selectedGodId || p.godId).length
+    };
+  }, [players, maxPlayers]);
 
   const getLockInfo = (godId: number) => {
     const selector = players.find(p => p.id !== myId && (p.selectedGodId === godId || p.godId === godId));
@@ -41,39 +50,38 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({
 
   const handleFinalSelect = () => {
     if (pendingSelection) {
-      // 1. Zustandストアを更新
       selectGod(pendingSelection.id);
-      
-      // 🚀 2. Phaser側にアバター設定イベントを送信
       window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.SET_AVATAR, { 
         detail: { godKey: pendingSelection.id } 
       }));
-      
-      // 3. 完了通知（waiting画面へ）
       onComplete(); 
     }
   };
 
   return (
-    <div className="absolute w-full h-full z-[10000] bg-slate-950 font-body text-slate-200 select-none flex items-center justify-center p-4">
-      <div className="w-full max-w-6xl h-[90vh] flex flex-col bg-zinc-950/60 border border-white/10 rounded-lg overflow-hidden relative shadow-2xl backdrop-blur-md">
+    <div className="absolute w-full h-full z-[10000] bg-slate-950 font-body text-slate-200 select-none flex items-center justify-center p-4 overflow-hidden">
+      
+      {/* 背景エフェクト：スキャンライン */}
+      <div className="absolute inset-0 pointer-events-none opacity-10 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[size:100%_4px,3px_100%]"></div>
+
+      <div className="w-full max-w-6xl h-[90vh] flex flex-col bg-zinc-950/80 border border-white/10 rounded-2xl overflow-hidden relative shadow-[0_0_50px_rgba(0,0,0,0.5)] backdrop-blur-xl animate-fadeIn">
         
-        {/* ヘッダーエリア */}
-        <div className="px-8 py-6 flex flex-col items-start gap-1 shrink-0">
-          <h1 className="text-2xl font-black italic tracking-tighter text-orange-500 uppercase font-fix">
+        {/* ヘッダーエリア：ネオン管エフェクト */}
+        <div className="px-10 py-8 flex flex-col items-start gap-1 shrink-0 border-b border-white/5">
+          <h1 className="text-3xl font-black italic tracking-tighter text-orange-500 uppercase font-fix animate-glitch-text">
             Choose the god you believe in
           </h1>
-          <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 bg-cyan-400"></span>
-            <span className="text-[10px] uppercase tracking-widest text-cyan-400 font-bold font-fix">
-              分隊待機中: {readyCount} / {totalCount} 準備完了
+          <div className="flex items-center gap-3">
+            <span className="w-2 h-2 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]"></span>
+            <span className="text-[11px] uppercase tracking-[0.3em] text-cyan-400 font-black font-fix">
+              Syncing Units: {readyInfo.ready} / {readyInfo.total} Ready for Deployment
             </span>
           </div>
         </div>
 
         {/* 神選択リストエリア */}
-        <div className="flex-1 px-8 pb-4 overflow-y-auto custom-scrollbar">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="flex-1 px-10 py-6 overflow-y-auto custom-scrollbar">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {GOD_SLOTS.map((god) => {
               const lock = getLockInfo(god.id);
               const isSelected = pendingSelection?.id === god.id || selectedGodId === god.id;
@@ -82,44 +90,48 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({
                 <div 
                   key={god.id} 
                   onClick={() => !lock && setPendingSelection(god)}
-                  className={`group relative flex flex-col bg-zinc-900/30 border transition-all duration-300 cursor-pointer h-full ${
+                  className={`group relative flex flex-col bg-zinc-900/40 border-2 transition-all duration-300 cursor-pointer rounded-xl overflow-hidden ${
                     isSelected 
-                      ? "border-orange-600 shadow-[0_0_20px_rgba(234,88,12,0.3)]" 
-                      : lock ? "border-white/5 opacity-40 grayscale cursor-not-allowed" : "border-white/10 hover:border-white/20"
+                      ? "border-orange-500 shadow-[0_0_30px_rgba(249,115,22,0.3)] scale-[1.02]" 
+                      : lock ? "border-transparent opacity-30 grayscale cursor-not-allowed" : "border-white/5 hover:border-white/20 hover:bg-zinc-800/50"
                   }`}
                 >
-                  <div className="relative h-28 overflow-hidden bg-zinc-800">
-                    <img src={god.img} className="w-full h-full object-cover" alt={god.name} />
+                  <div className="relative h-40 overflow-hidden">
+                    <img src={god.img} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={god.name} />
                     
                     {isSelected && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-orange-600/20 backdrop-blur-[1px]">
-                        <div className="bg-orange-600 text-black text-[9px] font-black px-3 py-1 skew-x-[-15deg] border-r-4 border-black shadow-lg font-fix">
-                          あなた (SELECTED)
+                      <div className="absolute inset-0 flex items-center justify-center bg-orange-600/30 backdrop-blur-sm">
+                        <div className="bg-orange-500 text-black text-[10px] font-black px-4 py-1 skew-x-[-15deg] border-r-4 border-black font-fix">
+                          LINK ESTABLISHED
                         </div>
                       </div>
                     )}
                     
                     {lock && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70">
-                         <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest border border-zinc-700 px-2 py-1 font-fix">ロック中</span>
-                         <span className="text-[8px] text-zinc-600 mt-1 uppercase font-fix">{lock.name}</span>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80">
+                         <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest border border-zinc-700 px-3 py-1 font-fix">Occupied</span>
+                         <span className="text-[9px] text-zinc-600 mt-2 uppercase font-fix">{lock.name}</span>
                       </div>
                     )}
 
-                    <div className="absolute top-2 right-2 bg-black/60 px-1.5 py-0.5 text-[7px] font-black text-cyan-400 border border-cyan-400/20 uppercase tracking-widest font-fix">
+                    <div className="absolute top-3 right-3 bg-black/80 px-2 py-1 text-[8px] font-black text-cyan-400 border border-cyan-400/30 uppercase tracking-widest font-fix">
                       {god.role}
                     </div>
                   </div>
 
-                  <div className="p-4 flex flex-col flex-1 gap-2 text-left">
-                    <h3 className={`text-sm font-bold tracking-tight font-fix ${lock ? 'text-zinc-600' : 'text-zinc-100'}`}>{god.name}</h3>
-                    <p className={`text-[10px] leading-tight line-clamp-3 font-fix ${lock ? 'text-zinc-700' : 'text-zinc-400'}`}>{god.desc}</p>
+                  <div className="p-5 flex flex-col flex-1 gap-3 text-left">
+                    <h3 className={`text-lg font-black tracking-tight font-fix italic ${lock ? 'text-zinc-600' : 'text-white'}`}>
+                      {god.name}
+                    </h3>
+                    <div className="h-px w-8 bg-orange-500/50"></div>
+                    <p className={`text-[11px] leading-relaxed line-clamp-3 font-fix ${lock ? 'text-zinc-700' : 'text-zinc-400'}`}>
+                      {god.desc}
+                    </p>
                     
-                    <button className={`mt-auto w-full py-1.5 text-[9px] font-black uppercase tracking-widest border transition-all font-fix ${
-                      isSelected ? 'bg-orange-600 text-black border-orange-600' : 'bg-zinc-800 text-zinc-400 border-zinc-700'
-                    }`}>
-                      {isSelected ? "選択済み" : lock ? "ロック中" : "選択する"}
-                    </button>
+                    <div className={`mt-auto pt-4 flex items-center justify-between text-[10px] font-black font-fix ${lock ? 'text-zinc-700' : 'text-orange-500/80'}`}>
+                       <span>BONUS: {god.bonus}</span>
+                       <span className="material-symbols-outlined text-sm">bolt</span>
+                    </div>
                   </div>
                 </div>
               );
@@ -128,28 +140,48 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({
         </div>
 
         {/* フッターエリア */}
-        <div className="px-8 py-6 border-t border-white/5 bg-black/20 flex items-end justify-between shrink-0">
-          {/* 🚀 修正：onBackを紐付け */}
+        <div className="px-10 py-8 border-t border-white/5 bg-black/40 flex items-center justify-between shrink-0">
           <button 
             onClick={onBack}
-            className="px-5 py-2 border border-zinc-800 text-zinc-500 text-[10px] font-bold uppercase tracking-widest hover:bg-zinc-800 transition-all font-fix"
+            className="flex items-center gap-2 px-6 py-3 border border-zinc-800 text-zinc-500 text-[10px] font-black uppercase tracking-widest hover:bg-zinc-800 hover:text-white transition-all font-fix"
           >
-            Return to the lobby
+            <span className="material-symbols-outlined text-sm">arrow_back</span>
+            Abort Selection
           </button>
 
           <div className={`flex flex-col items-end gap-3 transition-all duration-500 ${pendingSelection ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
-            <p className="text-zinc-400 text-[9px] uppercase tracking-[0.2em] font-bold italic font-fix">
-              Do you believe in <span className="text-orange-500 underline">'{pendingSelection?.name}'</span>?
+            <p className="text-zinc-500 text-[10px] uppercase tracking-[0.2em] font-black italic font-fix">
+              Initialize synchronization with <span className="text-orange-500 underline underline-offset-4">'{pendingSelection?.name}'</span>?
             </p>
             <button 
               onClick={handleFinalSelect}
-              className="px-12 py-3 bg-orange-600 text-black text-[11px] font-black uppercase tracking-widest hover:brightness-110 shadow-[0_0_30px_rgba(234,88,12,0.4)] active:scale-95 transition-all font-fix"
+              className="group relative px-16 py-4 bg-orange-600 text-black text-[12px] font-black uppercase tracking-widest overflow-hidden transition-all shadow-[0_0_30px_rgba(234,88,12,0.4)] active:scale-95 font-fix"
             >
-              Yes, I believe in it
+              <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-[-15deg]"></div>
+              Confirm Neural Link
             </button>
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(1.05); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        .animate-fadeIn { animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        
+        @keyframes glitch-text {
+          0% { text-shadow: 2px 0 #ff0000, -2px 0 #00ff00; }
+          25% { text-shadow: -2px 0 #ff0000, 2px 0 #00ff00; }
+          50% { text-shadow: 2px 2px #ff0000, -2px -2px #00ff00; }
+          100% { text-shadow: none; }
+        }
+        .animate-glitch-text { animation: glitch-text 4s infinite linear alternate-reverse; }
+        .font-fix { line-height: 1.2; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #f97316; border-radius: 10px; }
+      `}</style>
     </div>
   );
-};
+});
