@@ -18,7 +18,7 @@ import { RankingView } from './components/RankingView';
 import { HelpModal } from './components/HelpModal'; 
 import { InventoryModal } from './components/InventoryModal'; 
 import { TutorialView } from './components/TutorialView'; 
-import { ErrorNotification } from './components/ErrorNotification'; // 🚀 追加
+import { ErrorNotification } from './components/ErrorNotification'; 
 
 // 🔴 ブリッジ定数とイベント定数
 import { PHASER_TO_REACT, REACT_TO_PHASER } from './game/events/PhaserBridge';
@@ -30,6 +30,7 @@ const App: React.FC = () => {
     playerName: storePlayerName,
     token,
     hasSeenTutorial, 
+    setZoomLevel, // 🚀 追加：ズームレベル更新アクション
     openPrediction, isGameOver, roomId, players, setView, view
   } = useGameStore();
   
@@ -90,7 +91,6 @@ const App: React.FC = () => {
       setStatus({ isGameOver: true, winnerId: data.winnerId });
     });
 
-    // 🚀 エラーハンドリングの強化
     socket.on(SERVER_EVENTS.ERROR_MESSAGE, (msg: string) => {
       showError(msg); 
       addLog(`⚠️ SERVER: ${msg}`);
@@ -100,6 +100,12 @@ const App: React.FC = () => {
       const msg = data.reason || data.message || "ACTION REJECTED";
       showError(msg);
     });
+
+    // 🚀 LOD連携：Phaserからのズーム更新をハンドル
+    const handleZoomUpdate = (e: any) => {
+      const zoom = e.detail.zoom ?? e.detail;
+      setZoomLevel(zoom);
+    };
 
     const handleUpdateStatus = (e: any) => {
       if (useGameStore.getState().isGameOver) return;
@@ -117,8 +123,10 @@ const App: React.FC = () => {
       }
     };
 
+    // イベントリスナーの登録
     window.addEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
     window.addEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleDistrictSelected);
+    window.addEventListener(PHASER_TO_REACT.ZOOM_UPDATED, handleZoomUpdate); // 🚀 追加
 
     return () => {
       socket.off(SERVER_EVENTS.TURN_START);
@@ -129,8 +137,9 @@ const App: React.FC = () => {
       socket.off(SERVER_EVENTS.ACTION_REJECTED);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleDistrictSelected);
+      window.removeEventListener(PHASER_TO_REACT.ZOOM_UPDATED, handleZoomUpdate); // 🚀 追加
     };
-  }, [setStatus, syncServerState, addLog, showError, openPrediction, triggerDeploySequence, setView]);
+  }, [setStatus, syncServerState, addLog, showError, setZoomLevel, openPrediction, triggerDeploySequence, setView]);
 
   const handleOpenRanking = () => setView('ranking');
   const handleCloseRanking = () => setView('setup');
@@ -139,7 +148,6 @@ const App: React.FC = () => {
     setLocalPlayerName(name);
     socket.connect();
     
-    // 🚀 チュートリアル既読チェック
     if (!hasSeenTutorial) {
       setView('tutorial');
     } else {
@@ -210,7 +218,6 @@ const App: React.FC = () => {
     <div className="relative w-screen h-screen bg-slate-950 text-slate-200 font-body antialiased overflow-hidden select-none">
       {mainContent}
       
-      {/* 🚀 エラー通知コンポーネントをグローバルに配置 */}
       <ErrorNotification />
 
       {/* 🚀 出撃ローディング演出 */}
