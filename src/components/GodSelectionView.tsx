@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../store';
+// 🔴 追加：ブリッジ定数のインポート
+import { REACT_TO_PHASER } from '../game/events/PhaserBridge';
 
 interface GodSelectionViewProps {
   onComplete: () => void;
   onOpenSettings: () => void;
   onOpenHelp: () => void;
+  onBack: () => void; // 🚀 追加
 }
 
 const GOD_SLOTS = [
@@ -18,7 +21,10 @@ const GOD_SLOTS = [
   { id: 8, name: "イダナレの恵み", role: "RECON", bonus: "SCAN", img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=400", desc: "障害物越しにリソースクレートや敵の足跡をハイライト表示する。" },
 ];
 
-export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }) => {
+export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ 
+  onComplete, 
+  onBack // 🚀 追加
+}) => {
   const { selectGod, players, myId, selectedGodId, maxPlayers } = useGameStore();
   
   const [pendingSelection, setPendingSelection] = useState<typeof GOD_SLOTS[0] | null>(null);
@@ -35,32 +41,37 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
 
   const handleFinalSelect = () => {
     if (pendingSelection) {
+      // 1. Zustandストアを更新
       selectGod(pendingSelection.id);
+      
+      // 🚀 2. Phaser側にアバター設定イベントを送信
+      window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.SET_AVATAR, { 
+        detail: { godKey: pendingSelection.id } 
+      }));
+      
+      // 3. 完了通知（waiting画面へ）
       onComplete(); 
     }
   };
 
   return (
-    // 🚀 修正：fixed inset-0 ではなく absolute w-full h-full を使用し、親コンテナ（App.tsx）のサイズに完全に追従させる
     <div className="absolute w-full h-full z-[10000] bg-slate-950 font-body text-slate-200 select-none flex items-center justify-center p-4">
-      
       <div className="w-full max-w-6xl h-[90vh] flex flex-col bg-zinc-950/60 border border-white/10 rounded-lg overflow-hidden relative shadow-2xl backdrop-blur-md">
         
+        {/* ヘッダーエリア */}
         <div className="px-8 py-6 flex flex-col items-start gap-1 shrink-0">
-          {/* 🚀 修正：font-fix追加 */}
           <h1 className="text-2xl font-black italic tracking-tighter text-orange-500 uppercase font-fix">
             Choose the god you believe in
           </h1>
           <div className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 bg-cyan-400"></span>
-            {/* 🚀 修正：font-fix追加 */}
             <span className="text-[10px] uppercase tracking-widest text-cyan-400 font-bold font-fix">
               分隊待機中: {readyCount} / {totalCount} 準備完了
             </span>
           </div>
         </div>
 
-        {/* 🚀 修正：スクロールバーのスタイルは global(index.css) に任せるためクラスのみ適用 */}
+        {/* 神選択リストエリア */}
         <div className="flex-1 px-8 pb-4 overflow-y-auto custom-scrollbar">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {GOD_SLOTS.map((god) => {
@@ -82,7 +93,6 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
                     
                     {isSelected && (
                       <div className="absolute inset-0 flex items-center justify-center bg-orange-600/20 backdrop-blur-[1px]">
-                        {/* 🚀 修正：font-fix追加 */}
                         <div className="bg-orange-600 text-black text-[9px] font-black px-3 py-1 skew-x-[-15deg] border-r-4 border-black shadow-lg font-fix">
                           あなた (SELECTED)
                         </div>
@@ -91,24 +101,20 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
                     
                     {lock && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70">
-                         {/* 🚀 修正：font-fix追加 */}
                          <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest border border-zinc-700 px-2 py-1 font-fix">ロック中</span>
                          <span className="text-[8px] text-zinc-600 mt-1 uppercase font-fix">{lock.name}</span>
                       </div>
                     )}
 
-                    {/* 🚀 修正：font-fix追加 */}
                     <div className="absolute top-2 right-2 bg-black/60 px-1.5 py-0.5 text-[7px] font-black text-cyan-400 border border-cyan-400/20 uppercase tracking-widest font-fix">
                       {god.role}
                     </div>
                   </div>
 
                   <div className="p-4 flex flex-col flex-1 gap-2 text-left">
-                    {/* 🚀 修正：font-fix追加 */}
                     <h3 className={`text-sm font-bold tracking-tight font-fix ${lock ? 'text-zinc-600' : 'text-zinc-100'}`}>{god.name}</h3>
                     <p className={`text-[10px] leading-tight line-clamp-3 font-fix ${lock ? 'text-zinc-700' : 'text-zinc-400'}`}>{god.desc}</p>
                     
-                    {/* 🚀 修正：font-fix追加 */}
                     <button className={`mt-auto w-full py-1.5 text-[9px] font-black uppercase tracking-widest border transition-all font-fix ${
                       isSelected ? 'bg-orange-600 text-black border-orange-600' : 'bg-zinc-800 text-zinc-400 border-zinc-700'
                     }`}>
@@ -121,18 +127,20 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
           </div>
         </div>
 
+        {/* フッターエリア */}
         <div className="px-8 py-6 border-t border-white/5 bg-black/20 flex items-end justify-between shrink-0">
-          {/* 🚀 修正：font-fix追加 */}
-          <button className="px-5 py-2 border border-zinc-800 text-zinc-500 text-[10px] font-bold uppercase tracking-widest hover:bg-zinc-800 transition-all font-fix">
+          {/* 🚀 修正：onBackを紐付け */}
+          <button 
+            onClick={onBack}
+            className="px-5 py-2 border border-zinc-800 text-zinc-500 text-[10px] font-bold uppercase tracking-widest hover:bg-zinc-800 transition-all font-fix"
+          >
             Return to the lobby
           </button>
 
           <div className={`flex flex-col items-end gap-3 transition-all duration-500 ${pendingSelection ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
-            {/* 🚀 修正：font-fix追加 */}
             <p className="text-zinc-400 text-[9px] uppercase tracking-[0.2em] font-bold italic font-fix">
               Do you believe in <span className="text-orange-500 underline">'{pendingSelection?.name}'</span>?
             </p>
-            {/* 🚀 修正：font-fix追加 */}
             <button 
               onClick={handleFinalSelect}
               className="px-12 py-3 bg-orange-600 text-black text-[11px] font-black uppercase tracking-widest hover:brightness-110 shadow-[0_0_30px_rgba(234,88,12,0.4)] active:scale-95 transition-all font-fix"
@@ -142,8 +150,6 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = ({ onComplete }
           </div>
         </div>
       </div>
-      
-      {/* 🚀 不要な <style> ブロックを削除 */}
     </div>
   );
 };
