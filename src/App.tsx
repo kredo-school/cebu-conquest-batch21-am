@@ -17,6 +17,8 @@ import { SettingsView } from './components/SettingsView';
 import { RankingView } from './components/RankingView'; 
 import { HelpModal } from './components/HelpModal'; 
 import { InventoryModal } from './components/InventoryModal'; 
+import { TutorialView } from './components/TutorialView'; 
+import { ErrorNotification } from './components/ErrorNotification'; // 🚀 追加
 
 // 🔴 ブリッジ定数とイベント定数
 import { PHASER_TO_REACT, REACT_TO_PHASER } from './game/events/PhaserBridge';
@@ -24,9 +26,10 @@ import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
 
 const App: React.FC = () => {
   const { 
-    login, setStatus, syncServerState, addLog,
+    login, setStatus, syncServerState, addLog, showError,
     playerName: storePlayerName,
-    token, // 🚀 追加：トークンの状態を取得
+    token,
+    hasSeenTutorial, 
     openPrediction, isGameOver, roomId, players, setView, view
   } = useGameStore();
   
@@ -39,9 +42,8 @@ const App: React.FC = () => {
   const [playerName, setLocalPlayerName] = useState('');
 
   // 🚀 1. トークン管理の厳格化（ガード機能）
-  // ログインしていない（トークンがない）状態でゲーム関連の画面を表示しようとしたら強制的にログインへ戻す
   useEffect(() => {
-    const gameViews = ['setup', 'lobby', 'selection', 'waiting', 'game', 'ranking'];
+    const gameViews = ['tutorial', 'setup', 'lobby', 'selection', 'waiting', 'game', 'ranking'];
     if (!token && gameViews.includes(view)) {
       addLog("⚠️ セキュリティ警告：不正なアクセスを検知。ログインが必要です。");
       setView('login');
@@ -67,7 +69,7 @@ const App: React.FC = () => {
 
     socket.on(SERVER_EVENTS.GAME_START, () => setView('selection'));
 
-    socket.on("COMMENCE_OPERATION", () => {
+    socket.on(SERVER_EVENTS.COMMENCE_OPERATION, () => {
       addLog("🚀 全員のリンクを検知。出撃シークエンスを開始します。");
       triggerDeploySequence(); 
     });
@@ -86,6 +88,17 @@ const App: React.FC = () => {
 
     socket.on(SERVER_EVENTS.GAME_OVER, (data) => {
       setStatus({ isGameOver: true, winnerId: data.winnerId });
+    });
+
+    // 🚀 エラーハンドリングの強化
+    socket.on(SERVER_EVENTS.ERROR_MESSAGE, (msg: string) => {
+      showError(msg); 
+      addLog(`⚠️ SERVER: ${msg}`);
+    });
+
+    socket.on(SERVER_EVENTS.ACTION_REJECTED, (data: any) => {
+      const msg = data.reason || data.message || "ACTION REJECTED";
+      showError(msg);
     });
 
     const handleUpdateStatus = (e: any) => {
@@ -111,20 +124,27 @@ const App: React.FC = () => {
       socket.off(SERVER_EVENTS.TURN_START);
       socket.off(SERVER_EVENTS.SYNC_STATE);
       socket.off(SERVER_EVENTS.GAME_START);
-      socket.off("COMMENCE_OPERATION"); 
+      socket.off(SERVER_EVENTS.COMMENCE_OPERATION); 
+      socket.off(SERVER_EVENTS.ERROR_MESSAGE);
+      socket.off(SERVER_EVENTS.ACTION_REJECTED);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleDistrictSelected);
     };
-  }, [setStatus, syncServerState, addLog, openPrediction, triggerDeploySequence, setView]);
+  }, [setStatus, syncServerState, addLog, showError, openPrediction, triggerDeploySequence, setView]);
 
   const handleOpenRanking = () => setView('ranking');
   const handleCloseRanking = () => setView('setup');
 
   const handleLoginSubmit = async (name: string) => {
     setLocalPlayerName(name);
-    // 🚀 LoginView側ですでに store の login を呼んでいるため、ここでは接続と遷移を行う
     socket.connect();
-    setView('setup'); 
+    
+    // 🚀 チュートリアル既読チェック
+    if (!hasSeenTutorial) {
+      setView('tutorial');
+    } else {
+      setView('setup');
+    }
   };
 
   const handleSelectionComplete = useCallback(() => {
@@ -136,6 +156,8 @@ const App: React.FC = () => {
 
   if (view === 'login') {
     mainContent = <LoginView onLogin={handleLoginSubmit} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} />;
+  } else if (view === 'tutorial') {
+    mainContent = <TutorialView />;
   } else if (view === 'setup') {
     mainContent = <LobbySetupView onJoinSuccess={(id) => { setStatus({ roomId: id }); setView('lobby'); }} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onOpenRanking={handleOpenRanking} />;
   } else if (view === 'lobby') {
@@ -146,6 +168,7 @@ const App: React.FC = () => {
         onComplete={handleSelectionComplete} 
         onOpenSettings={() => setShowSettings(true)} 
         onOpenHelp={() => setShowHelp(true)} 
+        onBack={() => setView('setup')}
       />
     );
   } else if (view === 'waiting') {
@@ -187,6 +210,9 @@ const App: React.FC = () => {
     <div className="relative w-screen h-screen bg-slate-950 text-slate-200 font-body antialiased overflow-hidden select-none">
       {mainContent}
       
+      {/* 🚀 エラー通知コンポーネントをグローバルに配置 */}
+      <ErrorNotification />
+
       {/* 🚀 出撃ローディング演出 */}
       {isDeploying && (
         <div className="fixed inset-0 z-[200000] bg-slate-950 flex flex-col items-center justify-center animate-fadeIn">

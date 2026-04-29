@@ -9,7 +9,7 @@ interface ChatMessage {
   timestamp: string;
 }
 
-// 🚀 神々のデータ
+// 🚀 神々のデータ (GDD v3.0 準拠 [cite: 44])
 const GODS_DATA = [
   { id: 1, name: "LAPU-LAPU", role: "WAR GOD", bonus: "ATK +20", img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "島嶼戦における近接攻撃ダメージを25%上昇させ、物理防御力を強化する。" },
   { id: 2, name: "SEBUNA", role: "HARVEST", bonus: "MAX AP +30", img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400", desc: "全分隊員のタクティカルアビリティのクールダウンを15%短縮する。" },
@@ -21,26 +21,28 @@ const GODS_DATA = [
   { id: 8, name: "IDANALE", role: "RECON", bonus: "SCAN", img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=400", desc: "障害物越しの敵やリソースをハイライト表示する。" },
 ];
 
+// 🚀 本番5桁ID体系に対応 [cite: 71, 78]
 const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   11101: { name: "絶品特製チチャロン", effect: "ATK +15%" },
   11102: { name: "夜明けのエナジードリンク", effect: "AP回復速度UP" },
   11103: { name: "サン・ペドロの守護石", effect: "DEF +20" },
   11104: { name: "ITパークの光回線", effect: "命中率UP" },
   11105: { name: "セブ・ゴールド・マンゴー", effect: "全ステータス +5%" },
-  11119: { name: "マリン・バースト", effect: "ATK +10" },
-  11120: { name: "ヘリテージ_スパイス", effect: "DEF +10" },
+  14101: { name: "ジンベエザメの守護", effect: "Max HP/DEF 大幅UP" }, 
+  14102: { name: "カルカル・レチョン", effect: "継続スコアUP" }, 
 };
 
-// 🚀 修正：なおさんの指示通り URL を変更 (Cebu_Conquest を追加)
 const API_BASE = "http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api";
 
-type ViewType = 'login' | 'setup' | 'lobby' | 'selection' | 'waiting' | 'game' | 'ranking';
+type ViewType = 'login' | 'tutorial' | 'setup' | 'lobby' | 'selection' | 'waiting' | 'game' | 'ranking';
 
 interface GameState {
   view: ViewType;
   setView: (view: ViewType) => void;
   token: string | null;
   isAuthenticated: boolean;
+  hasSeenTutorial: boolean; 
+  errorMessage: string | null; // 🚀 追加
   isServerOnline: boolean; 
   hp: number;
   maxHp: number;
@@ -80,6 +82,9 @@ interface GameState {
 
   login: (username: string, password?: string) => Promise<boolean>;
   logout: () => void;
+  showError: (message: string) => void; // 🚀 追加
+  hideError: () => void; // 🚀 追加
+  completeTutorial: () => void; 
   nextTurn: () => void; 
   selectGod: (id: number) => void;
   setPlayerName: (name: string) => void; 
@@ -107,6 +112,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   setView: (view) => set({ view }),
   token: typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null,
   isAuthenticated: !!(typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null),
+  hasSeenTutorial: typeof window !== 'undefined' ? localStorage.getItem('cebu_conquest_tutorial_seen') === 'true' : false,
+  errorMessage: null, // 🚀 追加
   isServerOnline: socket.connected, 
   hp: 100, maxHp: 100,
   ap: 100, maxAp: 100,
@@ -175,6 +182,18 @@ export const useGameStore = create<GameState>((set, get) => ({
     window.location.reload();
   },
 
+  // 🚀 エラー通知ロジックを追加
+  showError: (message) => set({ errorMessage: message }),
+  hideError: () => set({ errorMessage: null }),
+
+  completeTutorial: () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('cebu_conquest_tutorial_seen', 'true');
+    }
+    set({ hasSeenTutorial: true });
+    get().addLog("📖 チュートリアル完了。基本戦術をマスターしました。");
+  },
+
   nextTurn: () => {
     const nextT = get().turn + 1;
     set({ turn: nextT });
@@ -222,7 +241,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     const rawPlayers = data.players ?? {};
     let playersArray = Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers);
-    playersArray = playersArray.filter((p: any) => p && p.id); // 幽霊プレイヤーを排除
+    playersArray = playersArray.filter((p: any) => p && p.id); 
 
     const myPlayerData = playersArray.find((p: any) => p.id === myId);
     
@@ -357,8 +376,16 @@ socket.on(SERVER_EVENTS.GAME_LOG, (msg: string) => {
   useGameStore.getState().addLog(`🛰️ SERVER: ${msg}`);
 });
 
+// 🚀 修正：エラー時にUIに通知するように変更
 socket.on(SERVER_EVENTS.ERROR_MESSAGE, (msg: string) => {
+  useGameStore.getState().showError(msg); 
   useGameStore.getState().addLog(`⚠️ SERVER: ${msg}`);
+});
+
+// 🚀 追加：アクション拒否（AP不足等）をキャッチして通知
+socket.on(SERVER_EVENTS.ACTION_REJECTED, (data: any) => {
+  const msg = data.reason || data.message || "ACTION REJECTED";
+  useGameStore.getState().showError(msg);
 });
 
 if (typeof window !== 'undefined') { (window as any).useGameStore = useGameStore; }
