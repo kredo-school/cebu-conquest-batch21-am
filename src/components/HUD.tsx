@@ -4,8 +4,8 @@ import { useGameStore } from '../store';
 
 type HUDProps = object;
 
-<<<<<<< HEAD
 // 🚀 島ID定数（Sidebarと統一）
+// GDD v3.1: lookupDataがロードされるまでのフォールバックや、UIの見出し用として維持
 const ISLAND_NAMES: Record<number, string> = {
   11: "CEBU MAINLAND",
   12: "MACTAN ISLAND",
@@ -14,11 +14,9 @@ const ISLAND_NAMES: Record<number, string> = {
   15: "SIQUIJOR"
 };
 
-const globalPhaseTracker = {
-=======
 // フェーズ演出の重複再生を防止するフラグ
+// Component外に置くことで、再レンダリングを跨いでターンの再生状態を保持する
 let globalPhaseTracker = {
->>>>>>> edde3b1 (design fixxxxxxx)
   lastTurn: -1,
   played: false
 };
