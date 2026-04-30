@@ -2,8 +2,8 @@
 import { create } from 'zustand';
 import socket from './socket';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
-// ✅ 修正：イベント名を定数経由で参照するために追加
 import { REACT_TO_PHASER } from './game/events/PhaserBridge';
+import { buildLookup } from '../shared/idLookup'; // ✅ GDD v3.1: ルックアップ関数のインポート
 
 interface ChatMessage {
   sender: string;
@@ -12,13 +12,10 @@ interface ChatMessage {
   timestamp: string;
 }
 
-// ✅ 修正：'MAP_REPAINT' の文字列直書きを定数化
-// ※ あきらさんへ依頼：PhaserBridge.js の REACT_TO_PHASER に
-//   MAP_REPAINT: 'react:mapRepaint' を追加後、この定数を削除して
-//   REACT_TO_PHASER.MAP_REPAINT に置き換えること
+// ✅ あきらさん担当の定数（PhaserBridge 統合待ち）
 const MAP_REPAINT_EVENT = 'react:mapRepaint';
 
-// 🚀 神々のデータ
+// 🚀 神々のデータ (GDD v3.0 準拠)
 const GODS_DATA = [
   { id: 1, name: "LAPU-LAPU", role: "WAR GOD", bonus: "ATK +20", img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "島嶼戦における近接攻撃ダメージを25%上昇させ、物理防御力を強化する。" },
   { id: 2, name: "SEBUNA", role: "HARVEST", bonus: "MAX AP +30", img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400", desc: "全分隊員のタクティカルアビリティのクールダウンを15%短縮する。" },
@@ -40,12 +37,11 @@ const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   14102: { name: "カルカル・レチョン", effect: "継続スコアUP" }, 
 };
 
-// 🚀 通信先設定（なおさんの環境に合わせてIPに書き換える準備をしておいてください）
 const API_BASE = "http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api";
 
 type ViewType = 'login' | 'tutorial' | 'setup' | 'lobby' | 'selection' | 'waiting' | 'game' | 'ranking';
 
-interface GameState {
+export interface GameState {
   view: ViewType;
   setView: (view: ViewType) => void;
   token: string | null;
@@ -90,15 +86,23 @@ interface GameState {
   isUnderAttack: boolean;
   setUnderAttack: (status: boolean) => void;
 
-  // 🚀 追加：NPC対応 (けいさんのサーバーから送られてくるNPC情報を保持)
+  // ✅ GDD v3.1: マスターデータ＆ルックアップ辞書の型定義
+  masterData: any | null;
+  lookupData: {
+    islands: Map<number, any>;
+    areas: Map<number, any>;
+    districts: Map<number, any>;
+    spots: Map<number, any>;
+  } | null;
+  setLookupData: (data: any) => void; // ✅ 追加：これでApp.tsxのエラーが解消されます
+
   npcs: Record<string, any>;
   setNpcs: (npcData: Record<string, any>) => void;
 
   login: (username: string, password?: string) => Promise<boolean>;
   logout: () => void;
-  // 🚀 なおさんの依頼に基づき追加：マスターデータ同期
   syncMasterData: () => Promise<void>;
-  showError: (message: string) => void;
+  setErrorMessage: (message: string | null) => void;
   hideError: () => void;
   setZoomLevel: (zoom: number) => void; 
   completeTutorial: () => void; 
@@ -129,7 +133,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   setView: (view) => set({ view }),
   token: typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null,
   isAuthenticated: !!(typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null),
-  hasSeenTutorial: typeof window !== 'undefined' ? localStorage.getItem('cebu_conquest_tutorial_seen') === 'true' : false,
+  
+  hasSeenTutorial: typeof window !== 'undefined' 
+    ? localStorage.getItem('cebu_conquest_tutorial_seen') === 'true' 
+    : false,
+
   errorMessage: null,
   isServerOnline: socket.connected, 
   zoomLevel: 1.0, 
@@ -161,11 +169,20 @@ export const useGameStore = create<GameState>((set, get) => ({
   isUnderAttack: false,
   setUnderAttack: (status) => set({ isUnderAttack: status }),
 
-  // 🚀 追加：NPC対応 (初期値と更新関数)
+  // ✅ GDD v3.1: 初期値
+  masterData: null,
+  lookupData: null,
+
+  // ✅ 実装：生データを Map に変換して保存するアクション
+  setLookupData: (data: any) => {
+    if (!data) return;
+    const lookup = buildLookup(data);
+    set({ masterData: data, lookupData: lookup });
+  },
+
   npcs: {},
   setNpcs: (npcData) => set({ npcs: npcData }),
 
-  // 🚀 修正：ログイン成功時に自動で master-data.php を叩くように変更
   login: async (username, password = "password123") => {
     try {
       const res = await fetch(`${API_BASE}/login.php`, {
@@ -190,9 +207,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           maxAp: user.max_ap || 100,
         });
 
-        // 🚀 なおさんの依頼：ログイン後にマスターデータを同期
         await get().syncMasterData();
-
         get().addLog(`🔐 認証完了。コマンダー ${user.username} ログイン。`);
         return true;
       }
@@ -203,22 +218,23 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
   },
 
-  // 🚀 新設：なおさんのマスターデータを取得する処理
   syncMasterData: async () => {
     try {
-      // authenticatedFetch を使えば自動的にヘッダーにトークンがセットされます
       const json = await get().authenticatedFetch('master-data.php');
-      
       if (json && json.status === 'success') {
         const { districts, world_state } = json.data;
+
+        // ✅ GDD v3.1: 逆引き辞書を構築して保存
+        const lookup = buildLookup(json.data);
+
         set({
           districts: districts || {},
           maxTurn: world_state?.max_turn || 10,
-          turn: world_state?.current_turn || 0
+          turn: world_state?.current_turn || 0,
+          masterData: json.data,
+          lookupData: lookup
         });
         get().addLog("📡 世界情勢（マスターデータ）を同期しました。");
-        
-        // ✅ 修正：文字列直書き → 定数経由
         window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: districts } }));
       }
     } catch (e) {
@@ -233,7 +249,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     window.location.reload();
   },
 
-  showError: (message) => set({ errorMessage: message }),
+  setErrorMessage: (message) => set({ errorMessage: message }),
   hideError: () => set({ errorMessage: null }),
 
   setZoomLevel: (zoom) => set({ zoomLevel: zoom }),
@@ -253,25 +269,39 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   selectGod: (id: number) => {
-    const { isSubmitted, roomId } = get();
+    const { isSubmitted, roomId, godsList, addLog } = get();
     if (isSubmitted) return; 
 
-    const god = GODS_DATA.find(g => g.id === id);
+    const god = godsList.find(g => g.id === id);
     if (!god) return;
 
     socket.emit(CLIENT_EVENTS.SELECT_GOD, { roomId, godId: id });
-    set((state) => ({
-      selectedGodId: id,
-      atk: id === 1 ? 50 + 20 : state.atk,
-      maxAp: id === 2 ? 100 + 30 : state.maxAp,
-    }));
-    get().addLog(`⚡ ${god.name} との神経リンクを確立中...`);
+
+    set((state) => {
+      let bonusAtk = state.atk;
+      let bonusMaxAp = state.maxAp;
+      let bonusDef = state.def;
+
+      switch(id) {
+        case 1: bonusAtk += 20; break; 
+        case 2: bonusMaxAp += 30; break; 
+        case 5: bonusDef += 40; break; 
+      }
+
+      return {
+        selectedGodId: id,
+        atk: bonusAtk,
+        maxAp: bonusMaxAp,
+        def: bonusDef,
+        ap: Math.min(state.ap, bonusMaxAp)
+      };
+    });
+
+    get().addLog(`⚡ ${god.name} との神経リンクを確立。ボーナスが反映されました。`);
   },
 
   setPlayerName: (name) => set({ playerName: name }),
 
-  // ✅ 修正：4xx/5xx のHTTPエラーを無視していたバグを修正
-  // res.ok が false の場合（サーバーエラー等）は例外をスローして呼び出し元の catch に流す
   authenticatedFetch: async (url, options = {}) => {
     const { token } = get();
     const headers = { 
@@ -358,7 +388,6 @@ export const useGameStore = create<GameState>((set, get) => ({
         acc[p.id] = p; return acc; 
       }, {});
 
-      // ✅ 修正：文字列直書き → 定数経由
       window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: data.districts, players: playersAsObject } }));
       get().updateBuffs();
     }
@@ -392,7 +421,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!isMyTurn) return;
     socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'stay' }); 
     get().addLog("🧘 休息中。"); 
-    // ✅ 修正：文字列直書き 'ACTION_STAY' → REACT_TO_PHASER.COMMAND_STAY（定数経由）
     window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_STAY));
   },
 
@@ -444,13 +472,13 @@ socket.on(SERVER_EVENTS.GAME_LOG, (msg: string) => {
 });
 
 socket.on(SERVER_EVENTS.ERROR_MESSAGE, (msg: string) => {
-  useGameStore.getState().showError(msg); 
+  useGameStore.getState().setErrorMessage(msg);
   useGameStore.getState().addLog(`⚠️ SERVER: ${msg}`);
 });
 
 socket.on(SERVER_EVENTS.ACTION_REJECTED, (data: any) => {
   const msg = data.reason || data.message || "ACTION REJECTED";
-  useGameStore.getState().showError(msg);
+  useGameStore.getState().setErrorMessage(msg);
 });
 
 if (typeof window !== 'undefined') { (window as any).useGameStore = useGameStore; }

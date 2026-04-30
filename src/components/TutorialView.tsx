@@ -1,3 +1,4 @@
+// src/components/TutorialView.tsx
 import React, { useState, memo } from 'react';
 import { useGameStore } from '../store';
 
@@ -65,8 +66,9 @@ export const TutorialView: React.FC = memo(() => {
 
   const handleNext = () => {
     if (isLastStep) {
-      completeTutorial(); // 🚀 Zustandストアを更新し、フラグをlocalStorageに保存 [cite: 116]
-      setView('setup');   // 🚀 ロビー（出撃地点選択）へ遷移
+      // 🚀 修正：localStorageへの永続化と、GDD v3.0規定の「8神選択画面」への遷移
+      completeTutorial(); 
+      setView('selection'); // setup（出撃地点選択）の前に神を選択させる
     } else {
       setCurrentStep(prev => prev + 1);
     }
@@ -145,7 +147,7 @@ export const TutorialView: React.FC = memo(() => {
 
       {/* ⚡ スキップボタン: 熟練コマンダー用 */}
       <button 
-        onClick={() => { completeTutorial(); setView('setup'); }}
+        onClick={() => { completeTutorial(); setView('selection'); }}
         className="absolute bottom-10 text-[11px] font-black text-zinc-600 hover:text-orange-500 uppercase tracking-[0.3em] transition-all hover:scale-110 font-fix"
       >
         Skip Strategic Briefing [ESC]

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../store';
-import socket from '../socket';
-import { CLIENT_EVENTS } from '../../shared/socketEvents'; // 🚀 追加
+import socket from '../socket'; 
+import { CLIENT_EVENTS } from '../../shared/socketEvents.js';
 
 interface Item {
   id: number;
@@ -16,20 +16,13 @@ interface InventoryModalProps {
   onClose: () => void;
 }
 
-const ISLAND_NAMES: Record<number, string> = {
-  11: "CEBU",
-  12: "MACTAN",
-  13: "BOHOL",
-  14: "NEGROS",
-  15: "SIQUIJOR"
-};
-
 export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
-  const { authenticatedFetch, addLog } = useGameStore();
+  // ✅ GDD v3.1: Zustand から必要な情報を抽出
+  const { authenticatedFetch, addLog, lookupData } = useGameStore();
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 📦 1. インベントリ取得（初期表示用 / PHPから読むのはOK：永続データの読み取りのみ）
+  // 📦 1. インベントリ取得（初期表示用：ここは永続化データのため PHP 経由）
   const fetchInventory = async () => {
     setLoading(true);
     try {
@@ -48,20 +41,25 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
     fetchInventory();
   }, []);
 
-  /**
-   * ⚡ 2. アイテム使用
-   * 🚀 アーキテクチャ原則に従い、Socket 経由でけいのサーバーへ委譲。
-   *    サーバー側で roomState を更新 → SYNC_STATE で全プレイヤーへ反映される。
-   *    バフ計算・在庫減算もすべてサーバー責務。
-   */
+  // ⚡ 2. アイテム使用（GDD v3.1 準拠：Socket経由）
   const handleUseItem = (itemId: number, itemName: string) => {
-    try {
-      socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId });
-      addLog(`🎒 アイテム使用リクエスト送信: ${itemName}`);
-      onClose(); // SYNC_STATE が来れば HUD は自動更新される
-    } catch {
-      addLog("❌ アイテム使用中にエラーが発生しました");
+    /**
+     * 🚀 実装ポイント:
+     * リアルタイム戦況に影響を与えるアクションのため、Node.js サーバーへ送信します。
+     * サーバー側の roomState が更新され、全プレイヤーに同期 (SYNC_STATE) されます。
+     */
+    if (!socket.connected) {
+      addLog("❌ 通信エラー: サーバーに接続されていません");
+      return;
     }
+
+    // 文字列直書き禁止ルール遵守
+    socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId: itemId }); 
+    
+    addLog(`🎒 アイテム使用指令を送信: ${itemName}`);
+    
+    // UIを閉じ、サーバーからの SYNC_STATE ブロードキャストによる状態更新を待ちます
+    onClose(); 
   };
 
 
@@ -81,15 +79,26 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
           </button>
         </div>
 
-        {/* Item List */}
+        {/* Item List (Bento Grid Style) */}
         <div className="flex-1 p-8 overflow-y-auto custom-scrollbar min-h-[400px]">
           {loading ? (
             <div className="h-full flex items-center justify-center text-slate-500 animate-pulse uppercase font-black tracking-widest font-fix">Scanning Storage...</div>
           ) : items.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {items.map((item) => {
-                const islandId = Math.floor(item.id / 1000);
-                const islandName = ISLAND_NAMES[islandId];
+                
+                // ✅ GDD v3.1: lookupData (Map) を使用して O(1) で島名を解決
+                let islandName = "UNKNOWN SECTOR";
+                if (lookupData) {
+                  const spot = lookupData.spots.get(item.id);
+                  const district = spot ? lookupData.districts.get(spot.parentDistrictId) : null;
+                  const area = district ? lookupData.areas.get(district.parentAreaId) : null;
+                  const island = area ? lookupData.islands.get(area.parentIslandId) : null;
+                  
+                  if (island) {
+                    islandName = island.name.toUpperCase();
+                  }
+                }
 
                 return (
                   <div key={item.id} className="bg-slate-800/40 border border-white/5 rounded-2xl p-4 flex gap-4 hover:border-orange-500/30 transition-all group relative overflow-hidden text-left">
@@ -104,11 +113,9 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
                       <div>
                         <div className="flex justify-between items-start mb-1">
                           <div className="flex flex-col items-start">
-                            {islandName && (
-                              <span className="text-[8px] font-black text-orange-500/80 uppercase tracking-tighter mb-0.5 font-fix">
-                                Origin: {islandName}
-                              </span>
-                            )}
+                            <span className="text-[8px] font-black text-orange-500/80 uppercase tracking-tighter mb-0.5 font-fix">
+                              Origin: {islandName}
+                            </span>
                             <h3 className="text-sm font-black text-white uppercase leading-none font-fix">{item.name}</h3>
                           </div>
                           <span className="text-[10px] font-black text-orange-500 font-fix bg-orange-500/10 px-1.5 py-0.5 rounded">x{item.quantity}</span>
@@ -119,9 +126,10 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
                         onClick={() => handleUseItem(item.id, item.name)}
                         className="mt-3 w-full py-1.5 bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-black uppercase rounded transition-all active:scale-95 shadow-lg shadow-orange-900/20 font-fix"
                       >
-                        Use Item
+                        Deploy Item
                       </button>
                     </div>
+                    {/* Background Icon Decoration */}
                     <div className="absolute -right-4 -bottom-4 opacity-[0.03] pointer-events-none">
                        <span className="material-symbols-outlined text-8xl italic">inventory_2</span>
                     </div>
@@ -141,13 +149,12 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
         <div className="px-8 py-4 bg-slate-950/50 border-t border-white/5 flex justify-between items-center">
           <div className="flex gap-2">
              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
-             <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest font-fix">System Secure</span>
+             <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest font-fix">Encrypted Connection Active</span>
           </div>
-          <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest font-fix">Storage Status: Optimal</span>
+          <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest font-fix">Tactical Storage Status: Optimal</span>
         </div>
       </div>
       
-      {/* 構文エラーを修正したスタイル定義 */}
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: scale(0.95); }

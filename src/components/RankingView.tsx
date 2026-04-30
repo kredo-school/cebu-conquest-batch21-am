@@ -1,3 +1,4 @@
+// src/components/RankingView.tsx
 import React, { useState, useMemo, memo } from 'react';
 import { useGameStore } from '../store';
 
@@ -7,35 +8,46 @@ interface RankingViewProps {
   onBack: () => void;
 }
 
-// 🚀 島ID定数
-const ISLAND_NAMES: Record<number, string> = {
-  11: "CEBU NORTH",
-  12: "MACTAN",
-  13: "CEBU CENTRAL",
-  14: "NEGROS",
-  15: "SIQUIJOR"
-};
-
 export const RankingView: React.FC<RankingViewProps> = memo(({ 
   onOpenSettings, onOpenHelp, onBack
 }) => {
-  const { players, myId } = useGameStore();
+  // ✅ GDD v3.1: lookupDataを追加で取得
+  const { players, myId, districts, lookupData } = useGameStore();
   const [filter, setFilter] = useState<'weekly' | 'global'>('weekly');
 
   // 🚀 最適化：ランキング計算をメモ化
   const sortedPlayers = useMemo(() => {
     return [...players].sort((a, b) => (b.occupancy || 0) - (a.occupancy || 0))
       .map(player => {
-        // 5桁IDから拠点を特定（最初の地区などから推測）
-        // ここではデモ用にIDから島名を割り当て
-        const mockDistrictId = player.id === 'p1' ? 13101 : 11101; 
-        const islandId = Math.floor(mockDistrictId / 1000);
+        // ✅ GDD v3.1: lookupData から動的に島名を取得
+        let islandName = "FRONTIER";
+        
+        // プレイヤーの現在位置（未設定の場合はフォールバック値を使用）
+        const locId = player.districtId || player.location || (player.id === 'p1' ? 131 : 111);
+
+        if (lookupData && lookupData.districts && lookupData.areas && lookupData.islands) {
+          // locIdがspot(5桁)かdistrict(3桁)か両方に対応して逆引き
+          let district = lookupData.districts.get(locId);
+          if (!district && lookupData.spots) {
+            const spot = lookupData.spots.get(locId);
+            if (spot) district = lookupData.districts.get(spot.parentDistrictId);
+          }
+
+          if (district) {
+            const area = lookupData.areas.get(district.parentAreaId);
+            if (area) {
+              const island = lookupData.islands.get(area.parentIslandId);
+              if (island) islandName = island.name.toUpperCase();
+            }
+          }
+        }
+
         return {
           ...player,
-          baseIsland: ISLAND_NAMES[islandId] || "FRONTIER"
+          baseIsland: islandName
         };
       });
-  }, [players]);
+  }, [players, lookupData]);
 
   const topThree = sortedPlayers.slice(0, 3);
   const remaining = sortedPlayers.slice(3);

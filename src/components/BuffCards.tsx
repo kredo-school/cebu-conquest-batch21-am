@@ -1,19 +1,12 @@
-import React, { memo } from 'react'; // 🚀 memoをインポート
+// src/components/BuffCards.tsx
+import React, { memo } from 'react';
 import { useGameStore } from '../store';
-
-// 🚀 島ID定数（コンポーネント外に配置し、再定義を防止）
-const ISLAND_NAMES: Record<number, string> = {
-  11: "CEBU",
-  12: "MACTAN",
-  13: "BOHOL",
-  14: "NEGROS",
-  15: "SIQUIJOR"
-};
 
 // 🚀 最適化：React.memoでラップし、バフデータが不変なら再描画をスキップ
 export const BuffCards: React.FC = memo(() => {
-  // 🚀 最適化：必要なバフ配列だけを個別に取得
+  // 🚀 最適化：必要なバフ配列とルックアップ辞書だけを個別に取得
   const activeBuffs = useGameStore(state => state.activeBuffs);
+  const lookupData = useGameStore(state => state.lookupData); // ✅ GDD v3.1: ルックアップ辞書を追加
 
   if (!activeBuffs || activeBuffs.length === 0) {
     return (
@@ -30,9 +23,27 @@ export const BuffCards: React.FC = memo(() => {
   return (
     <div className="flex flex-col gap-2 mt-4 w-full">
       {activeBuffs.map((buff) => {
-        const islandId = Math.floor(buff.id / 1000);
-        const unitId = buff.id % 1000;
-        const islandName = ISLAND_NAMES[islandId] || "UNKNOWN";
+        // ✅ GDD v3.1: lookupData を使って安全に所属島とユニット情報を取得
+        let islandName = "UNKNOWN";
+        let unitId = buff.id;
+
+        if (lookupData && lookupData.spots && lookupData.districts && lookupData.areas && lookupData.islands) {
+          const spot = lookupData.spots.get(buff.id);
+          if (spot) {
+            const district = lookupData.districts.get(spot.parentDistrictId);
+            if (district) {
+              const area = lookupData.areas.get(district.parentAreaId);
+              if (area) {
+                const island = lookupData.islands.get(area.parentIslandId);
+                if (island) {
+                  islandName = island.name.toUpperCase();
+                }
+              }
+            }
+            // 表示用のユニットID (例: 11101 なら 01 の部分。下2桁)
+            unitId = spot.id % 100;
+          }
+        }
 
         return (
           <div 
@@ -40,26 +51,26 @@ export const BuffCards: React.FC = memo(() => {
             className="group relative bg-slate-900/60 backdrop-blur-sm border-l-2 border-orange-500 p-3 rounded-r-lg shadow-lg overflow-hidden transition-all hover:bg-slate-800/80"
           >
             <div className="absolute top-0 right-0 px-2 py-0.5 bg-orange-500/10 text-[8px] font-mono text-orange-500/60 font-bold font-fix group-hover:text-orange-500 transition-colors">
-              U-{unitId}
+              U-{String(unitId).padStart(2, '0')} {/* ✅ 下2桁でパディング */}
             </div>
             
             <div className="relative z-10 text-left">
               <div className="flex items-center gap-1.5 mb-1">
                 <span className="w-1 h-1 bg-orange-500 rounded-full animate-pulse"></span>
-                <span className="text-[8px] font-black text-orange-500 uppercase tracking-widest opacity-80 font-fix">
+                <span className="text-[8px] font-black text-orange-500 uppercase tracking-widest opacity-80 font-fix line-clamp-1">
                   {islandName} SPECIALTY
                 </span>
               </div>
 
-              <div className="text-xs font-black text-white uppercase italic tracking-wider mb-1 font-fix">
+              <div className="text-xs font-black text-white uppercase italic tracking-wider mb-1 font-fix line-clamp-1">
                 {buff.name}
               </div>
 
               <div className="flex items-center gap-1">
-                <span className="text-[9px] text-emerald-500 font-black tracking-tighter font-fix">
+                <span className="text-[9px] text-emerald-500 font-black tracking-tighter font-fix shrink-0">
                   [ ACTIVE ]
                 </span>
-                <span className="text-[10px] text-emerald-400 font-bold tracking-tight font-fix">
+                <span className="text-[10px] text-emerald-400 font-bold tracking-tight font-fix line-clamp-1">
                   {buff.effect}
                 </span>
               </div>
@@ -81,4 +92,4 @@ export const BuffCards: React.FC = memo(() => {
       `}</style>
     </div>
   );
-}); 
+});

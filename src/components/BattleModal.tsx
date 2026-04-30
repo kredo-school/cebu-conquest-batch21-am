@@ -1,15 +1,7 @@
+// src/components/BattleModal.tsx
 import React, { useEffect, useMemo, memo } from 'react';
 import { useGameStore } from '../store';
 import SoundManager from '../game/SoundManager';
-
-// 🚀 島ID定数（GDD v3.0準拠 [cite: 70, 75, 77]）
-const ISLAND_NAMES: Record<number, string> = {
-  11: "CEBU MAINLAND",
-  12: "MACTAN ISLAND",
-  13: "BOHOL",
-  14: "NEGROS",
-  15: "SIQUIJOR"
-};
 
 // 🚀 React.memoでラップし、不要なレンダリングをガード 
 export const BattleModal: React.FC = memo(() => {
@@ -18,20 +10,26 @@ export const BattleModal: React.FC = memo(() => {
     targetDistrictInfo, 
     atk, blessing, attack, move, closePrediction, ap,
     isMyTurn, escape, addLog,
-    isUnderAttack, setUnderAttack 
+    isUnderAttack, setUnderAttack,
+    lookupData // ✅ GDD v3.1: ルックアップ辞書を取得
   } = useGameStore();
 
-  // 🚀 5桁ID解析ロジック [cite: 65, 67]
+  // ✅ GDD v3.1: lookupData を使って安全にターゲット情報を取得
   const targetParsed = useMemo(() => {
-    if (!targetDistrictInfo) return null;
-    const id = targetDistrictInfo.id;
-    const islandId = Math.floor(id / 1000);
-    const sequence = id % 1000;
+    if (!targetDistrictInfo || !lookupData || !lookupData.districts) return null;
+    
+    const district = lookupData.districts.get(targetDistrictInfo.id);
+    if (!district) return null;
+
+    // parentAreaId から Area と Island の名前を遡って取得
+    const area = lookupData.areas?.get(district.parentAreaId);
+    const island = lookupData.islands?.get(area?.parentIslandId);
+
     return {
-      islandName: ISLAND_NAMES[islandId] || "UNKNOWN SECTOR",
-      sectorCode: `${islandId}-${sequence}`
+      islandName: island?.name?.toUpperCase() || area?.name?.toUpperCase() || "UNKNOWN SECTOR",
+      sectorCode: targetDistrictInfo.id // 地区ID (例: 131)
     };
-  }, [targetDistrictInfo]);
+  }, [targetDistrictInfo, lookupData]);
 
   // 🚨 敵からの被弾アラート用ロジック
   useEffect(() => {
@@ -57,7 +55,7 @@ export const BattleModal: React.FC = memo(() => {
     setUnderAttack(false);
   };
 
-  // ⚔️ バトルロジック変数（GDD v3.0準拠 [cite: 54, 57]）
+  // ⚔️ バトルロジック変数（GDD v3.0準拠）
   let isMyTerritory = false;
   let isNeutral = false;
   let isEnemy = false;
@@ -79,7 +77,7 @@ export const BattleModal: React.FC = memo(() => {
     isNeutral = targetDistrictInfo.isNeutral || false;
     isEnemy = !isMyTerritory && !isNeutral;
 
-    // 🚀 GDD v3.0 計算式: P = A / (A + D) [cite: 54, 57]
+    // 🚀 GDD v3.0 計算式: P = A / (A + D)
     finalAtk = atk * blessing;
     enemyDef = targetDistrictInfo.enemyDef || 40;
     winRate = (finalAtk / (finalAtk + enemyDef)) * 100;
@@ -167,7 +165,7 @@ export const BattleModal: React.FC = memo(() => {
         </div>
       )}
 
-      {/* ⚔️ 攻撃・移動予測 UI [cite: 53] */}
+      {/* ⚔️ 攻撃・移動予測 UI */}
       {predictionModalOpen && targetDistrictInfo && targetParsed && (
         <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm select-none pointer-events-auto">
           <div className={`relative bg-slate-900 border-2 ${borderColor} w-[380px] rounded-2xl p-6 shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden animate-fadeIn`}>

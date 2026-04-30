@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+// src/components/ResultView.tsx
+import React, { useMemo, useEffect, useRef } from 'react';
 import { useGameStore } from '../store';
 
 interface ResultViewProps {
@@ -11,12 +12,19 @@ interface ResultViewProps {
 export const ResultView: React.FC<ResultViewProps> = ({ 
   onRestart, onOpenSettings, onOpenHelp, onOpenRanking 
 }) => {
-  const {
-    isGameOver, winnerId, myId, playerName, districts,
-    turn, players, godsList
+  const { 
+    isGameOver, winnerId, myId, playerName, districts, 
+    hp, maxHp, turn, players, godsList,
+    authenticatedFetch // ✅ GDD準拠: スコア保存APIを叩くために追加
   } = useGameStore();
 
-  // 🏆 勝者とデータの解析（hooks は早期 return より前に呼ぶ）
+  // ✅ 二重送信防止用のフラグ
+  const hasSavedResult = useRef(false);
+
+  // ゲームオーバー中でなければ何も表示しない
+  if (!isGameOver) return null;
+
+  // 🏆 勝者とデータの解析
   const isWinner = winnerId === myId;
   const winnerPlayer = players.find(p => p.id === winnerId);
   const winnerGod = godsList.find(g => g.id === winnerPlayer?.selectedGodId) || godsList[0];
@@ -37,8 +45,22 @@ export const ResultView: React.FC<ResultViewProps> = ({
     };
   }, [districts, myId, turn, isWinner]);
 
-  // ゲームオーバー中でなければ何も表示しない
-  if (!isGameOver) return null;
+  // ✅ GDD準拠: リザルトの保存 (POST /api/result)
+  useEffect(() => {
+    if (isGameOver && !hasSavedResult.current) {
+      hasSavedResult.current = true;
+      authenticatedFetch('result.php', {
+        method: 'POST',
+        body: JSON.stringify({
+          is_winner: isWinner,
+          score: stats.score,
+          turns: stats.turns,
+          captured_districts: stats.captured,
+          occupancy_percent: stats.percent
+        })
+      }).catch(e => console.error("Result save failed:", e));
+    }
+  }, [isGameOver, isWinner, stats, authenticatedFetch]);
 
   // 🎨 テーマ設定
   const theme = {
