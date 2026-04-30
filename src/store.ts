@@ -1,6 +1,9 @@
+// src/store.ts
 import { create } from 'zustand';
 import socket from './socket';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
+// ✅ 修正：イベント名を定数経由で参照するために追加
+import { REACT_TO_PHASER } from './game/events/PhaserBridge';
 
 interface ChatMessage {
   sender: string;
@@ -8,6 +11,12 @@ interface ChatMessage {
   color?: string;
   timestamp: string;
 }
+
+// ✅ 修正：'MAP_REPAINT' の文字列直書きを定数化
+// ※ あきらさんへ依頼：PhaserBridge.js の REACT_TO_PHASER に
+//   MAP_REPAINT: 'react:mapRepaint' を追加後、この定数を削除して
+//   REACT_TO_PHASER.MAP_REPAINT に置き換えること
+const MAP_REPAINT_EVENT = 'react:mapRepaint';
 
 // 🚀 神々のデータ
 const GODS_DATA = [
@@ -81,6 +90,10 @@ interface GameState {
   isUnderAttack: boolean;
   setUnderAttack: (status: boolean) => void;
 
+  // 🚀 追加：NPC対応 (けいさんのサーバーから送られてくるNPC情報を保持)
+  npcs: Record<string, any>;
+  setNpcs: (npcData: Record<string, any>) => void;
+
   login: (username: string, password?: string) => Promise<boolean>;
   logout: () => void;
   // 🚀 なおさんの依頼に基づき追加：マスターデータ同期
@@ -148,6 +161,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   isUnderAttack: false,
   setUnderAttack: (status) => set({ isUnderAttack: status }),
 
+  // 🚀 追加：NPC対応 (初期値と更新関数)
+  npcs: {},
+  setNpcs: (npcData) => set({ npcs: npcData }),
+
   // 🚀 修正：ログイン成功時に自動で master-data.php を叩くように変更
   login: async (username, password = "password123") => {
     try {
@@ -201,8 +218,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         });
         get().addLog("📡 世界情勢（マスターデータ）を同期しました。");
         
-        // Phaserに地図の再描画を依頼
-        window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: districts } }));
+        // ✅ 修正：文字列直書き → 定数経由
+        window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: districts } }));
       }
     } catch (e) {
       console.error("Master data sync failed:", e);
@@ -253,7 +270,8 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setPlayerName: (name) => set({ playerName: name }),
 
-  // 🚀 重要：なおさんが心配していた「トークンのセット」はここで行っています
+  // ✅ 修正：4xx/5xx のHTTPエラーを無視していたバグを修正
+  // res.ok が false の場合（サーバーエラー等）は例外をスローして呼び出し元の catch に流す
   authenticatedFetch: async (url, options = {}) => {
     const { token } = get();
     const headers = { 
@@ -262,6 +280,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       ...options.headers 
     };
     const res = await fetch(`${API_BASE}/${url}`, { ...options, headers });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+      throw new Error(error.message || `HTTP ${res.status}`);
+    }
     return res.json();
   },
 
@@ -336,7 +358,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         acc[p.id] = p; return acc; 
       }, {});
 
-      window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: playersAsObject } }));
+      // ✅ 修正：文字列直書き → 定数経由
+      window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: data.districts, players: playersAsObject } }));
       get().updateBuffs();
     }
   },
@@ -369,7 +392,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!isMyTurn) return;
     socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'stay' }); 
     get().addLog("🧘 休息中。"); 
-    window.dispatchEvent(new CustomEvent('ACTION_STAY'));
+    // ✅ 修正：文字列直書き 'ACTION_STAY' → REACT_TO_PHASER.COMMAND_STAY（定数経由）
+    window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_STAY));
   },
 
   defend: () => {

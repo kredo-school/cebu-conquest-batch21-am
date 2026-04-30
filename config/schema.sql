@@ -81,12 +81,11 @@ CREATE TABLE items (
 CREATE TABLE gods (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
-    atk_bonus INT DEFAULT 0,
-    stamina_bonus INT DEFAULT 0,
-    ap_regen_bonus INT DEFAULT 0,
-    start_item_id INT,
+    initial_bonus VARCHAR(100) NOT NULL, -- 例: "ATK +20"
+    effect_summary VARCHAR(255) NOT NULL, -- 例: "近接攻撃ダメージ+25%..."
     image_url VARCHAR(255),
-    description TEXT
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE occupations (
@@ -162,9 +161,6 @@ INSERT INTO spots (island_id, area_id, district_id, id, name, map_x, map_y, capt
 
 -- 5. アイテムと神様の投入
 INSERT IGNORE INTO items (id, spot_id, name, buff_target, buff_type, buff_value, description) VALUES
-(1, NULL, 'Garryの短剣', 'attack', 'flat', 5, '初期装備'),
-(2, NULL, 'Quisieの果実', 'stamina', 'flat', 10, '初期装備'),
-(3, NULL, 'Shemの古文書', 'ap_regen', 'flat', 2, '初期装備'),
 (132011, 13201, 'マゼランの木製十字架', 'FAITH_REGEN', 'regen', 20, 'スタミナ回復+20'),
 (132021, 13202, 'サンゴ石のレンガ', 'DEF', 'add_percent', 30, '防御力+30%'),
 (132031, 13203, '新鮮なトロピカルフルーツ', 'DROP_RATE', 'add_percent', 50, 'ドロップ率+50%'),
@@ -193,7 +189,14 @@ INSERT IGNORE INTO items (id, spot_id, name, buff_target, buff_type, buff_value,
 (152011, 15201, '登山家のトレッキングポール', 'ATK', 'add_percent', 15, '攻撃力+15%');
 
 -- 神様データ
-INSERT INTO gods (name, atk_bonus, stamina_bonus, ap_regen_bonus, start_item_id, image_url, description) VALUES 
-('Garry', 20, 0, 0, 1, 'assets/images/gods/Garry.jpg', '戦いの神。初期攻撃力+20'),
-('Quisie', 0, 30, 0, 2, 'assets/images/gods/Quisie.jpg', '大地の女神。初期スタミナ+30'),
-('Shem', 0, 0, 5, 3, 'assets/images/gods/Shem.jpg', '知識の神。AP回復量+5');
+-- godsテーブルのデータをGDD v3.0に更新
+TRUNCATE TABLE gods;
+INSERT INTO gods (id, name, initial_bonus, effect_summary, image_url, description) VALUES
+(1, 'Neil', 'ATK +20', '近接攻撃ダメージ+25%、物理防御力強化', 'assets/gods/Neil.png', '戦いの神。圧倒的な攻撃力を誇る。'),
+(2, 'Garry', 'MAX AP +30', 'タクティカルアビリティのクールダウン-15%', 'assets/gods/Garry.png', '俊敏の神。APの最大値が高い。'),
+(3, 'Shem', 'SOLAR', '昼間戦闘フェーズ中、全弾薬にソーラーバフ付与', 'assets/gods/Shem.png', '太陽の神。日中の戦闘で真価を発揮する。'),
+(4, 'Quisie', 'SILENT', '隠密探知範囲を拡大、足音の静音性+40%', 'assets/gods/Quisie.png', '静寂の神。隠密行動に特化している。'),
+(5, 'Eduardo', 'ARMOR +40', 'アーマー耐久値増加、燃焼ステータス無効化', 'assets/gods/Eduardo.png', '鉄壁の神。高い防御性能を誇る。'),
+(6, 'Kurt', 'SPEED +15', '山岳地帯ダッシュ速度・ジャンプ高度+20%', 'assets/gods/Kurt.png', '疾風の神。険しい地形も苦にしない。'),
+(7, 'Stephen', 'INVIS', '夜間サイクル中の一時的な不可視化', 'assets/gods/Stephen.png', '幻影の神。闇夜に紛れて敵を翻弄する。'),
+(8, 'Bernardine', 'SCAN', '障害物越しのリソース・敵足跡をハイライト', 'assets/gods/Bernardine.png', '洞察の神。戦場のすべてを見通す。');

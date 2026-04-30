@@ -1,3 +1,5 @@
+// server/index.js
+
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -90,7 +92,7 @@ function createInitialGameState(maxPlayers = 4) {
         status: 'waiting', 
         turn: 0, 
         maxTurn: 30, // Day 10 (3ターン×10日分)
-        maxPlayers: maxPlayers, // 👈 部屋ごとの最大人数を設定
+        maxPlayers: maxPlayers,
         turnOwnerId: null, 
         firstPlayerId: null,
         players: {}, 
@@ -306,8 +308,7 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         socket.roomId = roomId;
 
-        // 🚀 【重要】作成者を最初のプレイヤーとして登録（DB連携対応）
-        const teamInfo = TEAM_CONFIG[0]; // 最初の人はレッド
+        const teamInfo = TEAM_CONFIG[0];
         let baseStats = { hp: 100, maxHp: 100, ap: 100, maxAp: 100, atk: 60, def: 45 };
         let godName = "なし";
 
@@ -333,8 +334,8 @@ io.on('connection', (socket) => {
         roomState.players[socket.id] = {
             id: socket.id,
             username: config.username || "Commander",
-            dbUserId: config.id || null, // 👈 DB保存用に必須
-            token: socket.authToken,     // 👈 DB保存用に必須
+            dbUserId: config.id || null,
+            token: socket.authToken,
             godName: godName,
             ...baseStats,
             team: teamInfo.id,
@@ -350,9 +351,7 @@ io.on('connection', (socket) => {
             io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`👼 ${roomState.players[socket.id].username} が【${godName}】の加護を受けてルームを作成！`);
         }
 
-        // 作成直後に自分を含む状態を同期
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
-        
         if (callback) callback({ success: true, roomId: roomId });
     });
 
@@ -419,7 +418,6 @@ io.on('connection', (socket) => {
             io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`👼 ${roomState.players[socket.id].username} が【${godName}】の加護を受けて参戦！`);
         }
 
-        // 共通イベント定数を利用して全員に送信
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
         if (callback) callback({ success: true });
     });
@@ -491,10 +489,8 @@ io.on('connection', (socket) => {
 
         const p = roomState.players[socket.id];
         if (p) {
-            // 状態を更新
             p.isReady = data.ready !== undefined ? data.ready : true;
             
-            // 初期陣地の指定があれば保存
             if (data.startDistrictId) {
                 p.districtId = String(data.startDistrictId);
                 roomState.districts[p.districtId] = socket.id;
@@ -504,9 +500,7 @@ io.on('connection', (socket) => {
             const currentCount = playersArr.length;
             const maxPlayers = roomState.maxPlayers;
 
-            // 🚀 重要：人数が設定値（2人など）に達しており、かつ全員がREADYかチェック
             if (currentCount >= maxPlayers && playersArr.every(pl => pl.isReady)) {
-                // 🚀 ゲーム開始時、districtIdが未設定のNPCに緊急スポーン
                 Object.values(roomState.players).forEach(p => {
                     if (p.isNpc && !p.districtId) {
                         const allDistrictIds = Object.keys(DISTRICTS_MASTER);
@@ -529,7 +523,6 @@ io.on('connection', (socket) => {
                 
                 io.to(roomId).emit(SERVER_EVENTS.GAME_START);
                 
-                // 状態とログを送信
                 io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
                 io.to(roomId).emit(SERVER_EVENTS.TURN_START, { 
                     turn: 1, 
@@ -540,21 +533,19 @@ io.on('connection', (socket) => {
                 
                 console.log(`🎮 [Room ${roomId}] Game Started!`);
             } else {
-                // まだ全員揃っていない場合は現在の状態だけ同期
                 io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
             }
         }
     });
 
     // 🚀 【アクション実行＆ DB保存】
-    socket.on("ACTION_SUBMIT", async (data) => {
+    socket.on(CLIENT_EVENTS.ACTION_SUBMIT, async (data) => {
         const roomId = socket.roomId;
         if (!roomId) return;
         const roomState = rooms.get(roomId);
         if (!roomState) return;
         if (roomState.turnOwnerId !== socket.id) return;
 
-        // レースコンディション対策：同一ターン内の二重送信を拒否
         if (roomState.isProcessingAction) {
             socket.emit(SERVER_EVENTS.ERROR_MESSAGE, "処理中です。少し待ってから再試行してください。");
             return;
@@ -567,10 +558,8 @@ io.on('connection', (socket) => {
             const targetId = String(data.targetId);
             const stats = calculateFinalStats(roomId, socket.id);
 
-            // 毎アクション開始時に防御フラグをリセット（1ターン限定化）
             p.isDefending = false;
 
-            // 隣接チェック（ADJACENT_DISTRICTS にデータがある地区のみ検証）
             const neighbors = ADJACENT_DISTRICTS[String(p.districtId)];
             if (
                 (data.type === 'attack' || data.type === 'move') &&
@@ -604,6 +593,11 @@ io.on('connection', (socket) => {
                             });
                             const dbResult = await response.json();
                             console.log(`✅ [Room ${roomId} DB] 陣地 ${targetId} 制圧:`, dbResult.message || dbResult);
+
+                            // ★追加: PHP側からドロップアイテム情報が返ってきているなら、全員に通知！
+                            if (dbResult.dropped_item) {
+                                io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🎁 ${p.username} が戦利品【${dbResult.dropped_item.name}】を獲得！`);
+                            }
                         } catch (err) {
                             console.error(`❌ [Room ${roomId} DB] 陣地保存失敗:`, err);
                         }
@@ -665,7 +659,7 @@ io.on('connection', (socket) => {
     });
 
     // 🚀 【アイテム使用ロジック】
-    socket.on("ACTION_USE_ITEM", async (data) => {
+    socket.on(CLIENT_EVENTS.ACTION_USE_ITEM, async (data) => {
         const roomId = socket.roomId;
         if (!roomId) return;
         const roomState = rooms.get(roomId);
@@ -733,7 +727,6 @@ io.on('connection', (socket) => {
             rooms.delete(roomId);
         } else {
             io.to(roomId).emit(SERVER_EVENTS.PLAYER_DISCONNECTED, socket.id);
-            // ターン持ち主が退出した場合はターンを強制進行（disconnect と同じ対策）
             if (wasTurnOwner && roomState.status === 'playing') {
                 roomState.isProcessingAction = false;
                 finalizeTurn(roomId, socket.id);
@@ -761,10 +754,8 @@ io.on('connection', (socket) => {
             console.log(`🗑️ Room ${roomId} has been deleted.`);
         } else {
             io.to(roomId).emit(SERVER_EVENTS.PLAYER_DISCONNECTED, socket.id);
-            // ターン持ち主が切断した場合はターンを強制進行（進行不能バグ防止）
-            // socket.id は削除済みのため indexOf=-1 → nextIndex=0 → 残存先頭プレイヤーへ
             if (wasTurnOwner && roomState.status === 'playing') {
-                roomState.isProcessingAction = false; // ロックが残っていれば解除
+                roomState.isProcessingAction = false; 
                 finalizeTurn(roomId, socket.id);
             } else {
                 io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
