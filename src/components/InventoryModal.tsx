@@ -1,5 +1,8 @@
+// src/components/InventoryModal.tsx
+
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../store';
+import socket from '../socket'; // 🚀 Socket インスタンスをインポート
 
 interface Item {
   id: number;
@@ -14,7 +17,7 @@ interface InventoryModalProps {
   onClose: () => void;
 }
 
-// 🚀 島ID定数（他のコンポーネントと統一）
+// 🚀 島ID定数（ID管理シートに基づく）
 const ISLAND_NAMES: Record<number, string> = {
   11: "CEBU",
   12: "MACTAN",
@@ -24,11 +27,11 @@ const ISLAND_NAMES: Record<number, string> = {
 };
 
 export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
-  const { authenticatedFetch, addLog, updateBuffs } = useGameStore();
+  const { authenticatedFetch, addLog } = useGameStore();
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 📦 1. インベントリ取得
+  // 📦 1. インベントリ取得（初期表示用）
   const fetchInventory = async () => {
     setLoading(true);
     try {
@@ -47,21 +50,22 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
     fetchInventory();
   }, []);
 
-  // ⚡ 2. アイテム使用
-  const handleUseItem = async (itemId: number, itemName: string) => {
+  // ⚡ 2. アイテム使用（Socket経由に修正）
+  const handleUseItem = (itemId: number, itemName: string) => {
     try {
-      const json = await authenticatedFetch('use-item.php', {
-        method: 'POST',
-        body: JSON.stringify({ item_id: itemId })
-      });
-
-      if (json.status === 'success') {
-        addLog(`🎒 アイテム使用: ${itemName}！`);
-        updateBuffs();
-        fetchInventory();
-      } else {
-        addLog(`⚠️ ${json.message || '使用できません'}`);
-      }
+      /**
+       * 🚀 修正ポイント:
+       * REST API (PHP) を直接叩かず、Socket でサーバー (Node.js) へアクションを通知します。
+       * これにより、サーバー側の roomState が更新され、全プレイヤーに同期されます。
+       */
+      socket.emit('ACTION_USE_ITEM', { itemId: itemId }); 
+      
+      // バッククォートの閉じ忘れを修正
+      addLog(`🎒 アイテム使用リクエスト送信: ${itemName}`);
+      
+      // UIを閉じて、サーバーからの SYNC_STATE 同期を待ちます
+      onClose(); 
+      
     } catch (e) {
       addLog("❌ アイテム使用中にエラーが発生しました");
     }
@@ -89,7 +93,6 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
           ) : items.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {items.map((item) => {
-                // 🚀 アイテムIDから島名を解析
                 const islandId = Math.floor(item.id / 1000);
                 const islandName = ISLAND_NAMES[islandId];
 
@@ -106,7 +109,6 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
                       <div>
                         <div className="flex justify-between items-start mb-1">
                           <div className="flex flex-col items-start">
-                            {/* 🚀 島名バッジを表示 */}
                             {islandName && (
                               <span className="text-[8px] font-black text-orange-500/80 uppercase tracking-tighter mb-0.5 font-fix">
                                 Origin: {islandName}
@@ -120,12 +122,11 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
                       </div>
                       <button 
                         onClick={() => handleUseItem(item.id, item.name)}
-                        className="mt-3 w-full py-1.5 bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-black uppercase rounded transition-all active:scale-95 shadow-lg shadow-orange-900/20"
+                        className="mt-3 w-full py-1.5 bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-black uppercase rounded transition-all active:scale-95 shadow-lg shadow-orange-900/20 font-fix"
                       >
-                        <span className="font-fix">Use Item</span>
+                        Use Item
                       </button>
                     </div>
-                    {/* 背景装飾 */}
                     <div className="absolute -right-4 -bottom-4 opacity-[0.03] pointer-events-none">
                        <span className="material-symbols-outlined text-8xl italic">inventory_2</span>
                     </div>
@@ -151,6 +152,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
         </div>
       </div>
       
+      {/* 構文エラーを修正したスタイル定義 */}
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: scale(0.95); }
