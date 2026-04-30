@@ -9,7 +9,7 @@ interface ChatMessage {
   timestamp: string;
 }
 
-// 🚀 神々のデータ (GDD v3.0 準拠 [cite: 36])
+// 🚀 神々のデータ
 const GODS_DATA = [
   { id: 1, name: "LAPU-LAPU", role: "WAR GOD", bonus: "ATK +20", img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "島嶼戦における近接攻撃ダメージを25%上昇させ、物理防御力を強化する。" },
   { id: 2, name: "SEBUNA", role: "HARVEST", bonus: "MAX AP +30", img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400", desc: "全分隊員のタクティカルアビリティのクールダウンを15%短縮する。" },
@@ -21,7 +21,6 @@ const GODS_DATA = [
   { id: 8, name: "IDANALE", role: "RECON", bonus: "SCAN", img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=400", desc: "障害物越しの敵やリソースをハイライト表示する。" },
 ];
 
-// 🚀 本番5桁ID体系に対応 [cite: 70, 76, 82]
 const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   11101: { name: "絶品特製チチャロン", effect: "ATK +15%" },
   11102: { name: "夜明けのエナジードリンク", effect: "AP回復速度UP" },
@@ -32,6 +31,7 @@ const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   14102: { name: "カルカル・レチョン", effect: "継続スコアUP" }, 
 };
 
+// 🚀 通信先設定（なおさんの環境に合わせてIPに書き換える準備をしておいてください）
 const API_BASE = "http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api";
 
 type ViewType = 'login' | 'tutorial' | 'setup' | 'lobby' | 'selection' | 'waiting' | 'game' | 'ranking';
@@ -83,6 +83,8 @@ interface GameState {
 
   login: (username: string, password?: string) => Promise<boolean>;
   logout: () => void;
+  // 🚀 なおさんの依頼に基づき追加：マスターデータ同期
+  syncMasterData: () => Promise<void>;
   showError: (message: string) => void;
   hideError: () => void;
   setZoomLevel: (zoom: number) => void; 
@@ -146,6 +148,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   isUnderAttack: false,
   setUnderAttack: (status) => set({ isUnderAttack: status }),
 
+  // 🚀 修正：ログイン成功時に自動で master-data.php を叩くように変更
   login: async (username, password = "password123") => {
     try {
       const res = await fetch(`${API_BASE}/login.php`, {
@@ -169,6 +172,10 @@ export const useGameStore = create<GameState>((set, get) => ({
           ap: user.ap || user.stamina || 100,
           maxAp: user.max_ap || 100,
         });
+
+        // 🚀 なおさんの依頼：ログイン後にマスターデータを同期
+        await get().syncMasterData();
+
         get().addLog(`🔐 認証完了。コマンダー ${user.username} ログイン。`);
         return true;
       }
@@ -176,6 +183,30 @@ export const useGameStore = create<GameState>((set, get) => ({
     } catch (e) {
       get().addLog("❌ サーバー接続失敗");
       return false;
+    }
+  },
+
+  // 🚀 新設：なおさんのマスターデータを取得する処理
+  syncMasterData: async () => {
+    try {
+      // authenticatedFetch を使えば自動的にヘッダーにトークンがセットされます
+      const json = await get().authenticatedFetch('master-data.php');
+      
+      if (json && json.status === 'success') {
+        const { districts, world_state } = json.data;
+        set({
+          districts: districts || {},
+          maxTurn: world_state?.max_turn || 10,
+          turn: world_state?.current_turn || 0
+        });
+        get().addLog("📡 世界情勢（マスターデータ）を同期しました。");
+        
+        // Phaserに地図の再描画を依頼
+        window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: districts } }));
+      }
+    } catch (e) {
+      console.error("Master data sync failed:", e);
+      get().addLog("⚠️ マスターデータの同期に失敗しました。");
     }
   },
 
@@ -222,9 +253,14 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setPlayerName: (name) => set({ playerName: name }),
 
+  // 🚀 重要：なおさんが心配していた「トークンのセット」はここで行っています
   authenticatedFetch: async (url, options = {}) => {
     const { token } = get();
-    const headers = { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}), ...options.headers };
+    const headers = { 
+      'Content-Type': 'application/json', 
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}), 
+      ...options.headers 
+    };
     const res = await fetch(`${API_BASE}/${url}`, { ...options, headers });
     return res.json();
   },
@@ -239,7 +275,6 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   closePrediction: () => set({ predictionModalOpen: false, targetDistrictInfo: null }),
 
-  // 🚀 修正：サーバーからの同期処理を完全にアップデート [cite: 108]
   syncServerState: (data, myId) => {
     if (!data) return;
     const currentState = get();
@@ -250,7 +285,6 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     const myPlayerData = playersArray.find((p: any) => p.id === myId);
     
-    // 🚀 ポイント：自分の現在地（5桁ID）を同期し Phaser に渡す準備をする
     const nextDistrictId = myPlayerData?.districtId ?? myPlayerData?.location ?? currentState.selectedDistrictId;
     const nextHp = myPlayerData?.hp ?? currentState.hp;
     const nextAp = myPlayerData?.ap ?? myPlayerData?.stamina ?? currentState.ap;
@@ -262,11 +296,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     const isGameOver = data.isGameOver ?? currentState.isGameOver;
     const nextMaxPlayers = (data.maxPlayers && data.maxPlayers > 0) ? data.maxPlayers : currentState.maxPlayers;
 
-    // 🚀 最適化：変化があった時だけ一括更新
     if (
       currentState.hp !== nextHp ||
       currentState.ap !== nextAp ||
-      currentState.selectedDistrictId !== nextDistrictId || // 🚀 監視対象に追加
+      currentState.selectedDistrictId !== nextDistrictId || 
       currentState.atk !== nextAtk ||
       currentState.def !== nextDef ||
       currentState.blessing !== nextBlessing ||
@@ -285,7 +318,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         hp: nextHp,
         maxHp: myPlayerData?.maxHp ?? state.maxHp,
         ap: nextAp,
-        selectedDistrictId: nextDistrictId, // 🚀 ここで現在地をストアに固定
+        selectedDistrictId: nextDistrictId, 
         atk: nextAtk,
         def: nextDef,
         blessing: nextBlessing,
@@ -303,7 +336,6 @@ export const useGameStore = create<GameState>((set, get) => ({
         acc[p.id] = p; return acc; 
       }, {});
 
-      // 🚀 Phaser 側へ最新マップデータの描画を依頼
       window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: playersAsObject } }));
       get().updateBuffs();
     }
