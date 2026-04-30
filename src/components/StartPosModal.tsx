@@ -1,41 +1,60 @@
+// src/components/StartPosModal.tsx
 import React, { useMemo } from 'react';
+import { useGameStore } from '../store';
 
-// ✅ 本番マップの spotId（5桁）に対応
+// ✅ 本番マップの spotId（5桁）に対応した出撃候補リスト
 const START_CANDIDATES = [
-  // ── セブ北部エリア（エリアID: 11）──
-  { id: 11101, name: "Maya Port（マヤ港）" },
-  { id: 11102, name: "Sugarcane Field（サトウキビ畑）" },
-  { id: 11108, name: "Farmer House（農家）" },
-  { id: 11112, name: "Bogo Transit Terminal（ボゴバスターミナル）" },
-  { id: 11113, name: "Bogo Hilltop Shrine（ボゴ丘の神社）" },
-  // ── セブ中央エリア（エリアID: 13）──
-  { id: 13101, name: "IT Park（ITパーク）" },
-  { id: 13102, name: "Waterfront Hotel（ウォーターフロントホテル）" },
-  { id: 13103, name: "Ayala Malls Center（アヤラモール）" },
-  { id: 13204, name: "Basilica del Santo Nino（サント・ニーニョ大聖堂）" },
+  // ── セブ北部エリア ──
+  { id: 11101, fallbackName: "Maya Port（マヤ港）" },
+  { id: 11102, fallbackName: "Sugarcane Field（サトウキビ畑）" },
+  { id: 11108, fallbackName: "Farmer House（農家）" },
+  { id: 11112, fallbackName: "Bogo Transit Terminal（ボゴバスターミナル）" },
+  { id: 11113, fallbackName: "Bogo Hilltop Shrine（ボゴ丘の神社）" },
+  // ── セブ中央エリア ──
+  { id: 13101, fallbackName: "IT Park（ITパーク）" },
+  { id: 13102, fallbackName: "Waterfront Hotel（ウォーターフロントホテル）" },
+  { id: 13103, fallbackName: "Ayala Malls Center（アヤラモール）" },
+  { id: 13204, fallbackName: "Basilica del Santo Nino（サント・ニーニョ大聖堂）" },
 ];
-
-// 🚀 エリア名の定義
-const AREA_NAMES: Record<number, string> = {
-  11: "CEBU NORTH SECTOR",
-  13: "CEBU CENTRAL SECTOR",
-};
 
 interface Props {
   onSelect: (id: number) => void;
 }
 
 export const StartPosModal: React.FC<Props> = ({ onSelect }) => {
-  // 🚀 5桁IDの上2桁でグルーピング
+  // ✅ GDD v3.1: ルックアップ辞書を取得
+  const lookupData = useGameStore(state => state.lookupData);
+
+  // 🚀 5桁IDを元に、lookupDataから動的に情報を引き当ててグルーピング
   const groupedCandidates = useMemo(() => {
-    const groups: Record<number, typeof START_CANDIDATES> = {};
-    START_CANDIDATES.forEach(district => {
-      const areaId = Math.floor(district.id / 1000);
+    // ✅ 修正: 値の型を配列（[]）に指定
+    const groups: Record<number, { id: number; name: string; unitId: number }[]> = {};
+    
+    START_CANDIDATES.forEach(candidate => {
+      let areaId = 0;
+      let name = candidate.fallbackName;
+      let unitId = candidate.id % 1000; // フォールバック
+
+      if (lookupData && lookupData.spots && lookupData.districts) {
+        const spot = lookupData.spots.get(candidate.id);
+        if (spot) {
+          name = spot.name; // マスターデータの名称で上書き
+          unitId = spot.id % 100; // GDD v3.1: spot連番は下2桁
+          const district = lookupData.districts.get(spot.parentDistrictId);
+          if (district) {
+            areaId = district.parentAreaId;
+          }
+        }
+      } else {
+        // lookupData が未取得の場合の旧ロジックフォールバック
+        areaId = Math.floor(candidate.id / 1000);
+      }
+
       if (!groups[areaId]) groups[areaId] = [];
-      groups[areaId].push(district);
+      groups[areaId].push({ id: candidate.id, name, unitId });
     });
     return groups;
-  }, []);
+  }, [lookupData]);
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fadeIn">
@@ -52,34 +71,47 @@ export const StartPosModal: React.FC<Props> = ({ onSelect }) => {
         </p>
 
         <div className="flex-1 flex flex-col gap-6 overflow-y-auto custom-scrollbar pr-2">
-          {Object.entries(groupedCandidates).map(([areaId, districts]) => (
-            <div key={areaId} className="space-y-2">
-              {/* 🚀 エリアヘッダー */}
-              <div className="flex items-center gap-2 px-1">
-                <span className="w-1 h-3 bg-orange-500"></span>
-                <span className="text-[10px] font-black text-slate-400 tracking-[0.2em] uppercase font-fix">
-                  {AREA_NAMES[Number(areaId)] || `UNKNOWN SECTOR ${areaId}`}
-                </span>
-              </div>
+          {Object.entries(groupedCandidates).map(([areaIdStr, spots]) => {
+            const areaId = Number(areaIdStr);
+            
+            // ✅ エリア名もマスターデータから動的に取得
+            let areaName = `UNKNOWN SECTOR ${areaId}`;
+            if (lookupData && lookupData.areas) {
+              const area = lookupData.areas.get(areaId);
+              if (area) areaName = area.name.toUpperCase();
+            }
 
-              {/* 地点ボタン */}
-              <div className="grid gap-2">
-                {districts.map(district => (
-                  <button 
-                    key={district.id} 
-                    onClick={() => onSelect(district.id)}
-                    className="flex items-center justify-between p-4 bg-slate-800/40 border border-slate-700/50 hover:bg-orange-500 hover:border-orange-500 hover:text-slate-950 rounded-lg transition-all group pointer-events-auto"
-                  >
-                    <div className="flex flex-col items-start">
-                      <span className="font-mono text-[9px] opacity-50 font-fix group-hover:opacity-100 uppercase">Unit-{district.id % 1000}</span>
-                      <span className="font-black text-[15px] font-fix">{district.name}</span>
-                    </div>
-                    <span className="material-symbols-outlined opacity-0 group-hover:opacity-100 transition-opacity">chevron_right</span>
-                  </button>
-                ))}
+            return (
+              <div key={areaId} className="space-y-2">
+                {/* 🚀 エリアヘッダー */}
+                <div className="flex items-center gap-2 px-1">
+                  <span className="w-1 h-3 bg-orange-500"></span>
+                  <span className="text-[10px] font-black text-slate-400 tracking-[0.2em] uppercase font-fix">
+                    {areaName}
+                  </span>
+                </div>
+
+                {/* 地点ボタン */}
+                <div className="grid gap-2">
+                  {spots.map(spot => (
+                    <button 
+                      key={spot.id} 
+                      onClick={() => onSelect(spot.id)}
+                      className="flex items-center justify-between p-4 bg-slate-800/40 border border-slate-700/50 hover:bg-orange-500 hover:border-orange-500 hover:text-slate-950 rounded-lg transition-all group pointer-events-auto"
+                    >
+                      <div className="flex flex-col items-start">
+                        <span className="font-mono text-[9px] opacity-50 font-fix group-hover:opacity-100 uppercase">
+                          Unit-{String(spot.unitId).padStart(2, '0')}
+                        </span>
+                        <span className="font-black text-[15px] font-fix">{spot.name}</span>
+                      </div>
+                      <span className="material-symbols-outlined opacity-0 group-hover:opacity-100 transition-opacity">chevron_right</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Footer装飾 */}

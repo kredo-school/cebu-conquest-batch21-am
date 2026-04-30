@@ -1,18 +1,8 @@
+// src/components/ActionPanel.tsx
 import React, { useMemo, memo } from 'react';
 import { useGameStore } from '../store';
 import { REACT_TO_PHASER } from '../game/events/PhaserBridge';
 import SoundManager from '../game/SoundManager';
-
-/**
- * 🚀 島ID定数（GDD v3.0 準拠 [cite: 70, 75, 77, 79, 81]）
- */
-const ISLAND_NAMES: Record<number, string> = {
-  11: "CEBU MAINLAND",
-  12: "MACTAN ISLAND",
-  13: "BOHOL",
-  14: "NEGROS",
-  15: "SIQUIJOR"
-};
 
 /**
  * 🛰️ ActionPanel: プレイヤーの戦術アクションを管理する UI コンポーネント
@@ -27,8 +17,11 @@ export const ActionPanel: React.FC = memo(() => {
   const stay = useGameStore(state => state.stay);
   const endTurn = useGameStore(state => state.endTurn);
 
+  // ✅ GDD v3.1: ルックアップ辞書を取得
+  const lookupData = useGameStore(state => state.lookupData);
+
   /**
-   * 🚀 プレイヤーの配置状態を監視 [cite: 61]
+   * 🚀 プレイヤーの配置状態を監視
    */
   const myId = useGameStore(state => state.myId);
   const players = useGameStore(state => state.players);
@@ -38,16 +31,24 @@ export const ActionPanel: React.FC = memo(() => {
   const isDeployed = me && me.districtId && me.districtId > 0;
 
   /**
-   * 🚀 5桁ID解析ロジック（島ID + 地区連番） [cite: 65, 67]
+   * ✅ GDD v3.1: lookupData を使って安全にターゲット情報を取得
    */
   const targetInfo = useMemo(() => {
-    if (!selectedDistrictId) return null;
-    const islandId = Math.floor(selectedDistrictId / 1000);
+    if (!selectedDistrictId || !lookupData || !lookupData.districts) return null;
+
+    const district = lookupData.districts.get(selectedDistrictId);
+    if (!district) return null;
+
+    // parentAreaId から Area と Island の名前を遡って取得（未定義時はフォールバック）
+    const area = lookupData.areas?.get(district.parentAreaId);
+    const island = lookupData.islands?.get(area?.parentIslandId);
+
     return {
-      island: ISLAND_NAMES[islandId] || "UNKNOWN SECTOR",
-      code: `${islandId}-${selectedDistrictId % 1000}`
+      island: island?.name?.toUpperCase() || area?.name?.toUpperCase() || "UNKNOWN SECTOR",
+      code: selectedDistrictId, // 例: 131
+      name: district.name       // 例: Neon Citadel
     };
-  }, [selectedDistrictId]);
+  }, [selectedDistrictId, lookupData]);
 
   /**
    * 🚀 拠点選択（デプロイ）確定処理
@@ -56,7 +57,7 @@ export const ActionPanel: React.FC = memo(() => {
     if (!selectedDistrictId) return;
     try { SoundManager.playSe('click'); } catch(e) {}
     
-    // 🚀 PhaserBridge 経由で出撃確定。Payload キー名を GDD v3.0 仕様に完全一致 [cite: 93, 97]
+    // 🚀 PhaserBridge 経由で出撃確定。Payload キー名を GDD v3.0 仕様に完全一致
     window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, { 
       detail: { startDistrictId: selectedDistrictId } 
     }));
@@ -77,7 +78,8 @@ export const ActionPanel: React.FC = memo(() => {
             {targetInfo ? (
               <div className="flex flex-col items-center">
                 <h2 className="text-2xl font-black italic uppercase tracking-tighter font-fix text-white mb-1">📍 {targetInfo.island}</h2>
-                <span className="text-orange-500 font-mono text-sm font-bold bg-orange-500/10 px-3 py-0.5 rounded border border-orange-500/20 uppercase">SEC-{targetInfo.code}</span>
+                {/* ✅ 地区IDと地区名を表示 */}
+                <span className="text-orange-500 font-mono text-sm font-bold bg-orange-500/10 px-3 py-0.5 rounded border border-orange-500/20 uppercase">SEC-{targetInfo.code} : {targetInfo.name}</span>
               </div>
             ) : (
               <h2 className="text-2xl font-black italic uppercase tracking-tighter font-fix text-orange-600 animate-pulse">🗺️ Select Your Starting Base</h2>
@@ -101,7 +103,7 @@ export const ActionPanel: React.FC = memo(() => {
   }
 
   /**
-   * 2. 【待機フェーズ】 相手のターン中 [cite: 59]
+   * 2. 【待機フェーズ】 相手のターン中
    */
   if (!isMyTurn) {
     return (
@@ -115,7 +117,7 @@ export const ActionPanel: React.FC = memo(() => {
   }
 
   /**
-   * 3. 【行動フェーズ】 自分のターン：メインアクション [cite: 27, 59, 106]
+   * 3. 【行動フェーズ】 自分のターン：メインアクション
    */
   const canAttack = selectedDistrictId && ap >= 5;
 
@@ -124,7 +126,7 @@ export const ActionPanel: React.FC = memo(() => {
       <div className="flex-1"></div>
       <div className="flex gap-3 items-end pointer-events-auto">
         
-        {/* ⚔️ Engagement (攻撃) - AP 5 消費 [cite: 27] */}
+        {/* ⚔️ Engagement (攻撃) - AP 5 消費 */}
         <button 
           onClick={() => { if (selectedDistrictId) { try { SoundManager.playSe('click'); } catch(e) {} attack(selectedDistrictId); } }} 
           disabled={!canAttack}
@@ -138,7 +140,7 @@ export const ActionPanel: React.FC = memo(() => {
           <div className="absolute top-0 right-0 p-1 opacity-20 text-[8px] font-mono uppercase">Cost: 5 AP</div>
         </button>
 
-        {/* 🧘 Neural Recover (回復) - Stay アクション [cite: 27] */}
+        {/* 🧘 Neural Recover (回復) - Stay アクション */}
         <button 
           onClick={() => { try { SoundManager.playSe('click'); } catch(e) {} stay(); }} 
           className="group bg-slate-900/90 backdrop-blur-xl border border-white/10 text-slate-400 rounded-2xl font-black hover:bg-slate-800 hover:text-white transition-all active:scale-95 flex flex-col items-center justify-center gap-1 w-32 h-28 text-sm shadow-2xl"
@@ -147,7 +149,7 @@ export const ActionPanel: React.FC = memo(() => {
           <span className="font-fix uppercase tracking-widest text-[9px]">Recover</span>
         </button>
 
-        {/* 🚀 Turn End (ターン終了承認) [cite: 59, 106] */}
+        {/* 🚀 Turn End (ターン終了承認) */}
         <button 
           onClick={() => { try { SoundManager.playSe('click'); } catch(e) {} endTurn(); }} 
           className="group bg-blue-950/40 border-2 border-blue-500/30 text-blue-400 rounded-2xl font-black hover:bg-blue-600 hover:text-white hover:border-blue-400 transition-all active:scale-95 flex flex-col items-center justify-center gap-1 w-32 h-28 text-sm shadow-[0_0_20px_rgba(59,130,246,0.2)]"

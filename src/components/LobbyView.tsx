@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import socket from '../socket';
 import { useGameStore } from '../store';
 import SoundManager from '../game/SoundManager';
-import { CLIENT_EVENTS } from '../../shared/socketEvents.js'; //
+import { CLIENT_EVENTS } from '../../shared/socketEvents.js';
 
 /**
  * 🚀 プレイヤー/NPCカード・コンポーネント
@@ -42,7 +42,8 @@ const PlayerCard = ({ player, isMe }: { player: any; isMe: boolean }) => {
           </span>
           <span className="font-black text-white uppercase text-sm truncate max-w-[140px] font-fix">
             {isNPC && <span className="text-red-500 mr-1">[BOT]</span>}
-            {player.name || player.username || "Unknown"}
+            {/* ✅ player.name を優先参照するように統一 */}
+            {player.name || player.username || "Unknown Operator"}
           </span>
         </div>
         {player.isReady && (
