@@ -64,11 +64,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
     }
   };
 
-  // ── return 以下は変更なし ──
-  return (
-    // ... (元のJSXそのまま)
-  );
-};
+
 
   return (
     <div className="fixed inset-0 z-[200000] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-sm">
