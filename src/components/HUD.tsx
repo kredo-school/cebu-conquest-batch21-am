@@ -2,9 +2,18 @@
 import React, { useEffect, useState, useMemo, memo } from 'react';
 import { useGameStore } from '../store';
 
-interface HUDProps {}
+type HUDProps = object;
 
-let globalPhaseTracker = {
+// 🚀 島ID定数（Sidebarと統一）
+const ISLAND_NAMES: Record<number, string> = {
+  11: "CEBU MAINLAND",
+  12: "MACTAN ISLAND",
+  13: "BOHOL",
+  14: "NEGROS",
+  15: "SIQUIJOR"
+};
+
+const globalPhaseTracker = {
   lastTurn: -1,
   played: false
 };
@@ -71,6 +80,7 @@ export const HUD: React.FC<HUDProps> = memo(() => {
     if (isMyTurn && !isSubmitted && turn > 0 && !globalPhaseTracker.played) {
       if (isPhaseAnimationEnabled) {
         globalPhaseTracker.played = true;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setShowPhase(true);
         const timer = setTimeout(() => setShowPhase(false), 3500);
         return () => clearTimeout(timer);

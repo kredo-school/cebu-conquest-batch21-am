@@ -22,8 +22,6 @@ export const WaitingView: React.FC<WaitingViewProps> = ({ onStart }) => {
   const { players, myId, chatLogs, maxPlayers } = useGameStore();
   const [chatInput, setChatInput] = useState('');
 
-  const myPlayer = players.find(p => p.id === myId);
-
   return (
     <div className="font-body antialiased overflow-hidden w-full h-full flex flex-col bg-slate-950 text-slate-50 selection:bg-orange-500/30">
       <style>{`

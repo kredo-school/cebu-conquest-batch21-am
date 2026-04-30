@@ -1,5 +1,3 @@
-// src/components/InventoryModal.tsx
-
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../store';
 import socket from '../socket'; 
@@ -32,7 +30,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
       if (json.status === 'success') {
         setItems(json.data);
       }
-    } catch (e) {
+    } catch {
       addLog("❌ インベントリの取得に失敗しました");
     } finally {
       setLoading(false);
@@ -63,6 +61,8 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
     // UIを閉じ、サーバーからの SYNC_STATE ブロードキャストによる状態更新を待ちます
     onClose(); 
   };
+
+
 
   return (
     <div className="fixed inset-0 z-[200000] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-sm">

@@ -50,12 +50,12 @@ export const ActionPanel: React.FC = memo(() => {
     };
   }, [selectedDistrictId, lookupData]);
 
-  /**
+/**
    * 🚀 拠点選択（デプロイ）確定処理
    */
   const handleDeploy = () => {
     if (!selectedDistrictId) return;
-    try { SoundManager.playSe('click'); } catch(e) {}
+    try { SoundManager.playSe('click'); } catch {}
     
     // 🚀 PhaserBridge 経由で出撃確定。Payload キー名を GDD v3.0 仕様に完全一致
     window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, { 
@@ -128,7 +128,7 @@ export const ActionPanel: React.FC = memo(() => {
         
         {/* ⚔️ Engagement (攻撃) - AP 5 消費 */}
         <button 
-          onClick={() => { if (selectedDistrictId) { try { SoundManager.playSe('click'); } catch(e) {} attack(selectedDistrictId); } }} 
+          onClick={() => { if (selectedDistrictId) { try { SoundManager.playSe('click'); } catch {} attack(selectedDistrictId); } }} 
           disabled={!canAttack}
           className={`group relative overflow-hidden rounded-2xl font-black italic tracking-widest transition-all duration-200 flex flex-col items-center justify-center gap-1 w-40 h-28 text-xl
             ${canAttack 
@@ -142,7 +142,7 @@ export const ActionPanel: React.FC = memo(() => {
 
         {/* 🧘 Neural Recover (回復) - Stay アクション */}
         <button 
-          onClick={() => { try { SoundManager.playSe('click'); } catch(e) {} stay(); }} 
+          onClick={() => { try { SoundManager.playSe('click'); } catch {} stay(); }} 
           className="group bg-slate-900/90 backdrop-blur-xl border border-white/10 text-slate-400 rounded-2xl font-black hover:bg-slate-800 hover:text-white transition-all active:scale-95 flex flex-col items-center justify-center gap-1 w-32 h-28 text-sm shadow-2xl"
         >
           <span className="material-symbols-outlined text-emerald-400 text-3xl group-hover:scale-110 transition-transform">monitoring</span>
@@ -151,7 +151,7 @@ export const ActionPanel: React.FC = memo(() => {
 
         {/* 🚀 Turn End (ターン終了承認) */}
         <button 
-          onClick={() => { try { SoundManager.playSe('click'); } catch(e) {} endTurn(); }} 
+          onClick={() => { try { SoundManager.playSe('click'); } catch {} endTurn(); }} 
           className="group bg-blue-950/40 border-2 border-blue-500/30 text-blue-400 rounded-2xl font-black hover:bg-blue-600 hover:text-white hover:border-blue-400 transition-all active:scale-95 flex flex-col items-center justify-center gap-1 w-32 h-28 text-sm shadow-[0_0_20px_rgba(59,130,246,0.2)]"
         >
           <span className="material-symbols-outlined text-3xl group-hover:rotate-180 transition-transform duration-500">logout</span>

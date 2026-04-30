@@ -36,7 +36,7 @@ export const BattleModal: React.FC = memo(() => {
     const handleIncomingAttack = () => {
       if (!useGameStore.getState().isMyTurn) {
         setUnderAttack(true);
-        try { SoundManager.playSe('alert'); } catch(e) {}
+        try { SoundManager.playSe('alert'); } catch {}
       }
     };
     window.addEventListener('INCOMING_ATTACK', handleIncomingAttack);
@@ -44,13 +44,13 @@ export const BattleModal: React.FC = memo(() => {
   }, [setUnderAttack]);
 
   const handleDefense = () => {
-    try { SoundManager.playSe('click'); } catch(e) {}
+    try { SoundManager.playSe('click'); } catch {}
     addLog("🛡️ 防御態勢を展開！ダメージを軽減します。");
     setUnderAttack(false);
   };
 
   const handleEscape = () => {
-    try { SoundManager.playSe('click'); } catch(e) {}
+    try { SoundManager.playSe('click'); } catch {}
     escape();
     setUnderAttack(false);
   };
@@ -102,7 +102,7 @@ export const BattleModal: React.FC = memo(() => {
 
   const handleExecute = () => {
     if (!targetDistrictInfo) return;
-    try { SoundManager.playSe('click'); } catch(e) {}
+    try { SoundManager.playSe('click'); } catch {}
     if (isMyTerritory) {
       move(targetDistrictInfo.id);
     } else {

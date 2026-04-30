@@ -29,7 +29,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
   // 🚀 GDD v3.1: lookupDataを使用して安全に領土をグループ化
   const territorySummary = useMemo(() => {
     const myDistricts = Object.entries(districts)
-      .filter(([_, ownerId]) => ownerId === myId)
+      .filter(([, ownerId]) => ownerId === myId)
       .map(([id]) => Number(id));
 
     const groups: Record<number, { name: string; ids: number[] }> = {};
