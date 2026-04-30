@@ -9,46 +9,58 @@ interface ResultViewProps {
   onOpenRanking: () => void;
 }
 
+/**
+ * 🏆 ResultView: ミッション完了後の戦績表示
+ * 仕様: GDD v3.1 準拠 / POST /api/result への自動保存
+ */
 export const ResultView: React.FC<ResultViewProps> = ({ 
   onRestart, onOpenSettings, onOpenHelp, onOpenRanking 
 }) => {
   const { 
     isGameOver, winnerId, myId, playerName, districts, 
-    hp, maxHp, turn, players, godsList,
-    authenticatedFetch // ✅ GDD準拠: スコア保存APIを叩くために追加
+    turn, players, godsList,
+    authenticatedFetch 
   } = useGameStore();
 
-  // ✅ 二重送信防止用のフラグ
+  // 二重送信防止フラグ
   const hasSavedResult = useRef(false);
 
-  // ゲームオーバー中でなければ何も表示しない
-  if (!isGameOver) return null;
+  // 🏆 勝者解析
+  const isWinner = useMemo(() => winnerId === myId, [winnerId, myId]);
+  
+  const winnerPlayer = useMemo(() => 
+    players.find(p => p.id === winnerId), 
+  [players, winnerId]);
 
-  // 🏆 勝者とデータの解析
-  const isWinner = winnerId === myId;
-  const winnerPlayer = players.find(p => p.id === winnerId);
-  const winnerGod = godsList.find(g => g.id === winnerPlayer?.selectedGodId) || godsList[0];
+  const winnerGod = useMemo(() => 
+    godsList.find(g => g.id === winnerPlayer?.selectedGodId) || godsList[0], 
+  [godsList, winnerPlayer]);
 
-  // 📊 詳細戦績の計算
+  // 📊 詳細戦績の計算 (GDD v3.1 準拠)
   const stats = useMemo(() => {
-    const myDistricts = Object.values(districts).filter(id => id === myId).length;
-    const totalDistricts = Math.max(1, Object.keys(districts).length);
-    const territoryPercent = Math.round((myDistricts / totalDistricts) * 100);
-    const score = isWinner ? 85400 + (myDistricts * 1200) : 12400 + (myDistricts * 800);
+    const myDistrictsCount = Object.values(districts).filter(id => id === myId).length;
+    const totalDistrictsCount = Math.max(1, Object.keys(districts).length);
+    const territoryPercent = Math.round((myDistrictsCount / totalDistrictsCount) * 100);
+    
+    // スコア計算ロジック（デモ用定数）
+    const baseScore = isWinner ? 85400 : 12400;
+    const districtBonus = myDistrictsCount * (isWinner ? 1200 : 800);
+    const totalScore = baseScore + districtBonus;
 
     return {
-      captured: myDistricts,
-      total: totalDistricts,
+      captured: myDistrictsCount,
+      total: totalDistrictsCount,
       percent: territoryPercent,
       turns: turn,
-      score: score
+      score: totalScore
     };
   }, [districts, myId, turn, isWinner]);
 
-  // ✅ GDD準拠: リザルトの保存 (POST /api/result)
+  // ✅ GDD準拠: リザルトの永続化 (なお担当の PHP API へ送信)
   useEffect(() => {
     if (isGameOver && !hasSavedResult.current) {
       hasSavedResult.current = true;
+      
       authenticatedFetch('result.php', {
         method: 'POST',
         body: JSON.stringify({
@@ -58,9 +70,14 @@ export const ResultView: React.FC<ResultViewProps> = ({
           captured_districts: stats.captured,
           occupancy_percent: stats.percent
         })
-      }).catch(e => console.error("Result save failed:", e));
+      }).catch(e => {
+        console.error("Result save failed:", e);
+        hasSavedResult.current = false; // 失敗時は再送を許可
+      });
     }
   }, [isGameOver, isWinner, stats, authenticatedFetch]);
+
+  if (!isGameOver) return null;
 
   // 🎨 テーマ設定
   const theme = {
@@ -111,8 +128,12 @@ export const ResultView: React.FC<ResultViewProps> = ({
           CEBU CONQUEST // OPERATION ARCHIVE
         </div>
         <div className="flex gap-4">
-          <button onClick={onOpenHelp} className="p-2 hover:bg-zinc-800 rounded-lg transition-all"><span className="material-symbols-outlined text-cyan-400">help</span></button>
-          <button onClick={onOpenSettings} className="p-2 hover:bg-zinc-800 rounded-lg transition-all"><span className="material-symbols-outlined text-zinc-400">settings</span></button>
+          <button onClick={onOpenHelp} className="p-2 hover:bg-zinc-800 rounded-lg transition-all">
+            <span className="material-symbols-outlined text-cyan-400">help</span>
+          </button>
+          <button onClick={onOpenSettings} className="p-2 hover:bg-zinc-800 rounded-lg transition-all">
+            <span className="material-symbols-outlined text-zinc-400">settings</span>
+          </button>
         </div>
       </nav>
 
@@ -122,62 +143,62 @@ export const ResultView: React.FC<ResultViewProps> = ({
         {/* Result Banner */}
         <div className="text-center mb-12">
           <div className="text-zinc-500 text-xs font-black tracking-[0.6em] uppercase mb-2 font-fix">Neural Link Closed</div>
-          <h1 className={`text-8xl md:text-[10rem] font-black italic uppercase ${theme.primaryText} leading-none tracking-tighter font-fix ${!isWinner && 'animate-glitch'}`}>
+          <h1 className={`text-7xl md:text-[9rem] font-black italic uppercase ${theme.primaryText} leading-none tracking-tighter font-fix ${!isWinner && 'animate-glitch'}`}>
             {theme.mainTitle}
           </h1>
           <div className="flex items-center justify-center gap-6 mt-4">
-            <div className={`h-[2px] w-24 bg-gradient-to-r from-transparent to-${isWinner ? 'orange' : 'red'}-500`}></div>
+            <div className={`h-[2px] w-24 bg-gradient-to-r from-transparent to-${isWinner ? 'orange-500' : 'red-500'}`}></div>
             <p className="text-white font-black text-2xl uppercase tracking-widest font-fix italic">{theme.jpTitle}</p>
-            <div className={`h-[2px] w-24 bg-gradient-to-l from-transparent to-${isWinner ? 'orange' : 'red'}-500`}></div>
+            <div className={`h-[2px] w-24 bg-gradient-to-l from-transparent to-${isWinner ? 'orange-500' : 'red-500'}`}></div>
           </div>
         </div>
 
-        {/* Bento Grid */}
+        {/* Bento Grid Layout */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl w-full mb-12">
           
-          {/* Winner God Portrait */}
-          <div className={`relative bg-zinc-900/80 backdrop-blur-xl border-2 ${theme.border} p-1 rounded-2xl overflow-hidden shadow-2xl`}>
+          {/* God Portrait */}
+          <div className={`relative aspect-square md:aspect-auto bg-zinc-900/80 backdrop-blur-xl border-2 ${theme.border} p-1 rounded-2xl overflow-hidden shadow-2xl`}>
             <img 
-              className="w-full h-full object-cover grayscale-[0.3] brightness-75" 
+              className="w-full h-full object-cover grayscale-[0.2] brightness-90 transition-transform duration-700 hover:scale-110" 
               src={winnerGod.img} 
-              alt="Winner God" 
+              alt={winnerGod.name} 
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
             <div className="absolute bottom-4 left-4 text-left">
-              <div className="text-[10px] text-orange-500 font-black uppercase tracking-widest font-fix">Active God</div>
+              <div className="text-[10px] text-orange-500 font-black uppercase tracking-widest font-fix">Divine Support</div>
               <div className="text-2xl font-black text-white italic font-fix uppercase">{winnerGod.name}</div>
             </div>
           </div>
 
-          {/* Detailed Statistics */}
+          {/* Stats Summary */}
           <div className={`bg-zinc-900/60 backdrop-blur-xl border ${theme.border} p-8 md:col-span-2 rounded-2xl flex flex-col justify-center`}>
-            <div className="grid grid-cols-2 sm:grid-cols-2 gap-y-10 gap-x-8 text-left">
+            <div className="grid grid-cols-2 gap-y-10 gap-x-8 text-left">
               
               <div className="space-y-1">
-                <div className="text-zinc-500 text-[10px] uppercase font-black tracking-widest font-fix">Operator Info</div>
-                <div className="text-3xl font-black text-white italic font-fix uppercase">{playerName || "GUEST_USER"}</div>
-                <div className="text-[9px] text-zinc-600 font-mono">STATUS: {isWinner ? 'COMMISSIONED' : 'TERMINATED'}</div>
+                <div className="text-zinc-500 text-[10px] uppercase font-black tracking-widest font-fix">Commander</div>
+                <div className="text-3xl font-black text-white italic font-fix uppercase truncate">{playerName || "GUEST_UNIT"}</div>
+                <div className="text-[9px] text-zinc-600 font-mono tracking-tighter">ID: {myId.substring(0,8)}...</div>
               </div>
 
               <div className="space-y-1">
-                <div className="text-zinc-500 text-[10px] uppercase font-black tracking-widest font-fix">Survival Time</div>
-                <div className="text-3xl font-black text-white italic font-fix">{stats.turns} <span className="text-sm">TURNS</span></div>
-                <div className={`h-1 w-full bg-zinc-800 mt-2`}>
-                  <div className={`h-full ${theme.secondaryText.replace('text-', 'bg-')}`} style={{ width: `${Math.min(100, (stats.turns/10)*100)}%` }}></div>
+                <div className="text-zinc-500 text-[10px] uppercase font-black tracking-widest font-fix">Operation Time</div>
+                <div className="text-3xl font-black text-white italic font-fix">{stats.turns} / 10 <span className="text-sm">TURNS</span></div>
+                <div className="h-1 w-full bg-zinc-800 mt-2">
+                  <div className={`h-full ${isWinner ? 'bg-cyan-500' : 'bg-orange-600'}`} style={{ width: `${(stats.turns/10)*100}%` }}></div>
                 </div>
               </div>
 
               <div className="space-y-1">
-                <div className="text-zinc-500 text-[10px] uppercase font-black tracking-widest font-fix">Territory Expansion</div>
+                <div className="text-zinc-500 text-[10px] uppercase font-black tracking-widest font-fix">Territory Control</div>
                 <div className={`text-3xl font-black italic ${theme.secondaryText} font-fix`}>
-                  {stats.captured} / {stats.total} <span className="text-sm">UNITS</span>
+                  {stats.captured} <span className="text-sm">DOMINATED</span>
                 </div>
-                <p className="text-[9px] text-zinc-600 font-bold uppercase">Occupation: {stats.percent}%</p>
+                <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">Global Occupancy: {stats.percent}%</p>
               </div>
 
               <div className="space-y-1">
-                <div className="text-zinc-500 text-[10px] uppercase font-black tracking-widest font-fix">Evaluation Score</div>
-                <div className="text-5xl font-black text-white italic font-fix tracking-tighter drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">
+                <div className="text-zinc-500 text-[10px] uppercase font-black tracking-widest font-fix">Combat Rating</div>
+                <div className="text-5xl font-black text-white italic font-fix tracking-tighter">
                   {stats.score.toLocaleString()}
                 </div>
               </div>
@@ -186,15 +207,15 @@ export const ResultView: React.FC<ResultViewProps> = ({
           </div>
         </div>
 
-        {/* Actions */}
+        {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-6 w-full max-w-2xl">
           <button 
             onClick={onRestart}
-            className={`flex-1 group relative overflow-hidden ${theme.buttonBg} py-5 px-10 transition-all active:scale-95 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.5)]`}
+            className={`flex-1 group relative overflow-hidden ${theme.buttonBg} py-5 px-10 transition-all active:scale-95 rounded-xl shadow-lg`}
           >
             <div className="relative z-10 flex items-center justify-center gap-4 text-white font-black uppercase italic text-xl tracking-tighter font-fix">
               <span className="material-symbols-outlined">refresh</span>
-              Neural Re-Link
+              Next Operation
             </div>
             <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
           </button>
@@ -204,16 +225,16 @@ export const ResultView: React.FC<ResultViewProps> = ({
             className="flex-1 bg-zinc-900 border border-zinc-700 hover:border-orange-500/50 py-5 px-10 transition-all active:scale-95 rounded-xl flex items-center justify-center gap-4 text-zinc-400 hover:text-white"
           >
             <span className="material-symbols-outlined">leaderboard</span>
-            <span className="font-black uppercase italic text-xl tracking-tighter font-fix">Global Rankings</span>
+            <span className="font-black uppercase italic text-xl tracking-tighter font-fix">Leaderboard</span>
           </button>
         </div>
 
       </main>
 
-      {/* Footer decoration */}
-      <footer className="fixed bottom-6 w-full opacity-20 pointer-events-none px-12 flex justify-between items-center">
-         <span className="text-[9px] font-mono">B21-AM // CEBU_CONQUEST_SYSTEM</span>
-         <span className="text-[9px] font-mono">ENCRYPTION: AES-256-GCM</span>
+      {/* Footer deco */}
+      <footer className="fixed bottom-6 w-full opacity-30 pointer-events-none px-12 flex justify-between items-center text-[8px] font-mono tracking-widest">
+         <span>B21-AM // CEBU_CONQUEST_FINAL</span>
+         <span>SYSTEM_OK // LINK_TERMINATED</span>
       </footer>
     </div>
   );
