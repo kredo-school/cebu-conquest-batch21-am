@@ -26,6 +26,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
   const fetchInventory = async () => {
     setLoading(true);
     try {
+      // 🚀 なお（PHP担当）のエンドポイントを叩く
       const json = await authenticatedFetch('get-inventory.php');
       if (json.status === 'success') {
         setItems(json.data);
@@ -41,19 +42,19 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
     fetchInventory();
   }, []);
 
-  // ⚡ 2. アイテム使用（GDD v3.1 準拠：Socket経由）
+  // ⚡ 2. アイテム使用（GDD v3.1 準拠：Socket経由に完全移行）
   const handleUseItem = (itemId: number, itemName: string) => {
     /**
      * 🚀 実装ポイント:
-     * リアルタイム戦況に影響を与えるアクションのため、Node.js サーバーへ送信します。
-     * サーバー側の roomState が更新され、全プレイヤーに同期 (SYNC_STATE) されます。
+     * リアルタイム戦況（HP/AP/ATK/DEF）に影響を与えるアクションのため、
+     * 改ざん防止の観点から Node.js サーバー（けい担当）へ送信します。
      */
     if (!socket.connected) {
       addLog("❌ 通信エラー: サーバーに接続されていません");
       return;
     }
 
-    // 文字列直書き禁止ルール遵守
+    // ✅ 文字列直書き禁止ルール遵守
     socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId: itemId }); 
     
     addLog(`🎒 アイテム使用指令を送信: ${itemName}`);
