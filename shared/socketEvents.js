@@ -12,6 +12,8 @@ export const CLIENT_EVENTS = {
   PLAYER_READY:      "PLAYER_READY",
   LEAVE_ROOM:        "LEAVE_ROOM",
   SEND_CHAT:         "SEND_CHAT",
+  ACTION_USE_ITEM:   "ACTION_USE_ITEM",
+  ADD_NPC_REQUEST: 'add_npc_request',
 };
 
 // サーバー → クライアント
