@@ -1,3 +1,4 @@
+// src/App.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import socket from './socket';
 import { useGameStore } from './store';
@@ -20,13 +21,19 @@ import { InventoryModal } from './components/InventoryModal';
 import { TutorialView } from './components/TutorialView'; 
 import { ErrorNotification } from './components/ErrorNotification'; 
 
+// 🚀 追加：カスタムフック（通信司令塔）
+import { useGameEvents } from './hook/useGameEvents';
+
 // 🔴 ブリッジ定数とイベント定数
 import { PHASER_TO_REACT } from './game/events/PhaserBridge';
 import { SERVER_EVENTS } from '../shared/socketEvents.js';
 
 const App: React.FC = () => {
+  // 🛰️ 通信イベントの監視を開始（NPC更新やステータス同期をバックグラウンドで実行）
+  useGameEvents();
+
   const { 
-    setStatus, syncServerState, addLog, showError,
+    setStatus, addLog,
     playerName: storePlayerName,
     token,
     hasSeenTutorial, 
@@ -68,7 +75,7 @@ const App: React.FC = () => {
     }, 2500);
   }, [isDeploying, setView]);
 
-  // 🚀 3. Socket & Phaser 連携（神経系の中枢）
+  // 🚀 3. Phaser ↔ React 連携（UI的な橋渡し）
   useEffect(() => {
     // デバッグ用：グローバルからストアを覗けるように設定
     (window as any).useGameStore = useGameStore;
@@ -86,34 +93,9 @@ const App: React.FC = () => {
       triggerDeploySequence(); 
     });
 
-    // ターン開始・状態同期
-    socket.on(SERVER_EVENTS.TURN_START, (data) => {
-      if (!socket.id) return;
-      syncServerState(data, socket.id);
-      const isMe = data.turnOwnerId === socket.id;
-      addLog(`📢 Day ${data.turn} 開始！ ${isMe ? '⚔️ あなたのターン' : `⌛ 相手（${data.turnOwnerName}）のターン`}`);
-    });
-
-    socket.on(SERVER_EVENTS.SYNC_STATE, (state) => {
-      const current = useGameStore.getState();
-      if (current.isGameOver) return;
-      if (socket.id) syncServerState(state, socket.id);
-    });
-
-    // ゲーム終了
+    // ゲーム終了のUI反映
     socket.on(SERVER_EVENTS.GAME_OVER, (data) => {
       setStatus({ isGameOver: true, winnerId: data.winnerId });
-    });
-
-    // エラーハンドリング
-    socket.on(SERVER_EVENTS.ERROR_MESSAGE, (msg: string) => {
-      showError(msg); 
-      addLog(`⚠️ SERVER: ${msg}`);
-    });
-
-    socket.on(SERVER_EVENTS.ACTION_REJECTED, (data: any) => {
-      const msg = data.reason || data.message || "ACTION REJECTED";
-      showError(msg);
     });
 
     // 🚀 LOD連携：Phaserからのズーム情報をHUDに反映
@@ -148,17 +130,14 @@ const App: React.FC = () => {
     window.addEventListener(PHASER_TO_REACT.ZOOM_UPDATED, handleZoomUpdate);
 
     return () => {
-      socket.off(SERVER_EVENTS.TURN_START);
-      socket.off(SERVER_EVENTS.SYNC_STATE);
       socket.off(SERVER_EVENTS.GAME_START);
       socket.off(SERVER_EVENTS.COMMENCE_OPERATION); 
-      socket.off(SERVER_EVENTS.ERROR_MESSAGE);
-      socket.off(SERVER_EVENTS.ACTION_REJECTED);
+      socket.off(SERVER_EVENTS.GAME_OVER);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleDistrictSelected);
       window.removeEventListener(PHASER_TO_REACT.ZOOM_UPDATED, handleZoomUpdate);
     };
-  }, [setStatus, syncServerState, addLog, showError, setZoomLevel, openPrediction, triggerDeploySequence, setView]);
+  }, [setStatus, addLog, setZoomLevel, openPrediction, triggerDeploySequence, setView]);
 
   // 🚀 ビュー制御ハンドラ
   const handleOpenRanking = () => setView('ranking');

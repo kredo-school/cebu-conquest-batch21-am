@@ -1,3 +1,4 @@
+// src/components/GodSelectionView.tsx
 import React, { useState, memo, useMemo } from 'react';
 import { useGameStore } from '../store';
 import { REACT_TO_PHASER } from '../game/events/PhaserBridge';
@@ -9,15 +10,19 @@ interface GodSelectionViewProps {
   onBack: () => void;
 }
 
+// ✅ 修正：textureKey を追加。MainScene.js の preload で定義している
+//    GOD_IMAGES の key と完全一致させる必要がある。
+//    id（number）を godKey として送っていたため MainScene 側で
+//    textures.exists(1) が false になりアバターが表示されないバグを修正。
 const GOD_SLOTS = [
-  { id: 1, name: "ラプラプの加護", role: "WAR", bonus: "ATK +20", img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "島嶼戦における近接攻撃ダメージを25%上昇させ、物理防御力を強化する。" },
-  { id: 2, name: "マクタンの知恵", role: "STRATEGIST", bonus: "MAX AP +30", img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400", desc: "全分隊員のタクティカルアビリティのクールダウンを15%短縮する。" },
-  { id: 3, name: "アポ・ラキの怒り", role: "BURN", bonus: "SOLAR", img: "https://images.unsplash.com/photo-1533240332313-0db49b459ad6?q=80&w=400", desc: "昼間戦闘フェーズ中、全ての弾薬にソーラーバーン（焼尽）効果を付与する。" },
-  { id: 4, name: "マヤリの静寂", role: "STEALTH", bonus: "SILENT", img: "https://images.unsplash.com/photo-1506466010722-395aa2bef877?q=80&w=400", desc: "隠密探知範囲を拡大し、足音の静音性を40%向上させる。" },
-  { id: 5, name: "ルマウィグの力", role: "HEAVY", bonus: "ARMOR +40", img: "https://images.unsplash.com/photo-1584281722573-0f723675017e?q=80&w=400", desc: "アーマーの耐久値を増加させ、燃焼ステータス効果を無効化する。" },
-  { id: 6, name: "ハヌマンの疾風", role: "SUPPORT", bonus: "SPEED +15", img: "https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?q=80&w=400", desc: "山岳地帯におけるダッシュ速度とジャンプ高度を20%向上させる。" },
-  { id: 7, name: "バクナワの影", role: "SHADOW", bonus: "INVIS", img: "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?q=80&w=400", desc: "マッチの夜間サイクル中、一時的な不可視化（インビジビリティ）を可能にする。" },
-  { id: 8, name: "イダナレの恵み", role: "RECON", bonus: "SCAN", img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=400", desc: "障害物越しにリソースクレートや敵の足跡をハイライト表示する。" },
+  { id: 1, textureKey: 'god-john',   name: "ラプラプの加護", role: "WAR",        bonus: "ATK +20",    img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "島嶼戦における近接攻撃ダメージを25%上昇させ、物理防御力を強化する。" },
+  { id: 2, textureKey: 'god-garry',  name: "マクタンの知恵", role: "STRATEGIST", bonus: "MAX AP +30", img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400", desc: "全分隊員のタクティカルアビリティのクールダウンを15%短縮する。" },
+  { id: 3, textureKey: 'god-quesie', name: "アポ・ラキの怒り", role: "BURN",     bonus: "SOLAR",      img: "https://images.unsplash.com/photo-1533240332313-0db49b459ad6?q=80&w=400", desc: "昼間戦闘フェーズ中、全ての弾薬にソーラーバーン（焼尽）効果を付与する。" },
+  { id: 4, textureKey: 'god-neil',   name: "マヤリの静寂",   role: "STEALTH",   bonus: "SILENT",     img: "https://images.unsplash.com/photo-1506466010722-395aa2bef877?q=80&w=400", desc: "隠密探知範囲を拡大し、足音の静音性を40%向上させる。" },
+  { id: 5, textureKey: 'god-edo',    name: "ルマウィグの力", role: "HEAVY",      bonus: "ARMOR +40",  img: "https://images.unsplash.com/photo-1584281722573-0f723675017e?q=80&w=400", desc: "アーマーの耐久値を増加させ、燃焼ステータス効果を無効化する。" },
+  { id: 6, textureKey: 'god-shem',   name: "ハヌマンの疾風", role: "SUPPORT",   bonus: "SPEED +15",  img: "https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?q=80&w=400", desc: "山岳地帯におけるダッシュ速度とジャンプ高度を20%向上させる。" },
+  { id: 7, textureKey: 'god-kurt',   name: "バクナワの影",   role: "SHADOW",    bonus: "INVIS",      img: "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?q=80&w=400", desc: "マッチの夜間サイクル中、一時的な不可視化（インビジビリティ）を可能にする。" },
+  { id: 8, textureKey: 'god-secret', name: "イダナレの恵み", role: "RECON",     bonus: "SCAN",       img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=400", desc: "障害物越しにリソースクレートや敵の足跡をハイライト表示する。" },
 ];
 
 // 🚀 最適化：React.memoで画面全体の不要な再描画をガード
@@ -49,13 +54,14 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
   };
 
   const handleFinalSelect = () => {
-    if (pendingSelection) {
-      selectGod(pendingSelection.id);
-      window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.SET_AVATAR, { 
-        detail: { godKey: pendingSelection.id } 
-      }));
-      onComplete(); 
-    }
+    if (!pendingSelection) return;
+    selectGod(pendingSelection.id);
+    // ✅ 修正：id（number）ではなく textureKey（string）を送る
+    //    MainScene.js の this.textures.exists(key) が正しく true を返すようになる
+    window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.SET_AVATAR, { 
+      detail: { godKey: pendingSelection.textureKey }
+    }));
+    onComplete(); 
   };
 
   return (
