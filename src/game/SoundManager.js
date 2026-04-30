@@ -45,6 +45,8 @@ class SoundManager {
     this._htmlBgm   = null;   // HTMLAudioElement
     this._muted     = false;
     this.bgmVolume  = BGM_VOLUME;
+    this._isFading  = false;  // フェードアウト中フラグ（二重再生防止）
+    this._pendingBgmKey = null; // フェード中に割り込んだキーを保持
   }
 
   // ─── Phaserシーン登録・解除 ───────────────────
@@ -93,6 +95,11 @@ class SoundManager {
     this._bgmKey = key;
 
     if (this._scene) {
+      if (this._isFading) {
+        // フェードアウト中の割り込みは完了後に再適用
+        this._pendingBgmKey = key;
+        return;
+      }
       this._fadeOutPhaser(() => this._startPhaser(key));
     } else {
       this._fadeOutHtml(() => this._startHtml(key));
@@ -143,11 +150,25 @@ class SoundManager {
     if (!this._phaserBgm) { onComplete(); return; }
     const bgm = this._phaserBgm;
     this._phaserBgm = null;
+    this._isFading = true;
     this._scene.tweens.add({
       targets: bgm,
       volume: 0,
       duration: FADE_MS,
-      onComplete: () => { bgm.stop(); bgm.destroy(); onComplete(); },
+      onComplete: () => {
+        bgm.stop();
+        bgm.destroy();
+        this._isFading = false;
+        // フェード中に割り込みがあれば最新キーを再生
+        if (this._pendingBgmKey) {
+          const next = this._pendingBgmKey;
+          this._pendingBgmKey = null;
+          this._bgmKey = next;
+          this._startPhaser(next);
+        } else {
+          onComplete();
+        }
+      },
     });
   }
 
