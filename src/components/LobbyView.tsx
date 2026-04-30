@@ -38,13 +38,13 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     if (!roomId) return;
     navigator.clipboard.writeText(roomId);
     setCopied(true);
-    try { SoundManager.playSe('click'); } catch (e) {}
+    try { SoundManager.playSe('click'); } catch {}
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleAbort = () => {
     if (window.confirm("ABORT MISSION? (作戦を中止してベースへ戻りますか？)")) {
-      try { SoundManager.playSe('click'); } catch (e) {}
+      try { SoundManager.playSe('click'); } catch {}
       socket.emit(CLIENT_EVENTS.LEAVE_ROOM, { roomId });
       onAbort(); 
     }
@@ -54,7 +54,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     if (chatInput.trim()) {
       socket.emit(CLIENT_EVENTS.SEND_CHAT, { roomId, message: chatInput });
       setChatInput(''); 
-      try { SoundManager.playSe('click'); } catch (e) {}
+      try { SoundManager.playSe('click'); } catch {}
     }
   };
 
@@ -65,7 +65,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   const handleReady = () => {
     const nextReadyState = !isReady;
     setIsReady(nextReadyState);
-    try { SoundManager.playSe('click'); } catch (e) {}
+    try { SoundManager.playSe('click'); } catch {}
     socket.emit(CLIENT_EVENTS.PLAYER_READY, { roomId, ready: nextReadyState });
     addLog(nextReadyState ? "📡 READY完了。作戦開始を待機中..." : "📡 READY解除。装備を再確認中...");
   };

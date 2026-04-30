@@ -36,7 +36,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
       if (json.status === 'success') {
         setItems(json.data);
       }
-    } catch (e) {
+    } catch {
       addLog("❌ インベントリの取得に失敗しました");
     } finally {
       setLoading(false);
@@ -62,7 +62,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
       } else {
         addLog(`⚠️ ${json.message || '使用できません'}`);
       }
-    } catch (e) {
+    } catch {
       addLog("❌ アイテム使用中にエラーが発生しました");
     }
   };
