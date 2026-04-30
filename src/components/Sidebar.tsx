@@ -34,7 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
   // 🚀 5桁ID体系に基づいた領土要約のメモ化 [cite: 63, 65, 67]
   const territorySummary = useMemo(() => {
     const myDistricts = Object.entries(districts)
-      .filter(([_, ownerId]) => ownerId === myId)
+      .filter(([, ownerId]) => ownerId === myId)
       .map(([id]) => Number(id));
 
     const groups: Record<number, number[]> = {};

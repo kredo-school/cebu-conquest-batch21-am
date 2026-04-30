@@ -197,7 +197,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         return true;
       }
       return false;
-    } catch (e) {
+    } catch {
       get().addLog("❌ サーバー接続失敗");
       return false;
     }
@@ -366,7 +366,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   updateBuffs: () => {
     const { districts, myId } = get();
-    const myDistrictIds = Object.entries(districts).filter(([_, ownerId]) => ownerId === myId).map(([id, _]) => Number(id)); 
+    const myDistrictIds = Object.entries(districts).filter(([, ownerId]) => ownerId === myId).map(([id]) => Number(id));
     const buffs = myDistrictIds.filter(id => SPECIALTY_DATA[id]).map(id => ({ id, ...SPECIALTY_DATA[id] }));
     set({ activeBuffs: buffs });
   },

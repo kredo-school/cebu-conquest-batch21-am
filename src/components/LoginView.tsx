@@ -28,7 +28,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
   const [mode, setMode] = useState<'login' | 'recovery_user' | 'recovery_answer' | 'reset'>('login');
   const [customQuestion, setCustomQuestion] = useState(''); 
   const [securityAnswer, setSecurityAnswer] = useState(''); 
-  const [activeIntel, setActiveIntel] = useState<string | null>(null);
+  const [, setActiveIntel] = useState<string | null>(null);
 
   const validateInputs = (): boolean => {
     setErrorMsg(null);
@@ -51,7 +51,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
   };
 
   // 🚀 送信処理：スキャンに「重み」を持たせる（最低2秒間待機）
-  const handleAuthSubmit = async (e: React.FormEvent) => {
+  const handleAuthSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!validateInputs()) return;
 
@@ -110,21 +110,21 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
           setErrorMsg("認証プロトコルに失敗しました（IDまたはPasswordの間違い）。");
         }
       }
-    } catch (error) {
+    } catch {
       setErrorMsg("SERVER ERROR: 本部との通信に失敗。CORS設定等を確認せよ。");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleIdentifyUser = (e: React.FormEvent) => {
+  const handleIdentifyUser = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!username) { setErrorMsg("User IDを入力してください。"); return; }
     addLog(`🔍 Searching database for Operator: ${username}...`);
     setMode('recovery_answer'); 
   };
 
-  const handleVerifyAnswer = (e: React.FormEvent) => {
+  const handleVerifyAnswer = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!securityAnswer) { setErrorMsg("回答を入力してください。"); return; }
     addLog("✅ Answer Verified. Authorization granted.");

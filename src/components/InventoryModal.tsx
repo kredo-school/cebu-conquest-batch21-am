@@ -1,8 +1,7 @@
-// src/components/InventoryModal.tsx
-
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../store';
-import socket from '../socket'; // 🚀 Socket インスタンスをインポート
+import socket from '../socket';
+import { CLIENT_EVENTS } from '../../shared/socketEvents'; // 🚀 追加
 
 interface Item {
   id: number;
@@ -17,7 +16,6 @@ interface InventoryModalProps {
   onClose: () => void;
 }
 
-// 🚀 島ID定数（ID管理シートに基づく）
 const ISLAND_NAMES: Record<number, string> = {
   11: "CEBU",
   12: "MACTAN",
@@ -31,7 +29,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 📦 1. インベントリ取得（初期表示用）
+  // 📦 1. インベントリ取得（初期表示用 / PHPから読むのはOK：永続データの読み取りのみ）
   const fetchInventory = async () => {
     setLoading(true);
     try {
@@ -39,7 +37,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
       if (json.status === 'success') {
         setItems(json.data);
       }
-    } catch (e) {
+    } catch {
       addLog("❌ インベントリの取得に失敗しました");
     } finally {
       setLoading(false);
@@ -50,26 +48,27 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
     fetchInventory();
   }, []);
 
-  // ⚡ 2. アイテム使用（Socket経由に修正）
+  /**
+   * ⚡ 2. アイテム使用
+   * 🚀 アーキテクチャ原則に従い、Socket 経由でけいのサーバーへ委譲。
+   *    サーバー側で roomState を更新 → SYNC_STATE で全プレイヤーへ反映される。
+   *    バフ計算・在庫減算もすべてサーバー責務。
+   */
   const handleUseItem = (itemId: number, itemName: string) => {
     try {
-      /**
-       * 🚀 修正ポイント:
-       * REST API (PHP) を直接叩かず、Socket でサーバー (Node.js) へアクションを通知します。
-       * これにより、サーバー側の roomState が更新され、全プレイヤーに同期されます。
-       */
-      socket.emit('ACTION_USE_ITEM', { itemId: itemId }); 
-      
-      // バッククォートの閉じ忘れを修正
+      socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId });
       addLog(`🎒 アイテム使用リクエスト送信: ${itemName}`);
-      
-      // UIを閉じて、サーバーからの SYNC_STATE 同期を待ちます
-      onClose(); 
-      
-    } catch (e) {
+      onClose(); // SYNC_STATE が来れば HUD は自動更新される
+    } catch {
       addLog("❌ アイテム使用中にエラーが発生しました");
     }
   };
+
+  // ── return 以下は変更なし ──
+  return (
+    // ... (元のJSXそのまま)
+  );
+};
 
   return (
     <div className="fixed inset-0 z-[200000] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-sm">

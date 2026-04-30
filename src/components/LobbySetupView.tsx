@@ -26,7 +26,7 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({
 
   // --- 🛠️ 部屋作成の処理 ---
   const handleFinalCreate = () => {
-    try { SoundManager.playSe('click'); } catch (e) {}
+    try { SoundManager.playSe('click'); } catch {}
     addLog("📡 サーバーへ作戦承認をリクエスト中...");
 
     setStatus({ maxPlayers: config.maxPlayers });
@@ -51,7 +51,7 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({
   // --- 🛠️ 部屋参加の処理 ---
   const handleJoin = () => {
     if (joinId.length === 6) {
-      try { SoundManager.playSe('click'); } catch (e) {}
+      try { SoundManager.playSe('click'); } catch {}
       addLog(`📡 Room[${joinId}] への接続を試行中...`);
 
       const joinPayload = { 
@@ -182,7 +182,7 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({
           <div className="glass-panel p-10 flex flex-col border border-white/5 bg-slate-900/40 text-left">
             <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter font-fix">Create Room</h2>
             <p className="text-slate-400 text-xs mb-10 leading-relaxed italic font-fix">Establish a new command post and generate a unique uplink code for your squad.</p>
-            <button onClick={() => { try{SoundManager.playSe('click');}catch(e){} setShowConfig(true); }}
+            <button onClick={() => { try{SoundManager.playSe('click');} catch {} setShowConfig(true); }}
               className="mt-auto w-full bg-brand-500 hover:bg-brand-400 text-slate-950 py-5 rounded-lg font-black uppercase tracking-widest text-lg shadow-lg transition-all font-fix"
             >
               Configure Operation

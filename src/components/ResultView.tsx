@@ -11,15 +11,12 @@ interface ResultViewProps {
 export const ResultView: React.FC<ResultViewProps> = ({ 
   onRestart, onOpenSettings, onOpenHelp, onOpenRanking 
 }) => {
-  const { 
-    isGameOver, winnerId, myId, playerName, districts, 
-    hp, maxHp, turn, players, godsList 
+  const {
+    isGameOver, winnerId, myId, playerName, districts,
+    turn, players, godsList
   } = useGameStore();
 
-  // ゲームオーバー中でなければ何も表示しない
-  if (!isGameOver) return null;
-
-  // 🏆 勝者とデータの解析
+  // 🏆 勝者とデータの解析（hooks は早期 return より前に呼ぶ）
   const isWinner = winnerId === myId;
   const winnerPlayer = players.find(p => p.id === winnerId);
   const winnerGod = godsList.find(g => g.id === winnerPlayer?.selectedGodId) || godsList[0];
@@ -39,6 +36,9 @@ export const ResultView: React.FC<ResultViewProps> = ({
       score: score
     };
   }, [districts, myId, turn, isWinner]);
+
+  // ゲームオーバー中でなければ何も表示しない
+  if (!isGameOver) return null;
 
   // 🎨 テーマ設定
   const theme = {

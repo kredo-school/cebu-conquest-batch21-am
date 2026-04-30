@@ -19,7 +19,7 @@ const ISLAND_NAMES: Record<number, string> = {
 export const RankingView: React.FC<RankingViewProps> = memo(({ 
   onOpenSettings, onOpenHelp, onBack
 }) => {
-  const { players, myId, districts } = useGameStore();
+  const { players, myId } = useGameStore();
   const [filter, setFilter] = useState<'weekly' | 'global'>('weekly');
 
   // 🚀 最適化：ランキング計算をメモ化

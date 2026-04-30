@@ -356,6 +356,7 @@ export default class MainScene extends Phaser.Scene {
       this._clampCamera();
       this._updateLabelVisibility();
       if (isPinch) nativeEvent.preventDefault();
+      emitToReact(PHASER_TO_REACT.ZOOM_UPDATED, { zoom: newZoom });
     });
     cam.setZoom(1);
     this._clampCamera();
@@ -704,14 +705,18 @@ export default class MainScene extends Phaser.Scene {
 
   _keyZoom(dir) {
     const cam = this.cameras.main;
-    cam.setZoom(Phaser.Math.Clamp(cam.zoom + dir * 0.5, 0.5, 8));
+    const newZoom = Phaser.Math.Clamp(cam.zoom + dir * 0.5, 0.5, 8);
+    if (cam.zoom === newZoom) return;
+    cam.setZoom(newZoom);
     this._clampCamera();
     this._updateLabelVisibility();
+    emitToReact(PHASER_TO_REACT.ZOOM_UPDATED, { zoom: newZoom });
   }
 
   _keyZoomReset() {
     this.cameras.main.setZoom(1);
     this._clampCamera();
     this._updateLabelVisibility();
+    emitToReact(PHASER_TO_REACT.ZOOM_UPDATED, { zoom: 1 });
   }
 }
