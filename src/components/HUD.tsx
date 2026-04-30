@@ -1,3 +1,4 @@
+// src/components/HUD.tsx
 import React, { useEffect, useState, useMemo, memo } from 'react';
 import { useGameStore } from '../store';
 
@@ -83,6 +84,16 @@ export const HUD: React.FC<HUDProps> = memo(() => {
     ? "opacity-30 scale-95 grayscale-[0.3] hover:opacity-100 hover:scale-100 hover:grayscale-0" 
     : "opacity-100 scale-100";
 
+  // ✅ 修正：攻撃ボタンのハンドラ
+  // attack(0) を送っていたバグを修正。selectedDistrictId が未選択の場合はログを出してガードする。
+  const handleAttack = () => {
+    if (!selectedDistrictId) {
+      window.dispatchEvent(new CustomEvent('gameLog', { detail: '⚠️ 攻撃対象を先にタップして選択してください' }));
+      return;
+    }
+    attack(selectedDistrictId);
+  };
+
   return (
     <div className={`absolute inset-0 pointer-events-none z-30 font-body select-none flex flex-col transition-all duration-700 ease-in-out`}>
       
@@ -166,9 +177,11 @@ export const HUD: React.FC<HUDProps> = memo(() => {
           )}
 
           <div className={`flex gap-5 items-end transition-all duration-500 ${isMyTurn && !isSubmitted ? 'opacity-100 pointer-events-auto' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+            {/* ✅ 修正：onClick を handleAttack に変更。地区未選択時は disabled スタイルを適用 */}
             <button 
-              onClick={() => attack(0)}
-              className="group relative overflow-hidden bg-orange-600 text-white rounded-lg font-black italic tracking-tighter shadow-[0_0_40px_rgba(234,88,12,0.4)] hover:shadow-[0_0_60px_rgba(234,88,12,0.6)] active:scale-95 transition-all flex flex-col items-center justify-center gap-2 w-40 h-24 text-2xl"
+              onClick={handleAttack}
+              disabled={!selectedDistrictId || isSubmitted}
+              className={`group relative overflow-hidden bg-orange-600 text-white rounded-lg font-black italic tracking-tighter shadow-[0_0_40px_rgba(234,88,12,0.4)] hover:shadow-[0_0_60px_rgba(234,88,12,0.6)] active:scale-95 transition-all flex flex-col items-center justify-center gap-2 w-40 h-24 text-2xl ${!selectedDistrictId ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: '"FILL" 1' }}>swords</span>
               <span className="font-fix">攻撃</span>
