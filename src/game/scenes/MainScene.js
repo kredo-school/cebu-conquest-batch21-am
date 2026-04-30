@@ -43,11 +43,13 @@ const ADJACENCY = {
   11120: [11101, 11116, 11119, 11121],
   11121: [11119, 11120],
   // ── 北部エリア（エリアID: 13）──
-  13101: [13102, 13103],
+  13101: [13102, 13103, 13401],
   13102: [13101, 13103, 13201],
   13103: [13101, 13102, 13201, 13204],
   13201: [13102, 13103, 13204],
   13204: [13103, 13201],
+  // ── 134エリア（エリアID: 134）── ※13402の隣接は要マップ確認
+  13401: [13101],
 };
 
 function pointInPolygon(point, polygon) {
@@ -153,7 +155,7 @@ export default class MainScene extends Phaser.Scene {
           const targetId = e.detail?.targetId;
           if (!targetId) return;
           this._pendingTargetId = normalizeId(targetId);
-          socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: "attack", targetId: String(targetId) });
+          socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: "attack", targetId: this._pendingTargetId });
           SoundManager.playBgm('battle');
         },
       },
@@ -172,7 +174,7 @@ export default class MainScene extends Phaser.Scene {
         },
       },
       {
-        event: "MAP_REPAINT",
+        event: REACT_TO_PHASER.MAP_REPAINT,
         handler: (e) => {
           if (e.detail.districts && e.detail.players) {
             this._syncDistricts(e.detail.districts, e.detail.players);
