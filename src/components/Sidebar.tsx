@@ -8,9 +8,7 @@ interface SidebarProps {
   onOpenInventory: () => void;
 }
 
-// 🚀 最適化：React.memo でラップし、不要な再描画をガード
 export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHelp, onOpenInventory }) => {
-  // 🚀 個別のセレクタを使用して、必要な値の変化にのみ反応
   const hp = useGameStore(state => state.hp);
   const maxHp = useGameStore(state => state.maxHp);
   const ap = useGameStore(state => state.ap);
@@ -22,11 +20,10 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
   const isUnderAttack = useGameStore(state => state.isUnderAttack);
   const districts = useGameStore(state => state.districts);
   const myId = useGameStore(state => state.myId);
+  const playerName = useGameStore(state => state.playerName); // ✅ 修正：名前を取得
   
-  // ✅ GDD v3.1: ルックアップ辞書を取得
   const lookupData = useGameStore(state => state.lookupData);
 
-  // 🚀 GDD v3.1: lookupDataを使用して安全に領土をグループ化
   const territorySummary = useMemo(() => {
     const myDistricts = Object.entries(districts)
       .filter(([, ownerId]) => ownerId === myId)
@@ -35,11 +32,10 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
     const groups: Record<number, { name: string; ids: number[] }> = {};
 
     myDistricts.forEach(id => {
-      let islandId = 0; // フォールバックID
+      let islandId = 0;
       let islandName = "UNKNOWN SECTOR";
 
       if (lookupData && lookupData.districts && lookupData.areas && lookupData.islands) {
-        // 陣地は地区(District: 3桁)またはSpot(5桁)で記録される可能性を考慮
         let district = lookupData.districts.get(id);
         if (!district && lookupData.spots) {
           const spot = lookupData.spots.get(id);
@@ -51,13 +47,12 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
           if (area) {
             const island = lookupData.islands.get(area.parentIslandId);
             if (island) {
-              islandId = island.id; // 正しい島ID（4桁等）
+              islandId = island.id;
               islandName = island.name.toUpperCase();
             }
           }
         }
       } else {
-        // lookupData が未取得の場合の旧ロジックフォールバック
         islandId = Math.floor(id / 1000);
         islandName = `SECTOR ${islandId}`;
       }
@@ -68,7 +63,6 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
       groups[islandId].ids.push(id);
     });
 
-    // 配列に変換してID順にソートして返す
     return Object.entries(groups).map(([iId, data]) => ({
       islandId: Number(iId),
       name: data.name,
@@ -86,14 +80,22 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
         }
         .animate-pulse-red { animation: pulse-red 2s infinite; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #f97316; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #ea580c; border-radius: 10px; }
         .font-fix { line-height: 1.2; }
       `}</style>
 
       <aside className="fixed left-0 top-0 bottom-0 z-40 flex flex-col bg-slate-950 w-80 border-r border-slate-800 shadow-2xl overflow-hidden font-body select-none text-left">
         
-        {/* --- 1. Status Area --- */}
-        <div className="flex-none p-6 pb-2 space-y-6">
+        {/* --- 1. Commander & Status Area --- */}
+        <div className="flex-none p-6 pb-2 space-y-4">
+          {/* ✅ 修正：コマンダー名（自分の名前）を表示 */}
+          <div className="flex flex-col gap-1 border-l-2 border-orange-600 pl-3 mb-4">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] font-fix">Neural Link Operator</span>
+            <h2 className="text-xl font-black text-white italic uppercase tracking-tighter font-fix truncate">
+              {playerName || "COMMANDER"}
+            </h2>
+          </div>
+
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded bg-slate-900 flex items-center justify-center border border-slate-800 shadow-inner">
               <div className="text-2xl font-black text-orange-500 italic font-fix">{turn}</div>
@@ -111,29 +113,29 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
           <div className="space-y-4">
             <div className="space-y-2">
               <div className="flex justify-between items-end">
-                <span className="text-[10px] font-black uppercase text-slate-500">HP {hp}/{maxHp}</span>
+                <span className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Vitality {hp}/{maxHp}</span>
               </div>
-              <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+              <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
                 <div className="h-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] transition-all duration-500" style={{ width: `${(hp/(maxHp || 100))*100}%` }} />
               </div>
             </div>
 
             <div className="space-y-2">
               <div className="flex justify-between items-end">
-                <span className="text-[10px] font-black uppercase text-slate-500">AP (STAMINA) {ap}%</span>
+                <span className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Energy {ap}%</span>
               </div>
-              <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+              <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
                 <div className="h-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)] transition-all duration-500" style={{ width: `${ap}%` }} />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-slate-900/50 p-2 rounded border border-slate-800 flex flex-col items-center">
-                <span className="text-[8px] text-slate-600 font-bold uppercase mb-1">ATK</span>
+                <span className="text-[8px] text-slate-600 font-bold uppercase mb-1">Combat ATK</span>
                 <div className="text-lg font-black text-slate-100 italic font-fix">{atk}</div>
               </div>
               <div className="bg-slate-900/50 p-2 rounded border border-slate-800 flex flex-col items-center">
-                <span className="text-[8px] text-slate-600 font-bold uppercase mb-1">DEF</span>
+                <span className="text-[8px] text-slate-600 font-bold uppercase mb-1">Armor DEF</span>
                 <div className="text-lg font-black text-slate-100 italic font-fix">{def}</div>
               </div>
             </div>
@@ -141,73 +143,68 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
         </div>
 
         {/* --- 2. Territory Control Area --- */}
-        <div className="flex-1 px-6 py-2 overflow-y-auto custom-scrollbar">
-          <div className="flex items-center gap-2 mb-3">
+        <div className="flex-1 px-6 py-2 overflow-y-auto custom-scrollbar border-t border-white/5 mt-4">
+          <div className="flex items-center gap-2 mb-4 pt-4">
             <span className="w-1 h-3 bg-orange-500"></span>
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Territory Control</span>
+            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest font-fix">Territory Intelligence</span>
           </div>
           
-          <div className="space-y-4">
+          <div className="space-y-3">
             {territorySummary.length > 0 ? territorySummary.map(({ islandId, name, ids }) => (
-              <div key={islandId} className="bg-slate-900/30 border border-white/5 rounded-lg p-3">
+              <div key={islandId} className="bg-slate-900/40 border border-white/5 rounded-lg p-3 hover:bg-slate-900/60 transition-colors">
                 <div className="flex justify-between items-center mb-2">
-                  {/* ✅ GDD v3.1: マスターデータから取得した島名を表示 */}
-                  <span className="text-[10px] font-bold text-orange-500/80 font-fix uppercase">
-                    {name}
-                  </span>
+                  <span className="text-[10px] font-bold text-orange-500/80 font-fix uppercase">{name}</span>
                   <span className="text-[9px] text-slate-500 font-mono">x{ids.length}</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {ids.map(id => (
-                    // ✅ GDD v3.1: IDの下2桁をユニット番号として表示
-                    <div key={id} className="px-2 py-0.5 bg-black/40 border border-slate-800 rounded text-[9px] text-slate-300 font-mono">
+                    <div key={id} className="px-1.5 py-0.5 bg-black/40 border border-slate-800 rounded text-[8px] text-slate-400 font-mono">
                       {String(id % 100).padStart(2, '0')}
                     </div>
                   ))}
                 </div>
               </div>
             )) : (
-              <div className="py-4 text-center border border-dashed border-slate-800 rounded-lg">
-                <span className="text-[9px] text-slate-600 uppercase font-bold tracking-tighter">No Territory Secured</span>
+              <div className="py-8 text-center border border-dashed border-slate-800 rounded-lg">
+                <span className="text-[9px] text-slate-600 uppercase font-bold tracking-tighter font-fix">No Secured Sectors</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* --- 3. Inventory & System Area --- */}
-        <div className="flex-none px-6 py-4 space-y-3">
+        {/* --- 3. Inventory & Tactical Feed Area --- */}
+        <div className="flex-none px-6 py-4 space-y-3 bg-slate-950/80 backdrop-blur-md">
           <button 
             onClick={onOpenInventory}
-            className="w-full py-2.5 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 hover:border-emerald-500/50 rounded flex items-center justify-center gap-2 transition-all group pointer-events-auto"
+            className="w-full py-2.5 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 hover:border-emerald-500/50 rounded flex items-center justify-center gap-2 transition-all group pointer-events-auto shadow-lg"
           >
             <span className="material-symbols-outlined text-emerald-400 text-sm group-hover:scale-110 transition-transform">inventory_2</span>
-            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest font-fix text-left">Inventory</span>
+            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest font-fix">Open Inventory</span>
           </button>
 
           <div className="border-t border-white/5 pt-4">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
-                <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest font-fix text-left">System Log</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-600 animate-pulse"></span>
+                <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest font-fix">Tactical Feed</span>
               </div>
-              <div className="flex gap-3">
-                <button onClick={onOpenHelp} className="text-slate-600 hover:text-cyan-400 transition-colors pointer-events-auto">
+              <div className="flex gap-4">
+                <button onClick={onOpenHelp} className="text-slate-600 hover:text-cyan-400 transition-colors pointer-events-auto" title="Tactical Help">
                   <span className="material-symbols-outlined text-base">help</span>
                 </button>
-                <button onClick={onOpenSettings} className="text-slate-600 hover:text-orange-400 transition-colors pointer-events-auto">
+                <button onClick={onOpenSettings} className="text-slate-600 hover:text-orange-400 transition-colors pointer-events-auto" title="Systems">
                   <span className="material-symbols-outlined text-base">settings</span>
                 </button>
               </div>
             </div>
             
-            <div className="bg-black/40 rounded border border-white/5 h-32 p-3 text-[9px] font-mono text-slate-500 custom-scrollbar overflow-y-auto space-y-1.5">
+            {/* ✅ 修正：Tactical Feed を一行レイアウトに変更 */}
+            <div className="bg-black/60 rounded border border-white/5 h-36 p-3 text-[9px] font-mono custom-scrollbar overflow-y-auto space-y-1.5 shadow-inner">
               {logs.map((log, i) => (
-                <p key={i} className={`${i === 0 ? 'text-orange-400 font-bold text-left' : 'opacity-60 text-left'}`}>
-                  {/* ✅ 修正：レンダリング時の現在時刻ではなく、ログ追加時に記録した time を使用する
-                       store.ts の addLog で { text, time } 形式で保存されている前提 */}
-                  <span className="text-slate-800 mr-1">[{log.time}]</span>
-                  {log.text}
-                </p>
+                <div key={i} className={`flex items-baseline gap-2 leading-tight ${i === 0 ? 'text-orange-400 font-bold' : 'text-slate-500 opacity-80'}`}>
+                  <span className="text-slate-800 shrink-0">[{log.time}]</span>
+                  <span className="flex-1 break-words font-fix">{log.text}</span>
+                </div>
               ))}
             </div>
           </div>

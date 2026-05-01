@@ -1,6 +1,6 @@
 // src/components/GodSelectionView.tsx
 
-import React, { useState, memo, useMemo } from 'react';
+import React, { useState, memo, useMemo, useEffect } from 'react';
 import { useGameStore } from '../store';
 import { REACT_TO_PHASER } from '../game/events/PhaserBridge';
 
@@ -10,12 +10,6 @@ interface GodSelectionViewProps {
   onOpenHelp: () => void;
   onBack: () => void;
 }
-
-/**
- * 🛰️ GodSelectionView: 8柱の神々から一柱を選択する初期出撃画面
- * 担当: いっせい (React + Vite + TS)
- * 仕様: GDD v3.0 準拠。選択した神により初期ステータスとバフ倍率が決定。
- */
 
 const GOD_SLOTS = [
   { id: 1, textureKey: 'god-john',   name: "ラプラプの加護", role: "WAR",         bonus: "ATK +20",    img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "島嶼戦における近接攻撃ダメージを25%上昇させ、物理防御力を強化する。" },
@@ -38,9 +32,20 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
   const selectedGodId = useGameStore(state => state.selectedGodId);
   const maxPlayers = useGameStore(state => state.maxPlayers);
   
+  // ✅ 修正：エラーメッセージ表示用のストア取得
+  const errorMessage = useGameStore(state => state.errorMessage);
+  const hideError = useGameStore(state => state.hideError);
+  
   const [pendingSelection, setPendingSelection] = useState<typeof GOD_SLOTS[0] | null>(null);
 
-  // 🚀 同期人数計算
+  // 🚀 画面表示時に、もし既に神が選ばれていたら選択状態を復元（ロールバック対策）
+  useEffect(() => {
+    if (selectedGodId) {
+      const current = GOD_SLOTS.find(g => g.id === selectedGodId);
+      if (current) setPendingSelection(current);
+    }
+  }, [selectedGodId]);
+
   const readyInfo = useMemo(() => {
     const humanPlayers = players.filter(p => !p.isNpc);
     return {
@@ -49,27 +54,22 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
     };
   }, [players, maxPlayers]);
 
-  /**
-   * 🚀 排他制御ロジック
-   * サーバーから同期された全プレイヤーをチェックし、自分以外の誰かが
-   * その godId を選択済み（または確定済み）であればロック情報を返す
-   */
   const getLockInfo = (godId: number) => {
     const selector = players.find(p => p.id !== myId && (Number(p.selectedGodId) === godId || Number(p.godId) === godId));
     if (selector) return { name: selector.playerName || "Operator" };
     return null;
   };
 
-  /**
-   * 🚀 handleFinalSelect: 選択確定処理
-   */
   const handleFinalSelect = () => {
     if (!pendingSelection) return;
     
-    // 1. Zustand経由でサーバーへ選択を送信（楽観的ステータス更新含む）
+    // 1. 選択前にエラー表示をクリア
+    hideError();
+    
+    // 2. Zustand経由でサーバーへ送信
     selectGod(pendingSelection.id);
     
-    // 2. PhaserBridge経由でPhaserへアバター更新を指示
+    // 3. Phaser更新
     window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.SET_AVATAR, { 
       detail: { godKey: pendingSelection.textureKey }
     }));
@@ -80,11 +80,26 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
   return (
     <div className="absolute w-full h-full z-[10000] bg-slate-950 font-body text-slate-200 select-none flex items-center justify-center p-4 overflow-hidden">
       
-      {/* 背景エフェクト：サイバースキャン */}
       <div className="absolute inset-0 pointer-events-none opacity-10 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[size:100%_4px,3px_100%]"></div>
 
       <div className="w-full max-w-6xl h-[90vh] flex flex-col bg-zinc-950/80 border border-white/10 rounded-2xl overflow-hidden relative shadow-[0_0_50px_rgba(0,0,0,0.5)] backdrop-blur-xl animate-fadeIn">
         
+        {/* ✅ 修正：エラートースト表示エリア */}
+        {errorMessage && (
+          <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[11000] min-w-[400px] animate-bounce">
+            <div className="bg-red-600/90 border border-red-400 text-white px-6 py-3 rounded-lg shadow-[0_0_20px_rgba(220,38,38,0.5)] flex items-center gap-4">
+              <span className="material-symbols-outlined text-xl">warning</span>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black uppercase tracking-widest opacity-80 leading-none mb-1">Signal Error</span>
+                <span className="text-sm font-black font-fix">{errorMessage}</span>
+              </div>
+              <button onClick={hideError} className="ml-auto hover:scale-110 transition-transform">
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ヘッダーエリア */}
         <div className="px-10 py-8 flex flex-col items-start gap-1 shrink-0 border-b border-white/5">
           <h1 className="text-3xl font-black italic tracking-tighter text-orange-500 uppercase font-fix animate-glitch-text">
@@ -98,22 +113,22 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
           </div>
         </div>
 
-        {/* Bento Grid: 神選択リスト */}
+        {/* Bento Grid */}
         <div className="flex-1 px-10 py-6 overflow-y-auto custom-scrollbar">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {GOD_SLOTS.map((god) => {
-              const lock = getLockInfo(god.id); // 🚀 リアルタイム排他チェック
-              const isSelected = pendingSelection?.id === god.id || selectedGodId === god.id;
+              const lock = getLockInfo(god.id); 
+              const isSelected = pendingSelection?.id === god.id;
 
               return (
                 <div 
                   key={god.id} 
-                  onClick={() => !lock && setPendingSelection(god)} // 🚀 ロック時はクリックをガード
+                  onClick={() => !lock && setPendingSelection(god)} 
                   className={`group relative flex flex-col bg-zinc-900/40 border-2 transition-all duration-300 cursor-pointer rounded-xl overflow-hidden ${
                     isSelected 
                       ? "border-orange-500 shadow-[0_0_30px_rgba(249,115,22,0.3)] scale-[1.02]" 
                       : lock 
-                        ? "border-transparent opacity-30 grayscale cursor-not-allowed" // 🚀 占領済みスタイル
+                        ? "border-transparent opacity-30 grayscale cursor-not-allowed" 
                         : "border-white/5 hover:border-white/20 hover:bg-zinc-800/50"
                   }`}
                 >
@@ -128,7 +143,6 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
                       </div>
                     )}
                     
-                    {/* 🚀 排他制御オーバーレイ表示 */}
                     {lock && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
                          <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest border border-zinc-700 px-3 py-1 font-fix mb-2">Occupied</div>

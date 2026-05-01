@@ -2,8 +2,8 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import Phaser from "phaser";
 import MainScene from "../game/scenes/MainScene";
-import { PHASER_TO_REACT } from "../game/events/PhaserBridge"; // 🚀 追加
-import { useGameStore } from "../store"; // ✅ GDD v3.1: lookupData 参照用に追加
+import { PHASER_TO_REACT } from "../game/events/PhaserBridge"; 
+import { useGameStore } from "../store"; 
 
 interface PhaserGameProps {
   playerName: string;
@@ -39,7 +39,7 @@ export const PhaserGameView = forwardRef<any, PhaserGameProps>((props, ref) => {
       type: Phaser.AUTO,
       width: container.offsetWidth,
       height: container.offsetHeight,
-      backgroundColor: "#020617", // slate-950に統一
+      backgroundColor: "#020617", 
       scale: { 
         mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH
@@ -48,7 +48,7 @@ export const PhaserGameView = forwardRef<any, PhaserGameProps>((props, ref) => {
       parent: "phaser-container",
       render: {
         antialias: true,
-        roundPixels: true // Windowsでの描画の滲みを防止
+        roundPixels: true 
       }
     };
 
@@ -71,7 +71,9 @@ export const PhaserGameView = forwardRef<any, PhaserGameProps>((props, ref) => {
 
         // lookupDataから親島を特定
         if (lookupData && lookupData.districts) {
-          let targetDistrict = null;
+          // ✅ 修正ポイント：型を any に指定して never エラーを回避
+          let targetDistrict: any = null; 
+
           if (isDistrict) {
              targetDistrict = lookupData.districts.get(id);
           } else if (isSpot && lookupData.spots) {
@@ -80,11 +82,11 @@ export const PhaserGameView = forwardRef<any, PhaserGameProps>((props, ref) => {
           }
 
           if (targetDistrict && lookupData.areas && lookupData.islands) {
-             const area = lookupData.areas.get(targetDistrict.parentAreaId);
-             if (area) {
-               const island = lookupData.islands.get(area.parentIslandId);
-               if (island) islandName = island.name.toUpperCase();
-             }
+              const area = lookupData.areas.get(targetDistrict.parentAreaId);
+              if (area) {
+                const island = lookupData.islands.get(area.parentIslandId);
+                if (island) islandName = island.name.toUpperCase();
+              }
           }
         }
 
@@ -123,7 +125,6 @@ export const PhaserGameView = forwardRef<any, PhaserGameProps>((props, ref) => {
       id="phaser-container" 
       className="w-full h-full relative overflow-hidden flex-1 bg-slate-950"
     >
-      {/* 🚀 コーナー装飾：Phaserキャンバスの上にサイバーパンクな意匠を重ねる */}
       <div className="absolute inset-0 pointer-events-none z-10 border border-white/5">
         <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-orange-500/40"></div>
         <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-orange-500/40"></div>
