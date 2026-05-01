@@ -1,5 +1,4 @@
-// src/components/LoginView.tsx
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { useGameStore } from '../store';
 
 interface LoginViewProps {
@@ -8,285 +7,255 @@ interface LoginViewProps {
   onOpenHelp: () => void; 
 }
 
-const INTEL_DATA: Record<string, { title: string; subtitle: string; body: string; icon: string }> = {
-  "Native PHP Engine": { 
-    title: "NO LARAVEL POLICY", 
-    subtitle: "PURE NATIVE ARCHITECTURE", 
-    icon: "groups", 
-    body: "本プロジェクトは、モダンフレームワークの魔法に頼らず、生のPHPによる堅牢なサーバー構築を証明するための実証実験である。ブラックボックスを排除した完全な制御を実現している。" 
-  },
-  "Mentorship Records": { 
-    title: "GOD TEACHERS", 
-    subtitle: "UNBELIEVABLE GUIDANCE", 
-    icon: "military_tech", 
-    body: "セブの戦地には、数々の開発を潜り抜けた伝説のメンターたちが存在する。彼らの指導は時に厳しく、時に慈愛に満き、未熟なオペレーターを一流のエンジニアへと鍛え上げる。" 
-  },
-  "Mactan Archipelago Lore": { 
-    title: "ISLAND LORE", 
-    subtitle: "CEBU CONQUEST HISTORY", 
-    icon: "map", 
-    body: "1521年、マクタン島。ラプ＝ラプ とマゼランの死闘からすべては始まった。この物語は、その魂を継承した現代のオペレーターたちが、セブの覇権を巡ってデジタルな領土を奪い合う戦記である。" 
-  }
-};
-
-export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, onOpenHelp }) => {
-  const { login, addLog } = useGameStore();
+/**
+ * 🛰️ LoginView: GDD v3.1 最終版
+ * 修正内容：
+ * 1. バッジをタイトルの真上に配置 (image_84925b.png 準拠)
+ * 2. 登録モード：独自の質問・回答入力に対応
+ * 3. スキャン演出：カード内を上から下へ移動するパルス線 (isLoading時)
+ * 4. システムアラート：image_847f98.jpg の警告UIを完全再現
+ */
+export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettings, onOpenHelp }) => {
+  const { login, addLog, setErrorMessage, errorMessage, hideError } = useGameStore();
   
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-
-  // セキュリティ質問関連（登録用）
-  const [customQuestion, setCustomQuestion] = useState('My first mentor?'); 
-  const [securityAnswer, setSecurityAnswer] = useState(''); 
-  const [activeIntel, setActiveIntel] = useState<string | null>(null);
-
-  const validateInputs = (): boolean => {
-    setErrorMsg(null);
-    const alphanumericRegex = /^[a-zA-Z0-9]+$/;
-    if (!username || !password) {
-      setErrorMsg("IDとPasswordを入力してください。");
-      return false;
-    }
-    if (!alphanumericRegex.test(username)) {
-      setErrorMsg("User IDは半角英数字のみ有効です。");
-      return false;
-    }
-    return true;
-  };
+  
+  // 🚀 カスタム質問と回答
+  const [securityQuestion, setSecurityQuestion] = useState('');
+  const [securityAnswer, setSecurityAnswer] = useState('');
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateInputs()) return;
+    if (!username || !password) {
+      setErrorMessage("IDとPASSWORDを入力してください。");
+      return;
+    }
+
     setIsLoading(true);
-    setErrorMsg(null);
-    
-    addLog(isRegisterMode ? "📡 Initiating registration protocol..." : "🔑 Authenticating credentials...");
+    addLog(isRegisterMode ? "📡 指令：新規アカウント登録中..." : "🔑 指令：認証シーケンス実行中...");
 
     try {
-      // 演出用の最小待機時間
-      const minWait = new Promise(resolve => setTimeout(resolve, 1500));
+      // 🚀 ビデオ演出に合わせ、スキャンが走りきる時間を確保 (2.5秒)
+      const scanAnimation = new Promise(resolve => setTimeout(resolve, 2500));
       
+      let success = false;
       if (isRegisterMode) {
+        const apiUrl = "http://localhost/cebu-conquest-batch21-am/api/login.php";
         const [res] = await Promise.all([
-          fetch("http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api/login.php", {
+          fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              username, 
-              password, 
-              security_question: customQuestion, 
-              security_answer: securityAnswer, 
+              username, password, 
+              security_question: securityQuestion,
+              security_answer: securityAnswer,
               action: 'register' 
             })
           }),
-          minWait
+          scanAnimation
         ]);
         const data = await res.json();
-        if (data.status === 'success') {
+        success = data.status === 'success';
+        if (success) {
           setIsRegisterMode(false);
-          setPassword('');
-          addLog("✅ Registration complete. Please login.");
-          alert("登録完了！ログインしてください。");
+          addLog("✅ 登録完了。");
         } else {
-          setErrorMsg(data.message || "登録に失敗しました。");
+          setErrorMessage(data.message || "SERVER ERROR: 接続に失敗しました。");
         }
       } else {
-        // Zustandのloginアクションを呼び出し
-        const [success] = await Promise.all([login(username, password), minWait]);
+        const [loginSuccess] = await Promise.all([login(username, password), scanAnimation]);
+        success = loginSuccess;
         if (success) {
-          addLog(`🟢 Welcome back, Commander ${username}.`);
+          addLog(`🟢 お帰りなさい、コマンダー ${username}。`);
           onLogin(username);
         } else {
-          setErrorMsg("IDまたはPasswordが違います。");
+          setErrorMessage("SERVER ERROR: 接続に失敗しました。");
         }
       }
     } catch (error) {
-      setErrorMsg("SERVER ERROR: 接続に失敗しました。");
+      setErrorMessage("SERVER ERROR: 接続に失敗しました。");
     } finally {
       setIsLoading(false);
     }
   };
 
-  return (
-    <div className="w-full h-full bg-slate-950 font-body text-slate-200 overflow-hidden flex flex-col relative">
-      {/* Background Decor */}
-      <div className="fixed inset-0 z-0 island-silhouette opacity-20 pointer-events-none" />
-      <div className="fixed inset-0 z-10 tropical-flare pointer-events-none" />
+  const themeColor = isRegisterMode ? 'cyan' : 'orange';
 
-      {/* Header */}
-      <header className="fixed top-0 left-0 w-full z-50 bg-transparent flex justify-between items-center px-6 py-4">
-        <div className="text-2xl font-black tracking-tighter text-orange-500 uppercase font-fix">Cebu Conquest</div>
-        <div className="flex items-center gap-6">
-          <button onClick={onOpenSettings} className="group pointer-events-auto">
-            <span className="text-slate-400 material-symbols-outlined group-hover:text-orange-300 transition-colors">settings</span>
-          </button>
-          <button onClick={onOpenHelp} className="group pointer-events-auto">
-            <span className="text-slate-400 material-symbols-outlined group-hover:text-cyan-400 transition-colors">help</span>
-          </button>
+  return (
+    <div className="bg-slate-950 font-body text-slate-200 overflow-hidden h-screen w-screen flex flex-col relative select-none">
+      
+      <div className="fixed inset-0 z-0 island-silhouette opacity-40"></div>
+      <div className="fixed inset-0 z-10 tropical-flare pointer-events-none"></div>
+
+      {/* 🛰️ Header */}
+      <header className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-10 py-6">
+        <div className="text-xl font-black tracking-[0.4em] text-white uppercase drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+          Cebu Conquest
+        </div>
+        <div className="flex items-center gap-8">
+          <button onClick={onOpenSettings} className="text-slate-500 hover:text-white transition-all material-symbols-outlined text-2xl">settings</button>
+          <button onClick={onOpenHelp} className="text-slate-500 hover:text-white transition-all material-symbols-outlined text-2xl">help</button>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="relative z-20 flex-1 flex flex-col items-center justify-center px-4 pt-16 pb-4">
-        <div className="mb-6 flex flex-col items-center">
-          <div className="inline-flex px-3 py-0.5 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-400 text-[10px] font-bold tracking-widest mb-2 uppercase font-fix">
-            {isLoading ? "System Scanning..." : "Security Terminal"}
+      {/* 🎮 Main UI */}
+      <main className="relative z-20 flex-1 flex flex-col items-center justify-center px-4">
+        
+        {/* 🚀 image_84925b.png / image_848da6.png 準拠：バッジをタイトルの上に配置 */}
+        <div className="flex flex-col items-center mb-10 animate-fadeIn">
+          <div className={`px-4 py-0.5 rounded-full border border-${themeColor}-500/50 bg-${themeColor}-500/10 text-${themeColor}-500 text-[10px] font-black tracking-[0.4em] mb-4 uppercase transition-all duration-500`}>
+            {isRegisterMode ? "Establishing New Account" : "Welcome to the Archipelago"}
           </div>
-          <h1 className="text-4xl md:text-6xl font-black text-orange-500 tracking-tighter mb-1 font-fix uppercase">CEBU CONQUEST</h1>
+          <h1 className="text-6xl md:text-8xl font-black text-white tracking-tighter mb-2 italic uppercase font-fix drop-shadow-[0_0_20px_rgba(234,88,12,0.6)]">
+            CEBU<span className="text-orange-600">CONQUEST</span>
+          </h1>
+          <p className="text-slate-500 text-xs font-bold tracking-[0.5em] uppercase">Enter the battlefield.</p>
         </div>
 
-        {/* Auth Card */}
-        <div className="w-full max-w-sm bg-slate-900/60 backdrop-blur-xl p-6 rounded-2xl border border-slate-800 shadow-2xl relative overflow-hidden mb-8">
-          {isLoading && <div className="absolute inset-0 z-30 pointer-events-none scanning-line" />}
+        {/* 🔑 Auth Card */}
+        <div className={`w-full max-w-sm bg-slate-900/60 backdrop-blur-2xl p-8 rounded-3xl border transition-all duration-500 shadow-2xl relative overflow-hidden ${isRegisterMode ? 'border-cyan-500/30' : 'border-white/5'}`}>
           
-          <form className="space-y-4" onSubmit={handleAuthSubmit}>
-            {errorMsg && (
-              <div className="bg-red-500/10 border border-red-500/50 p-2 rounded text-[10px] text-red-400 font-bold animate-fadeIn">
-                ⚠️ {errorMsg}
-              </div>
-            )}
-            
-            <div className="space-y-3">
-              <input 
-                type="text" 
-                disabled={isLoading} 
-                className="w-full bg-slate-950/50 border border-slate-800 text-white px-4 py-2.5 rounded-lg outline-none text-sm font-fix focus:border-orange-500/50 transition-colors" 
-                placeholder="User ID" 
-                value={username} 
-                onChange={(e) => setUsername(e.target.value)} 
-              />
+          {/* 🚀 スキャン線 (上から下へ移動) */}
+          {isLoading && (
+            <div className="absolute inset-0 z-50 pointer-events-none">
+              <div className={`absolute left-0 w-full h-[2px] shadow-[0_0_15px_currentcolor] animate-scanLine ${isRegisterMode ? 'bg-cyan-400 text-cyan-400' : 'bg-orange-500 text-orange-500'}`} />
+            </div>
+          )}
+
+          <form className="space-y-6" onSubmit={handleAuthSubmit}>
+            <div className="space-y-1">
+              <label className="block text-[10px] font-black text-slate-500 tracking-widest uppercase ml-1">User ID</label>
               <div className="relative">
+                <span className="absolute inset-y-0 left-4 flex items-center text-slate-500 material-symbols-outlined text-lg">person</span>
                 <input 
-                  type={showPassword ? "text" : "password"} 
-                  disabled={isLoading} 
-                  className="w-full bg-slate-950/50 border border-slate-800 text-white px-4 py-2.5 rounded-lg outline-none text-sm font-fix focus:border-orange-500/50 transition-colors" 
-                  placeholder="Password" 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)} 
+                  className="w-full bg-black/40 border border-white/10 text-white pl-12 pr-4 py-3.5 rounded-xl focus:ring-2 focus:ring-orange-600 transition-all outline-none text-sm font-bold" 
+                  placeholder="Username or ID" 
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                 />
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400"
-                >
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[10px] font-black text-slate-500 tracking-widest uppercase ml-1">Password</label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-4 flex items-center text-slate-500 material-symbols-outlined text-lg">lock</span>
+                <input 
+                  className="w-full bg-black/40 border border-white/10 text-white pl-12 pr-12 py-3.5 rounded-xl focus:ring-2 focus:ring-orange-600 transition-all outline-none text-sm font-bold" 
+                  placeholder="••••••••" 
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 hover:text-white transition-colors">
                   <span className="material-symbols-outlined text-sm">{showPassword ? 'visibility_off' : 'visibility'}</span>
                 </button>
               </div>
-
-              {isRegisterMode && (
-                <div className="space-y-3 pt-2 border-t border-slate-800 animate-fadeIn">
-                  <input 
-                    type="text" 
-                    className="w-full bg-slate-950/50 border border-slate-800 text-slate-400 px-4 py-2.5 rounded-lg outline-none text-[10px] font-fix" 
-                    placeholder="Security Question (e.g. Favorite Mentor?)" 
-                    value={customQuestion} 
-                    onChange={(e) => setCustomQuestion(e.target.value)} 
-                  />
-                  <input 
-                    type="text" 
-                    className="w-full bg-slate-950/50 border border-slate-800 text-white px-4 py-2.5 rounded-lg outline-none text-sm font-fix" 
-                    placeholder="Answer" 
-                    value={securityAnswer} 
-                    onChange={(e) => setSecurityAnswer(e.target.value)} 
-                  />
-                </div>
-              )}
             </div>
 
+            {/* 🚀 登録モード：独自Q&A入力 */}
+            {isRegisterMode && (
+              <div className="space-y-6 pt-2 border-t border-white/5 animate-slideIn">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-black text-cyan-500 tracking-widest uppercase ml-1">Security Question</label>
+                  <input 
+                    className="w-full bg-black/40 border border-cyan-500/30 text-white px-5 py-3.5 rounded-xl focus:ring-2 focus:ring-cyan-600 transition-all outline-none text-sm font-bold" 
+                    placeholder="Create Question" 
+                    value={securityQuestion}
+                    onChange={(e) => setSecurityQuestion(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-black text-cyan-500 tracking-widest uppercase ml-1">Security Answer</label>
+                  <input 
+                    className="w-full bg-black/40 border border-cyan-500/30 text-white px-5 py-3.5 rounded-xl focus:ring-2 focus:ring-cyan-600 transition-all outline-none text-sm font-bold" 
+                    placeholder="Enter Answer" 
+                    value={securityAnswer}
+                    onChange={(e) => setSecurityAnswer(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
             <button 
-              type="submit" 
-              disabled={isLoading} 
-              className="w-full font-black py-3 rounded-lg bg-orange-600 hover:bg-orange-500 text-white uppercase text-sm font-fix active:scale-95 transition-all shadow-lg shadow-orange-900/20"
+              className={`w-full ${isRegisterMode ? 'bg-cyan-600' : 'bg-orange-600'} hover:opacity-90 text-white font-black py-4 rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3 text-xs uppercase tracking-widest`} 
+              type="submit"
+              disabled={isLoading}
             >
-              {isLoading ? 'PROCESSING...' : isRegisterMode ? 'REGISTER AGENT' : 'ENTER CEBU (LOGIN)'}
+              {isLoading ? 'Processing...' : isRegisterMode ? 'Confirm Registration' : 'Enter Cebu (Login)'}
+              <span className="material-symbols-outlined text-lg">{isRegisterMode ? 'how_to_reg' : 'arrow_forward'}</span>
             </button>
 
             <button 
               type="button" 
-              onClick={() => {
-                setIsRegisterMode(!isRegisterMode);
-                setErrorMsg(null);
-              }} 
-              className="w-full text-slate-500 text-[10px] uppercase font-bold hover:text-slate-300 transition-colors"
+              onClick={() => setIsRegisterMode(!isRegisterMode)} 
+              className="w-full text-[9px] font-black text-slate-600 hover:text-orange-500 uppercase tracking-[0.3em] transition-colors"
             >
-              {isRegisterMode ? 'Already registered? Back to Login' : 'Create New Account'}
+              {isRegisterMode ? 'Back to Authentication' : 'Create New Command Account'}
             </button>
           </form>
         </div>
-
-        {/* 🚀 Intel Cards: z-index と pointer-events を強化 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full max-w-3xl relative z-30 pointer-events-auto">
-          {Object.entries(INTEL_DATA).map(([key, data]) => (
-            <button 
-              key={key} 
-              onClick={() => { 
-                setActiveIntel(key); 
-                addLog(`📡 Accessing Intel: ${data.title}`); 
-              }}
-              className="bg-slate-900/40 backdrop-blur-sm p-4 rounded-xl border border-slate-800/50 flex items-center gap-3 text-left hover:bg-slate-800 hover:border-orange-500/30 hover:-translate-y-1 transition-all group shadow-lg"
-            >
-              <div className="bg-orange-500/20 p-2 rounded-lg shrink-0 group-hover:bg-orange-500/40 transition-colors">
-                <span className="material-symbols-outlined text-orange-400 text-xl">{data.icon}</span>
-              </div>
-              <div className="flex flex-col">
-                <div className="text-white font-bold text-sm font-fix leading-none group-hover:text-orange-400">
-                  {data.title.replace(' POLICY', '').replace(' RECORDS', '')}
-                </div>
-                <div className="text-slate-500 text-[9px] font-fix mt-1 uppercase tracking-tighter">
-                  {data.subtitle}
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
       </main>
 
-      {/* 🚀 Intel Detail Modal: 背景ブラーと高 z-index で復活 */}
-      {activeIntel && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-md animate-fadeIn">
-          <div className="bg-slate-900 border border-orange-500/30 p-8 rounded-3xl max-w-lg shadow-[0_0_50px_rgba(249,115,22,0.2)] relative">
-            <div className="flex items-center gap-4 mb-6 text-left">
-              <div className="bg-orange-500/20 p-3 rounded-2xl">
-                <span className="material-symbols-outlined text-orange-500 text-3xl">{INTEL_DATA[activeIntel].icon}</span>
-              </div>
-              <div>
-                <h2 className="text-2xl font-black text-white italic font-fix uppercase leading-none">{INTEL_DATA[activeIntel].title}</h2>
-                <p className="text-orange-500 text-[10px] font-bold tracking-[0.3em] uppercase mt-1 font-fix">{INTEL_DATA[activeIntel].subtitle}</p>
+      {/* 🚀 image_847f98.jpg 準拠：システムアラートUI */}
+      {errorMessage && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-fadeIn" onClick={hideError}>
+          <div className="relative w-full max-w-xl bg-black border-2 border-orange-600 shadow-[0_0_50px_rgba(234,88,12,0.6)] p-10 flex items-center gap-8 group cursor-pointer overflow-hidden">
+            {/* 右側の縦ライン演出 */}
+            <div className="absolute top-0 right-6 h-full w-1.5 bg-orange-600/40"></div>
+            {/* 警告アイコン */}
+            <div className="w-20 h-20 border-2 border-orange-600 flex items-center justify-center rotate-45 shrink-0 bg-orange-600/10">
+              <span className="material-symbols-outlined text-orange-500 -rotate-45 text-5xl font-bold">priority_high</span>
+            </div>
+            {/* メッセージエリア */}
+            <div className="flex flex-col gap-2">
+              <div className="text-[11px] font-black text-orange-600 tracking-[0.5em] uppercase">System Alert: Action Rejected</div>
+              <div className="text-3xl font-black italic text-white uppercase tracking-tighter leading-none">
+                 {errorMessage}
               </div>
             </div>
-            <p className="text-slate-300 text-sm leading-relaxed text-left font-fix mb-8 border-l-2 border-orange-500/30 pl-4">
-              {INTEL_DATA[activeIntel].body}
-            </p>
-            <button 
-              onClick={() => setActiveIntel(null)}
-              className="w-full py-3 bg-white/5 hover:bg-white/10 text-white font-black rounded-xl border border-white/10 transition-all uppercase text-xs tracking-widest font-fix"
-            >
-              Close Intel
-            </button>
+            {/* 下部のプログレスバー演出 */}
+            <div className="absolute bottom-0 left-0 h-1.5 bg-orange-600 animate-shrinkOut" style={{ width: '100%' }}></div>
           </div>
         </div>
       )}
 
-      {/* Footer */}
-      <footer className="relative z-20 bg-slate-950/80 backdrop-blur-md flex flex-col md:flex-row justify-between items-center w-full px-8 py-4 border-t border-slate-800 text-[10px]">
-        <div className="text-orange-500 font-bold uppercase tracking-widest font-fix">© 2026 Batch21 [AM GI Offline]</div>
-        <div className="flex gap-6 text-slate-500 font-medium items-center">
-          <span className="font-fix">ENCRYPTION: JWT-SHA256</span>
-          <span className="font-fix">STATUS: ENFORCED</span>
+      <footer className="relative z-20 flex justify-between items-center w-full px-10 py-6 border-t border-white/5 font-inter text-[9px] text-slate-600">
+        <div className="uppercase tracking-widest font-black">© 2026 Cebu Conquest Batch21 [AM]</div>
+        <div className="flex gap-8 uppercase font-black">
+          <span>Encryption: AES-256</span>
+          <span>Status: Enforced</span>
         </div>
       </footer>
 
       <style>{`
+        .island-silhouette {
+          background-image: linear-gradient(to top, #020617 20%, transparent 100%), url(https://lh3.googleusercontent.com/aida-public/AB6AXuDSuA1bkSkNiW2UkyuB77YfeoYUjF4RMpZ16m0xEgLDdDSHOMLBYhyIIjnbVAs8TTaIwLQCxKn2JcrAKeV6fLP2c1f3RD7XyIYEoCG6uxUGrVpCcoYNd8wLip7vqftuMd8sYI25g2ZndcGE8mtGgO0cgQFS-A1Zam7Vc6wuHt1LxTjBSc4SH3c7_Qf9OZjd_C9D4Kv-0_cYa0hET5HdZEFNtdgOhbxVNTlrQqAaG-xc_U1BikHRjSwk2UCVtTkuiUQsSawMVVm16hY);
+          background-size: cover;
+          background-position: center bottom;
+        }
+        .tropical-flare { background: radial-gradient(circle at center, rgba(249, 115, 22, 0.4) 0%, rgba(249, 115, 22, 0) 70%); }
+        @keyframes scanLine {
+          0% { top: 0%; opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { top: 100%; opacity: 0; }
+        }
+        .animate-scanLine { animation: scanLine 1.5s linear infinite; }
+        @keyframes shrinkOut { from { width: 100%; } to { width: 0%; } }
+        .animate-shrinkOut { animation: shrinkOut 4s linear forwards; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .scanning-line { height: 2px; background: #06b6d4; box-shadow: 0 0 15px #06b6d4; position: absolute; width: 100%; top: 0; animation: scan 2s linear infinite; }
-        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
-        .font-fix { line-height: 1.2; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-slideIn { animation: slideIn 0.3s ease-out forwards; }
+        .font-fix { line-height: 0.9; }
       `}</style>
     </div>
   );
-};
+});
+
+export default LoginView;
