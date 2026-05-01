@@ -1,16 +1,16 @@
 <?php
 
-// CORS対策 (ReactからのPOSTリクエストを許可)
-header("Access-Control-Allow-Origin: *");
+// ── 最優先: CORS ヘッダーを require より前に全送信 ──────────────────
+header("Access-Control-Allow-Origin: http://localhost:5173");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Content-Type: application/json; charset=UTF-8");
-header("X-Content-Type-Options: nosniff"); // 追加：ブラウザによるMIMEタイプ推測を禁止
+header("X-Content-Type-Options: nosniff");
 
-// 2. OPTIONSリクエストへの即答（いっせいさんの指定通り 200 を返す）
+// OPTIONS プリフライトはここで完結（require より絶対に前）
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-  header("HTTP/1.1 200 OK");
-  exit();
+    http_response_code(200);
+    exit();
 }
 
 // HTTPメソッド制限（POST以外は405を返す）

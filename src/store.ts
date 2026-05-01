@@ -1,4 +1,3 @@
-// src/store.ts
 import { create } from 'zustand';
 import socket from './socket';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
@@ -14,7 +13,6 @@ interface ChatMessage {
 
 const MAP_REPAINT_EVENT = 'react:mapRepaint';
 
-// 🚀 神々のデータ (GDD v3.0 準拠)
 const GODS_DATA = [
   { id: 1, name: "LAPU-LAPU", role: "WAR GOD", bonus: "ATK +20", img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "島嶼戦における近接攻撃ダメージを25%上昇させ、物理防御力を強化する。" },
   { id: 2, name: "SEBUNA", role: "HARVEST", bonus: "MAX AP +30", img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400", desc: "全分隊員のタクティカルアビリティのクールダウンを15%短縮する。" },
@@ -313,9 +311,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!data) return;
     const currentState = get();
 
-    // 🚀 デバッグ：サーバーから届いた生データを確認
-    console.log("📡 [SYNC] Server Data Players:", data.players);
-
     const rawPlayers = data.players ?? {};
     let playersArray = Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers);
     playersArray = playersArray.filter((p: any) => p && p.id); 
@@ -331,7 +326,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     const isMe = data.turnOwnerId === myId;
     const isGameOver = data.isGameOver ?? currentState.isGameOver;
 
-    // 更新判定
     if (
       currentState.hp !== nextHp ||
       currentState.ap !== nextAp ||
@@ -342,7 +336,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       JSON.stringify(currentState.players) !== JSON.stringify(playersArray) || 
       JSON.stringify(currentState.districts) !== JSON.stringify(data.districts)
     ) {
-      console.log("✨ [STORE] UI Rerender Triggered. Players Count:", playersArray.length);
       set((state) => ({
         ...state,
         myId,
@@ -355,7 +348,6 @@ export const useGameStore = create<GameState>((set, get) => ({
         def: nextDef,
         blessing: nextBlessing,
         districts: data.districts ?? state.districts,
-        // ✅ 修正：新しい配列参照 [...playersArray] を作成し、Reactに確実に通知する
         players: [...playersArray], 
         turn: nextTurn,
         isMyTurn: isMe,
@@ -407,10 +399,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   escape: () => { socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'escape' }); },
 
   useItem: (itemId: number) => {
-    const { isMyTurn } = get();
+    const { isMyTurn, addLog } = get();
     if (!isMyTurn) return;
     socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId: Number(itemId) });
-    get().addLog(`🧪 アイテム（ID: ${itemId}）を使用。`);
+    addLog(`🧪 アイテム（ID: ${itemId}）を使用しました。`);
   },
 
   endTurn: () => { 
@@ -426,7 +418,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   setSeVolume: (vol) => set({ seVolume: vol }),
 }));
 
-// --- 📡 Socket Listeners ---
 socket.on('connect', () => { useGameStore.getState().setStatus({ isServerOnline: true }); });
 socket.on('disconnect', () => { useGameStore.getState().setStatus({ isServerOnline: false }); });
 
