@@ -94,7 +94,7 @@ export interface GameState {
   isUnderAttack: boolean;
   setUnderAttack: (status: boolean) => void;
 
-  // ✅ 修正：image_84fafc.png の型エラー解決用。BUG-007 実装の型定義
+  // ✅ BUG-007: URL解決用の型定義
   getApiUrl: (endpoint: string) => string;
 
   masterData: any | null;
@@ -130,6 +130,10 @@ export interface GameState {
   stay: () => void;
   defend: () => void;
   escape: () => void;
+  
+  // ✅ けいさんの依頼：アイテム使用アクションの型定義
+  useItem: (itemId: number) => void;
+
   endTurn: () => void; 
   addLog: (text: string) => void;
   addChatLog: (msg: ChatMessage) => void; 
@@ -181,7 +185,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   isUnderAttack: false,
   setUnderAttack: (status) => set({ isUnderAttack: status }),
 
-  // ✅ 修正：image_84fafc.png の型エラー解決用。BUG-007 実装の実体
+  // ✅ BUG-007: 実装（image_84fafc.png 対応）
   getApiUrl: (endpoint: string) => `${API_BASE}/${endpoint}`,
 
   masterData: null,
@@ -223,8 +227,11 @@ export const useGameStore = create<GameState>((set, get) => ({
         await get().syncMasterData();
         get().addLog(`🔐 認証完了。コマンダー ${user.username} ログイン。`);
         return true;
+      } else {
+        // ✅ 修正：サーバーからのエラー（名前重複など）を画面に表示
+        set({ errorMessage: json.message || "ログインに失敗しました。" });
+        return false;
       }
-      return false;
     } catch {
       get().addLog("❌ サーバー接続失敗");
       return false;
@@ -449,6 +456,17 @@ export const useGameStore = create<GameState>((set, get) => ({
   escape: () => { 
     socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'escape' }); 
     get().addLog("🏃 撤退。"); 
+  },
+
+  // ✅ けいさんの依頼：アイテム使用の実装
+  useItem: (itemId: number) => {
+    const { isMyTurn, addLog } = get();
+    if (!isMyTurn) return;
+
+    // 🚀 ペイロード形式を { itemId: number } に統一
+    socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId: Number(itemId) });
+
+    addLog(`🧪 アイテム（ID: ${itemId}）を使用しました。`);
   },
 
   endTurn: () => { 
