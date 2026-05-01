@@ -44,6 +44,12 @@ const API_BASE = typeof window !== 'undefined'
 
 type ViewType = 'login' | 'tutorial' | 'setup' | 'lobby' | 'selection' | 'waiting' | 'game' | 'ranking';
 
+// ✅ 修正：ログの型を { text, time } に変更。Sidebar.tsx の時刻ズレバグを解消する
+interface LogEntry {
+  text: string;
+  time: string;
+}
+
 export interface GameState {
   view: ViewType;
   setView: (view: ViewType) => void;
@@ -62,7 +68,8 @@ export interface GameState {
   def: number;
   turn: number; 
   maxTurn: number;
-  logs: string[]; 
+  // ✅ 修正：string[] → LogEntry[]（addLog 時にタイムスタンプを付与）
+  logs: LogEntry[];
   chatLogs: ChatMessage[]; 
   roomId: string;
   players: any[];
@@ -97,7 +104,7 @@ export interface GameState {
     districts: Map<number, any>;
     spots: Map<number, any>;
   } | null;
-  setLookupData: (data: any) => void; // ✅ 追加：これでApp.tsxのエラーが解消されます
+  setLookupData: (data: any) => void;
 
   npcs: Record<string, any>;
   setNpcs: (npcData: Record<string, any>) => void;
@@ -131,6 +138,9 @@ export interface GameState {
   setSeVolume: (vol: number) => void;
 }
 
+// ✅ タイムスタンプ生成ヘルパー（addLog と初期値で共用）
+const nowTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
 export const useGameStore = create<GameState>((set, get) => ({
   view: 'login',
   setView: (view) => set({ view }),
@@ -148,7 +158,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   ap: 100, maxAp: 100,
   blessing: 1.0, atk: 50, def: 40,
   turn: 0, maxTurn: 10,
-  logs: ["🌞 ミッション開始。出撃地点を選択してください。"],
+  // ✅ 修正：初期ログも { text, time } 形式で保持
+  logs: [{ text: "🌞 ミッション開始。出撃地点を選択してください。", time: nowTime() }],
   chatLogs: [], 
   roomId: '',
   players: [],
@@ -276,7 +287,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   selectGod: (id: number) => {
-    const { isSubmitted, roomId, godsList, addLog } = get();
+    const { isSubmitted, roomId, godsList } = get();
     if (isSubmitted) return; 
 
     const god = godsList.find(g => g.id === id);
@@ -449,7 +460,17 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   setStatus: (status) => set((state) => ({ ...state, ...status })),
-  addLog: (text) => set((state) => ({ logs: [text, ...state.logs].slice(0, 10) })),
+
+  // ✅ 修正：addLog でタイムスタンプを付与して保存する
+  //    これにより Sidebar.tsx が log.time を参照できるようになり、
+  //    レンダリングのたびに時刻がズレるバグが解消される
+  addLog: (text) => set((state) => ({
+    logs: [
+      { text, time: nowTime() },
+      ...state.logs
+    ].slice(0, 10)
+  })),
+
   addChatLog: (msg) => set((state) => ({ chatLogs: [...state.chatLogs, msg].slice(-50) })),
   resetGame: () => window.location.reload(),
   setBgmVolume: (vol) => set({ bgmVolume: vol }),

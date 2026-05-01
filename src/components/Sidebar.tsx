@@ -203,8 +203,10 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
             <div className="bg-black/40 rounded border border-white/5 h-32 p-3 text-[9px] font-mono text-slate-500 custom-scrollbar overflow-y-auto space-y-1.5">
               {logs.map((log, i) => (
                 <p key={i} className={`${i === 0 ? 'text-orange-400 font-bold text-left' : 'opacity-60 text-left'}`}>
-                  <span className="text-slate-800 mr-1">[{new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}]</span>
-                  {log}
+                  {/* ✅ 修正：レンダリング時の現在時刻ではなく、ログ追加時に記録した time を使用する
+                       store.ts の addLog で { text, time } 形式で保存されている前提 */}
+                  <span className="text-slate-800 mr-1">[{log.time}]</span>
+                  {log.text}
                 </p>
               ))}
             </div>
