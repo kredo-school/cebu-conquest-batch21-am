@@ -4,6 +4,7 @@ import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
+import { getNeighbors } from '../shared/adjacency.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -53,38 +54,23 @@ const DISTRICTS_MASTER = {
     "13204": { name: "Basilica del Santo Nino（サント・ニーニョ大聖堂）", priority: 9, buff: { atk: 0, def: 25 } },
 };
 
-// 🚀 【全地区連結】島全体を網羅した隣接リスト（NPCの移動経路）
-const ADJACENT_DISTRICTS = {
-    // ── セブ市街地エリア（エリアID: 11）──
-    "11101": ["11102", "11104", "11105", "11120"],
-    "11102": ["11101", "11104", "11106", "11108"],
-    "11103": ["11101", "11105", "11201", "11301"],
-    "11104": ["11101", "11102", "11105", "11401"],
-    "11105": ["11101", "11103", "11104", "11301"],
-    "11106": ["11102", "11108"],
-    "11108": ["11102", "11106", "11109", "11112"],
-    "11109": ["11108", "11112", "11113"],
-    "11112": ["11108", "11109", "11113", "11116", "11119"],
-    "11113": ["11109", "11112", "11117", "11118", "11119"],
-    "11115": ["11118", "11119"],
-    "11116": ["11112", "11119", "11120"],
-    "11117": ["11113", "11118"],
-    "11118": ["11113", "11115", "11117", "11119"],
-    "11119": ["11112", "11113", "11115", "11118", "11120", "11121"],
-    "11120": ["11101", "11116", "11119", "11121"],
-    "11121": ["11119", "11120"],
-    // ── 北部エリア（エリアID: 13）──
-    "13101": ["13102", "13103"],
-    "13102": ["13101", "13103", "13201"],
-    "13103": ["13101", "13102", "13201", "13204"],
-    "13201": ["13102", "13103", "13204"],
-    "13204": ["13103", "13201"],
-};
+// 隣接リストは shared/adjacency.js で一元管理（getNeighbors を使用）
 
 // ==========================================
 // 🚀 【設定】ルーム管理とゲーム状態の初期化
 // ==========================================
 const rooms = new Map();
+
+// BUG-005: SYNC_STATE 送信前に各プレイヤーのJWT等の機微情報を除去
+function sanitizeRoomState(roomState) {
+    if (!roomState) return roomState;
+    const safePlayers = {};
+    for (const [id, p] of Object.entries(roomState.players)) {
+        const { token, dbUserId, authToken, ...safe } = p;
+        safePlayers[id] = safe;
+    }
+    return { ...roomState, players: safePlayers };
+}
 
 // 新しい部屋の gameState を生成する関数
 function createInitialGameState(maxPlayers = 4) {
@@ -158,7 +144,7 @@ function processNpcTurn(roomId) {
     npc.isDefending = false;
 
     const stats = calculateFinalStats(roomId, npcId);
-    const neighbors = ADJACENT_DISTRICTS[String(npc.districtId)] || [];
+    const neighbors = getNeighbors(npc.districtId).map(String);
 
     let targets = neighbors.map(id => {
         const ownerId = roomState.districts[id];
@@ -233,7 +219,7 @@ function finalizeTurn(roomId, currentId) {
         return; 
     }
 
-    io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+    io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
     io.to(roomId).emit(SERVER_EVENTS.TURN_START, {
         turn: roomState.turn,
         turnOwnerId: nextId,
@@ -250,7 +236,7 @@ async function handleGameOver(roomId, playerIds) {
     if (!roomState) return;
 
     roomState.status = 'finished';
-    io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+    io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
     
     const scores = {};
     playerIds.forEach(id => scores[id] = 0);
@@ -355,7 +341,7 @@ io.on('connection', (socket) => {
             io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`👼 ${roomState.players[socket.id].username} が【${godName}】の加護を受けてルームを作成！`);
         }
 
-        io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+        io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
         if (callback) callback({ success: true, roomId: roomId });
     });
 
@@ -425,7 +411,7 @@ io.on('connection', (socket) => {
             io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`👼 ${roomState.players[socket.id].username} が【${godName}】の加護を受けて参戦！`);
         }
 
-        io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+        io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
         if (callback) callback({ success: true });
     });
 
@@ -470,7 +456,7 @@ io.on('connection', (socket) => {
         io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,
             `🤖 ${roomState.players[npcId].username} が ${DISTRICTS_MASTER[startDistrictId]?.name || startDistrictId} に展開しました！`
         );
-        io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+        io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
     });
 
     // 🚀 【神の選択】
@@ -483,7 +469,7 @@ io.on('connection', (socket) => {
         const p = roomState.players[socket.id];
         if (p) {
             p.selectedGodId = data.godId;
-            io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+            io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
             console.log(`✨ [Room ${roomId}] ${p.username} selected god: ${data.godId}`);
         }
     });
@@ -531,7 +517,7 @@ io.on('connection', (socket) => {
                 
                 io.to(roomId).emit(SERVER_EVENTS.GAME_START);
                 
-                io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+                io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
                 io.to(roomId).emit(SERVER_EVENTS.TURN_START, { 
                     turn: 1, 
                     turnOwnerId: firstId,
@@ -541,7 +527,7 @@ io.on('connection', (socket) => {
                 
                 console.log(`🎮 [Room ${roomId}] Game Started!`);
             } else {
-                io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+                io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
             }
         }
     });
@@ -568,7 +554,7 @@ io.on('connection', (socket) => {
 
             p.isDefending = false;
 
-            const neighbors = ADJACENT_DISTRICTS[String(p.districtId)];
+            const neighbors = getNeighbors(p.districtId).map(String);
             if (
                 (data.type === 'attack' || data.type === 'move') &&
                 neighbors &&
@@ -723,6 +709,25 @@ io.on('connection', (socket) => {
                 });
             } catch (err) {
                 console.error(`❌ [Room ${roomId} DB] アイテム使用非同期同期エラー:`, err);
+        try {
+            const response = await fetch(`${API_BASE_URL}use-item.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${p.token}` },
+                body: JSON.stringify({ item_id: itemId })
+            });
+            const dbResult = await response.json();
+
+            if (dbResult.status === 'success') {
+                if (dbResult.new_status) {
+                    p.hp = dbResult.new_status.current_hp;
+                    p.ap = dbResult.new_status.stamina;
+                    p.atk = dbResult.new_status.atk;
+                    p.def = dbResult.new_status.def;
+                }
+                io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`🧪 ${p.username} ${dbResult.message}`);
+                io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
+            } else {
+                socket.emit(SERVER_EVENTS.ERROR_MESSAGE, dbResult.message || "アイテムの使用に失敗しました");
             }
         }
     });
@@ -761,7 +766,7 @@ io.on('connection', (socket) => {
                 roomState.isProcessingAction = false;
                 finalizeTurn(roomId, socket.id);
             } else {
-                io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+                io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
             }
         }
     });
@@ -775,33 +780,52 @@ io.on('connection', (socket) => {
         const roomState = rooms.get(roomId);
         if (!roomState || !roomState.players[socket.id]) return;
 
-        const wasTurnOwner = (roomState.turnOwnerId === socket.id);
-        delete roomState.players[socket.id];
+        const disconnectedId = socket.id;
+        const wasTurnOwner = (roomState.turnOwnerId === disconnectedId);
+
+        // BUG-011: delete前にプレイヤー順序を記録しないと finalizeTurn が -1 を返す
+        const prevIds = Object.keys(roomState.players);
+        const prevIndex = prevIds.indexOf(disconnectedId);
+
+        delete roomState.players[disconnectedId];
 
         const remaining = Object.keys(roomState.players);
         if (remaining.length === 0) {
             rooms.delete(roomId);
             console.log(`🗑️ Room ${roomId} has been deleted.`);
-        } else {
-            io.to(roomId).emit(SERVER_EVENTS.PLAYER_DISCONNECTED, socket.id);
-            if (wasTurnOwner && roomState.status === 'playing') {
-                roomState.isProcessingAction = false; 
-                finalizeTurn(roomId, socket.id);
-            } else {
-                io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+            return;
+        }
+
+        io.to(roomId).emit(SERVER_EVENTS.PLAYER_DISCONNECTED, disconnectedId);
+
+        if (wasTurnOwner && roomState.status === 'playing') {
+            const nextIndex = prevIndex % remaining.length;
+            const nextId = remaining[nextIndex];
+            roomState.turnOwnerId = nextId;
+            roomState.isProcessingAction = false;
+            io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
+            io.to(roomId).emit(SERVER_EVENTS.TURN_START, {
+                turn: roomState.turn,
+                turnOwnerId: nextId,
+                turnOwnerName: roomState.players[nextId]?.username
+            });
+            if (roomState.players[nextId]?.isNpc) {
+                setTimeout(() => processNpcTurn(roomId), 2000);
             }
+        } else {
+            io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
         }
     });
 });
 
-// 全部屋の同期処理
+// BUG-010: ターン制ゲームのため毎秒同期は不要。5秒のヘルスチェックに変更。
 setInterval(() => {
     rooms.forEach((roomState, roomId) => {
         if (Object.keys(roomState.players).length > 0) {
-            io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+            io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
         }
     });
-}, 1000);
+}, 5000);
 
 server.listen(PORT, () => {
     console.log(`🚀 Heavy Tactical Server Running on port ${PORT}`);

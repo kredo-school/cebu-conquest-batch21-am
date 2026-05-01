@@ -1,3 +1,5 @@
+// src/components/GodSelectionView.tsx
+
 import React, { useState, memo, useMemo } from 'react';
 import { useGameStore } from '../store';
 import { REACT_TO_PHASER } from '../game/events/PhaserBridge';
@@ -9,18 +11,23 @@ interface GodSelectionViewProps {
   onBack: () => void;
 }
 
+/**
+ * 🛰️ GodSelectionView: 8柱の神々から一柱を選択する初期出撃画面
+ * 担当: いっせい (React + Vite + TS)
+ * 仕様: GDD v3.0 準拠。選択した神により初期ステータスとバフ倍率が決定。
+ */
+
 const GOD_SLOTS = [
-  { id: 1, name: "ラプラプの加護", role: "WAR", bonus: "ATK +20", img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "島嶼戦における近接攻撃ダメージを25%上昇させ、物理防御力を強化する。" },
-  { id: 2, name: "マクタンの知恵", role: "STRATEGIST", bonus: "MAX AP +30", img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400", desc: "全分隊員のタクティカルアビリティのクールダウンを15%短縮する。" },
-  { id: 3, name: "アポ・ラキの怒り", role: "BURN", bonus: "SOLAR", img: "https://images.unsplash.com/photo-1533240332313-0db49b459ad6?q=80&w=400", desc: "昼間戦闘フェーズ中、全ての弾薬にソーラーバーン（焼尽）効果を付与する。" },
-  { id: 4, name: "マヤリの静寂", role: "STEALTH", bonus: "SILENT", img: "https://images.unsplash.com/photo-1506466010722-395aa2bef877?q=80&w=400", desc: "隠密探知範囲を拡大し、足音の静音性を40%向上させる。" },
-  { id: 5, name: "ルマウィグの力", role: "HEAVY", bonus: "ARMOR +40", img: "https://images.unsplash.com/photo-1584281722573-0f723675017e?q=80&w=400", desc: "アーマーの耐久値を増加させ、燃焼ステータス効果を無効化する。" },
-  { id: 6, name: "ハヌマンの疾風", role: "SUPPORT", bonus: "SPEED +15", img: "https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?q=80&w=400", desc: "山岳地帯におけるダッシュ速度とジャンプ高度を20%向上させる。" },
-  { id: 7, name: "バクナワの影", role: "SHADOW", bonus: "INVIS", img: "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?q=80&w=400", desc: "マッチの夜間サイクル中、一時的な不可視化（インビジビリティ）を可能にする。" },
-  { id: 8, name: "イダナレの恵み", role: "RECON", bonus: "SCAN", img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=400", desc: "障害物越しにリソースクレートや敵の足跡をハイライト表示する。" },
+  { id: 1, textureKey: 'god-john',   name: "ラプラプの加護", role: "WAR",         bonus: "ATK +20",    img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "島嶼戦における近接攻撃ダメージを25%上昇させ、物理防御力を強化する。" },
+  { id: 2, textureKey: 'god-garry',  name: "マクタンの知恵", role: "STRATEGIST", bonus: "MAX AP +30", img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400", desc: "全分隊員のタクティカルアビリティのクールダウンを15%短縮する。" },
+  { id: 3, textureKey: 'god-quesie', name: "アポ・ラキの怒り", role: "BURN",      bonus: "SOLAR",      img: "https://images.unsplash.com/photo-1533240332313-0db49b459ad6?q=80&w=400", desc: "昼間戦闘フェーズ中、全ての弾薬にソーラーバーン（焼尽）効果を付与する。" },
+  { id: 4, textureKey: 'god-neil',   name: "マヤリの静寂",   role: "STEALTH",   bonus: "SILENT",     img: "https://images.unsplash.com/photo-1506466010722-395aa2bef877?q=80&w=400", desc: "隠密探知範囲を拡大し、足音の静音性を40%向上させる。" },
+  { id: 5, textureKey: 'god-edo',    name: "ルマウィグの力", role: "HEAVY",      bonus: "ARMOR +40",  img: "https://images.unsplash.com/photo-1584281722573-0f723675017e?q=80&w=400", desc: "アーマーの耐久値を増加させ、燃焼ステータス効果を無効化する。" },
+  { id: 6, textureKey: 'god-shem',   name: "ハヌマンの疾風", role: "SUPPORT",   bonus: "SPEED +15",  img: "https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?q=80&w=400", desc: "移動速度と回避率を上昇させる。" },
+  { id: 7, textureKey: 'god-kurt',   name: "バクナワの影",   role: "SHADOW",    bonus: "INVIS",      img: "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?q=80&w=400", desc: "マッチの夜間サイクル中、一時的な不可視化（インビジビリティ）を可能にする。" },
+  { id: 8, textureKey: 'god-secret', name: "イダナレの恵み", role: "RECON",     bonus: "SCAN",       img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=400", desc: "障害物越しにリソースクレートや敵の足跡をハイライト表示する。" },
 ];
 
-// 🚀 最適化：React.memoで画面全体の不要な再描画をガード
 export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({ 
   onComplete, 
   onBack 
@@ -33,7 +40,7 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
   
   const [pendingSelection, setPendingSelection] = useState<typeof GOD_SLOTS[0] | null>(null);
 
-  // 統計計算をメモ化
+  // 🚀 同期人数計算
   const readyInfo = useMemo(() => {
     const humanPlayers = players.filter(p => !p.isNpc);
     return {
@@ -42,31 +49,43 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
     };
   }, [players, maxPlayers]);
 
+  /**
+   * 🚀 排他制御ロジック
+   * サーバーから同期された全プレイヤーをチェックし、自分以外の誰かが
+   * その godId を選択済み（または確定済み）であればロック情報を返す
+   */
   const getLockInfo = (godId: number) => {
-    const selector = players.find(p => p.id !== myId && (p.selectedGodId === godId || p.godId === godId));
+    const selector = players.find(p => p.id !== myId && (Number(p.selectedGodId) === godId || Number(p.godId) === godId));
     if (selector) return { name: selector.playerName || "Operator" };
     return null;
   };
 
+  /**
+   * 🚀 handleFinalSelect: 選択確定処理
+   */
   const handleFinalSelect = () => {
-    if (pendingSelection) {
-      selectGod(pendingSelection.id);
-      window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.SET_AVATAR, { 
-        detail: { godKey: pendingSelection.id } 
-      }));
-      onComplete(); 
-    }
+    if (!pendingSelection) return;
+    
+    // 1. Zustand経由でサーバーへ選択を送信（楽観的ステータス更新含む）
+    selectGod(pendingSelection.id);
+    
+    // 2. PhaserBridge経由でPhaserへアバター更新を指示
+    window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.SET_AVATAR, { 
+      detail: { godKey: pendingSelection.textureKey }
+    }));
+    
+    onComplete(); 
   };
 
   return (
     <div className="absolute w-full h-full z-[10000] bg-slate-950 font-body text-slate-200 select-none flex items-center justify-center p-4 overflow-hidden">
       
-      {/* 背景エフェクト：スキャンライン */}
+      {/* 背景エフェクト：サイバースキャン */}
       <div className="absolute inset-0 pointer-events-none opacity-10 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[size:100%_4px,3px_100%]"></div>
 
       <div className="w-full max-w-6xl h-[90vh] flex flex-col bg-zinc-950/80 border border-white/10 rounded-2xl overflow-hidden relative shadow-[0_0_50px_rgba(0,0,0,0.5)] backdrop-blur-xl animate-fadeIn">
         
-        {/* ヘッダーエリア：ネオン管エフェクト */}
+        {/* ヘッダーエリア */}
         <div className="px-10 py-8 flex flex-col items-start gap-1 shrink-0 border-b border-white/5">
           <h1 className="text-3xl font-black italic tracking-tighter text-orange-500 uppercase font-fix animate-glitch-text">
             Choose the god you believe in
@@ -79,21 +98,23 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
           </div>
         </div>
 
-        {/* 神選択リストエリア */}
+        {/* Bento Grid: 神選択リスト */}
         <div className="flex-1 px-10 py-6 overflow-y-auto custom-scrollbar">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {GOD_SLOTS.map((god) => {
-              const lock = getLockInfo(god.id);
+              const lock = getLockInfo(god.id); // 🚀 リアルタイム排他チェック
               const isSelected = pendingSelection?.id === god.id || selectedGodId === god.id;
 
               return (
                 <div 
                   key={god.id} 
-                  onClick={() => !lock && setPendingSelection(god)}
+                  onClick={() => !lock && setPendingSelection(god)} // 🚀 ロック時はクリックをガード
                   className={`group relative flex flex-col bg-zinc-900/40 border-2 transition-all duration-300 cursor-pointer rounded-xl overflow-hidden ${
                     isSelected 
                       ? "border-orange-500 shadow-[0_0_30px_rgba(249,115,22,0.3)] scale-[1.02]" 
-                      : lock ? "border-transparent opacity-30 grayscale cursor-not-allowed" : "border-white/5 hover:border-white/20 hover:bg-zinc-800/50"
+                      : lock 
+                        ? "border-transparent opacity-30 grayscale cursor-not-allowed" // 🚀 占領済みスタイル
+                        : "border-white/5 hover:border-white/20 hover:bg-zinc-800/50"
                   }`}
                 >
                   <div className="relative h-40 overflow-hidden">
@@ -107,10 +128,13 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
                       </div>
                     )}
                     
+                    {/* 🚀 排他制御オーバーレイ表示 */}
                     {lock && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80">
-                         <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest border border-zinc-700 px-3 py-1 font-fix">Occupied</span>
-                         <span className="text-[9px] text-zinc-600 mt-2 uppercase font-fix">{lock.name}</span>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
+                         <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest border border-zinc-700 px-3 py-1 font-fix mb-2">Occupied</div>
+                         <div className="text-[9px] text-orange-500 uppercase font-black font-fix animate-pulse">
+                           Locked by {lock.name}
+                         </div>
                       </div>
                     )}
 

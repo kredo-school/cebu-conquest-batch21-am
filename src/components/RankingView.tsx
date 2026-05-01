@@ -1,3 +1,4 @@
+// src/components/RankingView.tsx
 import React, { useState, useMemo, memo } from 'react';
 import { useGameStore } from '../store';
 
@@ -7,40 +8,66 @@ interface RankingViewProps {
   onBack: () => void;
 }
 
-// 🚀 島ID定数
-const ISLAND_NAMES: Record<number, string> = {
-  11: "CEBU NORTH",
-  12: "MACTAN",
-  13: "CEBU CENTRAL",
-  14: "NEGROS",
-  15: "SIQUIJOR"
-};
-
+/**
+ * 🏆 RankingView: 勢力占有率ランキング表示
+ * 担当: いっせい (React + Zustand)
+ * 仕様: GDD v3.1 準拠 / lookupData による O(1) 逆引き実装
+ */
 export const RankingView: React.FC<RankingViewProps> = memo(({ 
   onOpenSettings, onOpenHelp, onBack
 }) => {
-  const { players, myId, districts } = useGameStore();
+  // ✅ GDD v3.1: lookupData を取得。未ロード時のためのガードを考慮。
+  const { players, myId, lookupData } = useGameStore();
   const [filter, setFilter] = useState<'weekly' | 'global'>('weekly');
 
   // 🚀 最適化：ランキング計算をメモ化
   const sortedPlayers = useMemo(() => {
-    return [...players].sort((a, b) => (b.occupancy || 0) - (a.occupancy || 0))
+    if (!players) return [];
+
+    return [...players]
+      .sort((a, b) => (b.occupancy || 0) - (a.occupancy || 0))
       .map(player => {
-        // 5桁IDから拠点を特定（最初の地区などから推測）
-        // ここではデモ用にIDから島名を割り当て
-        const mockDistrictId = player.id === 'p1' ? 13101 : 11101; 
-        const islandId = Math.floor(mockDistrictId / 1000);
+        // ✅ GDD v3.1: lookupData から動的に島名を解決
+        let islandName = "FRONTIER";
+        
+        // プレイヤーの現在位置 (districtId > location の優先順位)
+        const locId = player.districtId || player.location;
+
+        if (locId && lookupData?.districts) {
+          // 1. locIdがそのまま地区(3桁)か、スポット(5桁)かを判定してDistrict情報を取得
+          let district = lookupData.districts.get(locId);
+          
+          // 2. スポットIDだった場合、スポットMapから親地区を引く
+          if (!district && lookupData.spots) {
+            const spot = lookupData.spots.get(locId);
+            if (spot) {
+              district = lookupData.districts.get(spot.parentDistrictId);
+            }
+          }
+
+          // 3. 階層を遡って島名(Island Name)を特定
+          if (district) {
+            const area = lookupData.areas?.get(district.parentAreaId);
+            if (area) {
+              const island = lookupData.islands?.get(area.parentIslandId);
+              if (island) {
+                islandName = island.name.toUpperCase();
+              }
+            }
+          }
+        }
+
         return {
           ...player,
-          baseIsland: ISLAND_NAMES[islandId] || "FRONTIER"
+          baseIsland: islandName
         };
       });
-  }, [players]);
+  }, [players, lookupData]);
 
   const topThree = sortedPlayers.slice(0, 3);
   const remaining = sortedPlayers.slice(3);
-  const myRank = sortedPlayers.findIndex(p => p.id === myId) + 1;
   const me = sortedPlayers.find(p => p.id === myId);
+  const myRank = sortedPlayers.findIndex(p => p.id === myId) + 1;
 
   return (
     <div className="w-full h-full bg-slate-950 text-slate-100 font-body selection:bg-orange-500/30 overflow-hidden flex flex-col relative animate-fadeIn">
@@ -173,7 +200,7 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
                   <div className="text-[10px] text-slate-600 font-bold uppercase tracking-widest font-fix">Rank: Elite Commander</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-orange-500 font-black text-xl font-fix">{player.occupancy}%</div>
+                  <div className="text-orange-500 font-black text-xl font-fix">{player.occupancy || 0}%</div>
                   <div className="text-[9px] text-slate-500 font-bold uppercase font-fix">Control</div>
                 </div>
               </div>
@@ -182,37 +209,39 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
         </div>
       </main>
 
-      {/* Sticky Personal Status */}
-      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-4xl px-6 hidden md:block">
-        <div className="bg-slate-900/90 backdrop-blur-2xl border border-orange-500/40 rounded-2xl p-5 shadow-2xl flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div className="flex flex-col items-center">
-              <span className="text-[8px] font-black text-slate-500 uppercase font-fix">Your Rank</span>
-              <span className="text-3xl font-black italic text-orange-500 font-fix">{myRank}</span>
-            </div>
-            <div className="h-10 w-px bg-slate-800"></div>
-            <div className="flex items-center gap-4 text-left">
-              <div className="w-12 h-12 rounded-full border-2 border-orange-500/50 overflow-hidden bg-slate-800">
-                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${me?.name}`} className="w-full h-full object-cover" alt="" />
+      {/* Sticky Personal Status (Apple-like bottom bar) */}
+      {me && (
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-4xl px-6 hidden md:block">
+          <div className="bg-slate-900/90 backdrop-blur-2xl border border-orange-500/40 rounded-2xl p-5 shadow-2xl flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <div className="flex flex-col items-center">
+                <span className="text-[8px] font-black text-slate-500 uppercase font-fix">Your Rank</span>
+                <span className="text-3xl font-black italic text-orange-500 font-fix">{myRank}</span>
               </div>
-              <div>
-                <div className="text-white font-black text-sm uppercase font-fix italic">CDR. {me?.name || 'OPERATOR'}</div>
-                <div className="text-[9px] text-orange-500 font-black tracking-widest uppercase font-fix">Current Origin: {me?.baseIsland || 'Unknown'}</div>
+              <div className="h-10 w-px bg-slate-800"></div>
+              <div className="flex items-center gap-4 text-left">
+                <div className="w-12 h-12 rounded-full border-2 border-orange-500/50 overflow-hidden bg-slate-800">
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${me.name}`} className="w-full h-full object-cover" alt="" />
+                </div>
+                <div>
+                  <div className="text-white font-black text-sm uppercase font-fix italic">CDR. {me.name}</div>
+                  <div className="text-[9px] text-orange-500 font-black tracking-widest uppercase font-fix">Current Origin: {me.baseIsland}</div>
+                </div>
               </div>
             </div>
-          </div>
-          
-          <div className="flex items-center gap-8">
-            <div className="text-right">
-              <div className="text-slate-500 text-[8px] font-black uppercase font-fix tracking-widest">Occupancy</div>
-              <div className="text-white font-black text-xl font-fix">{me?.occupancy || 0}%</div>
+            
+            <div className="flex items-center gap-8">
+              <div className="text-right">
+                <div className="text-slate-500 text-[8px] font-black uppercase font-fix tracking-widest">Occupancy</div>
+                <div className="text-white font-black text-xl font-fix">{me.occupancy || 0}%</div>
+              </div>
+              <button className="bg-orange-600 hover:bg-orange-500 text-white font-black px-8 py-3 rounded-xl uppercase text-[10px] tracking-widest transition-all shadow-lg active:scale-95 font-fix">
+                Personal Data Archive
+              </button>
             </div>
-            <button className="bg-orange-600 hover:bg-orange-500 text-white font-black px-8 py-3 rounded-xl uppercase text-[10px] tracking-widest transition-all shadow-lg active:scale-95 font-fix">
-              Personal Data Archive
-            </button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 });

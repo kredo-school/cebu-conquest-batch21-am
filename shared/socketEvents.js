@@ -1,37 +1,65 @@
-// クライアント → サーバー
+// shared/socketEvents.js
+
+/**
+ * Cebu Conquest - Socket.IO イベントコントラクト (GDD v3.1 準拠)
+ * 
+ * 【修正内容】
+ * 1. コンソールログの実態(image_8502e1.png)に合わせ、ゲーム進行系を camelCase に統一。
+ * 2. BUG-001解決のため、SYNC_STATE 等の値をサーバー送信値と完全一致。
+ */
+
+// 🚀 クライアント → サーバー (CLIENT_EVENTS)
 export const CLIENT_EVENTS = {
-  PLAYER_MOVE:       "playerMove",
-  TERRITORY_CLAIMED: "territoryClaimed",
-  BATTLE_START:      "battleStart",
-  ACTION_SUBMIT:     "actionSubmit",
-  READY_TO_START:    "READY_TO_START",
-  ACTION_ESCAPE:     "actionEscape",
-  ACTION_DEFEND:     "actionDefend",
-  ITEM_WARP:         "itemWarp",
-  SELECT_GOD:        "SELECT_GOD",
-  PLAYER_READY:      "PLAYER_READY",
-  LEAVE_ROOM:        "LEAVE_ROOM",
-  SEND_CHAT:         "SEND_CHAT",
-  ACTION_USE_ITEM:   "ACTION_USE_ITEM",
-  ADD_NPC_REQUEST: 'add_npc_request',
+  // マッチング・部屋関連（システム系は UPPER_CASE）
+  PLAYER_READY:       "PLAYER_READY",     // 準備完了/解除
+  LEAVE_ROOM:         "LEAVE_ROOM",       // 部屋を離れる
+  READY_TO_START:     "READY_TO_START",   // マッチング完了通知
+
+  // 基本移動・占領（アクション系は camelCase）
+  PLAYER_MOVE:        "playerMove",       // 地区移動
+  TERRITORY_CLAIMED:  "territoryClaimed", // 地区占領(空き地)
+
+  // バトル・アクション関連
+  BATTLE_START:       "battleStart",      // バトル開始要請
+  ACTION_SUBMIT:      "actionSubmit",     // アクション送信(攻撃/Stay/防御/逃げる)
+  ACTION_ESCAPE:      "actionEscape",     // 逃げる
+  ACTION_DEFEND:      "actionDefend",     // 防御
+
+  // アイテム・神関連
+  SELECT_GOD:         "selectGod",        // 🚀 修正: camelCase に統一
+  ITEM_WARP:          "itemWarp",         // ワープアイテム使用
+  ACTION_USE_ITEM:    "actionUseItem",    // 🚀 修正: camelCase に統一
+
+  // 通信・システム関連
+  SEND_CHAT:          "SEND_CHAT",        // チャット送信
+  ADD_NPC_REQUEST:    "add_npc_request",  // NPC追加リクエスト
 };
 
-// サーバー → クライアント
+// 🚀 サーバー → クライアント (SERVER_EVENTS)
 export const SERVER_EVENTS = {
-  SYNC_STATE:          "syncState",
-  GAME_START:          "gameStart",
-  PLAYER_MOVED:        "playerMoved",
-  TERRITORY_UPDATED:   "territoryUpdated",
-  BATTLE_RESULT:       "battleResult",
-  NPC_UPDATE:          "npcUpdate",
-  STATUS_UPDATED:      "statusUpdated",
-  ACTION_RESULT:       "actionResult",
-  ACTION_REJECTED:     "actionRejected",
-  TURN_START:          "turnStart",
-  GAME_OVER:           "gameOver",
-  GAME_LOG:            "GAME_LOG",
-  ERROR_MESSAGE:       "ERROR_MESSAGE",
-  RECEIVE_CHAT:        "RECEIVE_CHAT",
-  PLAYER_DISCONNECTED: "playerDisconnected",
-  COMMENCE_OPERATION:  "COMMENCE_OPERATION",
+  // ルーム・開始関連
+  COMMENCE_OPERATION: "commenceOperation", // 🚀 修正: ログの傾向に合わせ camelCase
+  GAME_START:         "gameStart",         // 試合開始（ログ一致）
+  GAME_OVER:          "gameOver",          // 試合終了
+
+  // 状態同期 (最重要)
+  SYNC_STATE:         "syncState",         // 🚀 修正: ログ(image_8502e1.png)と完全一致
+  STATUS_UPDATED:     "statusUpdated",     // パラメータ更新
+  TERRITORY_UPDATED:  "territoryUpdated",  // ★末尾の'd'必須（定数化でミス防止）
+
+  // 個別アクション・移動結果
+  PLAYER_MOVED:       "playerMoved",       // 移動結果通知
+  BATTLE_RESULT:      "battleResult",      // バトル計算結果
+  ACTION_RESULT:      "actionResult",      // アクション受理成功
+  ACTION_REJECTED:    "actionRejected",    // アクション拒否
+
+  // ターン・時間関連
+  TURN_START:         "turnStart",         // ターン開始（ログ一致）
+  NPC_UPDATE:         "npcUpdate",         // NPCの行動同期
+
+  // チャット・ログ・通知（これらはログ上で UPPER_CASE だったため維持）
+  RECEIVE_CHAT:       "RECEIVE_CHAT",      // チャット受信
+  GAME_LOG:           "GAME_LOG",          // バトルログ等の通知
+  ERROR_MESSAGE:      "ERROR_MESSAGE",     // システムエラー通知
+  PLAYER_DISCONNECTED: "playerDisconnected", // プレイヤー切断
 };

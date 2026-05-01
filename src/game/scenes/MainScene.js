@@ -3,6 +3,7 @@ import socket from "../../socket";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "../../../shared/socketEvents.js";
 import { PHASER_TO_REACT, REACT_TO_PHASER, emitToReact } from "../events/PhaserBridge";
 import { MAP_CONFIG } from "../config/mapConfig";
+import { ADJACENCY } from "../../../shared/adjacency.js";
 import ZoomManager from "./ZoomManager";
 import SoundManager from "../SoundManager";
 import EffectManager from "../effects/EffectManager";
@@ -21,33 +22,6 @@ const normalizeId = (id) => {
   if (id === null || id === undefined || id === "") return null;
   const n = Number(id);
   return isNaN(n) ? null : n;
-};
-
-const ADJACENCY = {
-  // ── セブ市街地エリア（エリアID: 11）──
-  11101: [11102, 11104, 11105, 11120],
-  11102: [11101, 11104, 11106, 11108],
-  11103: [11101, 11105, 11201, 11301],
-  11104: [11101, 11102, 11105, 11401],
-  11105: [11101, 11103, 11104, 11301],
-  11106: [11102, 11108],
-  11108: [11102, 11106, 11109, 11112],
-  11109: [11108, 11112, 11113],
-  11112: [11108, 11109, 11113, 11116, 11119],
-  11113: [11109, 11112, 11117, 11118, 11119],
-  11115: [11118, 11119],
-  11116: [11112, 11119, 11120],
-  11117: [11113, 11118],
-  11118: [11113, 11115, 11117, 11119],
-  11119: [11112, 11113, 11115, 11118, 11120, 11121],
-  11120: [11101, 11116, 11119, 11121],
-  11121: [11119, 11120],
-  // ── 北部エリア（エリアID: 13）──
-  13101: [13102, 13103],
-  13102: [13101, 13103, 13201],
-  13103: [13101, 13102, 13201, 13204],
-  13201: [13102, 13103, 13204],
-  13204: [13103, 13201],
 };
 
 function pointInPolygon(point, polygon) {
@@ -153,7 +127,7 @@ export default class MainScene extends Phaser.Scene {
           const targetId = e.detail?.targetId;
           if (!targetId) return;
           this._pendingTargetId = normalizeId(targetId);
-          socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: "attack", targetId: String(targetId) });
+          socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: "attack", targetId: this._pendingTargetId });
           SoundManager.playBgm('battle');
         },
       },
@@ -172,7 +146,7 @@ export default class MainScene extends Phaser.Scene {
         },
       },
       {
-        event: "MAP_REPAINT",
+        event: REACT_TO_PHASER.MAP_REPAINT,
         handler: (e) => {
           if (e.detail.districts && e.detail.players) {
             this._syncDistricts(e.detail.districts, e.detail.players);
@@ -356,6 +330,7 @@ export default class MainScene extends Phaser.Scene {
       this._clampCamera();
       this._updateLabelVisibility();
       if (isPinch) nativeEvent.preventDefault();
+      emitToReact(PHASER_TO_REACT.ZOOM_UPDATED, { zoom: newZoom });
     });
     cam.setZoom(1);
     this._clampCamera();
@@ -704,14 +679,18 @@ export default class MainScene extends Phaser.Scene {
 
   _keyZoom(dir) {
     const cam = this.cameras.main;
-    cam.setZoom(Phaser.Math.Clamp(cam.zoom + dir * 0.5, 0.5, 8));
+    const newZoom = Phaser.Math.Clamp(cam.zoom + dir * 0.5, 0.5, 8);
+    if (cam.zoom === newZoom) return;
+    cam.setZoom(newZoom);
     this._clampCamera();
     this._updateLabelVisibility();
+    emitToReact(PHASER_TO_REACT.ZOOM_UPDATED, { zoom: newZoom });
   }
 
   _keyZoomReset() {
     this.cameras.main.setZoom(1);
     this._clampCamera();
     this._updateLabelVisibility();
+    emitToReact(PHASER_TO_REACT.ZOOM_UPDATED, { zoom: 1 });
   }
 }

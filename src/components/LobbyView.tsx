@@ -1,15 +1,67 @@
+// src/components/LobbyView.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import socket from '../socket';
 import { useGameStore } from '../store';
 import SoundManager from '../game/SoundManager';
 import { CLIENT_EVENTS } from '../../shared/socketEvents.js';
 
+/**
+ * 🚀 プレイヤー/NPCカード・コンポーネント
+ * 人間とBOTを視覚的に分離し、世界観を強調します。
+ */
+const PlayerCard = ({ player, isMe }: { player: any; isMe: boolean }) => {
+  const isNPC = player.isNPC;
+  
+  return (
+    <div className={`p-4 rounded-xl border-l-4 backdrop-blur-md transition-all h-full shadow-2xl flex flex-col 
+      ${player.isReady ? 'border-brand-500 shadow-brand-500/10' : 'border-slate-800 opacity-60'}
+      ${isNPC ? 'bg-red-950/20 border-red-900' : 'bg-slate-900/60'} 
+      relative overflow-hidden`}>
+      
+      {/* 判別アバター */}
+      <div className="relative mb-4 text-left overflow-hidden rounded-lg bg-slate-950">
+        <img 
+          className={`w-full aspect-video object-cover transition-transform duration-500 ${player.isReady ? 'scale-105' : 'grayscale'}`} 
+          src={isNPC 
+            ? 'https://images.unsplash.com/photo-1546776310-eef45dd6d63c?q=80&w=400' 
+            : `https://api.dicebear.com/7.x/avataaars/svg?seed=${player.name || player.id}`} 
+          alt="" 
+        />
+        {isMe && (
+          <div className="absolute top-2 right-2 px-2 py-0.5 bg-brand-500 text-[9px] font-black text-slate-950 rounded shadow-lg font-fix">
+            YOU
+          </div>
+        )}
+      </div>
+
+      {/* ステータス情報 */}
+      <div className="flex justify-between items-center mt-auto px-1">
+        <div className="flex flex-col text-left">
+          <span className={`text-[10px] font-bold uppercase tracking-widest leading-none mb-1 font-fix ${isNPC ? 'text-red-500' : 'text-brand-500'}`}>
+            {isNPC ? 'Neural Bot (System Logic)' : 'Operator (Human)'}
+          </span>
+          <span className="font-black text-white uppercase text-sm truncate max-w-[140px] font-fix">
+            {isNPC && <span className="text-red-500 mr-1">[BOT]</span>}
+            {/* ✅ player.name を優先参照するように統一 */}
+            {player.name || player.username || "Unknown Operator"}
+          </span>
+        </div>
+        {player.isReady && (
+          <span className="material-symbols-outlined text-brand-500 text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>
+            check_circle
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+
 interface LobbyViewProps {
   roomId: string;
   players: any[];
   onOpenSettings: () => void;
   onOpenHelp: () => void;
-  onOpenRanking: () => void; // 🚀 ランキング用のプロップス
+  onOpenRanking: () => void; 
   onAbort: () => void; 
 }
 
@@ -34,17 +86,25 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     }
   }, [chatLogs]);
 
+  // 🚀 NPC参加リクエスト（けいさんのサーバー側ロジックと連携）
+  const handleAddNPC = () => {
+    if (players.length >= maxPlayers) return;
+    try { SoundManager.playSe('click'); } catch (e) {}
+    socket.emit(CLIENT_EVENTS.ADD_NPC_REQUEST || 'add_npc_request', { roomId });
+    addLog("🤖 システムに Neural Bot の介入を要請しました。");
+  };
+
   const handleCopyId = () => {
     if (!roomId) return;
     navigator.clipboard.writeText(roomId);
     setCopied(true);
-    try { SoundManager.playSe('click'); } catch (e) {}
+    try { SoundManager.playSe('click'); } catch {}
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleAbort = () => {
     if (window.confirm("ABORT MISSION? (作戦を中止してベースへ戻りますか？)")) {
-      try { SoundManager.playSe('click'); } catch (e) {}
+      try { SoundManager.playSe('click'); } catch {}
       socket.emit(CLIENT_EVENTS.LEAVE_ROOM, { roomId });
       onAbort(); 
     }
@@ -54,7 +114,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     if (chatInput.trim()) {
       socket.emit(CLIENT_EVENTS.SEND_CHAT, { roomId, message: chatInput });
       setChatInput(''); 
-      try { SoundManager.playSe('click'); } catch (e) {}
+      try { SoundManager.playSe('click'); } catch {}
     }
   };
 
@@ -65,13 +125,12 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   const handleReady = () => {
     const nextReadyState = !isReady;
     setIsReady(nextReadyState);
-    try { SoundManager.playSe('click'); } catch (e) {}
+    try { SoundManager.playSe('click'); } catch {}
     socket.emit(CLIENT_EVENTS.PLAYER_READY, { roomId, ready: nextReadyState });
     addLog(nextReadyState ? "📡 READY完了。作戦開始を待機中..." : "📡 READY解除。装備を再確認中...");
   };
 
   return (
-    // 🚀 修正：w-screen h-screen を w-full h-full に変更
     <div className="w-full h-full flex flex-col bg-slate-950 font-body text-slate-100 overflow-hidden select-none">
       
       {/* 1. Header */}
@@ -88,30 +147,13 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
         <div className="flex items-center gap-6">
           <div className="flex gap-4 text-slate-400">
-            {/* 🚀 ランキングボタン */}
-            <button 
-              onClick={onOpenRanking}
-              className="pointer-events-auto flex items-center justify-center hover:text-orange-500 transition-colors active:scale-90"
-              title="LEADERBOARD"
-            >
+            <button onClick={onOpenRanking} className="pointer-events-auto flex items-center justify-center hover:text-orange-500 transition-colors active:scale-90" title="LEADERBOARD">
               <span className="material-symbols-outlined">leaderboard</span>
             </button>
-
-            {/* 設定ボタン */}
-            <button 
-              onClick={onOpenSettings}
-              className="pointer-events-auto flex items-center justify-center hover:text-brand-500 transition-colors active:scale-90"
-              title="SETTINGS"
-            >
+            <button onClick={onOpenSettings} className="pointer-events-auto flex items-center justify-center hover:text-brand-500 transition-colors active:scale-90" title="SETTINGS">
               <span className="material-symbols-outlined">settings</span>
             </button>
-
-            {/* ヘルプボタン */}
-            <button 
-              onClick={onOpenHelp}
-              className="pointer-events-auto flex items-center justify-center hover:text-cyan-400 transition-colors active:scale-90"
-              title="HELP / MANUAL"
-            >
+            <button onClick={onOpenHelp} className="pointer-events-auto flex items-center justify-center hover:text-cyan-400 transition-colors active:scale-90" title="HELP / MANUAL">
               <span className="material-symbols-outlined">help</span>
             </button>
           </div>
@@ -126,7 +168,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
       {/* 2. Main Area */}
       <main className="flex-1 mt-16 flex relative overflow-hidden">
         <div className="absolute inset-0 z-0 text-left">
-          {/* 🚀 alt属性を空にして文字が出ないように修正 */}
           <img className="w-full h-full object-cover opacity-20 grayscale brightness-50" src="https://images.unsplash.com/photo-1540206395-6880f94903af?q=80&w=2000" alt=""/>
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent"></div>
         </div>
@@ -160,28 +201,31 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             </div>
           </div>
 
-          {/* 🚀 プレイヤーカード */}
+          {/* 🚀 プレイヤー/NPCカード・グリッド */}
           <div className={`grid gap-6 mb-8 ${maxPlayers === 2 ? 'grid-cols-2 max-w-4xl mx-auto' : 'grid-cols-2 lg:grid-cols-4'}`}>
             {players.map((player) => (
-              <div key={player.id} className={`p-4 rounded-xl border-l-4 bg-slate-900/60 backdrop-blur-md transition-all h-full shadow-2xl flex flex-col ${player.isReady ? 'border-brand-500 shadow-brand-500/10' : 'border-slate-800 opacity-60'}`}>
-                {/* 🚀 修正：h-32 を aspect-video に。これで顔が見切れません */}
-                <div className="relative mb-4 text-left overflow-hidden rounded-lg bg-slate-950">
-                  <img 
-                    className={`w-full aspect-video object-cover transition-transform duration-500 ${player.isReady ? 'scale-105' : 'grayscale'}`} 
-                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${player.name || player.id}`} 
-                    alt="" 
-                  />
-                  {player.id === myId && <div className="absolute top-2 right-2 px-2 py-0.5 bg-brand-500 text-[9px] font-black text-slate-950 rounded shadow-lg font-fix">YOU</div>}
-                </div>
-                <div className="flex justify-between items-center mt-auto px-1">
-                  <div className="flex flex-col text-left">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-none mb-1 font-fix">Operator</span>
-                    <span className="font-black text-white uppercase text-sm truncate max-w-[140px] font-fix">{player.name || player.username || "Operator"}</span>
-                  </div>
-                  {player.isReady && <span className="material-symbols-outlined text-brand-500 text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>}
-                </div>
-              </div>
+              <PlayerCard 
+                key={player.id} 
+                player={player} 
+                isMe={player.id === myId} 
+              />
             ))}
+
+            {/* 空きスロットがある場合に NPC 追加ボタンを表示 */}
+            {players.length < maxPlayers && (
+              <button 
+                onClick={handleAddNPC}
+                className="p-4 rounded-xl border-2 border-dashed border-slate-800 hover:border-brand-500 hover:bg-brand-500/5 transition-all flex flex-col items-center justify-center gap-4 group pointer-events-auto min-h-[200px]"
+              >
+                <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center group-hover:bg-brand-500 transition-colors">
+                  <span className="material-symbols-outlined text-3xl text-slate-500 group-hover:text-slate-950">smart_toy</span>
+                </div>
+                <div className="text-center">
+                  <span className="block text-[10px] font-black text-slate-500 uppercase tracking-widest font-fix group-hover:text-brand-500">Empty Slot</span>
+                  <span className="block text-xs font-black text-white uppercase font-fix">Add Neural Bot</span>
+                </div>
+              </button>
+            )}
           </div>
 
           <div className="mt-auto grid grid-cols-1 lg:grid-cols-3 gap-6">

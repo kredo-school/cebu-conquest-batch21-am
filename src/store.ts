@@ -1,6 +1,9 @@
+// src/store.ts
 import { create } from 'zustand';
 import socket from './socket';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
+import { REACT_TO_PHASER } from './game/events/PhaserBridge';
+import { buildLookup } from '../shared/idLookup'; // ✅ GDD v3.1: ルックアップ関数のインポート
 
 interface ChatMessage {
   sender: string;
@@ -9,7 +12,10 @@ interface ChatMessage {
   timestamp: string;
 }
 
-// 🚀 神々のデータ
+// ✅ あきらさん担当の定数（PhaserBridge 統合待ち）
+const MAP_REPAINT_EVENT = 'react:mapRepaint';
+
+// 🚀 神々のデータ (GDD v3.0 準拠)
 const GODS_DATA = [
   { id: 1, name: "LAPU-LAPU", role: "WAR GOD", bonus: "ATK +20", img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "島嶼戦における近接攻撃ダメージを25%上昇させ、物理防御力を強化する。" },
   { id: 2, name: "SEBUNA", role: "HARVEST", bonus: "MAX AP +30", img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400", desc: "全分隊員のタクティカルアビリティのクールダウンを15%短縮する。" },
@@ -31,12 +37,19 @@ const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   14102: { name: "カルカル・レチョン", effect: "継続スコアUP" }, 
 };
 
-// 🚀 通信先設定（なおさんの環境に合わせてIPに書き換える準備をしておいてください）
-const API_BASE = "http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api";
+// BUG-007: LAN環境でも動くよう hostname を動的取得
+const API_BASE = typeof window !== 'undefined'
+  ? `http://${window.location.hostname}/Cebu_Conquest/cebu-conquest-batch21-am/api`
+  : 'http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api';
 
 type ViewType = 'login' | 'tutorial' | 'setup' | 'lobby' | 'selection' | 'waiting' | 'game' | 'ranking';
 
-interface GameState {
+interface LogEntry {
+  text: string;
+  time: string;
+}
+
+export interface GameState {
   view: ViewType;
   setView: (view: ViewType) => void;
   token: string | null;
@@ -54,7 +67,7 @@ interface GameState {
   def: number;
   turn: number; 
   maxTurn: number;
-  logs: string[]; 
+  logs: LogEntry[];
   chatLogs: ChatMessage[]; 
   roomId: string;
   players: any[];
@@ -81,11 +94,25 @@ interface GameState {
   isUnderAttack: boolean;
   setUnderAttack: (status: boolean) => void;
 
+  // ✅ 修正：image_84fafc.png の型エラー解決用。BUG-007 実装の型定義
+  getApiUrl: (endpoint: string) => string;
+
+  masterData: any | null;
+  lookupData: {
+    islands: Map<number, any>;
+    areas: Map<number, any>;
+    districts: Map<number, any>;
+    spots: Map<number, any>;
+  } | null;
+  setLookupData: (data: any) => void;
+
+  npcs: Record<string, any>;
+  setNpcs: (npcData: Record<string, any>) => void;
+
   login: (username: string, password?: string) => Promise<boolean>;
   logout: () => void;
-  // 🚀 なおさんの依頼に基づき追加：マスターデータ同期
   syncMasterData: () => Promise<void>;
-  showError: (message: string) => void;
+  setErrorMessage: (message: string | null) => void;
   hideError: () => void;
   setZoomLevel: (zoom: number) => void; 
   completeTutorial: () => void; 
@@ -111,12 +138,18 @@ interface GameState {
   setSeVolume: (vol: number) => void;
 }
 
+const nowTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
 export const useGameStore = create<GameState>((set, get) => ({
   view: 'login',
   setView: (view) => set({ view }),
   token: typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null,
   isAuthenticated: !!(typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null),
-  hasSeenTutorial: typeof window !== 'undefined' ? localStorage.getItem('cebu_conquest_tutorial_seen') === 'true' : false,
+  
+  hasSeenTutorial: typeof window !== 'undefined' 
+    ? localStorage.getItem('cebu_conquest_tutorial_seen') === 'true' 
+    : false,
+
   errorMessage: null,
   isServerOnline: socket.connected, 
   zoomLevel: 1.0, 
@@ -124,7 +157,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   ap: 100, maxAp: 100,
   blessing: 1.0, atk: 50, def: 40,
   turn: 0, maxTurn: 10,
-  logs: ["🌞 ミッション開始。出撃地点を選択してください。"],
+  logs: [{ text: "🌞 ミッション開始。出撃地点を選択してください。", time: nowTime() }],
   chatLogs: [], 
   roomId: '',
   players: [],
@@ -148,7 +181,21 @@ export const useGameStore = create<GameState>((set, get) => ({
   isUnderAttack: false,
   setUnderAttack: (status) => set({ isUnderAttack: status }),
 
-  // 🚀 修正：ログイン成功時に自動で master-data.php を叩くように変更
+  // ✅ 修正：image_84fafc.png の型エラー解決用。BUG-007 実装の実体
+  getApiUrl: (endpoint: string) => `${API_BASE}/${endpoint}`,
+
+  masterData: null,
+  lookupData: null,
+
+  setLookupData: (data: any) => {
+    if (!data) return;
+    const lookup = buildLookup(data);
+    set({ masterData: data, lookupData: lookup });
+  },
+
+  npcs: {},
+  setNpcs: (npcData) => set({ npcs: npcData }),
+
   login: async (username, password = "password123") => {
     try {
       const res = await fetch(`${API_BASE}/login.php`, {
@@ -173,36 +220,37 @@ export const useGameStore = create<GameState>((set, get) => ({
           maxAp: user.max_ap || 100,
         });
 
-        // 🚀 なおさんの依頼：ログイン後にマスターデータを同期
         await get().syncMasterData();
-
         get().addLog(`🔐 認証完了。コマンダー ${user.username} ログイン。`);
         return true;
       }
       return false;
-    } catch (e) {
+    } catch {
       get().addLog("❌ サーバー接続失敗");
       return false;
     }
   },
 
-  // 🚀 新設：なおさんのマスターデータを取得する処理
   syncMasterData: async () => {
     try {
-      // authenticatedFetch を使えば自動的にヘッダーにトークンがセットされます
       const json = await get().authenticatedFetch('master-data.php');
-      
       if (json && json.status === 'success') {
-        const { districts, world_state } = json.data;
-        set({
-          districts: districts || {},
-          maxTurn: world_state?.max_turn || 10,
-          turn: world_state?.current_turn || 0
+        const { territories, items, gods } = json.data;
+
+        const districtsMap: Record<string, any> = {};
+        (territories || []).forEach((t: any) => {
+          districtsMap[String(t.district_id)] = t;
         });
-        get().addLog("📡 世界情勢（マスターデータ）を同期しました。");
-        
-        // Phaserに地図の再描画を依頼
-        window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: districts } }));
+
+        const lookup = buildLookup(json.data);
+
+        set({
+          districts: districtsMap,
+          masterData: json.data,
+          lookupData: lookup,
+        });
+        get().addLog(`📡 マスターデータ同期完了：地区 ${territories?.length ?? 0} / 特産品 ${items?.length ?? 0} / 神 ${gods?.length ?? 0}`);
+        window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: districtsMap, items, gods } }));
       }
     } catch (e) {
       console.error("Master data sync failed:", e);
@@ -216,7 +264,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     window.location.reload();
   },
 
-  showError: (message) => set({ errorMessage: message }),
+  setErrorMessage: (message) => set({ errorMessage: message }),
   hideError: () => set({ errorMessage: null }),
 
   setZoomLevel: (zoom) => set({ zoomLevel: zoom }),
@@ -236,24 +284,39 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   selectGod: (id: number) => {
-    const { isSubmitted, roomId } = get();
+    const { isSubmitted, roomId, godsList } = get();
     if (isSubmitted) return; 
 
-    const god = GODS_DATA.find(g => g.id === id);
+    const god = godsList.find(g => g.id === id);
     if (!god) return;
 
     socket.emit(CLIENT_EVENTS.SELECT_GOD, { roomId, godId: id });
-    set((state) => ({
-      selectedGodId: id,
-      atk: id === 1 ? 50 + 20 : state.atk,
-      maxAp: id === 2 ? 100 + 30 : state.maxAp,
-    }));
-    get().addLog(`⚡ ${god.name} との神経リンクを確立中...`);
+
+    set((state) => {
+      let bonusAtk = state.atk;
+      let bonusMaxAp = state.maxAp;
+      let bonusDef = state.def;
+
+      switch(id) {
+        case 1: bonusAtk += 20; break; 
+        case 2: bonusMaxAp += 30; break; 
+        case 5: bonusDef += 40; break; 
+      }
+
+      return {
+        selectedGodId: id,
+        atk: bonusAtk,
+        maxAp: bonusMaxAp,
+        def: bonusDef,
+        ap: Math.min(state.ap, bonusMaxAp)
+      };
+    });
+
+    get().addLog(`⚡ ${god.name} との神経リンクを確立。ボーナスが反映されました。`);
   },
 
   setPlayerName: (name) => set({ playerName: name }),
 
-  // 🚀 重要：なおさんが心配していた「トークンのセット」はここで行っています
   authenticatedFetch: async (url, options = {}) => {
     const { token } = get();
     const headers = { 
@@ -262,6 +325,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       ...options.headers 
     };
     const res = await fetch(`${API_BASE}/${url}`, { ...options, headers });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+      throw new Error(error.message || `HTTP ${res.status}`);
+    }
     return res.json();
   },
 
@@ -336,14 +403,14 @@ export const useGameStore = create<GameState>((set, get) => ({
         acc[p.id] = p; return acc; 
       }, {});
 
-      window.dispatchEvent(new CustomEvent('MAP_REPAINT', { detail: { districts: data.districts, players: playersAsObject } }));
+      window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: data.districts, players: playersAsObject } }));
       get().updateBuffs();
     }
   },
 
   updateBuffs: () => {
     const { districts, myId } = get();
-    const myDistrictIds = Object.entries(districts).filter(([_, ownerId]) => ownerId === myId).map(([id, _]) => Number(id)); 
+    const myDistrictIds = Object.entries(districts).filter(([, ownerId]) => ownerId === myId).map(([id]) => Number(id));
     const buffs = myDistrictIds.filter(id => SPECIALTY_DATA[id]).map(id => ({ id, ...SPECIALTY_DATA[id] }));
     set({ activeBuffs: buffs });
   },
@@ -369,7 +436,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!isMyTurn) return;
     socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'stay' }); 
     get().addLog("🧘 休息中。"); 
-    window.dispatchEvent(new CustomEvent('ACTION_STAY'));
+    window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_STAY));
   },
 
   defend: () => {
@@ -390,7 +457,14 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   setStatus: (status) => set((state) => ({ ...state, ...status })),
-  addLog: (text) => set((state) => ({ logs: [text, ...state.logs].slice(0, 10) })),
+
+  addLog: (text) => set((state) => ({
+    logs: [
+      { text, time: nowTime() },
+      ...state.logs
+    ].slice(0, 10)
+  })),
+
   addChatLog: (msg) => set((state) => ({ chatLogs: [...state.chatLogs, msg].slice(-50) })),
   resetGame: () => window.location.reload(),
   setBgmVolume: (vol) => set({ bgmVolume: vol }),
@@ -420,13 +494,13 @@ socket.on(SERVER_EVENTS.GAME_LOG, (msg: string) => {
 });
 
 socket.on(SERVER_EVENTS.ERROR_MESSAGE, (msg: string) => {
-  useGameStore.getState().showError(msg); 
+  useGameStore.getState().setErrorMessage(msg);
   useGameStore.getState().addLog(`⚠️ SERVER: ${msg}`);
 });
 
 socket.on(SERVER_EVENTS.ACTION_REJECTED, (data: any) => {
   const msg = data.reason || data.message || "ACTION REJECTED";
-  useGameStore.getState().showError(msg);
+  useGameStore.getState().setErrorMessage(msg);
 });
 
 if (typeof window !== 'undefined') { (window as any).useGameStore = useGameStore; }

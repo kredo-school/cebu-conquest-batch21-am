@@ -1,7 +1,9 @@
+// src/components/PhaserGame.tsx
 import { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import Phaser from "phaser";
 import MainScene from "../game/scenes/MainScene";
 import { PHASER_TO_REACT } from "../game/events/PhaserBridge"; // 🚀 追加
+import { useGameStore } from "../store"; // ✅ GDD v3.1: lookupData 参照用に追加
 
 interface PhaserGameProps {
   playerName: string;
@@ -56,17 +58,41 @@ export const PhaserGameView = forwardRef<any, PhaserGameProps>((props, ref) => {
       game.registry.set("playerName", playerName);
     }
 
-    // 🚀 5桁ID整合性チェック（開発用デバッグログ）
+    // 🚀 GDD v3.1 ID整合性チェック（開発用デバッグログ）
     const validateIdFormat = (e: any) => {
       const id = e.detail?.districtId || e.detail;
       if (id) {
-        const isFiveDigits = id >= 10000 && id <= 99999;
-        const islandId = Math.floor(id / 1000);
+        // GDD v3.1: 地区は3桁、Spotは5桁
+        const isSpot = id >= 10000 && id <= 99999;
+        const isDistrict = id >= 100 && id <= 999;
+        
+        let islandName = "UNKNOWN";
+        const lookupData = useGameStore.getState().lookupData;
+
+        // lookupDataから親島を特定
+        if (lookupData && lookupData.districts) {
+          let targetDistrict = null;
+          if (isDistrict) {
+             targetDistrict = lookupData.districts.get(id);
+          } else if (isSpot && lookupData.spots) {
+             const spot = lookupData.spots.get(id);
+             if (spot) targetDistrict = lookupData.districts.get(spot.parentDistrictId);
+          }
+
+          if (targetDistrict && lookupData.areas && lookupData.islands) {
+             const area = lookupData.areas.get(targetDistrict.parentAreaId);
+             if (area) {
+               const island = lookupData.islands.get(area.parentIslandId);
+               if (island) islandName = island.name.toUpperCase();
+             }
+          }
+        }
+
         console.log(
-          `%c 🛰️ PHASER ID CHECK %c ID: ${id} %c ${isFiveDigits ? '5-DIGIT OK' : 'LEGACY 3-DIGIT?'} %c Island: ${islandId}`,
+          `%c 🛰️ PHASER ID CHECK %c ID: ${id} %c FORMAT: ${isSpot ? 'SPOT (5-DIGIT)' : (isDistrict ? 'DISTRICT (3-DIGIT)' : 'INVALID')} %c Island: ${islandName}`,
           "background: #f97316; color: white; font-weight: bold; padding: 2px 4px; border-radius: 4px 0 0 4px;",
           "background: #1e293b; color: #f97316; padding: 2px 4px;",
-          isFiveDigits ? "background: #16a34a; color: white; padding: 2px 4px;" : "background: #dc2626; color: white; padding: 2px 4px;",
+          isSpot || isDistrict ? "background: #16a34a; color: white; padding: 2px 4px;" : "background: #dc2626; color: white; padding: 2px 4px;",
           "color: #94a3b8; padding: 2px 4px;"
         );
       }

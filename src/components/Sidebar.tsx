@@ -1,3 +1,4 @@
+// src/components/Sidebar.tsx
 import React, { useMemo, memo } from 'react';
 import { useGameStore } from '../store';
 
@@ -7,18 +8,9 @@ interface SidebarProps {
   onOpenInventory: () => void;
 }
 
-// 🚀 島ID定数（GDD v3.0 準拠） [cite: 70, 75, 77, 79, 81]
-const ISLAND_NAMES: Record<number, string> = {
-  11: "CEBU",
-  12: "MACTAN",
-  13: "BOHOL",
-  14: "NEGROS",
-  15: "SIQUIJOR"
-};
-
-// 🚀 最適化：React.memo でラップし、不要な再描画をガード [cite: 116]
+// 🚀 最適化：React.memo でラップし、不要な再描画をガード
 export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHelp, onOpenInventory }) => {
-  // 🚀 個別のセレクタを使用して、必要な値の変化にのみ反応 [cite: 25, 88]
+  // 🚀 個別のセレクタを使用して、必要な値の変化にのみ反応
   const hp = useGameStore(state => state.hp);
   const maxHp = useGameStore(state => state.maxHp);
   const ap = useGameStore(state => state.ap);
@@ -30,22 +22,59 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
   const isUnderAttack = useGameStore(state => state.isUnderAttack);
   const districts = useGameStore(state => state.districts);
   const myId = useGameStore(state => state.myId);
+  
+  // ✅ GDD v3.1: ルックアップ辞書を取得
+  const lookupData = useGameStore(state => state.lookupData);
 
-  // 🚀 5桁ID体系に基づいた領土要約のメモ化 [cite: 63, 65, 67]
+  // 🚀 GDD v3.1: lookupDataを使用して安全に領土をグループ化
   const territorySummary = useMemo(() => {
     const myDistricts = Object.entries(districts)
-      .filter(([_, ownerId]) => ownerId === myId)
+      .filter(([, ownerId]) => ownerId === myId)
       .map(([id]) => Number(id));
 
-    const groups: Record<number, number[]> = {};
+    const groups: Record<number, { name: string; ids: number[] }> = {};
+
     myDistricts.forEach(id => {
-      const islandId = Math.floor(id / 1000);
-      if (!groups[islandId]) groups[islandId] = [];
-      groups[islandId].push(id);
+      let islandId = 0; // フォールバックID
+      let islandName = "UNKNOWN SECTOR";
+
+      if (lookupData && lookupData.districts && lookupData.areas && lookupData.islands) {
+        // 陣地は地区(District: 3桁)またはSpot(5桁)で記録される可能性を考慮
+        let district = lookupData.districts.get(id);
+        if (!district && lookupData.spots) {
+          const spot = lookupData.spots.get(id);
+          if (spot) district = lookupData.districts.get(spot.parentDistrictId);
+        }
+
+        if (district) {
+          const area = lookupData.areas.get(district.parentAreaId);
+          if (area) {
+            const island = lookupData.islands.get(area.parentIslandId);
+            if (island) {
+              islandId = island.id; // 正しい島ID（4桁等）
+              islandName = island.name.toUpperCase();
+            }
+          }
+        }
+      } else {
+        // lookupData が未取得の場合の旧ロジックフォールバック
+        islandId = Math.floor(id / 1000);
+        islandName = `SECTOR ${islandId}`;
+      }
+
+      if (!groups[islandId]) {
+        groups[islandId] = { name: islandName, ids: [] };
+      }
+      groups[islandId].ids.push(id);
     });
 
-    return Object.entries(groups).sort();
-  }, [districts, myId]);
+    // 配列に変換してID順にソートして返す
+    return Object.entries(groups).map(([iId, data]) => ({
+      islandId: Number(iId),
+      name: data.name,
+      ids: data.ids
+    })).sort((a, b) => a.islandId - b.islandId);
+  }, [districts, myId, lookupData]);
 
   return (
     <>
@@ -63,7 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
 
       <aside className="fixed left-0 top-0 bottom-0 z-40 flex flex-col bg-slate-950 w-80 border-r border-slate-800 shadow-2xl overflow-hidden font-body select-none text-left">
         
-        {/* --- 1. Status Area --- [cite: 25, 128] */}
+        {/* --- 1. Status Area --- */}
         <div className="flex-none p-6 pb-2 space-y-6">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded bg-slate-900 flex items-center justify-center border border-slate-800 shadow-inner">
@@ -111,7 +140,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
           </div>
         </div>
 
-        {/* --- 2. Territory Control Area --- [cite: 72, 128] */}
+        {/* --- 2. Territory Control Area --- */}
         <div className="flex-1 px-6 py-2 overflow-y-auto custom-scrollbar">
           <div className="flex items-center gap-2 mb-3">
             <span className="w-1 h-3 bg-orange-500"></span>
@@ -119,18 +148,20 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
           </div>
           
           <div className="space-y-4">
-            {territorySummary.length > 0 ? territorySummary.map(([islandId, ids]) => (
+            {territorySummary.length > 0 ? territorySummary.map(({ islandId, name, ids }) => (
               <div key={islandId} className="bg-slate-900/30 border border-white/5 rounded-lg p-3">
                 <div className="flex justify-between items-center mb-2">
+                  {/* ✅ GDD v3.1: マスターデータから取得した島名を表示 */}
                   <span className="text-[10px] font-bold text-orange-500/80 font-fix uppercase">
-                    {ISLAND_NAMES[Number(islandId)] || "UNKNOWN"}
+                    {name}
                   </span>
                   <span className="text-[9px] text-slate-500 font-mono">x{ids.length}</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {ids.map(id => (
+                    // ✅ GDD v3.1: IDの下2桁をユニット番号として表示
                     <div key={id} className="px-2 py-0.5 bg-black/40 border border-slate-800 rounded text-[9px] text-slate-300 font-mono">
-                      {id % 1000}
+                      {String(id % 100).padStart(2, '0')}
                     </div>
                   ))}
                 </div>
@@ -143,7 +174,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
           </div>
         </div>
 
-        {/* --- 3. Inventory & System Area --- [cite: 128] */}
+        {/* --- 3. Inventory & System Area --- */}
         <div className="flex-none px-6 py-4 space-y-3">
           <button 
             onClick={onOpenInventory}
@@ -172,8 +203,10 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
             <div className="bg-black/40 rounded border border-white/5 h-32 p-3 text-[9px] font-mono text-slate-500 custom-scrollbar overflow-y-auto space-y-1.5">
               {logs.map((log, i) => (
                 <p key={i} className={`${i === 0 ? 'text-orange-400 font-bold text-left' : 'opacity-60 text-left'}`}>
-                  <span className="text-slate-800 mr-1">[{new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}]</span>
-                  {log}
+                  {/* ✅ 修正：レンダリング時の現在時刻ではなく、ログ追加時に記録した time を使用する
+                       store.ts の addLog で { text, time } 形式で保存されている前提 */}
+                  <span className="text-slate-800 mr-1">[{log.time}]</span>
+                  {log.text}
                 </p>
               ))}
             </div>

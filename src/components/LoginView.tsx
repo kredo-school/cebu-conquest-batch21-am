@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// src/components/LoginView.tsx
+import React, { useState, memo } from 'react';
 import { useGameStore } from '../store';
 
 interface LoginViewProps {
@@ -13,8 +14,8 @@ const INTEL_DATA: Record<string, { title: string; subtitle: string; body: string
   "Mactan Archipelago Lore": { title: "ISLAND LORE", subtitle: "CEBU CONQUEST HISTORY", icon: "map", body: "1521年、マクタン島。ラプ＝ラプ とマゼランの死闘からすべては始まった。この物語は、その魂を継承した現代のオペレーターたちが、セブの覇権を巡ってデジタルな領土を奪い合う戦記である。" }
 };
 
-export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, onOpenHelp }) => {
-  const { login, addLog } = useGameStore();
+export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettings, onOpenHelp }) => {
+  const { login, addLog, getApiUrl, setErrorMessage } = useGameStore();
   
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -30,6 +31,73 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
   const [securityAnswer, setSecurityAnswer] = useState(''); 
   const [activeIntel, setActiveIntel] = useState<string | null>(null);
 
+  // 🚀 究極の同期定数
+  const SCAN_CYCLE = 2000; // 2秒周期（CSSと完全一致）
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateInputs()) return;
+
+    setIsLoading(true);
+    setErrorMsg(null);
+    const startTime = Date.now();
+    addLog(isRegisterMode ? "📡 Initiating registration protocol..." : "🔑 Authenticating credentials...");
+
+    try {
+      let isSuccess = false;
+
+      // 1. 通信プロトコルの実行
+      if (isRegisterMode) {
+        const apiUrl = getApiUrl ? getApiUrl('login.php') : "http://localhost/cebu-conquest-batch21-am/api/login.php";
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username, password,
+            security_question: customQuestion, security_answer: securityAnswer,
+            action: 'register' 
+          })
+        });
+        const data = await res.json();
+        if (data.status === 'success') isSuccess = true;
+        else setErrorMsg(data.message || "登録に失敗しました。");
+      } else {
+        isSuccess = await login(username, password);
+        if (!isSuccess) setErrorMsg("認証プロトコルに失敗しました（IDまたはPasswordの間違い）。");
+      }
+
+      // 🚀 2. 「2秒周期」きっかり同期ロジック
+      // 通信が終わった後の「次の2秒の境界線」まで待機する
+      const elapsed = Date.now() - startTime;
+      // 最低でも1周（2秒）はさせる。それ以降は 4s, 6s... と境界を狙う。
+      const targetBoundary = Math.ceil(Math.max(elapsed, SCAN_CYCLE) / SCAN_CYCLE) * SCAN_CYCLE;
+      const finalWait = targetBoundary - elapsed;
+      
+      await new Promise(resolve => setTimeout(resolve, finalWait));
+
+      if (isSuccess) {
+        if (isRegisterMode) {
+          addLog(`✅ Registration Success: Commander ${username} is ready.`);
+          setIsRegisterMode(false); setPassword('');
+          alert("登録完了！設定したパスワードでログインしてください。");
+        } else {
+          addLog("🔐 Identity Verified. Accessing Command Center...");
+          onLogin(username);
+        }
+      }
+    } catch (error) {
+      // エラー時も境界線まで待って演出の美しさを保つ
+      const elapsed = Date.now() - startTime;
+      const targetBoundary = Math.ceil(Math.max(elapsed, SCAN_CYCLE) / SCAN_CYCLE) * SCAN_CYCLE;
+      await new Promise(resolve => setTimeout(resolve, targetBoundary - elapsed));
+
+      setErrorMsg("SERVER ERROR: 本部との通信に失敗。CORS設定等を確認せよ。");
+      setErrorMessage?.("通信エラー：APIサーバーの応答がありません。");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const validateInputs = (): boolean => {
     setErrorMsg(null);
     const alphanumericRegex = /^[a-zA-Z0-9]+$/;
@@ -41,80 +109,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
       setErrorMsg("Passwordは英語か数字で入力してください。");
       return false;
     }
-    if (isRegisterMode) {
-      if (!customQuestion.trim() || !securityAnswer.trim()) {
-        setErrorMsg("秘密の質問と回答を設定してください。");
-        return false;
-      }
+    if (isRegisterMode && (!customQuestion.trim() || !securityAnswer.trim())) {
+      setErrorMsg("秘密の質問と回答を設定してください。");
+      return false;
     }
     return true;
-  };
-
-  // 🚀 送信処理：スキャンに「重み」を持たせる（最低2秒間待機）
-  const handleAuthSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateInputs()) return;
-
-    setIsLoading(true);
-    setErrorMsg(null);
-    addLog(isRegisterMode ? "📡 Initiating registration protocol..." : "🔑 Authenticating credentials...");
-
-    try {
-      // 🚀 最低スキャン時間（2000ms = 2秒）を定義
-      const minWait = new Promise(resolve => setTimeout(resolve, 2000));
-
-      if (isRegisterMode) {
-        // 🚀 通信と最低待機タイマーを並列で実行
-        const [res] = await Promise.all([
-          fetch("http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api/login.php", {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              username: username,
-              password: password,
-              security_question: customQuestion,
-              security_answer: securityAnswer,
-              action: 'register' 
-            })
-          }),
-          minWait
-        ]);
-
-        const data = await res.json();
-
-        if (data.status === 'success') {
-          addLog(`✅ Registration Success: Commander ${username} is ready.`);
-          setIsLoading(false); 
-          setTimeout(() => {
-            alert("登録完了！設定したパスワードでログインしてください。");
-            setIsRegisterMode(false);
-            setPassword('');
-          }, 500);
-          return; 
-        } else {
-          setErrorMsg(data.message || "そのユーザー名は既に占領されています。");
-        }
-      } else {
-        // 🔑 ログイン時も最低2秒間はスキャンを継続
-        const [success] = await Promise.all([
-          login(username, password),
-          minWait
-        ]);
-
-        if (success) {
-          addLog("🔐 Identity Verified. Accessing Command Center...");
-          setIsLoading(false);
-          setTimeout(() => onLogin(username), 500);
-          return;
-        } else {
-          setErrorMsg("認証プロトコルに失敗しました（IDまたはPasswordの間違い）。");
-        }
-      }
-    } catch (error) {
-      setErrorMsg("SERVER ERROR: 本部との通信に失敗。CORS設定等を確認せよ。");
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const handleIdentifyUser = (e: React.FormEvent) => {
@@ -132,7 +131,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
   };
 
   return (
-    <div className="w-full h-full bg-slate-950 font-body text-slate-200 overflow-hidden flex flex-col relative">
+    <div className="w-full h-full bg-slate-950 font-body text-slate-200 overflow-hidden flex flex-col relative select-none">
       <div className="fixed inset-0 z-0 island-silhouette opacity-40" />
       <div className="fixed inset-0 z-10 tropical-flare pointer-events-none" />
 
@@ -166,7 +165,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
             </form>
           ) : mode === 'recovery_answer' ? (
             <form className="space-y-4 animate-fadeIn" onSubmit={handleVerifyAnswer}>
-              <div className="mb-4"><h2 className="text-xl font-black text-white italic font-fix uppercase leading-none">Identity Check</h2><p className="text-yellow-400 text-xs font-bold font-fix mt-2 italic">Hint: {customQuestion || "(Security Question)"}</p></div>
+              <div className="mb-4"><h2 className="text-xl font-black text-white italic font-fix uppercase leading-none">Identity Check</h2><p className="text-yellow-400 text-xs font-bold font-fix mt-2 italic">Hint: (Security Question)</p></div>
               <input type="text" className="w-full bg-slate-950/50 border border-slate-800 text-orange-400 px-4 py-2.5 rounded-lg outline-none font-fix" placeholder="Your Answer" value={securityAnswer} onChange={(e) => setSecurityAnswer(e.target.value)} />
               <button type="submit" className="w-full font-black py-3 bg-yellow-600 hover:bg-yellow-500 text-black rounded-lg shadow-lg text-sm uppercase font-fix transition-all">Verify Credentials</button>
               <button type="button" onClick={() => setMode('login')} className="w-full border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold py-2.5 rounded-lg text-sm uppercase flex justify-center items-center gap-2 mt-2"><span className="material-symbols-outlined text-lg">login</span><span className="font-fix">Abort Protocol</span></button>
@@ -206,7 +205,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
               {isRegisterMode && (
                 <div className="space-y-3 pt-2 animate-fadeIn border-t border-slate-800/50 mt-2">
                   <p className="text-[9px] text-cyan-400 font-bold tracking-widest uppercase ml-1">Custom Security Protocol</p>
-                  <input type="text" disabled={isLoading} className="w-full bg-slate-950/50 border border-slate-800 text-slate-300 px-4 py-2 rounded-lg text-xs outline-none font-fix focus:border-cyan-500 disabled:opacity-50" placeholder="秘密の質問 (例: ラッキーナンバーは？)" value={customQuestion} onChange={(e) => setCustomQuestion(e.target.value)} />
+                  <input type="text" disabled={isLoading} className="w-full bg-slate-950/50 border border-slate-800 text-slate-300 px-4 py-2 rounded-lg text-xs outline-none font-fix focus:border-cyan-500 disabled:opacity-50" placeholder="秘密の質問" value={customQuestion} onChange={(e) => setCustomQuestion(e.target.value)} />
                   <input type="text" disabled={isLoading} className="w-full bg-slate-950/50 border border-slate-800 text-white px-4 py-2 rounded-lg outline-none text-xs font-fix focus:border-cyan-500 disabled:opacity-50" placeholder="その答え" value={securityAnswer} onChange={(e) => setSecurityAnswer(e.target.value)} />
                 </div>
               )}
@@ -270,10 +269,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onOpenSettings, o
           position: absolute;
           width: 100%;
           top: 0;
+          /* 🚀 アニメーション周期を 2秒 に設定 */
           animation: scan 2s linear infinite;
         }
         @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+        .font-fix { line-height: 1.1; }
       `}</style>
     </div>
   );
-};
+});
+
+export default LoginView;

@@ -1,5 +1,9 @@
+// src/components/WaitingView.tsx
 import React, { useState } from 'react';
 import { useGameStore } from '../store';
+// ✅ 修正：チャット送信に必要なsocketとイベント定数をインポート
+import socket from '../socket';
+import { CLIENT_EVENTS } from '../../shared/socketEvents.js';
 
 interface WaitingViewProps {
   onStart: () => void;
@@ -18,11 +22,21 @@ const GOD_TRAITS: Record<number, { name: string; traits: string[]; role: string;
 };
 
 export const WaitingView: React.FC<WaitingViewProps> = ({ onStart }) => {
-  // 🚀 修正：maxPlayers を Store から取得
-  const { players, myId, chatLogs, maxPlayers } = useGameStore();
+  // ✅ 修正：roomId を Store から取得（チャット送信のpayloadに必要）
+  const { players, myId, chatLogs, maxPlayers, roomId } = useGameStore();
   const [chatInput, setChatInput] = useState('');
 
-  const myPlayer = players.find(p => p.id === myId);
+  // ✅ 修正：チャット送信処理を実装。socket.emit で SERVER に届ける
+  const handleSendMessage = () => {
+    if (!chatInput.trim()) return;
+    socket.emit(CLIENT_EVENTS.SEND_CHAT, { roomId, message: chatInput });
+    setChatInput('');
+  };
+
+  // ✅ 修正：Enterキーでも送信できるように
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') handleSendMessage();
+  };
 
   return (
     <div className="font-body antialiased overflow-hidden w-full h-full flex flex-col bg-slate-950 text-slate-50 selection:bg-orange-500/30">
@@ -171,8 +185,14 @@ export const WaitingView: React.FC<WaitingViewProps> = ({ onStart }) => {
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
+                    // ✅ 修正：Enterキーで送信
+                    onKeyDown={handleKeyDown}
                   />
-                  <button className="absolute right-3 top-2.5 text-orange-600 hover:scale-110 transition-transform">
+                  {/* ✅ 修正：onClick を handleSendMessage に接続 */}
+                  <button
+                    onClick={handleSendMessage}
+                    className="absolute right-3 top-2.5 text-orange-600 hover:scale-110 transition-transform"
+                  >
                     <span className="material-symbols-outlined">send</span>
                   </button>
                 </div>
