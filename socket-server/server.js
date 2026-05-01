@@ -8,6 +8,7 @@ import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
 const app = express();
 const server = http.createServer(app);
 const PORT = 3001;
+// GDD準拠: CORSは文字列で設定
 const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
 
 // ==========================================
@@ -309,8 +310,9 @@ io.on('connection', (socket) => {
         socket.roomId = roomId;
 
         const teamInfo = TEAM_CONFIG[0];
-        let baseStats = { hp: 100, maxHp: 100, ap: 100, maxAp: 100, atk: 60, def: 45 };
+        let baseStats = { hp: 100, maxHp: 100, ap: 100, maxAp: 100, atk: 60, def: 45, faith: 1.0 };
         let godName = "なし";
+        let inventory = [];
 
         if (socket.authToken) {
             try {
@@ -325,6 +327,7 @@ io.on('connection', (socket) => {
                     baseStats.atk += dbUser.user.god_buff_atk || 0;
                     baseStats.def += dbUser.user.god_buff_def || 0;
                     godName = dbUser.user.god_name || "名もなき神";
+                    inventory = dbUser.user.inventory || []; // DBからインベントリを初期ロード
                 }
             } catch (e) {
                 console.error("❌ [DB] ユーザー・神データ取得エラー:", e);
@@ -338,6 +341,7 @@ io.on('connection', (socket) => {
             token: socket.authToken,
             godName: godName,
             ...baseStats,
+            inventory: inventory, // プレイヤー状態にインベントリを持たせる
             team: teamInfo.id,
             teamColor: teamInfo.color,
             isReady: false,
@@ -377,8 +381,9 @@ io.on('connection', (socket) => {
         socket.roomId = roomId;
 
         const teamInfo = TEAM_CONFIG[playerCount];
-        let baseStats = { hp: 100, maxHp: 100, ap: 100, maxAp: 100, atk: 60, def: 45 };
+        let baseStats = { hp: 100, maxHp: 100, ap: 100, maxAp: 100, atk: 60, def: 45, faith: 1.0 };
         let godName = "なし";
+        let inventory = [];
 
         if (socket.authToken) {
             try {
@@ -393,6 +398,7 @@ io.on('connection', (socket) => {
                     baseStats.atk += dbUser.user.god_buff_atk || 0;
                     baseStats.def += dbUser.user.god_buff_def || 0;
                     godName = dbUser.user.god_name || "名もなき神";
+                    inventory = dbUser.user.inventory || []; // DBからインベントリを初期ロード
                 }
             } catch (e) {
                 console.error("❌ [DB] ユーザー・神データ取得エラー:", e);
@@ -406,6 +412,7 @@ io.on('connection', (socket) => {
             token: socket.authToken,
             godName: godName,
             ...baseStats,
+            inventory: inventory, // プレイヤー状態にインベントリを持たせる
             team: teamInfo.id,
             teamColor: teamInfo.color,
             isReady: false,
@@ -448,7 +455,8 @@ io.on('connection', (socket) => {
             username: `猛将ラプパプ(${teamInfo.name})`,
             dbUserId: null, token: null, godName: "セブの精霊",
             hp: 120, maxHp: 120, ap: 100, maxAp: 100,
-            atk: 75, def: 55,
+            atk: 75, def: 55, faith: 1.0,
+            inventory: [],
             team: teamInfo.id,
             teamColor: teamInfo.color,
             isReady: true,
@@ -594,8 +602,9 @@ io.on('connection', (socket) => {
                             const dbResult = await response.json();
                             console.log(`✅ [Room ${roomId} DB] 陣地 ${targetId} 制圧:`, dbResult.message || dbResult);
 
-                            // ★追加: PHP側からドロップアイテム情報が返ってきているなら、全員に通知！
                             if (dbResult.dropped_item) {
+                                // 戦利品をサーバーのインベントリに即座に反映
+                                p.inventory.push(dbResult.dropped_item);
                                 io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🎁 ${p.username} が戦利品【${dbResult.dropped_item.name}】を獲得！`);
                             }
                         } catch (err) {
@@ -658,42 +667,63 @@ io.on('connection', (socket) => {
         finalizeTurn(roomId, socket.id);
     });
 
-    // 🚀 【アイテム使用ロジック】
-    socket.on(CLIENT_EVENTS.ACTION_USE_ITEM, async (data) => {
+    // 🚀 【アイテム使用ロジック - Server State駆動】
+    socket.on(CLIENT_EVENTS.ACTION_USE_ITEM, async ({ itemId }) => {
         const roomId = socket.roomId;
         if (!roomId) return;
         const roomState = rooms.get(roomId);
         if (!roomState) return;
 
+        // ターン制の制約（自分のターンでのみ使用可能にするなら残す。いつでも使える仕様なら削除）
         if (roomState.turnOwnerId !== socket.id) return;
+        
         const p = roomState.players[socket.id];
-        const itemId = data.itemId;
+        if (!p || p.isNpc) return;
 
-        if (!p || p.isNpc || !p.token) return;
+        // 1. 在庫検証 (Server State 内の inventory を確認)
+        const itemIndex = p.inventory.findIndex(item => item.id === itemId);
+        if (itemIndex === -1) {
+            socket.emit(SERVER_EVENTS.ACTION_REJECTED, { reason: 'ITEM_NOT_FOUND' });
+            return;
+        }
 
-        try {
-            const response = await fetch(`${API_BASE_URL}use-item.php`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${p.token}` },
-                body: JSON.stringify({ item_id: itemId })
-            });
-            const dbResult = await response.json();
+        // 2. アイテム効果の即時適用（GDD準拠）
+        const item = p.inventory[itemIndex];
+        switch (item.type) {
+            case 'ATK_BUFF':
+                p.atk += item.value;
+                break;
+            case 'HP_RECOVER':
+                p.hp = Math.min(p.maxHp, p.hp + item.value);
+                break;
+            case 'AP_RECOVER':
+                p.ap = Math.min(p.maxAp, p.ap + item.value);
+                break;
+            case 'FAITH_UP':
+                p.faith *= item.multiplier;
+                break;
+        }
 
-            if (dbResult.status === 'success') {
-                if (dbResult.new_status) {
-                    p.hp = dbResult.new_status.current_hp;
-                    p.ap = dbResult.new_status.stamina;
-                    p.atk = dbResult.new_status.atk;
-                    p.def = dbResult.new_status.def;
-                }
-                io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`🧪 ${p.username} ${dbResult.message}`);
-                io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
-            } else {
-                socket.emit(SERVER_EVENTS.ERROR_MESSAGE, dbResult.message || "アイテムの使用に失敗しました");
+        // 使用したアイテムを Server State から削除
+        p.inventory.splice(itemIndex, 1);
+
+        // 3. 全クライアントへ即座に最新状態をブロードキャスト
+        io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, {
+            message: `🧪 ${p.username} が ${item.name} を使用した！`
+        });
+        io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+
+        // 4. DBへの非同期反映（なおのAPIエンドポイントへ送信して永続化）
+        if (p.token) {
+            try {
+                await fetch(`${API_BASE_URL}use-item.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${p.token}` },
+                    body: JSON.stringify({ item_id: itemId })
+                });
+            } catch (err) {
+                console.error(`❌ [Room ${roomId} DB] アイテム使用非同期同期エラー:`, err);
             }
-        } catch (err) {
-            console.error(`❌ [Room ${roomId} DB] アイテム使用API通信エラー:`, err);
-            socket.emit(SERVER_EVENTS.ERROR_MESSAGE, "サーバーエラーが発生しました");
         }
     });
 
