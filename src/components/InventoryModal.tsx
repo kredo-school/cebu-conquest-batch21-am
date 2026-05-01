@@ -1,7 +1,6 @@
+// src/components/InventoryModal.tsx
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../store';
-import socket from '../socket'; 
-import { CLIENT_EVENTS } from '../../shared/socketEvents.js';
 
 interface Item {
   id: number;
@@ -17,16 +16,15 @@ interface InventoryModalProps {
 }
 
 export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
-  // ✅ GDD v3.1: Zustand から必要な情報を抽出
-  const { authenticatedFetch, addLog, lookupData } = useGameStore();
+  // ✅ GDD v3.1: Zustand から useItem (けいさんのサーバー通信用) を追加抽出
+  const { authenticatedFetch, addLog, lookupData, useItem } = useGameStore();
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 📦 1. インベントリ取得（初期表示用：ここは永続化データのため PHP 経由）
+  // 📦 1. インベントリ取得（初期表示用：永続化データのため PHP 経由）
   const fetchInventory = async () => {
     setLoading(true);
     try {
-      // 🚀 なお（PHP担当）のエンドポイントを叩く
       const json = await authenticatedFetch('get-inventory.php');
       if (json.status === 'success') {
         setItems(json.data);
@@ -42,28 +40,19 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
     fetchInventory();
   }, []);
 
-  // ⚡ 2. アイテム使用（GDD v3.1 準拠：Socket経由に完全移行）
-  const handleUseItem = (itemId: number, itemName: string) => {
+  // ⚡ 2. アイテム使用処理
+  const handleDeployItem = (itemId: number) => {
     /**
      * 🚀 実装ポイント:
-     * リアルタイム戦況（HP/AP/ATK/DEF）に影響を与えるアクションのため、
-     * 改ざん防止の観点から Node.js サーバー（けい担当）へ送信します。
+     * ストア側で一括管理している useItem(itemId) を呼び出します。
+     * これにより、けいさんが想定しているペイロード { itemId: number } が
+     * 正確に Socket.IO で送信されます。
      */
-    if (!socket.connected) {
-      addLog("❌ 通信エラー: サーバーに接続されていません");
-      return;
-    }
-
-    // ✅ 文字列直書き禁止ルール遵守
-    socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId: itemId }); 
+    useItem(itemId);
     
-    addLog(`🎒 アイテム使用指令を送信: ${itemName}`);
-    
-    // UIを閉じ、サーバーからの SYNC_STATE ブロードキャストによる状態更新を待ちます
+    // UIを閉じ、サーバーからの SYNC_STATE による状態更新（HP/AP等）を待ちます
     onClose(); 
   };
-
-
 
   return (
     <div className="fixed inset-0 z-[200000] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-sm">
@@ -124,7 +113,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
                         <p className="text-[10px] text-slate-400 mt-2 line-clamp-2 font-fix leading-relaxed">{item.description}</p>
                       </div>
                       <button 
-                        onClick={() => handleUseItem(item.id, item.name)}
+                        onClick={() => handleDeployItem(item.id)}
                         className="mt-3 w-full py-1.5 bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-black uppercase rounded transition-all active:scale-95 shadow-lg shadow-orange-900/20 font-fix"
                       >
                         Deploy Item
