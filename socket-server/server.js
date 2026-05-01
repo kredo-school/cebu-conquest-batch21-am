@@ -697,7 +697,9 @@ io.on('connection', (socket) => {
         io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, {
             message: `🧪 ${p.username} が ${item.name} を使用した！`
         });
-        io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, roomState);
+        
+        // ★コンフリクト解消：mainのセキュリティ対応 (sanitizeRoomState) を適用！
+        io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
 
         // 4. DBへの非同期反映（なおのAPIエンドポイントへ送信して永続化）
         if (p.token) {
@@ -709,25 +711,6 @@ io.on('connection', (socket) => {
                 });
             } catch (err) {
                 console.error(`❌ [Room ${roomId} DB] アイテム使用非同期同期エラー:`, err);
-        try {
-            const response = await fetch(`${API_BASE_URL}use-item.php`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${p.token}` },
-                body: JSON.stringify({ item_id: itemId })
-            });
-            const dbResult = await response.json();
-
-            if (dbResult.status === 'success') {
-                if (dbResult.new_status) {
-                    p.hp = dbResult.new_status.current_hp;
-                    p.ap = dbResult.new_status.stamina;
-                    p.atk = dbResult.new_status.atk;
-                    p.def = dbResult.new_status.def;
-                }
-                io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`🧪 ${p.username} ${dbResult.message}`);
-                io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
-            } else {
-                socket.emit(SERVER_EVENTS.ERROR_MESSAGE, dbResult.message || "アイテムの使用に失敗しました");
             }
         }
     });
