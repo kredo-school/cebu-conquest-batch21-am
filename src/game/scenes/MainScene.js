@@ -3,6 +3,7 @@ import socket from "../../socket";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "../../../shared/socketEvents.js";
 import { PHASER_TO_REACT, REACT_TO_PHASER, emitToReact } from "../events/PhaserBridge";
 import { MAP_CONFIG } from "../config/mapConfig";
+import { ADJACENCY } from "../../../shared/adjacency.js";
 import ZoomManager from "./ZoomManager";
 import SoundManager from "../SoundManager";
 import EffectManager from "../effects/EffectManager";
@@ -21,35 +22,6 @@ const normalizeId = (id) => {
   if (id === null || id === undefined || id === "") return null;
   const n = Number(id);
   return isNaN(n) ? null : n;
-};
-
-const ADJACENCY = {
-  // ── セブ市街地エリア（エリアID: 11）──
-  11101: [11102, 11104, 11105, 11120],
-  11102: [11101, 11104, 11106, 11108],
-  11103: [11101, 11105, 11201, 11301],
-  11104: [11101, 11102, 11105, 11401],
-  11105: [11101, 11103, 11104, 11301],
-  11106: [11102, 11108],
-  11108: [11102, 11106, 11109, 11112],
-  11109: [11108, 11112, 11113],
-  11112: [11108, 11109, 11113, 11116, 11119],
-  11113: [11109, 11112, 11117, 11118, 11119],
-  11115: [11118, 11119],
-  11116: [11112, 11119, 11120],
-  11117: [11113, 11118],
-  11118: [11113, 11115, 11117, 11119],
-  11119: [11112, 11113, 11115, 11118, 11120, 11121],
-  11120: [11101, 11116, 11119, 11121],
-  11121: [11119, 11120],
-  // ── 北部エリア（エリアID: 13）──
-  13101: [13102, 13103, 13401],
-  13102: [13101, 13103, 13201],
-  13103: [13101, 13102, 13201, 13204],
-  13201: [13102, 13103, 13204],
-  13204: [13103, 13201],
-  // ── 134エリア（エリアID: 134）── ※13402の隣接は要マップ確認
-  13401: [13101],
 };
 
 function pointInPolygon(point, polygon) {

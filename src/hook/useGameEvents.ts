@@ -29,13 +29,13 @@ export const useGameEvents = () => {
       syncServerState(data, myId);
       // ✅ 修正: 文字列直書き 'react:syncMap' を定数に変更
       // ※ Phaser側で全地区の所有状況やユニット位置を再描画させる
-      emitToPhaser(REACT_TO_PHASER.SYNC_MAP || 'react:syncMap', data); 
+      emitToPhaser(REACT_TO_PHASER.SYNC_MAP, data);
     });
 
     // 2. 🤖 NPC情報の更新受信 (NPC_UPDATE)
     socket.on(SERVER_EVENTS.NPC_UPDATE, (npcData) => {
       setNpcs(npcData);
-      emitToPhaser(REACT_TO_PHASER.UPDATE_NPCS || 'react:updateNpcs', npcData);
+      emitToPhaser(REACT_TO_PHASER.UPDATE_NPCS, npcData);
     });
 
     // 3. 📢 ターン開始通知 (TURN_START)
@@ -48,7 +48,7 @@ export const useGameEvents = () => {
       addLog(`📢 Turn ${data.turn} 開始: ${isMe ? 'あなたのフェーズです' : '敵対勢力のフェーズです'}`);
       
       // ✅ 修正: 文字列直書きを定数へ。Phaser 側で "YOUR TURN" 演出を走らせる
-      emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT || 'react:turnStart', { 
+      emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, {
         turn: data.turn, 
         isMyTurn: isMe 
       });
@@ -58,7 +58,7 @@ export const useGameEvents = () => {
     socket.on(SERVER_EVENTS.BATTLE_RESULT, (result) => {
       addLog(`⚔️ 記録確認: ${result.winnerId === myId ? '作戦成功（勝利）' : '作戦失敗（敗北）'}`);
       // ✅ 修正: 定数化。Phaser 側のバトルアニメーション（爆発演出など）をトリガー
-      emitToPhaser(REACT_TO_PHASER.BATTLE_EFFECT || 'react:battleResult', result);
+      emitToPhaser(REACT_TO_PHASER.BATTLE_EFFECT, result);
     });
 
     // 5. 🚩 領土更新通知 (TERRITORY_UPDATED)
@@ -66,7 +66,7 @@ export const useGameEvents = () => {
     socket.on(SERVER_EVENTS.TERRITORY_UPDATED, (data) => {
       addLog(`🚩 地区 ${data.districtId} が ${data.ownerName} により制圧されました`);
       // ✅ 追加: マップの部分更新演出（タイル色変更アニメーションなど）
-      emitToPhaser(REACT_TO_PHASER.TERRITORY_EFFECT || 'react:territoryUpdated', data);
+      emitToPhaser(REACT_TO_PHASER.TERRITORY_EFFECT, data);
     });
 
     // 6. 🚫 アクション拒否通知 (ACTION_REJECTED)
@@ -88,7 +88,7 @@ export const useGameEvents = () => {
       addLog(`🏁 ミッション終了。勝者: ${data.winnerName}`);
       setStatus({ isGameOver: true, winnerId: data.winnerId });
       // ✅ 修正: 定数化
-      emitToPhaser(REACT_TO_PHASER.GAME_OVER_EFFECT || 'react:gameOver', data);
+      emitToPhaser(REACT_TO_PHASER.GAME_OVER_EFFECT, data);
     });
 
     // クリーンアップ

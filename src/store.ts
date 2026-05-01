@@ -37,7 +37,10 @@ const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   14102: { name: "カルカル・レチョン", effect: "継続スコアUP" }, 
 };
 
-const API_BASE = "http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api";
+// BUG-007: LAN環境でも動くよう hostname を動的取得
+const API_BASE = typeof window !== 'undefined'
+  ? `http://${window.location.hostname}/Cebu_Conquest/cebu-conquest-batch21-am/api`
+  : 'http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api';
 
 type ViewType = 'login' | 'tutorial' | 'setup' | 'lobby' | 'selection' | 'waiting' | 'game' | 'ranking';
 
@@ -222,20 +225,24 @@ export const useGameStore = create<GameState>((set, get) => ({
     try {
       const json = await get().authenticatedFetch('master-data.php');
       if (json && json.status === 'success') {
-        const { districts, world_state } = json.data;
+        // BUG-003: master-data.php は { territories, items, gods } を返す
+        // 旧コードの { districts, world_state } は存在しないキーで undefined になっていた
+        const { territories, items, gods } = json.data;
 
-        // ✅ GDD v3.1: 逆引き辞書を構築して保存
+        const districtsMap: Record<string, any> = {};
+        (territories || []).forEach((t: any) => {
+          districtsMap[String(t.district_id)] = t;
+        });
+
         const lookup = buildLookup(json.data);
 
         set({
-          districts: districts || {},
-          maxTurn: world_state?.max_turn || 10,
-          turn: world_state?.current_turn || 0,
+          districts: districtsMap,
           masterData: json.data,
-          lookupData: lookup
+          lookupData: lookup,
         });
-        get().addLog("📡 世界情勢（マスターデータ）を同期しました。");
-        window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: districts } }));
+        get().addLog(`📡 マスターデータ同期完了：地区 ${territories?.length ?? 0} / 特産品 ${items?.length ?? 0} / 神 ${gods?.length ?? 0}`);
+        window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: districtsMap, items, gods } }));
       }
     } catch (e) {
       console.error("Master data sync failed:", e);

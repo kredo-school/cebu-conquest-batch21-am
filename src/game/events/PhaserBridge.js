@@ -29,9 +29,16 @@ export const REACT_TO_PHASER = {
   
   // 🚀 追加：NPC対応 (けいさんのサーバーから届いたNPCデータをPhaserに反映)
   UPDATE_NPCS:            'react:updateNpcs',          // { npcData }
-  
+
   // 🚀 追加：マスターデータ同期用 (なおさんのAPIから取得した地区情報をマップに再描画)
   MAP_REPAINT:            'react:mapRepaint',          // { districts }
+
+  // BUG-002: useGameEvents.ts が || フォールバックで直書きしていた定数を正式定義
+  SYNC_MAP:               'react:syncMap',             // { players, districts, turn, status }
+  TURN_START_EFFECT:      'react:turnStart',           // { turn, isMyTurn }
+  BATTLE_EFFECT:          'react:battleResult',        // { winnerId, ... }
+  TERRITORY_EFFECT:       'react:territoryUpdated',    // { districtId, owner }
+  GAME_OVER_EFFECT:       'react:gameOver',            // { winnerId, scores }
 };
 
 /**

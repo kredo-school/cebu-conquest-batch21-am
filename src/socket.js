@@ -1,5 +1,5 @@
 import { io } from "socket.io-client";
-// ✅ GDD v3.0 準拠：共有フォルダ(shared)からイベント名を取得
+// ✅ GDD v3.1 準拠：共有フォルダ(shared)からイベント名を取得
 import { SERVER_EVENTS } from "../shared/socketEvents.js";
 
 /**
@@ -19,8 +19,8 @@ const socket = io(SOCKET_URL, {
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
-  // ✅ ルール：CORS設定は文字列 "*" で統一
-  transports: ['websocket'] 
+  // BUG-008: websocket優先だがFW環境のフォールバックとして polling も許可
+  transports: ['websocket', 'polling'],
 });
 
 /**
@@ -41,9 +41,10 @@ if (import.meta.env.DEV) {
  * App.tsx(React) だけでなく、Phaser(あきらさん担当)が直接イベントを
  * キャッチできるように CustomEvent を発火させます。
  */
-socket.on(SERVER_EVENTS.syncState, (gameState) => {
-  window.dispatchEvent(new CustomEvent(SERVER_EVENTS.syncState, { 
-    detail: gameState 
+// BUG-001: SERVER_EVENTS.syncState（undefined）→ SERVER_EVENTS.SYNC_STATE が正しいキー
+socket.on(SERVER_EVENTS.SYNC_STATE, (gameState) => {
+  window.dispatchEvent(new CustomEvent(SERVER_EVENTS.SYNC_STATE, {
+    detail: gameState
   }));
 });
 
