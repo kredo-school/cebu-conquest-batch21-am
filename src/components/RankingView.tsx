@@ -10,42 +10,29 @@ interface RankingViewProps {
 
 /**
  * 🏆 RankingView: 勢力占有率ランキング表示
- * 担当: いっせい (React + Zustand)
- * 仕様: GDD v3.1 準拠 / lookupData による O(1) 逆引き実装
+ * 修正内容：チャットUIと統一された一行レイアウトの適用
  */
 export const RankingView: React.FC<RankingViewProps> = memo(({ 
   onOpenSettings, onOpenHelp, onBack
 }) => {
-  // ✅ GDD v3.1: lookupData を取得。未ロード時のためのガードを考慮。
-  const { players, myId, lookupData } = useGameStore();
+  const { players, myId, lookupData, playerName: myPlayerName } = useGameStore();
   const [filter, setFilter] = useState<'weekly' | 'global'>('weekly');
 
-  // 🚀 最適化：ランキング計算をメモ化
   const sortedPlayers = useMemo(() => {
     if (!players) return [];
 
     return [...players]
       .sort((a, b) => (b.occupancy || 0) - (a.occupancy || 0))
       .map(player => {
-        // ✅ GDD v3.1: lookupData から動的に島名を解決
         let islandName = "FRONTIER";
-        
-        // プレイヤーの現在位置 (districtId > location の優先順位)
         const locId = player.districtId || player.location;
 
         if (locId && lookupData?.districts) {
-          // 1. locIdがそのまま地区(3桁)か、スポット(5桁)かを判定してDistrict情報を取得
           let district = lookupData.districts.get(locId);
-          
-          // 2. スポットIDだった場合、スポットMapから親地区を引く
           if (!district && lookupData.spots) {
             const spot = lookupData.spots.get(locId);
-            if (spot) {
-              district = lookupData.districts.get(spot.parentDistrictId);
-            }
+            if (spot) district = lookupData.districts.get(spot.parentDistrictId);
           }
-
-          // 3. 階層を遡って島名(Island Name)を特定
           if (district) {
             const area = lookupData.areas?.get(district.parentAreaId);
             if (area) {
@@ -72,52 +59,54 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
   return (
     <div className="w-full h-full bg-slate-950 text-slate-100 font-body selection:bg-orange-500/30 overflow-hidden flex flex-col relative animate-fadeIn">
       
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #ea580c; border-radius: 10px; }
+        .font-fix { line-height: 1.1; }
+      `}</style>
+
       {/* 1. Navigation */}
-      <nav className="flex-none w-full flex justify-between items-center px-6 h-16 z-50 bg-slate-900/80 backdrop-blur-md border-b border-orange-500/30 shadow-lg shadow-orange-900/10">
+      <nav className="flex-none w-full flex justify-between items-center px-6 h-16 z-50 bg-slate-950 border-b border-orange-900/30 shadow-2xl backdrop-blur-md">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-white/10 rounded-full transition-all active:scale-90 text-white">
+          <button onClick={onBack} className="p-2 hover:bg-white/5 rounded-full transition-all text-white active:scale-90">
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
-          <div className="text-xl font-black text-orange-500 tracking-tighter uppercase font-fix">CEBU CONQUEST</div>
-        </div>
-
-        <div className="hidden md:flex items-center gap-8 text-[10px] font-black tracking-[0.2em] uppercase">
-          <span className="text-slate-500 hover:text-white cursor-pointer transition-colors font-fix">Archive</span>
-          <span className="text-orange-500 border-b-2 border-orange-500 pb-1 font-fix">Active Ranking</span>
-          <span className="text-slate-500 hover:text-white cursor-pointer transition-colors font-fix">Hall of Fame</span>
+          <div className="text-xl font-black text-brand-500 uppercase tracking-tighter font-fix">CEBU CONQUEST // RANKING</div>
         </div>
 
         <div className="flex items-center gap-2">
-          <button onClick={onOpenHelp} className="p-2 hover:bg-slate-800 rounded-lg transition-all">
-            <span className="material-symbols-outlined text-cyan-400">help</span>
+          <button onClick={onOpenHelp} className="p-2 text-slate-500 hover:text-cyan-400 transition-colors">
+            <span className="material-symbols-outlined">help</span>
           </button>
-          <button onClick={onOpenSettings} className="p-2 hover:bg-slate-800 rounded-lg transition-all">
-            <span className="material-symbols-outlined text-slate-400">settings</span>
+          <button onClick={onOpenSettings} className="p-2 text-slate-500 hover:text-orange-500 transition-colors">
+            <span className="material-symbols-outlined">settings</span>
           </button>
         </div>
       </nav>
 
       {/* 2. Main Content */}
       <main className="flex-1 overflow-y-auto custom-scrollbar pt-8 pb-40 relative">
-        <div className="relative z-10 p-6 max-w-6xl mx-auto text-left">
+        <div className="p-6 max-w-6xl mx-auto">
           
-          <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6 text-left">
             <div>
-              <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter uppercase italic font-fix mb-2">
-                TOP COMMANDERS
+              <h1 className="text-5xl md:text-7xl font-black text-white tracking-tighter uppercase italic leading-none font-fix">
+                Top Commanders
               </h1>
-              <p className="text-orange-500 font-bold text-xs tracking-[0.3em] uppercase font-fix flex items-center">
-                <span className="w-2 h-2 bg-orange-500 rounded-full mr-2 animate-pulse"></span>
-                Regional Power Distribution Update
-              </p>
+              <div className="flex items-center gap-3 mt-4">
+                <div className="w-2 h-2 bg-orange-600 animate-pulse"></div>
+                <p className="text-orange-500 font-black text-[10px] tracking-[0.4em] uppercase font-fix">
+                  Neural link sync: Global occupancy ratings
+                </p>
+              </div>
             </div>
             
-            <div className="flex bg-slate-900 border border-white/10 p-1 rounded-xl">
+            <div className="flex bg-slate-900/60 border border-white/5 p-1 rounded-xl backdrop-blur-sm">
               {['weekly', 'global'].map(type => (
                 <button 
                   key={type}
                   onClick={() => setFilter(type as any)}
-                  className={`px-6 py-2 text-[10px] font-black rounded-lg uppercase transition-all font-fix ${filter === type ? 'bg-orange-600 text-white shadow-lg' : 'text-slate-500'}`}
+                  className={`px-8 py-2.5 text-[10px] font-black rounded-lg uppercase transition-all font-fix ${filter === type ? 'bg-orange-600 text-black shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
                   {type}
                 </button>
@@ -126,21 +115,18 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
           </div>
 
           {/* Podium (Top 3) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20 items-end">
             {/* Rank 2 */}
             {topThree[1] && (
-              <div className="order-2 md:order-1 bg-slate-900/40 backdrop-blur-sm border border-white/5 p-8 rounded-2xl flex flex-col items-center relative group hover:border-orange-500/30 transition-all">
-                <div className="absolute top-4 left-4 text-4xl font-black italic opacity-10 font-fix">02</div>
-                <div className="w-24 h-24 rounded-full border-2 border-slate-700 p-1 mb-4 relative">
-                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${topThree[1].name}`} className="w-full h-full object-cover rounded-full bg-slate-800" alt="" />
-                  <div className="absolute -bottom-1 -right-1 bg-slate-800 border border-slate-700 w-8 h-8 rounded-full flex items-center justify-center text-slate-400">
-                    <span className="material-symbols-outlined text-sm">shield</span>
-                  </div>
+              <div className="order-2 md:order-1 bg-slate-900/40 border border-white/5 p-8 rounded-2xl flex flex-col items-center relative group hover:border-orange-500/30 transition-all shadow-xl">
+                <div className="absolute top-4 left-4 text-4xl font-black italic opacity-5 font-fix">02</div>
+                <div className="w-24 h-24 rounded-full border-2 border-slate-800 p-1 mb-6">
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${topThree[1].playerName || topThree[1].name}`} className="w-full h-full object-cover rounded-full bg-slate-950" alt="" />
                 </div>
-                <h3 className="text-xl font-black text-white font-fix uppercase">{topThree[1].name}</h3>
-                <span className="text-[9px] font-black text-orange-500/60 tracking-widest uppercase mb-4 font-fix">Origin: {topThree[1].baseIsland}</span>
-                <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden mb-2">
-                  <div className="bg-orange-500/50 h-full" style={{ width: `${topThree[1].occupancy}%` }}></div>
+                <h3 className="text-xl font-black text-white font-fix uppercase mb-1">{topThree[1].playerName || topThree[1].name}</h3>
+                <span className="text-[9px] font-black text-orange-500/60 tracking-widest uppercase mb-4 font-fix italic">{topThree[1].baseIsland} Origin</span>
+                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mb-2">
+                  <div className="bg-orange-600 h-full opacity-60" style={{ width: `${topThree[1].occupancy}%` }}></div>
                 </div>
                 <p className="text-[10px] text-slate-500 font-bold font-fix uppercase">Occupancy: {topThree[1].occupancy}%</p>
               </div>
@@ -148,95 +134,109 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
 
             {/* Rank 1 */}
             {topThree[0] && (
-              <div className="order-1 md:order-2 bg-slate-900/60 backdrop-blur-md border-2 border-orange-500/50 p-10 rounded-3xl flex flex-col items-center relative transform scale-105 shadow-[0_0_50px_rgba(249,115,22,0.15)]">
-                <div className="absolute top-4 right-6 text-6xl font-black italic text-orange-500 opacity-20 font-fix">01</div>
-                <div className="w-32 h-32 rounded-full border-4 border-orange-500 p-1.5 mb-6 relative">
-                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${topThree[0].name}`} className="w-full h-full object-cover rounded-full bg-slate-800" alt="" />
-                  <div className="absolute -bottom-2 -right-2 bg-orange-600 w-12 h-12 rounded-full flex items-center justify-center shadow-lg text-white">
+              <div className="order-1 md:order-2 bg-slate-900/60 border-2 border-orange-500/40 p-12 rounded-3xl flex flex-col items-center relative transform scale-110 shadow-[0_0_60px_rgba(234,88,12,0.15)] z-10 backdrop-blur-md">
+                <div className="absolute top-4 right-8 text-7xl font-black italic text-orange-500 opacity-10 font-fix">01</div>
+                <div className="w-32 h-32 rounded-full border-4 border-orange-600 p-1.5 mb-8 relative shadow-[0_0_30px_rgba(234,88,12,0.3)]">
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${topThree[0].playerName || topThree[0].name}`} className="w-full h-full object-cover rounded-full bg-slate-950" alt="" />
+                  <div className="absolute -bottom-2 -right-2 bg-orange-600 w-12 h-12 rounded-full flex items-center justify-center shadow-2xl text-black">
                     <span className="material-symbols-outlined text-2xl">workspace_premium</span>
                   </div>
                 </div>
-                <h3 className="text-2xl font-black text-white font-fix uppercase">{topThree[0].name}</h3>
-                <span className="text-[10px] font-black text-orange-500 tracking-[0.3em] uppercase mb-6 font-fix">{topThree[0].baseIsland} Dominator</span>
-                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mb-3">
-                  <div className="bg-orange-500 h-full shadow-[0_0_15px_#f97316]" style={{ width: `${topThree[0].occupancy}%` }}></div>
+                <h3 className="text-3xl font-black text-white font-fix uppercase italic tracking-tighter mb-2">{topThree[0].playerName || topThree[0].name}</h3>
+                <span className="text-[11px] font-black text-orange-500 tracking-[0.4em] uppercase mb-8 font-fix">{topThree[0].baseIsland} Dominator</span>
+                <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden mb-4 border border-white/5">
+                  <div className="bg-orange-600 h-full shadow-[0_0_20px_#ea580c]" style={{ width: `${topThree[0].occupancy}%` }}></div>
                 </div>
-                <p className="text-white text-xs font-black font-fix uppercase tracking-tighter">Current Control: {topThree[0].occupancy}%</p>
+                <p className="text-white text-xs font-black font-fix uppercase tracking-widest">Global Control: {topThree[0].occupancy}%</p>
               </div>
             )}
 
             {/* Rank 3 */}
             {topThree[2] && (
-              <div className="order-3 bg-slate-900/40 backdrop-blur-sm border border-white/5 p-8 rounded-2xl flex flex-col items-center relative group hover:border-orange-500/30 transition-all">
-                <div className="absolute top-4 left-4 text-4xl font-black italic opacity-10 font-fix">03</div>
-                <div className="w-24 h-24 rounded-full border-2 border-slate-700 p-1 mb-4 relative">
-                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${topThree[2].name}`} className="w-full h-full object-cover rounded-full bg-slate-800" alt="" />
+              <div className="order-3 bg-slate-900/40 border border-white/5 p-8 rounded-2xl flex flex-col items-center relative group hover:border-orange-500/30 transition-all shadow-xl">
+                <div className="absolute top-4 left-4 text-4xl font-black italic opacity-5 font-fix">03</div>
+                <div className="w-24 h-24 rounded-full border-2 border-slate-800 p-1 mb-6">
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${topThree[2].playerName || topThree[2].name}`} className="w-full h-full object-cover rounded-full bg-slate-950" alt="" />
                 </div>
-                <h3 className="text-xl font-black text-white font-fix uppercase">{topThree[2].name}</h3>
-                <span className="text-[9px] font-black text-orange-500/60 tracking-widest uppercase mb-4 font-fix">Origin: {topThree[2].baseIsland}</span>
-                <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden mb-2">
-                  <div className="bg-orange-500/50 h-full" style={{ width: `${topThree[2].occupancy}%` }}></div>
+                <h3 className="text-xl font-black text-white font-fix uppercase mb-1">{topThree[2].playerName || topThree[2].name}</h3>
+                <span className="text-[9px] font-black text-orange-500/60 tracking-widest uppercase mb-4 font-fix italic">{topThree[2].baseIsland} Origin</span>
+                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mb-2">
+                  <div className="bg-orange-600 h-full opacity-40" style={{ width: `${topThree[2].occupancy}%` }}></div>
                 </div>
                 <p className="text-[10px] text-slate-500 font-bold font-fix uppercase">Occupancy: {topThree[2].occupancy}%</p>
               </div>
             )}
           </div>
 
-          {/* List View */}
-          <div className="grid gap-3">
-            {remaining.map((player, index) => (
-              <div key={player.id} className="group bg-slate-900/30 hover:bg-orange-600/5 border border-white/5 hover:border-orange-500/30 rounded-xl p-5 flex items-center transition-all">
-                <span className="w-12 text-2xl font-black italic text-slate-800 group-hover:text-orange-500/50 transition-colors font-fix">
-                  {(index + 4).toString().padStart(2, '0')}
-                </span>
-                <div className="w-12 h-12 rounded-xl bg-slate-800 mr-6 overflow-hidden shrink-0 border border-white/5">
-                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${player.name}`} className="w-full h-full object-cover" alt="" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-1">
-                    <h4 className="text-white font-black uppercase text-sm font-fix">{player.name}</h4>
-                    <span className="text-[8px] px-2 py-0.5 bg-slate-800 text-slate-400 font-black rounded uppercase font-fix">{player.baseIsland}</span>
+          {/* List View: 洗練された一行レイアウト */}
+          <div className="grid gap-2 text-left">
+            {remaining.map((player, index) => {
+              const isMe = player.id === myId;
+              return (
+                <div key={player.id} className={`group flex items-center p-4 rounded-xl border transition-all ${
+                  isMe ? 'bg-orange-600/10 border-orange-500/40 shadow-lg' : 'bg-slate-900/30 border-white/5 hover:border-white/10'
+                }`}>
+                  <span className="w-10 text-xl font-black italic text-slate-700 font-fix shrink-0">
+                    {(index + 4).toString().padStart(2, '0')}
+                  </span>
+                  
+                  <div className="w-10 h-10 rounded bg-slate-800 mr-6 overflow-hidden shrink-0 border border-white/5">
+                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${player.playerName || player.name}`} className="w-full h-full object-cover" alt="" />
                   </div>
-                  <div className="text-[10px] text-slate-600 font-bold uppercase tracking-widest font-fix">Rank: Elite Commander</div>
+
+                  {/* ✅ 修正：インライン・タクティカル一行表示 */}
+                  <div className="flex-1 flex items-baseline gap-4 min-w-0">
+                    <h4 className={`text-sm font-black uppercase font-fix truncate ${isMe ? 'text-orange-500' : 'text-white'}`}>
+                      {player.playerName || player.name} {isMe && "(YOU)"}
+                    </h4>
+                    <span className="text-[9px] px-2 py-0.5 bg-slate-800/80 text-slate-400 font-black rounded uppercase font-fix tracking-tighter shrink-0">
+                      {player.baseIsland}
+                    </span>
+                    <div className="hidden lg:block h-px flex-1 bg-gradient-to-r from-white/5 to-transparent"></div>
+                  </div>
+
+                  <div className="text-right ml-6 shrink-0">
+                    <div className={`text-xl font-black font-fix ${isMe ? 'text-orange-500' : 'text-slate-300'}`}>
+                      {player.occupancy || 0}%
+                    </div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-orange-500 font-black text-xl font-fix">{player.occupancy || 0}%</div>
-                  <div className="text-[9px] text-slate-500 font-bold uppercase font-fix">Control</div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </main>
 
-      {/* Sticky Personal Status (Apple-like bottom bar) */}
+      {/* Sticky Bottom Status */}
       {me && (
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-4xl px-6 hidden md:block">
-          <div className="bg-slate-900/90 backdrop-blur-2xl border border-orange-500/40 rounded-2xl p-5 shadow-2xl flex items-center justify-between">
-            <div className="flex items-center gap-6">
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-4xl px-6 hidden md:block z-50">
+          <div className="bg-slate-900/90 backdrop-blur-2xl border border-orange-500/30 rounded-2xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex items-center justify-between">
+            <div className="flex items-center gap-8">
               <div className="flex flex-col items-center">
-                <span className="text-[8px] font-black text-slate-500 uppercase font-fix">Your Rank</span>
-                <span className="text-3xl font-black italic text-orange-500 font-fix">{myRank}</span>
+                <span className="text-[9px] font-black text-slate-500 uppercase font-fix tracking-widest mb-1">Commander Rank</span>
+                <span className="text-4xl font-black italic text-orange-500 font-fix leading-none">{myRank}</span>
               </div>
-              <div className="h-10 w-px bg-slate-800"></div>
-              <div className="flex items-center gap-4 text-left">
-                <div className="w-12 h-12 rounded-full border-2 border-orange-500/50 overflow-hidden bg-slate-800">
-                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${me.name}`} className="w-full h-full object-cover" alt="" />
+              
+              <div className="h-12 w-[1px] bg-white/5"></div>
+              
+              <div className="flex items-center gap-5">
+                <div className="w-14 h-14 rounded-xl border border-orange-500/40 p-1 bg-slate-950">
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${myPlayerName || me.name}`} className="w-full h-full object-cover rounded-lg" alt="" />
                 </div>
-                <div>
-                  <div className="text-white font-black text-sm uppercase font-fix italic">CDR. {me.name}</div>
-                  <div className="text-[9px] text-orange-500 font-black tracking-widest uppercase font-fix">Current Origin: {me.baseIsland}</div>
+                <div className="text-left">
+                  <div className="text-white font-black text-lg uppercase font-fix italic tracking-tight">{myPlayerName || me.name}</div>
+                  <div className="text-[9px] text-orange-500 font-black tracking-[0.3em] uppercase font-fix">Status: Active Service // Origin: {me.baseIsland}</div>
                 </div>
               </div>
             </div>
             
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-10">
               <div className="text-right">
-                <div className="text-slate-500 text-[8px] font-black uppercase font-fix tracking-widest">Occupancy</div>
-                <div className="text-white font-black text-xl font-fix">{me.occupancy || 0}%</div>
+                <div className="text-slate-500 text-[9px] font-black uppercase font-fix tracking-[0.2em] mb-1">Global Occupancy</div>
+                <div className="text-white font-black text-2xl font-fix leading-none">{me.occupancy || 0}%</div>
               </div>
-              <button className="bg-orange-600 hover:bg-orange-500 text-white font-black px-8 py-3 rounded-xl uppercase text-[10px] tracking-widest transition-all shadow-lg active:scale-95 font-fix">
-                Personal Data Archive
+              <button className="bg-orange-600 hover:bg-orange-500 text-black font-black px-10 py-3.5 rounded-xl uppercase text-[11px] tracking-widest transition-all shadow-xl active:scale-95 font-fix">
+                Service Record
               </button>
             </div>
           </div>

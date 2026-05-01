@@ -4,9 +4,13 @@ import { useGameStore } from '../store';
 
 /**
  * 🛰️ TutorialView: 新規プレイヤーへの作戦ブリーフィング画面
- * 担当: いっせい (React + Vite + TS)
  * 仕様: v3.0 5島制覇・8神体制・5桁ID体系準拠
  */
+
+// ✅ プロップスの型定義を追加 (App.tsx のエラー解消)
+interface TutorialViewProps {
+  onComplete: () => void;
+}
 
 const TUTORIAL_STEPS = [
   {
@@ -58,17 +62,19 @@ const TUTORIAL_STEPS = [
   }
 ];
 
-export const TutorialView: React.FC = memo(() => {
-  const { setView, completeTutorial } = useGameStore();
+// ✅ React.FC<TutorialViewProps> で型を適用し、onComplete を受け取る
+export const TutorialView: React.FC<TutorialViewProps> = memo(({ onComplete }) => {
+  const { completeTutorial } = useGameStore();
   const [currentStep, setCurrentStep] = useState(0);
 
   const isLastStep = currentStep === TUTORIAL_STEPS.length - 1;
 
   const handleNext = () => {
     if (isLastStep) {
-      // 🚀 修正：localStorageへの永続化と、GDD v3.0規定の「8神選択画面」への遷移
+      // 🚀 1. Zustandのフラグ更新 (localStorage永続化)
       completeTutorial(); 
-      setView('selection'); // setup（出撃地点選択）の前に神を選択させる
+      // 🚀 2. App.tsx から渡された遷移処理を実行
+      onComplete(); 
     } else {
       setCurrentStep(prev => prev + 1);
     }
@@ -147,7 +153,7 @@ export const TutorialView: React.FC = memo(() => {
 
       {/* ⚡ スキップボタン: 熟練コマンダー用 */}
       <button 
-        onClick={() => { completeTutorial(); setView('selection'); }}
+        onClick={() => { completeTutorial(); onComplete(); }}
         className="absolute bottom-10 text-[11px] font-black text-zinc-600 hover:text-orange-500 uppercase tracking-[0.3em] transition-all hover:scale-110 font-fix"
       >
         Skip Strategic Briefing [ESC]

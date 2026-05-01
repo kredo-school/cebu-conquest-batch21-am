@@ -7,8 +7,7 @@ import { emitToPhaser, REACT_TO_PHASER } from '../game/events/PhaserBridge';
 
 /**
  * 🛰️ useGameEvents: Socket.IO サーバーからのリアルタイム同期を管理
- * 担当: いっせい (React + Vite + TS)
- * 修正内容: BUG-001/002 対応、画面遷移ロジック(setView)の追加
+ * 修正内容: フロー制御を App.tsx に一任するため、ここでの setView('game') を廃止
  */
 export const useGameEvents = () => {
   const { 
@@ -17,8 +16,8 @@ export const useGameEvents = () => {
     addLog, 
     myId,
     setStatus,
-    setErrorMessage,
-    setView // 🚀 追加: 画面遷移用のアクション
+    setErrorMessage
+    // 🚀 setView は App.tsx の演出側で制御するため、ここでは使用しません
   } = useGameStore();
 
   useEffect(() => {
@@ -28,10 +27,8 @@ export const useGameEvents = () => {
     socket.on(SERVER_EVENTS.SYNC_STATE, (data) => {
       syncServerState(data, myId);
       
-      // ✅ 画面遷移の補完: すでに試合が開始されているステータスなら game ビューへ
-      if (data.status === 'playing') {
-        setView('game');
-      }
+      // ✅ 修正: 強制的な setView('game') を削除。
+      // これにより、再接続時などに勝手に画面が切り替わるのを防ぎます。
 
       // Phaser側へ同期命令
       emitToPhaser(REACT_TO_PHASER.SYNC_MAP, data);
@@ -39,9 +36,9 @@ export const useGameEvents = () => {
 
     // 2. 🎮 試合開始通知 (gameStart)
     socket.on(SERVER_EVENTS.GAME_START, () => {
-      // 🚀 修正: これにより「WAITING...」画面から「Game」画面へ切り替わります
-      setView('game');
-      addLog("🎮 作戦開始。全ユニット展開！");
+      // ✅ 修正: ここでの setView('game') を削除。
+      // 出撃のタイミングは App.tsx が COMMENCE_OPERATION を受信して演出後に制御します。
+      addLog("🎮 サーバーが作戦開始を承認。システム同期中...");
       
       emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, { isFirstTurn: true });
     });
@@ -112,5 +109,5 @@ export const useGameEvents = () => {
       socket.off(SERVER_EVENTS.ACTION_RESULT);
       socket.off(SERVER_EVENTS.GAME_OVER);
     };
-  }, [myId, syncServerState, setNpcs, addLog, setStatus, setErrorMessage, setView]);
+  }, [myId, syncServerState, setNpcs, addLog, setStatus, setErrorMessage]);
 };

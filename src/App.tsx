@@ -21,249 +21,188 @@ import { InventoryModal } from './components/InventoryModal';
 import { TutorialView } from './components/TutorialView'; 
 import { ErrorNotification } from './components/ErrorNotification'; 
 
-// 🚀 カスタムフック：通信司令塔
 import { useGameEvents } from './hook/useGameEvents';
-
-// 🔴 ブリッジ定数とイベント定数（GDD v3.1 準拠）
 import { PHASER_TO_REACT } from './game/events/PhaserBridge';
 import { SERVER_EVENTS } from '../shared/socketEvents.js';
 
 const App: React.FC = () => {
-  // 🛰️ 通信イベントの監視を開始
   useGameEvents();
 
   const { 
-    setStatus, addLog,
-    playerName: storePlayerName,
-    token,
-    hasSeenTutorial, 
-    setZoomLevel,
-    openPrediction, 
-    isGameOver, 
-    roomId, 
-    players, 
-    setView, 
-    view,
-    authenticatedFetch,
-    setLookupData
+    setStatus, addLog, playerName: storePlayerName, token, hasSeenTutorial, 
+    setZoomLevel, isGameOver, roomId, players, setView, view,
+    authenticatedFetch, setLookupData
   } = useGameStore();
   
   const gameRef = useRef<any>(null);
-  
   const [isDeploying, setIsDeploying] = useState(false); 
   const [showSettings, setShowSettings] = useState(false); 
   const [showHelp, setShowHelp] = useState(false); 
   const [showInventory, setShowInventory] = useState(false); 
   const [playerName, setLocalPlayerName] = useState('');
 
-  // 🚀 1. マスターデータの初期ロード
+  // 🚀 1. マスターデータ同期（ログイン後に実行）
   useEffect(() => {
     if (token) {
-      const initMasterData = async () => {
+      const init = async () => {
         try {
           const res = await authenticatedFetch('master-data.php');
-          if (res.status === 'success') {
-            setLookupData(res.data);
-            addLog("📡 システム辞書を同期：マップデータの解析が完了しました。");
+          if (res && res.status === 'success') { 
+            setLookupData(res.data); 
           }
-        } catch (e) {
-          addLog("❌ システム辞書の同期に失敗しました。再起動してください。");
+        } catch (e) { 
+          addLog("❌ データ同期失敗"); 
         }
       };
-      initMasterData();
+      init();
     }
   }, [token, authenticatedFetch, setLookupData, addLog]);
 
-  // 🚀 2. セキュリティ・ガード
-  useEffect(() => {
-    const protectedViews = ['tutorial', 'setup', 'lobby', 'selection', 'waiting', 'game', 'ranking'];
-    if (!token && protectedViews.includes(view)) {
-      addLog("⚠️ セキュリティ警告：アクセス権限がありません。再ログインしてください。");
-      setView('login');
-    }
-  }, [view, token, setView, addLog]);
-
-  // 🚀 3. 出撃演出（デプロイ・シーケンス）
+  // 🚀 2. 出撃演出（デプロイ・シーケンス）
   const triggerDeploySequence = useCallback(() => {
     if (isDeploying) return;
     setIsDeploying(true); 
     
+    // 2.5秒間のカウントダウン演出
     setTimeout(() => {
       setIsDeploying(false);
-      // ✅ 演出終了後、ゲーム本編（Phaser）へ。
-      // ここで Step 4: 初期拠点選択（Turn 0）が始まります。
+      // ✅ 最終目的地：Phaserマップへ遷移
       setView('game');
     }, 2500);
   }, [isDeploying, setView]);
 
-  // 🚀 4. Phaser ↔ React 連携
+  // 🚀 3. サーバー信号の監視（Waiting画面のみ反応）
   useEffect(() => {
     if (!socket) return;
 
-    socket.on('connect', () => {
-      if (socket.id) setStatus({ myId: socket.id });
-    });
-
-    // 🚀 けい（サーバー側）からの「全員準備完了」通知
-    socket.on(SERVER_EVENTS.COMMENCE_OPERATION, () => {
-      addLog("🚀 全員のリンクを検知。出撃シークエンスを開始します。");
-      triggerDeploySequence(); 
-    });
-
-    const handleZoomUpdate = (e: any) => {
-      const zoom = e.detail.zoom ?? e.detail;
-      setZoomLevel(zoom);
-    };
-
-    const handleUpdateStatus = (e: any) => {
-      if (useGameStore.getState().isGameOver) return;
-      setStatus(e.detail);
-    };
-
-    const handleDistrictSelected = (e: any) => {
-      const current = useGameStore.getState();
-      const payload = e.detail;
-      const districtId = payload.districtId ?? payload;
-      const districtName = payload.districtName || `地区 ${districtId}`;
-      
-      setStatus({ selectedDistrictId: districtId });
-
-      if (current.view === 'game' && current.turn > 0 && current.isMyTurn) {
-        openPrediction(districtId, districtName, payload.isMyTerritory, payload.isNeutral);
+    const handleCommence = () => {
+      // ⚠️ 防波堤：現在のViewが 'waiting' の時だけ出撃を開始
+      const currentView = useGameStore.getState().view;
+      if (currentView === 'waiting') {
+        addLog("🚀 全員のリンク承認を確認。出撃します。");
+        triggerDeploySequence();
+      } else {
+        console.warn("作戦開始信号を検知しましたが、フェーズが異なります:", currentView);
       }
     };
 
+    socket.on(SERVER_EVENTS.COMMENCE_OPERATION, handleCommence);
+
+    const handleZoomUpdate = (e: any) => setZoomLevel(e.detail.zoom ?? e.detail);
+    const handleUpdateStatus = (e: any) => !useGameStore.getState().isGameOver && setStatus(e.detail);
+    
     window.addEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
-    window.addEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleDistrictSelected);
     window.addEventListener(PHASER_TO_REACT.ZOOM_UPDATED, handleZoomUpdate);
 
     return () => {
-      socket.off('connect');
-      socket.off(SERVER_EVENTS.COMMENCE_OPERATION); 
+      socket.off(SERVER_EVENTS.COMMENCE_OPERATION, handleCommence);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
-      window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleDistrictSelected);
       window.removeEventListener(PHASER_TO_REACT.ZOOM_UPDATED, handleZoomUpdate);
     };
-  }, [setStatus, addLog, setZoomLevel, openPrediction, triggerDeploySequence]);
+  }, [triggerDeploySequence, setStatus, setZoomLevel, addLog]);
 
-  // 🚀 ビュー制御ハンドラ
-  const handleOpenRanking = () => setView('ranking');
-  const handleCloseRanking = () => setView('setup');
-
+  // 🚀 4. 各画面からの遷移制御
   const handleLoginSubmit = async (name: string) => {
     setLocalPlayerName(name);
     socket.connect(); 
-    
+    setView('setup');
+  };
+
+  const handleLobbyStart = () => {
     if (!hasSeenTutorial) {
       setView('tutorial');
     } else {
-      // ✅ Step 2 完了後 -> ルーム作成・選択（setup）へ
-      setView('setup');
+      setView('selection');
     }
   };
 
   const handleSelectionComplete = useCallback(() => {
-    // ✅ Step 3（神の選択）完了後 -> WaitingView（待機画面）を表示
     setView('waiting');
   }, [setView]);
 
-  // --- 🖼️ ビュー・レンダリング・ロジック ---
-  let mainContent;
+  const handleOpenRanking = () => setView('ranking');
 
+  // --- 🖼️ コンテンツ切り替え（Z-index競合対策済み） ---
+  let mainContent;
   switch (view) {
     case 'login':
       mainContent = <LoginView onLogin={handleLoginSubmit} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} />;
       break;
-    case 'tutorial':
-      mainContent = <TutorialView />;
-      break;
     case 'setup':
-      // 🚀 ルーム作成・参加（LobbySetup）
       mainContent = <LobbySetupView 
         onJoinSuccess={(id) => { setStatus({ roomId: id }); setView('lobby'); }} 
-        onOpenSettings={() => setShowSettings(true)} 
-        onOpenHelp={() => setShowHelp(true)} 
+        onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} 
         onOpenRanking={handleOpenRanking} 
       />;
       break;
     case 'lobby':
-      // 🚀 ルーム内待機（Lobby）
       mainContent = <LobbyView 
-        roomId={roomId} 
-        players={players} 
-        onStart={() => setView('selection')} 
-        onOpenSettings={() => setShowSettings(true)} 
-        onOpenHelp={() => setShowHelp(true)} 
-        onOpenRanking={handleOpenRanking} 
-        onAbort={() => setView('setup')} 
+        roomId={roomId} players={players} 
+        onStart={handleLobbyStart} 
+        onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} 
+        onOpenRanking={handleOpenRanking} onAbort={() => setView('setup')} 
       />;
       break;
+    case 'tutorial':
+      mainContent = <TutorialView onComplete={() => setView('selection')} />;
+      break;
     case 'selection':
-      // 🚀 Step 3: 神の選択
       mainContent = <GodSelectionView onComplete={handleSelectionComplete} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onBack={() => setView('lobby')} />;
       break;
     case 'waiting':
-      // 🚀 最終待機：サーバーからの COMMENCE_OPERATION を待つ
       mainContent = <WaitingView onStart={triggerDeploySequence} />;
-      break;
-    case 'ranking':
-      mainContent = <RankingView onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onBack={handleCloseRanking} />;
       break;
     case 'game':
       mainContent = (
         <div className="flex w-full h-full overflow-hidden bg-slate-950">
           <Sidebar onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onOpenInventory={() => setShowInventory(true)} />
           <main className="flex-1 relative overflow-hidden flex flex-col items-center justify-center">
-            <div className="absolute inset-0 z-0">
-              <PhaserGameView ref={gameRef} playerName={playerName || storePlayerName} />
-              <div className="absolute inset-0 bg-[linear-gradient(rgba(249,115,22,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(249,115,22,0.08)_1px,transparent_1px)] bg-[size:50px_50px] pointer-events-none"></div>
-            </div>
-            <div className="relative z-10 w-full h-full pointer-events-none flex flex-col">
-              <HUD />
-              <BattleModal />
-              {isGameOver && (
-                <ResultView 
-                  onRestart={() => window.location.reload()} 
-                  onOpenSettings={() => setShowSettings(true)} 
-                  onOpenHelp={() => setShowHelp(true)}
-                  onOpenRanking={handleOpenRanking}
-                />
-              )}
-            </div>
+            <PhaserGameView ref={gameRef} playerName={playerName || storePlayerName} />
+            <HUD />
+            <BattleModal />
+            {isGameOver && <ResultView onRestart={() => window.location.reload()} onOpenRanking={handleOpenRanking} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} />}
           </main>
         </div>
       );
       break;
+    case 'ranking':
+      mainContent = <RankingView onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onBack={() => setView('setup')} />;
+      break;
     default:
-      mainContent = <div className="text-white">System Loading...</div>;
+      mainContent = <div className="text-white font-fix">Neural Link Active... Awaiting Tactical Data...</div>;
   }
 
   return (
-    <div className="relative w-screen h-screen bg-slate-950 text-slate-200 font-body antialiased overflow-hidden select-none">
+    <div className="relative w-screen h-screen bg-slate-950 text-slate-200 overflow-hidden select-none">
+      {/* 1. メイン画面レイヤー */}
       {mainContent}
-      
+
+      {/* 2. エラー通知レイヤー（常に上部） */}
       <ErrorNotification />
 
+      {/* 3. 出撃演出レイヤー（最前面） */}
       {isDeploying && (
-        <div className="fixed inset-0 z-[200000] bg-slate-950 flex flex-col items-center justify-center animate-fadeIn">
-          <div className="text-center">
-            <div className="text-orange-500 text-sm font-black tracking-[0.6em] uppercase mb-6 animate-pulse">Neural Link Established</div>
-            <div className="text-6xl font-black text-white italic tracking-tighter uppercase mb-4">Deploying Squad...</div>
-            <div className="h-1.5 w-80 bg-slate-800 mx-auto overflow-hidden rounded-full border border-white/5">
-              <div className="h-full bg-orange-500 animate-[progressBar_2.5s_ease-in-out_forwards]"></div>
-            </div>
+        <div className="fixed inset-0 z-[200000] bg-slate-950 flex flex-col items-center justify-center animate-fadeIn backdrop-blur-3xl">
+          <div className="text-6xl font-black text-white italic uppercase mb-8 font-fix text-center tracking-tighter shadow-2xl">
+            Deploying Squad...
           </div>
+          <div className="h-2 w-96 bg-slate-900 rounded-full overflow-hidden border border-white/10 shadow-[0_0_20px_rgba(234,88,12,0.3)]">
+            <div className="h-full bg-orange-600 animate-[progressBar_2.5s_linear_forwards] shadow-[0_0_15px_#ea580c]"></div>
+          </div>
+          <p className="mt-4 text-orange-500 font-black uppercase tracking-[0.4em] text-[10px] animate-pulse font-fix">Synchronizing neural link to Cebu Sector</p>
         </div>
       )}
 
-      {showSettings && <div className="fixed inset-0 z-[99999]"><SettingsView onBack={() => setShowSettings(false)} /></div>}
-      {showHelp && <div className="fixed inset-0 z-[100000]"><HelpModal onClose={() => setShowHelp(false)} /></div>}
-      {showInventory && <div className="fixed inset-0 z-[150000]"><InventoryModal onClose={() => setShowInventory(false)} /></div>}
+      {/* 4. モーダルレイヤー群（Settings > Help > Inventory） */}
+      {showSettings && <div className="fixed inset-0 z-[300000]"><SettingsView onBack={() => setShowSettings(false)} /></div>}
+      {showHelp && <div className="fixed inset-0 z-[310000]"><HelpModal onClose={() => setShowHelp(false)} /></div>}
+      {showInventory && <div className="fixed inset-0 z-[320000]"><InventoryModal onClose={() => setShowInventory(false)} /></div>}
 
       <style>{`
         @keyframes progressBar { 0% { width: 0%; } 100% { width: 100%; } }
-        .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
+        .font-fix { line-height: 1.1; }
       `}</style>
     </div>
   );

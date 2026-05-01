@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import socket from './socket';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
 import { REACT_TO_PHASER } from './game/events/PhaserBridge';
-import { buildLookup } from '../shared/idLookup'; // ✅ GDD v3.1: ルックアップ関数のインポート
+import { buildLookup } from '../shared/idLookup'; 
 
 interface ChatMessage {
   sender: string;
@@ -12,7 +12,6 @@ interface ChatMessage {
   timestamp: string;
 }
 
-// ✅ あきらさん担当の定数（PhaserBridge 統合待ち）
 const MAP_REPAINT_EVENT = 'react:mapRepaint';
 
 // 🚀 神々のデータ (GDD v3.0 準拠)
@@ -37,7 +36,6 @@ const SPECIALTY_DATA: Record<number, { name: string; effect: string }> = {
   14102: { name: "カルカル・レチョン", effect: "継続スコアUP" }, 
 };
 
-// BUG-007: LAN環境でも動くよう hostname を動的取得
 const API_BASE = typeof window !== 'undefined'
   ? `http://${window.location.hostname}/Cebu_Conquest/cebu-conquest-batch21-am/api`
   : 'http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api';
@@ -94,9 +92,7 @@ export interface GameState {
   isUnderAttack: boolean;
   setUnderAttack: (status: boolean) => void;
 
-  // ✅ BUG-007: URL解決用
   getApiUrl: (endpoint: string) => string;
-
   masterData: any | null;
   lookupData: {
     islands: Map<number, any>;
@@ -105,10 +101,8 @@ export interface GameState {
     spots: Map<number, any>;
   } | null;
   setLookupData: (data: any) => void;
-
   npcs: Record<string, any>;
   setNpcs: (npcData: Record<string, any>) => void;
-
   login: (username: string, password?: string) => Promise<boolean>;
   logout: () => void;
   syncMasterData: () => Promise<void>;
@@ -130,10 +124,7 @@ export interface GameState {
   stay: () => void;
   defend: () => void;
   escape: () => void;
-  
-  // ✅ けいさん依頼：アイテム使用アクション
   useItem: (itemId: number) => void;
-
   endTurn: () => void; 
   addLog: (text: string) => void;
   addChatLog: (msg: ChatMessage) => void; 
@@ -149,11 +140,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setView: (view) => set({ view }),
   token: typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null,
   isAuthenticated: !!(typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null),
-  
-  hasSeenTutorial: typeof window !== 'undefined' 
-    ? localStorage.getItem('cebu_conquest_tutorial_seen') === 'true' 
-    : false,
-
+  hasSeenTutorial: typeof window !== 'undefined' ? localStorage.getItem('cebu_conquest_tutorial_seen') === 'true' : false,
   errorMessage: null,
   isServerOnline: socket.connected, 
   zoomLevel: 1.0, 
@@ -186,7 +173,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   setUnderAttack: (status) => set({ isUnderAttack: status }),
 
   getApiUrl: (endpoint: string) => `${API_BASE}/${endpoint}`,
-
   masterData: null,
   lookupData: null,
 
@@ -222,16 +208,13 @@ export const useGameStore = create<GameState>((set, get) => ({
           ap: user.ap || user.stamina || 100,
           maxAp: user.max_ap || 100,
         });
-
         await get().syncMasterData();
-        get().addLog(`🔐 認証完了。コマンダー ${user.username} ログイン。`);
         return true;
       } else {
         set({ errorMessage: json.message || "ログインに失敗しました。" });
         return false;
       }
     } catch {
-      get().addLog("❌ サーバー接続失敗");
       return false;
     }
   },
@@ -240,19 +223,17 @@ export const useGameStore = create<GameState>((set, get) => ({
     try {
       const json = await get().authenticatedFetch('master-data.php');
       if (json && json.status === 'success') {
-        const { territories, items, gods } = json.data;
+        const { territories } = json.data;
         const districtsMap: Record<string, any> = {};
         (territories || []).forEach((t: any) => {
           districtsMap[String(t.district_id)] = t;
         });
-
         const lookup = buildLookup(json.data);
         set({
           districts: districtsMap,
           masterData: json.data,
           lookupData: lookup,
         });
-        window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: districtsMap, items, gods } }));
       }
     } catch (e) {
       console.error("Master data sync failed:", e);
@@ -268,21 +249,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   setErrorMessage: (message) => set({ errorMessage: message }),
   hideError: () => set({ errorMessage: null }),
   setZoomLevel: (zoom) => set({ zoomLevel: zoom }),
-
   completeTutorial: () => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('cebu_conquest_tutorial_seen', 'true');
-    }
+    localStorage.setItem('cebu_conquest_tutorial_seen', 'true');
     set({ hasSeenTutorial: true });
-    get().addLog("📖 チュートリアル完了。");
   },
+  nextTurn: () => set({ turn: get().turn + 1 }),
 
-  nextTurn: () => {
-    const nextT = get().turn + 1;
-    set({ turn: nextT });
-  },
-
-  // 🚀 Step 3: 神の選択ロジック（フロー同期修正）
   selectGod: (id: number) => {
     const { isSubmitted, roomId, godsList } = get();
     if (isSubmitted) return; 
@@ -296,25 +268,21 @@ export const useGameStore = create<GameState>((set, get) => ({
       let bonusAtk = state.atk;
       let bonusMaxAp = state.maxAp;
       let bonusDef = state.def;
-
       switch(id) {
         case 1: bonusAtk += 20; break; 
         case 2: bonusMaxAp += 30; break; 
         case 5: bonusDef += 40; break; 
       }
-
       return {
         selectedGodId: id,
         atk: bonusAtk,
         maxAp: bonusMaxAp,
         def: bonusDef,
         ap: Math.min(state.ap, bonusMaxAp),
-        // ✅ 修正：選択完了後、自動的に「待機画面(waiting)」へ遷移
         view: 'waiting'
       };
     });
-
-    get().addLog(`⚡ ${god.name} とのリンク確立。他のプレイヤーを待機中...`);
+    get().addLog(`⚡ ${god.name} とのリンク確立。承認待機中...`);
   },
 
   setPlayerName: (name) => set({ playerName: name }),
@@ -344,10 +312,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   syncServerState: (data, myId) => {
     if (!data) return;
     const currentState = get();
+
+    // 🚀 デバッグ：サーバーから届いた生データを確認
+    console.log("📡 [SYNC] Server Data Players:", data.players);
+
     const rawPlayers = data.players ?? {};
     let playersArray = Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers);
     playersArray = playersArray.filter((p: any) => p && p.id); 
-
     const myPlayerData = playersArray.find((p: any) => p.id === myId);
     
     const nextDistrictId = myPlayerData?.districtId ?? myPlayerData?.location ?? currentState.selectedDistrictId;
@@ -360,14 +331,18 @@ export const useGameStore = create<GameState>((set, get) => ({
     const isMe = data.turnOwnerId === myId;
     const isGameOver = data.isGameOver ?? currentState.isGameOver;
 
+    // 更新判定
     if (
       currentState.hp !== nextHp ||
       currentState.ap !== nextAp ||
       currentState.turn !== nextTurn ||
       currentState.isMyTurn !== isMe ||
       currentState.isGameOver !== isGameOver ||
+      currentState.players.length !== playersArray.length || 
+      JSON.stringify(currentState.players) !== JSON.stringify(playersArray) || 
       JSON.stringify(currentState.districts) !== JSON.stringify(data.districts)
     ) {
+      console.log("✨ [STORE] UI Rerender Triggered. Players Count:", playersArray.length);
       set((state) => ({
         ...state,
         myId,
@@ -380,19 +355,16 @@ export const useGameStore = create<GameState>((set, get) => ({
         def: nextDef,
         blessing: nextBlessing,
         districts: data.districts ?? state.districts,
-        players: playersArray, 
+        // ✅ 修正：新しい配列参照 [...playersArray] を作成し、Reactに確実に通知する
+        players: [...playersArray], 
         turn: nextTurn,
         isMyTurn: isMe,
         turnOwner: isMe ? "YOU" : (data.turnOwnerName || "ENEMY"),
         isSubmitted: isMe ? false : state.isSubmitted,
         isGameOver: isGameOver,
-        winnerId: data.winnerId ?? state.winnerId
+        winnerId: data.winnerId ?? state.winnerId,
       }));
-
-      const playersAsObject = playersArray.reduce((acc: any, p: any) => { 
-        acc[p.id] = p; return acc; 
-      }, {});
-
+      const playersAsObject = playersArray.reduce((acc: any, p: any) => { acc[p.id] = p; return acc; }, {});
       window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: data.districts, players: playersAsObject } }));
       get().updateBuffs();
     }
@@ -432,19 +404,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'defend' }); 
   },
 
-  escape: () => { 
-    socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'escape' }); 
-  },
+  escape: () => { socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'escape' }); },
 
-  // ✅ けいさん依頼：アイテム使用の実装（ペイロード形式統一）
   useItem: (itemId: number) => {
-    const { isMyTurn, addLog } = get();
+    const { isMyTurn } = get();
     if (!isMyTurn) return;
-
-    // 🚀 ペイロード形式を { itemId: number } に統一（けいさん想定通り）
     socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId: Number(itemId) });
-
-    addLog(`🧪 アイテム（ID: ${itemId}）を使用しました。`);
+    get().addLog(`🧪 アイテム（ID: ${itemId}）を使用。`);
   },
 
   endTurn: () => { 
@@ -453,11 +419,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   setStatus: (status) => set((state) => ({ ...state, ...status })),
-
-  addLog: (text) => set((state) => ({
-    logs: [{ text, time: nowTime() }, ...state.logs].slice(0, 10)
-  })),
-
+  addLog: (text) => set((state) => ({ logs: [{ text, time: nowTime() }, ...state.logs].slice(0, 10) })),
   addChatLog: (msg) => set((state) => ({ chatLogs: [...state.chatLogs, msg].slice(-50) })),
   resetGame: () => window.location.reload(),
   setBgmVolume: (vol) => set({ bgmVolume: vol }),
@@ -467,20 +429,37 @@ export const useGameStore = create<GameState>((set, get) => ({
 // --- 📡 Socket Listeners ---
 socket.on('connect', () => { useGameStore.getState().setStatus({ isServerOnline: true }); });
 socket.on('disconnect', () => { useGameStore.getState().setStatus({ isServerOnline: false }); });
+
 socket.on(SERVER_EVENTS.RECEIVE_CHAT, (data: any) => {
   useGameStore.getState().addChatLog({
-    sender: data.sender, message: data.message, color: data.color || '#cbd5e1',
+    sender: data.sender || data.username || data.playerName || "Unknown Commander", 
+    message: data.message,
+    color: data.color || '#ea580c',
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   });
 });
+
 socket.on(SERVER_EVENTS.GAME_LOG, (msg: string) => { useGameStore.getState().addLog(`🛰️ SERVER: ${msg}`); });
 socket.on(SERVER_EVENTS.ERROR_MESSAGE, (msg: string) => {
   useGameStore.getState().setErrorMessage(msg);
   useGameStore.getState().addLog(`⚠️ SERVER: ${msg}`);
 });
+
 socket.on(SERVER_EVENTS.ACTION_REJECTED, (data: any) => {
+  const { view, setErrorMessage, addLog } = useGameStore.getState();
   const msg = data.reason || data.message || "ACTION REJECTED";
-  useGameStore.getState().setErrorMessage(msg);
+  
+  setErrorMessage(msg);
+  addLog(`⚠️ SERVER REJECTED: ${msg}`);
+
+  if (view === 'waiting') {
+    useGameStore.setState({
+      selectedGodId: null,
+      isSubmitted: false,
+      view: 'selection'
+    });
+    addLog("🔄 リンクエラー。別の神を選択してください。");
+  }
 });
 
 if (typeof window !== 'undefined') { (window as any).useGameStore = useGameStore; }
