@@ -44,7 +44,6 @@ const API_BASE = typeof window !== 'undefined'
 
 type ViewType = 'login' | 'tutorial' | 'setup' | 'lobby' | 'selection' | 'waiting' | 'game' | 'ranking';
 
-// ✅ 修正：ログの型を { text, time } に変更。Sidebar.tsx の時刻ズレバグを解消する
 interface LogEntry {
   text: string;
   time: string;
@@ -68,7 +67,6 @@ export interface GameState {
   def: number;
   turn: number; 
   maxTurn: number;
-  // ✅ 修正：string[] → LogEntry[]（addLog 時にタイムスタンプを付与）
   logs: LogEntry[];
   chatLogs: ChatMessage[]; 
   roomId: string;
@@ -96,7 +94,9 @@ export interface GameState {
   isUnderAttack: boolean;
   setUnderAttack: (status: boolean) => void;
 
-  // ✅ GDD v3.1: マスターデータ＆ルックアップ辞書の型定義
+  // ✅ 修正：image_84fafc.png の型エラー解決用。BUG-007 実装の型定義
+  getApiUrl: (endpoint: string) => string;
+
   masterData: any | null;
   lookupData: {
     islands: Map<number, any>;
@@ -138,7 +138,6 @@ export interface GameState {
   setSeVolume: (vol: number) => void;
 }
 
-// ✅ タイムスタンプ生成ヘルパー（addLog と初期値で共用）
 const nowTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -158,7 +157,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   ap: 100, maxAp: 100,
   blessing: 1.0, atk: 50, def: 40,
   turn: 0, maxTurn: 10,
-  // ✅ 修正：初期ログも { text, time } 形式で保持
   logs: [{ text: "🌞 ミッション開始。出撃地点を選択してください。", time: nowTime() }],
   chatLogs: [], 
   roomId: '',
@@ -183,11 +181,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   isUnderAttack: false,
   setUnderAttack: (status) => set({ isUnderAttack: status }),
 
-  // ✅ GDD v3.1: 初期値
+  // ✅ 修正：image_84fafc.png の型エラー解決用。BUG-007 実装の実体
+  getApiUrl: (endpoint: string) => `${API_BASE}/${endpoint}`,
+
   masterData: null,
   lookupData: null,
 
-  // ✅ 実装：生データを Map に変換して保存するアクション
   setLookupData: (data: any) => {
     if (!data) return;
     const lookup = buildLookup(data);
@@ -236,8 +235,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     try {
       const json = await get().authenticatedFetch('master-data.php');
       if (json && json.status === 'success') {
-        // BUG-003: master-data.php は { territories, items, gods } を返す
-        // 旧コードの { districts, world_state } は存在しないキーで undefined になっていた
         const { territories, items, gods } = json.data;
 
         const districtsMap: Record<string, any> = {};
@@ -461,9 +458,6 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setStatus: (status) => set((state) => ({ ...state, ...status })),
 
-  // ✅ 修正：addLog でタイムスタンプを付与して保存する
-  //    これにより Sidebar.tsx が log.time を参照できるようになり、
-  //    レンダリングのたびに時刻がズレるバグが解消される
   addLog: (text) => set((state) => ({
     logs: [
       { text, time: nowTime() },
