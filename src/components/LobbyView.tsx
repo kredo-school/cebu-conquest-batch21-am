@@ -7,7 +7,6 @@ import { CLIENT_EVENTS } from '../../shared/socketEvents.js';
 
 /**
  * 🚀 プレイヤー/NPCカード・コンポーネント
- * 人間とBOTを視覚的に分離し、世界観を強調します。
  */
 const PlayerCard = ({ player, isMe }: { player: any; isMe: boolean }) => {
   const isNPC = player.isNPC;
@@ -18,7 +17,6 @@ const PlayerCard = ({ player, isMe }: { player: any; isMe: boolean }) => {
       ${isNPC ? 'bg-red-950/20 border-red-900' : 'bg-slate-900/60'} 
       relative overflow-hidden`}>
       
-      {/* 判別アバター */}
       <div className="relative mb-4 text-left overflow-hidden rounded-lg bg-slate-950">
         <img 
           className={`w-full aspect-video object-cover transition-transform duration-500 ${player.isReady ? 'scale-105' : 'grayscale'}`} 
@@ -34,7 +32,6 @@ const PlayerCard = ({ player, isMe }: { player: any; isMe: boolean }) => {
         )}
       </div>
 
-      {/* ステータス情報 */}
       <div className="flex justify-between items-center mt-auto px-1">
         <div className="flex flex-col text-left">
           <span className={`text-[10px] font-bold uppercase tracking-widest leading-none mb-1 font-fix ${isNPC ? 'text-red-500' : 'text-brand-500'}`}>
@@ -42,7 +39,6 @@ const PlayerCard = ({ player, isMe }: { player: any; isMe: boolean }) => {
           </span>
           <span className="font-black text-white uppercase text-sm truncate max-w-[140px] font-fix">
             {isNPC && <span className="text-red-500 mr-1">[BOT]</span>}
-            {/* ✅ player.name を優先参照するように統一 */}
             {player.name || player.username || "Unknown Operator"}
           </span>
         </div>
@@ -59,6 +55,8 @@ const PlayerCard = ({ player, isMe }: { player: any; isMe: boolean }) => {
 interface LobbyViewProps {
   roomId: string;
   players: any[];
+  // ✅ 修正：image_814122.png の型エラー解決用。onStart を追加
+  onStart: () => void; 
   onOpenSettings: () => void;
   onOpenHelp: () => void;
   onOpenRanking: () => void; 
@@ -66,7 +64,7 @@ interface LobbyViewProps {
 }
 
 export const LobbyView: React.FC<LobbyViewProps> = ({ 
-  roomId, players, onOpenSettings, onOpenHelp, onOpenRanking, onAbort 
+  roomId, players, onStart, onOpenSettings, onOpenHelp, onOpenRanking, onAbort 
 }) => {
   const { myId, addLog, maxPlayers = 4, isServerOnline, chatLogs } = useGameStore(); 
   const [chatInput, setChatInput] = useState('');
@@ -80,13 +78,21 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     SoundManager.playBgm('lobby');
   }, []);
 
+  // 🚀 全員が READY になったか監視し、自動で onStart を呼ぶロジック
+  useEffect(() => {
+    const allReady = players.length > 0 && players.every(p => p.isReady);
+    if (allReady) {
+      addLog("🚀 全員の準備が整いました。ニューラル接続を開始します。");
+      onStart(); // App.tsx の setView('selection') が呼ばれる
+    }
+  }, [players, onStart, addLog]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [chatLogs]);
 
-  // 🚀 NPC参加リクエスト（けいさんのサーバー側ロジックと連携）
   const handleAddNPC = () => {
     if (players.length >= maxPlayers) return;
     try { SoundManager.playSe('click'); } catch (e) {}
@@ -201,7 +207,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             </div>
           </div>
 
-          {/* 🚀 プレイヤー/NPCカード・グリッド */}
           <div className={`grid gap-6 mb-8 ${maxPlayers === 2 ? 'grid-cols-2 max-w-4xl mx-auto' : 'grid-cols-2 lg:grid-cols-4'}`}>
             {players.map((player) => (
               <PlayerCard 
@@ -211,7 +216,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               />
             ))}
 
-            {/* 空きスロットがある場合に NPC 追加ボタンを表示 */}
             {players.length < maxPlayers && (
               <button 
                 onClick={handleAddNPC}

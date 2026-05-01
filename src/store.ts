@@ -94,7 +94,7 @@ export interface GameState {
   isUnderAttack: boolean;
   setUnderAttack: (status: boolean) => void;
 
-  // ✅ BUG-007: URL解決用の型定義
+  // ✅ BUG-007: URL解決用
   getApiUrl: (endpoint: string) => string;
 
   masterData: any | null;
@@ -131,7 +131,7 @@ export interface GameState {
   defend: () => void;
   escape: () => void;
   
-  // ✅ けいさんの依頼：アイテム使用アクションの型定義
+  // ✅ けいさん依頼：アイテム使用アクション
   useItem: (itemId: number) => void;
 
   endTurn: () => void; 
@@ -185,7 +185,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   isUnderAttack: false,
   setUnderAttack: (status) => set({ isUnderAttack: status }),
 
-  // ✅ BUG-007: 実装（image_84fafc.png 対応）
   getApiUrl: (endpoint: string) => `${API_BASE}/${endpoint}`,
 
   masterData: null,
@@ -228,7 +227,6 @@ export const useGameStore = create<GameState>((set, get) => ({
         get().addLog(`🔐 認証完了。コマンダー ${user.username} ログイン。`);
         return true;
       } else {
-        // ✅ 修正：サーバーからのエラー（名前重複など）を画面に表示
         set({ errorMessage: json.message || "ログインに失敗しました。" });
         return false;
       }
@@ -243,25 +241,21 @@ export const useGameStore = create<GameState>((set, get) => ({
       const json = await get().authenticatedFetch('master-data.php');
       if (json && json.status === 'success') {
         const { territories, items, gods } = json.data;
-
         const districtsMap: Record<string, any> = {};
         (territories || []).forEach((t: any) => {
           districtsMap[String(t.district_id)] = t;
         });
 
         const lookup = buildLookup(json.data);
-
         set({
           districts: districtsMap,
           masterData: json.data,
           lookupData: lookup,
         });
-        get().addLog(`📡 マスターデータ同期完了：地区 ${territories?.length ?? 0} / 特産品 ${items?.length ?? 0} / 神 ${gods?.length ?? 0}`);
         window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: districtsMap, items, gods } }));
       }
     } catch (e) {
       console.error("Master data sync failed:", e);
-      get().addLog("⚠️ マスターデータの同期に失敗しました。");
     }
   },
 
@@ -273,7 +267,6 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setErrorMessage: (message) => set({ errorMessage: message }),
   hideError: () => set({ errorMessage: null }),
-
   setZoomLevel: (zoom) => set({ zoomLevel: zoom }),
 
   completeTutorial: () => {
@@ -281,15 +274,15 @@ export const useGameStore = create<GameState>((set, get) => ({
       localStorage.setItem('cebu_conquest_tutorial_seen', 'true');
     }
     set({ hasSeenTutorial: true });
-    get().addLog("📖 チュートリアル完了。基本戦術をマスターしました。");
+    get().addLog("📖 チュートリアル完了。");
   },
 
   nextTurn: () => {
     const nextT = get().turn + 1;
     set({ turn: nextT });
-    get().addLog(`⏩ ターン進行: Turn ${nextT}`);
   },
 
+  // 🚀 Step 3: 神の選択ロジック（フロー同期修正）
   selectGod: (id: number) => {
     const { isSubmitted, roomId, godsList } = get();
     if (isSubmitted) return; 
@@ -315,11 +308,13 @@ export const useGameStore = create<GameState>((set, get) => ({
         atk: bonusAtk,
         maxAp: bonusMaxAp,
         def: bonusDef,
-        ap: Math.min(state.ap, bonusMaxAp)
+        ap: Math.min(state.ap, bonusMaxAp),
+        // ✅ 修正：選択完了後、自動的に「待機画面(waiting)」へ遷移
+        view: 'waiting'
       };
     });
 
-    get().addLog(`⚡ ${god.name} との神経リンクを確立。ボーナスが反映されました。`);
+    get().addLog(`⚡ ${god.name} とのリンク確立。他のプレイヤーを待機中...`);
   },
 
   setPlayerName: (name) => set({ playerName: name }),
@@ -332,10 +327,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       ...options.headers 
     };
     const res = await fetch(`${API_BASE}/${url}`, { ...options, headers });
-    if (!res.ok) {
-      const error = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
-      throw new Error(error.message || `HTTP ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   },
 
@@ -352,7 +344,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   syncServerState: (data, myId) => {
     if (!data) return;
     const currentState = get();
-
     const rawPlayers = data.players ?? {};
     let playersArray = Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers);
     playersArray = playersArray.filter((p: any) => p && p.id); 
@@ -368,27 +359,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     const nextTurn = data.turn ?? currentState.turn;
     const isMe = data.turnOwnerId === myId;
     const isGameOver = data.isGameOver ?? currentState.isGameOver;
-    const nextMaxPlayers = (data.maxPlayers && data.maxPlayers > 0) ? data.maxPlayers : currentState.maxPlayers;
 
     if (
       currentState.hp !== nextHp ||
       currentState.ap !== nextAp ||
-      currentState.selectedDistrictId !== nextDistrictId || 
-      currentState.atk !== nextAtk ||
-      currentState.def !== nextDef ||
-      currentState.blessing !== nextBlessing ||
       currentState.turn !== nextTurn ||
       currentState.isMyTurn !== isMe ||
       currentState.isGameOver !== isGameOver ||
-      currentState.maxPlayers !== nextMaxPlayers ||
-      JSON.stringify(currentState.districts) !== JSON.stringify(data.districts) ||
-      JSON.stringify(currentState.players) !== JSON.stringify(playersArray)
+      JSON.stringify(currentState.districts) !== JSON.stringify(data.districts)
     ) {
       set((state) => ({
         ...state,
-        myId: myId,
+        myId,
         roomId: data.roomId ?? state.roomId,
-        maxPlayers: nextMaxPlayers, 
         hp: nextHp,
         maxHp: myPlayerData?.maxHp ?? state.maxHp,
         ap: nextAp,
@@ -434,36 +417,31 @@ export const useGameStore = create<GameState>((set, get) => ({
     const { isMyTurn } = get();
     if (!isMyTurn) return;
     socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'move', targetId: Number(targetId) });
-    get().addLog(`🚚 地区 ${targetId} へ陣形を移動！`);
+    get().addLog(`🚚 地区 ${targetId} へ移動！`);
     get().closePrediction();
   },
 
   stay: () => { 
-    const { isMyTurn } = get();
-    if (!isMyTurn) return;
+    if (!get().isMyTurn) return;
     socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'stay' }); 
-    get().addLog("🧘 休息中。"); 
     window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_STAY));
   },
 
   defend: () => {
-    const { isMyTurn } = get();
-    if (!isMyTurn) return;
+    if (!get().isMyTurn) return;
     socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'defend' }); 
-    get().addLog("🛡️ 防御体勢を構築。");
   },
 
   escape: () => { 
     socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'escape' }); 
-    get().addLog("🏃 撤退。"); 
   },
 
-  // ✅ けいさんの依頼：アイテム使用の実装
+  // ✅ けいさん依頼：アイテム使用の実装（ペイロード形式統一）
   useItem: (itemId: number) => {
     const { isMyTurn, addLog } = get();
     if (!isMyTurn) return;
 
-    // 🚀 ペイロード形式を { itemId: number } に統一
+    // 🚀 ペイロード形式を { itemId: number } に統一（けいさん想定通り）
     socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId: Number(itemId) });
 
     addLog(`🧪 アイテム（ID: ${itemId}）を使用しました。`);
@@ -477,10 +455,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setStatus: (status) => set((state) => ({ ...state, ...status })),
 
   addLog: (text) => set((state) => ({
-    logs: [
-      { text, time: nowTime() },
-      ...state.logs
-    ].slice(0, 10)
+    logs: [{ text, time: nowTime() }, ...state.logs].slice(0, 10)
   })),
 
   addChatLog: (msg) => set((state) => ({ chatLogs: [...state.chatLogs, msg].slice(-50) })),
@@ -490,32 +465,19 @@ export const useGameStore = create<GameState>((set, get) => ({
 }));
 
 // --- 📡 Socket Listeners ---
-socket.on('connect', () => {
-  useGameStore.getState().setStatus({ isServerOnline: true });
-});
-
-socket.on('disconnect', () => {
-  useGameStore.getState().setStatus({ isServerOnline: false });
-});
-
+socket.on('connect', () => { useGameStore.getState().setStatus({ isServerOnline: true }); });
+socket.on('disconnect', () => { useGameStore.getState().setStatus({ isServerOnline: false }); });
 socket.on(SERVER_EVENTS.RECEIVE_CHAT, (data: any) => {
   useGameStore.getState().addChatLog({
-    sender: data.sender,
-    message: data.message,
-    color: data.color || '#cbd5e1',
+    sender: data.sender, message: data.message, color: data.color || '#cbd5e1',
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   });
 });
-
-socket.on(SERVER_EVENTS.GAME_LOG, (msg: string) => {
-  useGameStore.getState().addLog(`🛰️ SERVER: ${msg}`);
-});
-
+socket.on(SERVER_EVENTS.GAME_LOG, (msg: string) => { useGameStore.getState().addLog(`🛰️ SERVER: ${msg}`); });
 socket.on(SERVER_EVENTS.ERROR_MESSAGE, (msg: string) => {
   useGameStore.getState().setErrorMessage(msg);
   useGameStore.getState().addLog(`⚠️ SERVER: ${msg}`);
 });
-
 socket.on(SERVER_EVENTS.ACTION_REJECTED, (data: any) => {
   const msg = data.reason || data.message || "ACTION REJECTED";
   useGameStore.getState().setErrorMessage(msg);
