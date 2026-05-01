@@ -44,8 +44,8 @@ const App: React.FC = () => {
     players, 
     setView, 
     view,
-    authenticatedFetch, // ✅ 追加：マスターデータ取得用
-    setLookupData      // ✅ 追加：辞書初期化用
+    authenticatedFetch,
+    setLookupData
   } = useGameStore();
   
   const gameRef = useRef<any>(null);
@@ -56,15 +56,14 @@ const App: React.FC = () => {
   const [showInventory, setShowInventory] = useState(false); 
   const [playerName, setLocalPlayerName] = useState('');
 
-  // 🚀 1. GDD v3.1: マスターデータの初期ロード
-  // アプリ起動時（またはログイン後）に一度だけ実行し、ID解決用の辞書を作成
+  // 🚀 1. マスターデータの初期ロード
   useEffect(() => {
     if (token) {
       const initMasterData = async () => {
         try {
           const res = await authenticatedFetch('master-data.php');
           if (res.status === 'success') {
-            setLookupData(res.data); // Zustand 内で Map オブジェクトを生成
+            setLookupData(res.data);
             addLog("📡 システム辞書を同期：マップデータの解析が完了しました。");
           }
         } catch (e) {
@@ -91,11 +90,13 @@ const App: React.FC = () => {
     
     setTimeout(() => {
       setIsDeploying(false);
+      // ✅ 演出終了後、ゲーム本編（Phaser）へ。
+      // ここで Step 4: 初期拠点選択（Turn 0）が始まります。
       setView('game');
     }, 2500);
   }, [isDeploying, setView]);
 
-  // 🚀 4. Phaser ↔ React 連携（イベントリスナー統合）
+  // 🚀 4. Phaser ↔ React 連携
   useEffect(() => {
     if (!socket) return;
 
@@ -103,12 +104,12 @@ const App: React.FC = () => {
       if (socket.id) setStatus({ myId: socket.id });
     });
 
+    // 🚀 けい（サーバー側）からの「全員準備完了」通知
     socket.on(SERVER_EVENTS.COMMENCE_OPERATION, () => {
       addLog("🚀 全員のリンクを検知。出撃シークエンスを開始します。");
       triggerDeploySequence(); 
     });
 
-    // 🚀 LOD連携：ズームレベルを監視し、HUDの表示密度を制御
     const handleZoomUpdate = (e: any) => {
       const zoom = e.detail.zoom ?? e.detail;
       setZoomLevel(zoom);
@@ -156,11 +157,13 @@ const App: React.FC = () => {
     if (!hasSeenTutorial) {
       setView('tutorial');
     } else {
+      // ✅ Step 2 完了後 -> ルーム作成・選択（setup）へ
       setView('setup');
     }
   };
 
   const handleSelectionComplete = useCallback(() => {
+    // ✅ Step 3（神の選択）完了後 -> WaitingView（待機画面）を表示
     setView('waiting');
   }, [setView]);
 
@@ -175,15 +178,32 @@ const App: React.FC = () => {
       mainContent = <TutorialView />;
       break;
     case 'setup':
-      mainContent = <LobbySetupView onJoinSuccess={(id) => { setStatus({ roomId: id }); setView('lobby'); }} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onOpenRanking={handleOpenRanking} />;
+      // 🚀 ルーム作成・参加（LobbySetup）
+      mainContent = <LobbySetupView 
+        onJoinSuccess={(id) => { setStatus({ roomId: id }); setView('lobby'); }} 
+        onOpenSettings={() => setShowSettings(true)} 
+        onOpenHelp={() => setShowHelp(true)} 
+        onOpenRanking={handleOpenRanking} 
+      />;
       break;
     case 'lobby':
-      mainContent = <LobbyView roomId={roomId} players={players} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onOpenRanking={handleOpenRanking} onAbort={() => setView('setup')} />;
+      // 🚀 ルーム内待機（Lobby）
+      mainContent = <LobbyView 
+        roomId={roomId} 
+        players={players} 
+        onStart={() => setView('selection')} 
+        onOpenSettings={() => setShowSettings(true)} 
+        onOpenHelp={() => setShowHelp(true)} 
+        onOpenRanking={handleOpenRanking} 
+        onAbort={() => setView('setup')} 
+      />;
       break;
     case 'selection':
-      mainContent = <GodSelectionView onComplete={handleSelectionComplete} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onBack={() => setView('setup')} />;
+      // 🚀 Step 3: 神の選択
+      mainContent = <GodSelectionView onComplete={handleSelectionComplete} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onBack={() => setView('lobby')} />;
       break;
     case 'waiting':
+      // 🚀 最終待機：サーバーからの COMMENCE_OPERATION を待つ
       mainContent = <WaitingView onStart={triggerDeploySequence} />;
       break;
     case 'ranking':
