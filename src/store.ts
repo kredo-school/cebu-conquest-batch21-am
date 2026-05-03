@@ -141,6 +141,8 @@ export interface GameState {
   isGameOver: boolean; 
   winnerId: string | null; 
   isSubmitted: boolean;
+  isGameStarted: boolean;
+  setGameStarted: (started: boolean) => void;
   selectedGodId: number | null;
   godsList: GodData[];
   resultData: null;
@@ -215,6 +217,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   playerName: typeof window !== 'undefined' ? localStorage.getItem('cebu_player_name') || "" : "",
   myId: "", myTeam: "Explorer", isMyTurn: true, turnOwner: "YOU",
   isGameOver: false, winnerId: null, isSubmitted: false,
+  isGameStarted: false,
+  setGameStarted: (started) => set({ isGameStarted: started }),
   selectedGodId: null, godsList: [], resultData: null, predictionModalOpen: false,
   targetDistrictInfo: null, activeBuffs: [], bgmVolume: 0.5, seVolume: 0.5, isUnderAttack: false,
   setUnderAttack: (status) => set({ isUnderAttack: status }),

@@ -1,3 +1,5 @@
+// src/hooks/useGameEvents.ts
+
 import { useEffect } from 'react';
 import socket from '../socket';
 import { SERVER_EVENTS } from '../../shared/socketEvents.js'; 
@@ -18,7 +20,8 @@ export const useGameEvents = () => {
     myId,
     setStatus,
     setErrorMessage,
-    setLobbyPlayers
+    setLobbyPlayers,
+    setGameStarted
   } = useGameStore();
 
   useEffect(() => {
@@ -56,13 +59,16 @@ export const useGameEvents = () => {
 
       // 🚀 lobbyPlayers 同期: syncStateのペイロードに players が含まれていれば lobbyPlayers も更新
       if (data.players) {
-        const rawPlayers = data.players as Record<string, any>;
-        const playersArray = Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers);
-        setLobbyPlayers(playersArray.map((p: any) => ({
-          playerId: p.id,
-          username: p.username,
-          playerName: p.playerName || p.username,
-          godId: p.selectedGodId || p.godId || null,
+        const rawPlayers = data.players as Record<string, unknown>;
+        
+        // 修正箇所: 配列として明示的にキャストし、map内の引数 p の型指定を外して推論させる
+        const playersArray = (Array.isArray(data.players) ? data.players : Object.values(rawPlayers)) as Record<string, unknown>[];
+        
+        setLobbyPlayers(playersArray.map((p) => ({
+          playerId: p.id as string,
+          username: p.username as string | undefined,
+          playerName: (p.playerName || p.username) as string | undefined,
+          godId: (p.selectedGodId || p.godId || null) as number | null,
           isReady: !!(p.selectedGodId || p.godId || p.isReady),
         })));
       }
@@ -81,6 +87,7 @@ export const useGameEvents = () => {
     // 2. 🎮 試合開始通知 (gameStart)
     socket.on(SERVER_EVENTS.GAME_START, () => {
       addLog("🎮 サーバーが作戦開始を承認。システム同期中...");
+      setGameStarted(true);
       emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, { isFirstTurn: true });
     });
 
@@ -92,13 +99,14 @@ export const useGameEvents = () => {
 
     // 3.5. 📡 ロビー更新通知 (lobbyUpdated)
     // サーバーがロビー参加者の変更を通知するイベント
-    socket.on('lobbyUpdated', (data: { players?: any[] }) => {
+    socket.on('lobbyUpdated', (data: { players?: Record<string, unknown>[] }) => {
       if (data.players) {
-        setLobbyPlayers(data.players.map((p: any) => ({
-          playerId: p.id || p.playerId,
-          username: p.username,
-          playerName: p.playerName || p.username,
-          godId: p.selectedGodId || p.godId || null,
+        // 修正箇所: 引数 p の型指定を外し、TSの推論に任せる
+        setLobbyPlayers(data.players.map((p) => ({
+          playerId: (p.id || p.playerId) as string,
+          username: p.username as string | undefined,
+          playerName: (p.playerName || p.username) as string | undefined,
+          godId: (p.selectedGodId || p.godId || null) as number | null,
           isReady: !!(p.selectedGodId || p.godId || p.isReady),
         })));
       }
@@ -166,5 +174,5 @@ export const useGameEvents = () => {
       socket.off('lobbyUpdated');
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleStatsUpdate);
     };
-  }, [myId, syncServerState, setNpcs, addLog, setStatus, setErrorMessage, setLobbyPlayers]);
+  }, [myId, syncServerState, setNpcs, addLog, setStatus, setErrorMessage, setLobbyPlayers, setGameStarted]);
 };
