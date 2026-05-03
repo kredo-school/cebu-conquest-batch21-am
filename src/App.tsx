@@ -31,7 +31,8 @@ const App: React.FC = () => {
     addLog, playerName: storePlayerName, token, hasSeenTutorial, 
     setZoomLevel, isGameOver, roomId, players, setView, view,
     authenticatedFetch, setLookupData, syncServerState, myId,
-    updateSelectedDistrict, updateStatsFromPhaser 
+    updateSelectedDistrict, updateStatsFromPhaser,
+    isGameStarted, selectedGodId
   } = useGameStore();
   
   const gameRef = useRef<PhaserGameHandle | null>(null);
@@ -117,6 +118,19 @@ const App: React.FC = () => {
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleSelectDistrict);
     };
   }, [triggerDeploySequence, setZoomLevel, addLog, syncServerState, myId, updateStatsFromPhaser, updateSelectedDistrict]);
+
+  // 🚀 3.5. gameStart フラグによる自動遷移
+  // isGameStarted が true になったら、待機/選択画面からゲーム画面へ自動遷移
+  // setTimeout で非同期化し、カスケードレンダリング（react-hooks/set-state-in-effect）を防止
+  useEffect(() => {
+    if (isGameStarted && selectedGodId !== null && (view === 'waiting' || view === 'selection')) {
+      const timerId = setTimeout(() => {
+        addLog("🚀 gameStart 受信。出撃シーケンスを開始します。");
+        triggerDeploySequence();
+      }, 0);
+      return () => clearTimeout(timerId);
+    }
+  }, [isGameStarted, selectedGodId, view, addLog, triggerDeploySequence]);
 
   // 🚀 4. 遷移制御ロジック
   const handleLoginSubmit = async (name: string) => {
