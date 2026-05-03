@@ -1,5 +1,5 @@
 import React, { useState, memo, useMemo } from 'react';
-import { useGameStore } from '../store';
+import { useGameStore, LobbyPlayer } from '../store';
 import { REACT_TO_PHASER } from '../game/events/PhaserBridge';
 import socket from '../socket';
 import { CLIENT_EVENTS } from '../../shared/socketEvents.js';
@@ -42,6 +42,7 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
   onBack 
 }) => {
   const players = useGameStore(state => state.players);
+  const lobbyPlayers = useGameStore(state => state.lobbyPlayers);
   const myId = useGameStore(state => state.myId);
   const selectedGodId = useGameStore(state => state.selectedGodId);
   const maxPlayers = useGameStore(state => state.maxPlayers);
@@ -60,10 +61,20 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
     };
   }, [players, maxPlayers]);
 
-  // 🚀 修正: 他のプレイヤー（自分以外）が既にその神をロックしているか判定
+  // 🚀 修正: lobbyPlayers（サーバー同期済み）と players の両方をチェックして
+  //    他のプレイヤーが既にその神をロックしているか判定
   const getLockInfo = (godId: number) => {
-    const selector = players.find(p => p.id !== myId && (Number(p.selectedGodId) === godId || Number(p.godId) === godId));
-    if (selector) return { name: selector.playerName || selector.username || "Operator" }; 
+    // lobbyPlayers 優先でチェック（サーバーからの最新データ）
+    const lobbySelector = lobbyPlayers.find(
+      (p: LobbyPlayer) => p.playerId !== myId && Number(p.godId) === godId
+    );
+    if (lobbySelector) return { name: lobbySelector.playerName || lobbySelector.username || "Operator" };
+
+    // フォールバック: players 配列もチェック
+    const selector = players.find(
+      p => p.id !== myId && (Number(p.selectedGodId) === godId || Number(p.godId) === godId)
+    );
+    if (selector) return { name: selector.playerName || selector.username || "Operator" };
     return null;
   };
 
@@ -83,7 +94,13 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
     useGameStore.setState({ 
       selectedGodId: godId,
       selectedDistrictId: startId,
-      players: updatedPlayers
+      players: updatedPlayers,
+      // 🚀 楽観的UI更新: lobbyPlayers にも自分の選択を即時反映
+      lobbyPlayers: useGameStore.getState().lobbyPlayers.map(lp =>
+        lp.playerId === myId
+          ? { ...lp, godId: godId, isReady: true }
+          : lp
+      ),
     });
     
     socket.emit(CLIENT_EVENTS.READY_TO_START, { 

@@ -1,7 +1,7 @@
 // src/components/WaitingView.tsx
 // (いっせいさんの提示したコードをそのまま採用)
 import React, { useState, useEffect, useRef, memo } from 'react';
-import { useGameStore, Player } from '../store';
+import { useGameStore, Player, LobbyPlayer } from '../store';
 import socket from '../socket';
 import SoundManager from '../game/SoundManager';
 import { CLIENT_EVENTS } from '../../shared/socketEvents.js';
@@ -69,7 +69,7 @@ interface WaitingViewProps {
 }
 
 export const WaitingView: React.FC<WaitingViewProps> = ({ onStart }) => {
-  const { players, myId, chatLogs, roomId, playerName, maxPlayers } = useGameStore();
+  const { players, lobbyPlayers, myId, chatLogs, roomId, playerName, maxPlayers } = useGameStore();
   const [chatInput, setChatInput] = useState('');
   const [isLocked, setIsLocked] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -81,7 +81,15 @@ export const WaitingView: React.FC<WaitingViewProps> = ({ onStart }) => {
   };
 
   const totalSlots = maxPlayers || 2;
-  const readyCount = players.filter(p => p.selectedGodId || p.godId).length;
+  // 🚀 修正: lobbyPlayers を優先して参加人数・ready判定を行う
+  const activeLobby = lobbyPlayers.length > 0 ? lobbyPlayers : players.map(p => ({
+    playerId: p.id,
+    username: p.username,
+    playerName: p.playerName || p.username,
+    godId: p.selectedGodId || p.godId || null,
+    isReady: !!(p.selectedGodId || p.godId || p.isReady),
+  } as LobbyPlayer));
+  const readyCount = activeLobby.filter(p => p.godId || p.isReady).length;
   const syncPercentage = Math.floor((readyCount / totalSlots) * 100);
   const isAllReady = readyCount >= totalSlots && totalSlots > 0;
 
@@ -146,9 +154,26 @@ export const WaitingView: React.FC<WaitingViewProps> = ({ onStart }) => {
 
           <div className={`grid gap-6 mb-12 items-stretch mx-auto w-full text-left
             ${totalSlots <= 2 ? 'max-w-4xl grid-cols-2' : totalSlots === 3 ? 'max-w-6xl grid-cols-3' : 'max-w-7xl grid-cols-4'}`}>
-            {players.map((player: Player) => (
-              <PlayerCard key={player.id} player={player} isMe={player.id === myId} isHost={player.id === players[0]?.id} />
-            ))}
+            {/* 🚀 修正: lobbyPlayers から対応する Player を探して PlayerCard に渡す */}
+            {activeLobby.map((lp: LobbyPlayer) => {
+              // lobbyPlayer に対応する players の Player オブジェクトを探す（PlayerCardが Player 型を要求するため）
+              const playerData: Player = players.find(p => p.id === lp.playerId) || {
+                id: lp.playerId,
+                username: lp.username || 'Unknown',
+                playerName: lp.playerName || lp.username || 'Unknown',
+                selectedGodId: lp.godId,
+                godId: lp.godId,
+                isReady: lp.isReady,
+              };
+              return (
+                <PlayerCard 
+                  key={lp.playerId} 
+                  player={playerData} 
+                  isMe={lp.playerId === myId} 
+                  isHost={lp.playerId === activeLobby[0]?.playerId} 
+                />
+              );
+            })}
           </div>
 
           <div className="mt-auto grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-7xl mx-auto w-full text-left">

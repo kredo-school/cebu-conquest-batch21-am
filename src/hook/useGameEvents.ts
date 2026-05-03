@@ -17,7 +17,8 @@ export const useGameEvents = () => {
     addLog, 
     myId,
     setStatus,
-    setErrorMessage
+    setErrorMessage,
+    setLobbyPlayers
   } = useGameStore();
 
   useEffect(() => {
@@ -53,6 +54,19 @@ export const useGameEvents = () => {
 
       syncServerState(data, myId);
 
+      // 🚀 lobbyPlayers 同期: syncStateのペイロードに players が含まれていれば lobbyPlayers も更新
+      if (data.players) {
+        const rawPlayers = data.players as Record<string, any>;
+        const playersArray = Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers);
+        setLobbyPlayers(playersArray.map((p: any) => ({
+          playerId: p.id,
+          username: p.username,
+          playerName: p.playerName || p.username,
+          godId: p.selectedGodId || p.godId || null,
+          isReady: !!(p.selectedGodId || p.godId || p.isReady),
+        })));
+      }
+
       // 🚀 ゴースト遷移ブロック 2（最終防衛線）:
       // TACTICAL SETUP 画面にいる間に、サーバーが過去の部屋情報（roomId）を送ってきて
       // syncServerState が勝手に view を 'lobby' に変えてしまっても、強制的に 'setup' に引き戻す！
@@ -74,6 +88,20 @@ export const useGameEvents = () => {
     socket.on(SERVER_EVENTS.NPC_UPDATE, (npcData) => {
       setNpcs(npcData);
       emitToPhaser(REACT_TO_PHASER.UPDATE_NPCS, npcData);
+    });
+
+    // 3.5. 📡 ロビー更新通知 (lobbyUpdated)
+    // サーバーがロビー参加者の変更を通知するイベント
+    socket.on('lobbyUpdated', (data: { players?: any[] }) => {
+      if (data.players) {
+        setLobbyPlayers(data.players.map((p: any) => ({
+          playerId: p.id || p.playerId,
+          username: p.username,
+          playerName: p.playerName || p.username,
+          godId: p.selectedGodId || p.godId || null,
+          isReady: !!(p.selectedGodId || p.godId || p.isReady),
+        })));
+      }
     });
 
     // 4. 📢 ターン開始通知 (turnStart)
@@ -135,7 +163,8 @@ export const useGameEvents = () => {
       socket.off(SERVER_EVENTS.ACTION_REJECTED);
       socket.off(SERVER_EVENTS.ACTION_RESULT);
       socket.off(SERVER_EVENTS.GAME_OVER);
+      socket.off('lobbyUpdated');
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleStatsUpdate);
     };
-  }, [myId, syncServerState, setNpcs, addLog, setStatus, setErrorMessage]);
+  }, [myId, syncServerState, setNpcs, addLog, setStatus, setErrorMessage, setLobbyPlayers]);
 };
