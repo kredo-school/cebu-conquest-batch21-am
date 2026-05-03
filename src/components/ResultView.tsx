@@ -1,4 +1,3 @@
-// src/components/ResultView.tsx
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useGameStore } from '../store';
 
@@ -10,7 +9,7 @@ interface ResultViewProps {
 }
 
 export const ResultView: React.FC<ResultViewProps> = ({ 
-  onRestart, onOpenSettings, onOpenHelp, onOpenRanking 
+  onRestart, onOpenSettings, onOpenHelp: _onOpenHelp, onOpenRanking 
 }) => {
   const { 
     isGameOver, winnerId, myId, playerName, districts, 
@@ -22,7 +21,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
 
   const isWinner = useMemo(() => winnerId === myId, [winnerId, myId]);
   
-  // ✅ 修正：勝者の詳細情報を取得
+  // 勝者の詳細情報を取得
   const winnerPlayer = useMemo(() => 
     players.find(p => p.id === winnerId), 
   [players, winnerId]);
@@ -32,7 +31,8 @@ export const ResultView: React.FC<ResultViewProps> = ({
   [godsList, winnerPlayer]);
 
   const stats = useMemo(() => {
-    const myDistrictsCount = Object.values(districts).filter(id => id === myId).length;
+    // ✅ 修正：比較エラー ts(2367) を確実に回避するため、値を string としてキャストして比較
+    const myDistrictsCount = Object.values(districts).filter(val => (val as unknown as string) === myId).length;
     const totalDistrictsCount = Math.max(1, Object.keys(districts).length);
     const territoryPercent = Math.round((myDistrictsCount / totalDistrictsCount) * 100);
     
@@ -73,7 +73,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
     secondaryText: isWinner ? 'text-cyan-400' : 'text-orange-600',
     border: isWinner ? 'border-orange-900/40' : 'border-red-900/40',
     glow: isWinner ? 'bg-orange-900/20' : 'bg-red-900/20',
-    // ✅ 修正：勝者名をタイトルに組み込む
     mainTitle: isWinner ? 'MISSION ACCOMPLISHED' : 'MISSION FAILED',
     jpTitle: isWinner ? '最高司令官として承認されました' : `勝者: ${winnerPlayer?.playerName || 'UNKNOWN'}`,
     buttonBg: isWinner ? 'bg-orange-600 hover:bg-orange-500' : 'bg-zinc-800 hover:bg-zinc-700'
@@ -177,7 +176,6 @@ export const ResultView: React.FC<ResultViewProps> = ({
 
             </div>
 
-            {/* ✅ 修正：一行レイアウトのタクティカル・ステータス */}
             <div className="mt-8 pt-6 border-t border-white/5 flex justify-between items-center">
               <div className="flex gap-8">
                 <div className="flex items-center gap-2">

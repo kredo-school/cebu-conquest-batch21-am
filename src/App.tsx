@@ -1,13 +1,12 @@
-// src/App.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import socket from './socket';
-import { useGameStore } from './store';
+import { useGameStore, MasterData, GameState } from './store';
 
 // ✅ コンポーネントのインポート
 import { Sidebar } from './components/Sidebar';
 import { ResultView } from './components/ResultView';
 import { HUD } from './components/HUD';
-import { PhaserGameView } from './components/PhaserGame';
+import { PhaserGameView, PhaserGameHandle } from './components/PhaserGame';
 import { LoginView } from './components/LoginView';
 import { LobbySetupView } from './components/LobbySetupView'; 
 import { LobbyView } from './components/LobbyView'; 
@@ -22,35 +21,36 @@ import { TutorialView } from './components/TutorialView';
 import { ErrorNotification } from './components/ErrorNotification'; 
 
 import { useGameEvents } from './hook/useGameEvents';
-import { PHASER_TO_REACT } from './game/events/PhaserBridge';
+import { PHASER_TO_REACT, REACT_TO_PHASER } from './game/events/PhaserBridge';
 import { SERVER_EVENTS } from '../shared/socketEvents.js';
 
 const App: React.FC = () => {
   useGameEvents();
 
   const { 
-    setStatus, addLog, playerName: storePlayerName, token, hasSeenTutorial, 
+    addLog, playerName: storePlayerName, token, hasSeenTutorial, 
     setZoomLevel, isGameOver, roomId, players, setView, view,
-    authenticatedFetch, setLookupData
+    authenticatedFetch, setLookupData, syncServerState, myId,
+    updateSelectedDistrict, updateStatsFromPhaser 
   } = useGameStore();
   
-  const gameRef = useRef<any>(null);
+  const gameRef = useRef<PhaserGameHandle | null>(null);
   const [isDeploying, setIsDeploying] = useState(false); 
   const [showSettings, setShowSettings] = useState(false); 
   const [showHelp, setShowHelp] = useState(false); 
   const [showInventory, setShowInventory] = useState(false); 
   const [playerName, setLocalPlayerName] = useState('');
 
-  // 🚀 1. マスターデータ同期（ログイン後に実行）
+  // 🚀 1. マスターデータ同期
   useEffect(() => {
     if (token) {
       const init = async () => {
         try {
-          const res = await authenticatedFetch('master-data.php');
+          const res = await authenticatedFetch<MasterData>('master-data.php');
           if (res && res.status === 'success') { 
             setLookupData(res.data); 
           }
-        } catch (e) { 
+        } catch (_e) { 
           addLog("❌ データ同期失敗"); 
         }
       };
@@ -58,54 +58,76 @@ const App: React.FC = () => {
     }
   }, [token, authenticatedFetch, setLookupData, addLog]);
 
-  // 🚀 2. 出撃演出（デプロイ・シーケンス）
+  // 🚀 2. 出撃演出
   const triggerDeploySequence = useCallback(() => {
     if (isDeploying) return;
     setIsDeploying(true); 
     
-    // 2.5秒間のカウントダウン演出
     setTimeout(() => {
       setIsDeploying(false);
-      // ✅ 最終目的地：Phaserマップへ遷移
       setView('game');
+
+      const myStartId = useGameStore.getState().selectedDistrictId;
+      if (myStartId) {
+        window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, { 
+          detail: { startDistrictId: myStartId } 
+        }));
+      }
     }, 2500);
   }, [isDeploying, setView]);
 
-  // 🚀 3. サーバー信号の監視（Waiting画面のみ反応）
+  // 🚀 3. サーバー & Phaser 信号の監視
   useEffect(() => {
     if (!socket) return;
 
-    const handleCommence = () => {
-      // ⚠️ 防波堤：現在のViewが 'waiting' の時だけ出撃を開始
+    const handleCommence = (data: Record<string, unknown>) => {
       const currentView = useGameStore.getState().view;
-      if (currentView === 'waiting') {
+      if (currentView === 'waiting' || currentView === 'selection') {
+        if (data) syncServerState(data, myId);
         addLog("🚀 全員のリンク承認を確認。出撃します。");
         triggerDeploySequence();
-      } else {
-        console.warn("作戦開始信号を検知しましたが、フェーズが異なります:", currentView);
       }
     };
 
     socket.on(SERVER_EVENTS.COMMENCE_OPERATION, handleCommence);
 
-    const handleZoomUpdate = (e: any) => setZoomLevel(e.detail.zoom ?? e.detail);
-    const handleUpdateStatus = (e: any) => !useGameStore.getState().isGameOver && setStatus(e.detail);
+    const handleZoomUpdate = (e: Event) => {
+      const ce = e as CustomEvent<{ zoom: number }>;
+      setZoomLevel(ce.detail.zoom ?? 1.0);
+    };
+
+    const handleUpdateStatus = (e: Event) => {
+      const ce = e as CustomEvent<Partial<GameState>>;
+      updateStatsFromPhaser(ce.detail); 
+    };
+
+    const handleSelectDistrict = (e: Event) => {
+      const ce = e as CustomEvent<{ districtId: number; districtName: string; isMyTerritory: boolean; isNeutral: boolean }>;
+      updateSelectedDistrict(ce.detail); 
+    };
     
     window.addEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
     window.addEventListener(PHASER_TO_REACT.ZOOM_UPDATED, handleZoomUpdate);
+    window.addEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleSelectDistrict);
 
     return () => {
       socket.off(SERVER_EVENTS.COMMENCE_OPERATION, handleCommence);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
       window.removeEventListener(PHASER_TO_REACT.ZOOM_UPDATED, handleZoomUpdate);
+      window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleSelectDistrict);
     };
-  }, [triggerDeploySequence, setStatus, setZoomLevel, addLog]);
+  }, [triggerDeploySequence, setZoomLevel, addLog, syncServerState, myId, updateStatsFromPhaser, updateSelectedDistrict]);
 
-  // 🚀 4. 各画面からの遷移制御
+  // 🚀 4. 遷移制御ロジック
   const handleLoginSubmit = async (name: string) => {
     setLocalPlayerName(name);
-    socket.connect(); 
-    setView('setup');
+    useGameStore.setState({ roomId: undefined, players: [] });
+    setView('setup'); 
+    setTimeout(() => {
+      if (socket && !socket.connected) {
+        socket.connect(); 
+      }
+    }, 100);
   };
 
   const handleLobbyStart = () => {
@@ -122,26 +144,17 @@ const App: React.FC = () => {
 
   const handleOpenRanking = () => setView('ranking');
 
-  // --- 🖼️ コンテンツ切り替え（Z-index競合対策済み） ---
+  // --- 🖼️ コンテンツ切り替え ---
   let mainContent;
   switch (view) {
     case 'login':
       mainContent = <LoginView onLogin={handleLoginSubmit} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} />;
       break;
     case 'setup':
-      mainContent = <LobbySetupView 
-        onJoinSuccess={(id) => { setStatus({ roomId: id }); setView('lobby'); }} 
-        onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} 
-        onOpenRanking={handleOpenRanking} 
-      />;
+      mainContent = <LobbySetupView onJoinSuccess={(id) => { useGameStore.getState().setStatus({ roomId: id }); setView('lobby'); }} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onOpenRanking={handleOpenRanking} />;
       break;
     case 'lobby':
-      mainContent = <LobbyView 
-        roomId={roomId} players={players} 
-        onStart={handleLobbyStart} 
-        onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} 
-        onOpenRanking={handleOpenRanking} onAbort={() => setView('setup')} 
-      />;
+      mainContent = <LobbyView roomId={roomId} players={players} onStart={handleLobbyStart} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onOpenRanking={handleOpenRanking} onAbort={() => { useGameStore.setState({ roomId: undefined, players: [] }); setView('setup'); }} />;
       break;
     case 'tutorial':
       mainContent = <TutorialView onComplete={() => setView('selection')} />;
@@ -150,6 +163,7 @@ const App: React.FC = () => {
       mainContent = <GodSelectionView onComplete={handleSelectionComplete} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onBack={() => setView('lobby')} />;
       break;
     case 'waiting':
+      // 🚀 修正: image_188c3d.png のエラー箇所。WaitingViewProps に合わせて onBack を削除
       mainContent = <WaitingView onStart={triggerDeploySequence} />;
       break;
     case 'game':
@@ -169,31 +183,27 @@ const App: React.FC = () => {
       mainContent = <RankingView onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onBack={() => setView('setup')} />;
       break;
     default:
-      mainContent = <div className="text-white font-fix">Neural Link Active... Awaiting Tactical Data...</div>;
+      mainContent = <div className="text-white font-fix text-left">Neural Link Active...</div>;
   }
 
   return (
     <div className="relative w-screen h-screen bg-slate-950 text-slate-200 overflow-hidden select-none">
-      {/* 1. メイン画面レイヤー */}
-      {mainContent}
-
-      {/* 2. エラー通知レイヤー（常に上部） */}
+      
+      <div className="w-full h-full relative overflow-y-auto overflow-x-hidden touch-pan-y custom-scrollbar text-left">
+         {mainContent}
+      </div>
+      
       <ErrorNotification />
-
-      {/* 3. 出撃演出レイヤー（最前面） */}
+      
       {isDeploying && (
         <div className="fixed inset-0 z-[200000] bg-slate-950 flex flex-col items-center justify-center animate-fadeIn backdrop-blur-3xl">
-          <div className="text-6xl font-black text-white italic uppercase mb-8 font-fix text-center tracking-tighter shadow-2xl">
-            Deploying Squad...
-          </div>
+          <div className="text-6xl font-black text-white italic uppercase mb-8 font-fix text-center tracking-tighter shadow-2xl">Deploying Squad...</div>
           <div className="h-2 w-96 bg-slate-900 rounded-full overflow-hidden border border-white/10 shadow-[0_0_20px_rgba(234,88,12,0.3)]">
             <div className="h-full bg-orange-600 animate-[progressBar_2.5s_linear_forwards] shadow-[0_0_15px_#ea580c]"></div>
           </div>
           <p className="mt-4 text-orange-500 font-black uppercase tracking-[0.4em] text-[10px] animate-pulse font-fix">Synchronizing neural link to Cebu Sector</p>
         </div>
       )}
-
-      {/* 4. モーダルレイヤー群（Settings > Help > Inventory） */}
       {showSettings && <div className="fixed inset-0 z-[300000]"><SettingsView onBack={() => setShowSettings(false)} /></div>}
       {showHelp && <div className="fixed inset-0 z-[310000]"><HelpModal onClose={() => setShowHelp(false)} /></div>}
       {showInventory && <div className="fixed inset-0 z-[320000]"><InventoryModal onClose={() => setShowInventory(false)} /></div>}
@@ -203,6 +213,9 @@ const App: React.FC = () => {
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
         .font-fix { line-height: 1.1; }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        * { -webkit-overflow-scrolling: touch; }
       `}</style>
     </div>
   );

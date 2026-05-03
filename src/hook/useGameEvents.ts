@@ -1,13 +1,14 @@
-// src/hook/useGameEvents.ts
 import { useEffect } from 'react';
 import socket from '../socket';
 import { SERVER_EVENTS } from '../../shared/socketEvents.js'; 
 import { useGameStore } from '../store';
-import { emitToPhaser, REACT_TO_PHASER } from '../game/events/PhaserBridge'; 
+import { emitToPhaser, REACT_TO_PHASER, PHASER_TO_REACT } from '../game/events/PhaserBridge'; 
 
 /**
- * 🛰️ useGameEvents: Socket.IO サーバーからのリアルタイム同期を管理
- * 修正内容: フロー制御を App.tsx に一任するため、ここでの setView('game') を廃止
+ * 🛰️ useGameEvents: Socket.IO サーバーおよび Phaser からのリアルタイム同期を管理
+ * 修正内容: 
+ * 1. フロー制御を App.tsx に一任するため setView を排除
+ * 2. GDD v3.1 準拠: Phaser からの STATS_UPDATED リスナーを追加
  */
 export const useGameEvents = () => {
   const { 
@@ -17,18 +18,47 @@ export const useGameEvents = () => {
     myId,
     setStatus,
     setErrorMessage
-    // 🚀 setView は App.tsx の演出側で制御するため、ここでは使用しません
   } = useGameStore();
 
   useEffect(() => {
     if (!socket) return;
 
+    // ---------------------------------------------------------
+    // A. Phaser → React 同期リスナー (Task 3: HUD更新用)
+    // ---------------------------------------------------------
+    // 🚀 修正: anyを排除。標準のEvent型で受け取り、CustomEventにキャストして安全にdetailを展開
+    const handleStatsUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { hp, stamina, atk, def, faith } = customEvent.detail;
+      // GDD 4-1 のパラメータ名に基づき Zustand を更新
+      setStatus({ 
+        hp, 
+        ap: stamina, 
+        atk, 
+        def, 
+        blessing: faith 
+      });
+    };
+
+    window.addEventListener(PHASER_TO_REACT.STATS_UPDATED, handleStatsUpdate);
+
+    // ---------------------------------------------------------
+    // B. Socket.IO サーバー → クライアント 同期リスナー
+    // ---------------------------------------------------------
+
     // 1. 🛡️ サーバー全体のステート同期 (syncState)
     socket.on(SERVER_EVENTS.SYNC_STATE, (data) => {
+      // 🚀 修正: 現在の画面状態を直接取得
+      const currentView = useGameStore.getState().view;
+
       syncServerState(data, myId);
-      
-      // ✅ 修正: 強制的な setView('game') を削除。
-      // これにより、再接続時などに勝手に画面が切り替わるのを防ぎます。
+
+      // 🚀 ゴースト遷移ブロック 2（最終防衛線）:
+      // TACTICAL SETUP 画面にいる間に、サーバーが過去の部屋情報（roomId）を送ってきて
+      // syncServerState が勝手に view を 'lobby' に変えてしまっても、強制的に 'setup' に引き戻す！
+      if (currentView === 'setup') {
+        useGameStore.setState({ view: 'setup', roomId: undefined });
+      }
 
       // Phaser側へ同期命令
       emitToPhaser(REACT_TO_PHASER.SYNC_MAP, data);
@@ -36,10 +66,7 @@ export const useGameEvents = () => {
 
     // 2. 🎮 試合開始通知 (gameStart)
     socket.on(SERVER_EVENTS.GAME_START, () => {
-      // ✅ 修正: ここでの setView('game') を削除。
-      // 出撃のタイミングは App.tsx が COMMENCE_OPERATION を受信して演出後に制御します。
       addLog("🎮 サーバーが作戦開始を承認。システム同期中...");
-      
       emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, { isFirstTurn: true });
     });
 
@@ -108,6 +135,7 @@ export const useGameEvents = () => {
       socket.off(SERVER_EVENTS.ACTION_REJECTED);
       socket.off(SERVER_EVENTS.ACTION_RESULT);
       socket.off(SERVER_EVENTS.GAME_OVER);
+      window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleStatsUpdate);
     };
   }, [myId, syncServerState, setNpcs, addLog, setStatus, setErrorMessage]);
 };

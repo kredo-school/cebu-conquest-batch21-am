@@ -1,5 +1,4 @@
-// src/components/InventoryModal.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useGameStore } from '../store';
 
 interface Item {
@@ -16,17 +15,18 @@ interface InventoryModalProps {
 }
 
 export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
-  // ✅ GDD v3.1: Zustand から useItem (けいさんのサーバー通信用) を追加抽出
-  const { authenticatedFetch, addLog, lookupData, useItem } = useGameStore();
+  // ✅ 修正1: useItem を executeUseItem として抽出（Hookルール違反の回避）
+  const { authenticatedFetch, addLog, lookupData, useItem: executeUseItem, inventory } = useGameStore();
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
 
   // 📦 1. インベントリ取得（初期表示用：永続化データのため PHP 経由）
-  const fetchInventory = async () => {
+  // ✅ 修正2: useCallback を使用し、ジェネリクス <Item[]> で型を明示
+  const fetchInventory = useCallback(async () => {
     setLoading(true);
     try {
-      const json = await authenticatedFetch('get-inventory.php');
-      if (json.status === 'success') {
+      const json = await authenticatedFetch<Item[]>('get-inventory.php');
+      if (json.status === 'success' && json.data) {
         setItems(json.data);
       }
     } catch {
@@ -34,23 +34,27 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [authenticatedFetch, addLog]);
 
   useEffect(() => {
     fetchInventory();
-  }, []);
+  }, [fetchInventory]);
+
+  // ✅ 修正3: Zustand 側の inventory (unknown[]) を Item[] として安全に同期
+  useEffect(() => {
+    if (inventory && Array.isArray(inventory)) {
+      setItems(inventory as Item[]);
+    }
+  }, [inventory]);
 
   // ⚡ 2. アイテム使用処理
   const handleDeployItem = (itemId: number) => {
     /**
      * 🚀 実装ポイント:
-     * ストア側で一括管理している useItem(itemId) を呼び出します。
-     * これにより、けいさんが想定しているペイロード { itemId: number } が
-     * 正確に Socket.IO で送信されます。
+     * リネームした executeUseItem を呼び出し。
+     * これで React Hook の命名規則エラーも解消されます。
      */
-    useItem(itemId);
-    
-    // UIを閉じ、サーバーからの SYNC_STATE による状態更新（HP/AP等）を待ちます
+    executeUseItem(itemId);
     onClose(); 
   };
 
@@ -121,7 +125,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
                     </div>
                     {/* Background Icon Decoration */}
                     <div className="absolute -right-4 -bottom-4 opacity-[0.03] pointer-events-none">
-                       <span className="material-symbols-outlined text-8xl italic">inventory_2</span>
+                        <span className="material-symbols-outlined text-8xl italic">inventory_2</span>
                     </div>
                   </div>
                 );

@@ -1,6 +1,5 @@
-// src/components/RankingView.tsx
 import React, { useState, useMemo, memo } from 'react';
-import { useGameStore } from '../store';
+import { useGameStore, Player, LookupData } from '../store';
 
 interface RankingViewProps {
   onOpenSettings: () => void;
@@ -10,7 +9,7 @@ interface RankingViewProps {
 
 /**
  * 🏆 RankingView: 勢力占有率ランキング表示
- * 修正内容：チャットUIと統一された一行レイアウトの適用
+ * 修正内容：Unexpected any の排除とリテラル型のアサーション
  */
 export const RankingView: React.FC<RankingViewProps> = memo(({ 
   onOpenSettings, onOpenHelp, onBack
@@ -28,15 +27,16 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
         const locId = player.districtId || player.location;
 
         if (locId && lookupData?.districts) {
-          let district = lookupData.districts.get(locId);
-          if (!district && lookupData.spots) {
-            const spot = lookupData.spots.get(locId);
-            if (spot) district = lookupData.districts.get(spot.parentDistrictId);
+          const typedLookup = lookupData as LookupData;
+          let district = typedLookup.districts.get(locId);
+          if (!district && typedLookup.spots) {
+            const spot = typedLookup.spots.get(locId);
+            if (spot) district = typedLookup.districts.get(spot.parentDistrictId);
           }
           if (district) {
-            const area = lookupData.areas?.get(district.parentAreaId);
+            const area = typedLookup.areas?.get(district.parentAreaId);
             if (area) {
-              const island = lookupData.islands?.get(area.parentIslandId);
+              const island = typedLookup.islands?.get(area.parentIslandId);
               if (island) {
                 islandName = island.name.toUpperCase();
               }
@@ -105,7 +105,8 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
               {['weekly', 'global'].map(type => (
                 <button 
                   key={type}
-                  onClick={() => setFilter(type as any)}
+                  // ✅ 修正(Line 108): リテラル型でキャストして any を排除
+                  onClick={() => setFilter(type as 'weekly' | 'global')}
                   className={`px-8 py-2.5 text-[10px] font-black rounded-lg uppercase transition-all font-fix ${filter === type ? 'bg-orange-600 text-black shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
                   {type}
@@ -121,9 +122,9 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
               <div className="order-2 md:order-1 bg-slate-900/40 border border-white/5 p-8 rounded-2xl flex flex-col items-center relative group hover:border-orange-500/30 transition-all shadow-xl">
                 <div className="absolute top-4 left-4 text-4xl font-black italic opacity-5 font-fix">02</div>
                 <div className="w-24 h-24 rounded-full border-2 border-slate-800 p-1 mb-6">
-                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${topThree[1].playerName || topThree[1].name}`} className="w-full h-full object-cover rounded-full bg-slate-950" alt="" />
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${topThree[1].playerName || topThree[1].username}`} className="w-full h-full object-cover rounded-full bg-slate-950" alt="" />
                 </div>
-                <h3 className="text-xl font-black text-white font-fix uppercase mb-1">{topThree[1].playerName || topThree[1].name}</h3>
+                <h3 className="text-xl font-black text-white font-fix uppercase mb-1">{topThree[1].playerName || topThree[1].username}</h3>
                 <span className="text-[9px] font-black text-orange-500/60 tracking-widest uppercase mb-4 font-fix italic">{topThree[1].baseIsland} Origin</span>
                 <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mb-2">
                   <div className="bg-orange-600 h-full opacity-60" style={{ width: `${topThree[1].occupancy}%` }}></div>
@@ -137,12 +138,12 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
               <div className="order-1 md:order-2 bg-slate-900/60 border-2 border-orange-500/40 p-12 rounded-3xl flex flex-col items-center relative transform scale-110 shadow-[0_0_60px_rgba(234,88,12,0.15)] z-10 backdrop-blur-md">
                 <div className="absolute top-4 right-8 text-7xl font-black italic text-orange-500 opacity-10 font-fix">01</div>
                 <div className="w-32 h-32 rounded-full border-4 border-orange-600 p-1.5 mb-8 relative shadow-[0_0_30px_rgba(234,88,12,0.3)]">
-                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${topThree[0].playerName || topThree[0].name}`} className="w-full h-full object-cover rounded-full bg-slate-950" alt="" />
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${topThree[0].playerName || topThree[0].username}`} className="w-full h-full object-cover rounded-full bg-slate-950" alt="" />
                   <div className="absolute -bottom-2 -right-2 bg-orange-600 w-12 h-12 rounded-full flex items-center justify-center shadow-2xl text-black">
                     <span className="material-symbols-outlined text-2xl">workspace_premium</span>
                   </div>
                 </div>
-                <h3 className="text-3xl font-black text-white font-fix uppercase italic tracking-tighter mb-2">{topThree[0].playerName || topThree[0].name}</h3>
+                <h3 className="text-3xl font-black text-white font-fix uppercase italic tracking-tighter mb-2">{topThree[0].playerName || topThree[0].username}</h3>
                 <span className="text-[11px] font-black text-orange-500 tracking-[0.4em] uppercase mb-8 font-fix">{topThree[0].baseIsland} Dominator</span>
                 <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden mb-4 border border-white/5">
                   <div className="bg-orange-600 h-full shadow-[0_0_20px_#ea580c]" style={{ width: `${topThree[0].occupancy}%` }}></div>
@@ -156,9 +157,9 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
               <div className="order-3 bg-slate-900/40 border border-white/5 p-8 rounded-2xl flex flex-col items-center relative group hover:border-orange-500/30 transition-all shadow-xl">
                 <div className="absolute top-4 left-4 text-4xl font-black italic opacity-5 font-fix">03</div>
                 <div className="w-24 h-24 rounded-full border-2 border-slate-800 p-1 mb-6">
-                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${topThree[2].playerName || topThree[2].name}`} className="w-full h-full object-cover rounded-full bg-slate-950" alt="" />
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${topThree[2].playerName || topThree[2].username}`} className="w-full h-full object-cover rounded-full bg-slate-950" alt="" />
                 </div>
-                <h3 className="text-xl font-black text-white font-fix uppercase mb-1">{topThree[2].playerName || topThree[2].name}</h3>
+                <h3 className="text-xl font-black text-white font-fix uppercase mb-1">{topThree[2].playerName || topThree[2].username}</h3>
                 <span className="text-[9px] font-black text-orange-500/60 tracking-widest uppercase mb-4 font-fix italic">{topThree[2].baseIsland} Origin</span>
                 <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mb-2">
                   <div className="bg-orange-600 h-full opacity-40" style={{ width: `${topThree[2].occupancy}%` }}></div>
@@ -170,7 +171,7 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
 
           {/* List View: 洗練された一行レイアウト */}
           <div className="grid gap-2 text-left">
-            {remaining.map((player, index) => {
+            {remaining.map((player: Player, index: number) => {
               const isMe = player.id === myId;
               return (
                 <div key={player.id} className={`group flex items-center p-4 rounded-xl border transition-all ${
@@ -181,13 +182,12 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
                   </span>
                   
                   <div className="w-10 h-10 rounded bg-slate-800 mr-6 overflow-hidden shrink-0 border border-white/5">
-                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${player.playerName || player.name}`} className="w-full h-full object-cover" alt="" />
+                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${player.playerName || player.username}`} className="w-full h-full object-cover" alt="" />
                   </div>
 
-                  {/* ✅ 修正：インライン・タクティカル一行表示 */}
                   <div className="flex-1 flex items-baseline gap-4 min-w-0">
                     <h4 className={`text-sm font-black uppercase font-fix truncate ${isMe ? 'text-orange-500' : 'text-white'}`}>
-                      {player.playerName || player.name} {isMe && "(YOU)"}
+                      {player.playerName || player.username} {isMe && "(YOU)"}
                     </h4>
                     <span className="text-[9px] px-2 py-0.5 bg-slate-800/80 text-slate-400 font-black rounded uppercase font-fix tracking-tighter shrink-0">
                       {player.baseIsland}
@@ -221,10 +221,10 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
               
               <div className="flex items-center gap-5">
                 <div className="w-14 h-14 rounded-xl border border-orange-500/40 p-1 bg-slate-950">
-                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${myPlayerName || me.name}`} className="w-full h-full object-cover rounded-lg" alt="" />
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${myPlayerName || me.username}`} className="w-full h-full object-cover rounded-lg" alt="" />
                 </div>
                 <div className="text-left">
-                  <div className="text-white font-black text-lg uppercase font-fix italic tracking-tight">{myPlayerName || me.name}</div>
+                  <div className="text-white font-black text-lg uppercase font-fix italic tracking-tight">{myPlayerName || me.username}</div>
                   <div className="text-[9px] text-orange-500 font-black tracking-[0.3em] uppercase font-fix">Status: Active Service // Origin: {me.baseIsland}</div>
                 </div>
               </div>

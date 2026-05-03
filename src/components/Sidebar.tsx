@@ -20,8 +20,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
   const isUnderAttack = useGameStore(state => state.isUnderAttack);
   const districts = useGameStore(state => state.districts);
   const myId = useGameStore(state => state.myId);
-  const playerName = useGameStore(state => state.playerName); // ✅ 修正：名前を取得
-  
+  const playerName = useGameStore(state => state.playerName);
   const lookupData = useGameStore(state => state.lookupData);
 
   const territorySummary = useMemo(() => {
@@ -35,7 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
       let islandId = 0;
       let islandName = "UNKNOWN SECTOR";
 
-      if (lookupData && lookupData.districts && lookupData.areas && lookupData.islands) {
+      if (lookupData?.districts && lookupData.areas && lookupData.islands) {
         let district = lookupData.districts.get(id);
         if (!district && lookupData.spots) {
           const spot = lookupData.spots.get(id);
@@ -78,7 +77,13 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
             70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); border-color: rgba(239, 68, 68, 1); }
             100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); border-color: rgba(239, 68, 68, 0.5); }
         }
+        @keyframes pulse-orange {
+            0% { box-shadow: 0 0 15px rgba(250, 112, 0, 0.4); border-color: rgba(250, 112, 0, 0.5); }
+            50% { box-shadow: 0 0 30px rgba(250, 112, 0, 0.7); border-color: rgba(250, 112, 0, 1); }
+            100% { box-shadow: 0 0 15px rgba(250, 112, 0, 0.4); border-color: rgba(250, 112, 0, 0.5); }
+        }
         .animate-pulse-red { animation: pulse-red 2s infinite; }
+        .animate-pulse-orange { animation: pulse-orange 2.5s infinite ease-in-out; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #ea580c; border-radius: 10px; }
         .font-fix { line-height: 1.2; }
@@ -88,7 +93,6 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
         
         {/* --- 1. Commander & Status Area --- */}
         <div className="flex-none p-6 pb-2 space-y-4">
-          {/* ✅ 修正：コマンダー名（自分の名前）を表示 */}
           <div className="flex flex-col gap-1 border-l-2 border-orange-600 pl-3 mb-4">
             <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] font-fix">Neural Link Operator</span>
             <h2 className="text-xl font-black text-white italic uppercase tracking-tighter font-fix truncate">
@@ -100,30 +104,31 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
             <div className="w-12 h-12 rounded bg-slate-900 flex items-center justify-center border border-slate-800 shadow-inner">
               <div className="text-2xl font-black text-orange-500 italic font-fix">{turn}</div>
             </div>
+            
+            {/* ✅ 修正：ターンの表示テキストとスタイルを復元 */}
             <div className={`inline-flex items-center justify-center px-6 py-3 rounded-full border shadow-2xl transition-all ${
               isUnderAttack ? 'bg-red-950/40 border-red-500 animate-pulse-red' : 
-              (isMyTurn ? 'bg-gradient-to-r from-[#3d2414] via-[#52331f] to-[#3d2414] border-[#7a482b]' : 'bg-slate-900 border-slate-800 opacity-50')
+              (isMyTurn ? 'bg-orange-600/20 border-[#fa7000] animate-pulse-orange shadow-[0_0_20px_rgba(250,112,0,0.3)]' : 'bg-slate-900/50 border-slate-800 opacity-50')
             }`}>
-              <span className={`font-[900] tracking-[0.25em] text-xs uppercase font-fix ${isUnderAttack ? 'text-red-500' : 'text-[#fa7000]'}`}>
-                {isMyTurn ? 'PLAYER TURN' : (isUnderAttack ? 'ENEMY ALERT' : 'STANDBY')}
+              <span className={`font-[900] tracking-[0.25em] text-xs uppercase font-fix ${
+                isUnderAttack ? 'text-red-500' : (isMyTurn ? 'text-white' : 'text-slate-500')
+              }`}>
+                {isMyTurn ? 'YOUR TURN' : (isUnderAttack ? 'ENEMY ALERT' : 'STANDBY')}
               </span>
             </div>
           </div>
 
           <div className="space-y-4">
+            {/* HP / AP ゲージ */}
             <div className="space-y-2">
-              <div className="flex justify-between items-end">
-                <span className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Vitality {hp}/{maxHp}</span>
-              </div>
+              <span className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Vitality {hp}/{maxHp}</span>
               <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
                 <div className="h-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] transition-all duration-500" style={{ width: `${(hp/(maxHp || 100))*100}%` }} />
               </div>
             </div>
 
             <div className="space-y-2">
-              <div className="flex justify-between items-end">
-                <span className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Energy {ap}%</span>
-              </div>
+              <span className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Energy {ap}%</span>
               <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
                 <div className="h-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)] transition-all duration-500" style={{ width: `${ap}%` }} />
               </div>
@@ -148,10 +153,9 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
             <span className="w-1 h-3 bg-orange-500"></span>
             <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest font-fix">Territory Intelligence</span>
           </div>
-          
           <div className="space-y-3">
             {territorySummary.length > 0 ? territorySummary.map(({ islandId, name, ids }) => (
-              <div key={islandId} className="bg-slate-900/40 border border-white/5 rounded-lg p-3 hover:bg-slate-900/60 transition-colors">
+              <div key={islandId} className="bg-slate-900/40 border border-white/5 rounded-lg p-3">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-[10px] font-bold text-orange-500/80 font-fix uppercase">{name}</span>
                   <span className="text-[9px] text-slate-500 font-mono">x{ids.length}</span>
@@ -166,7 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
               </div>
             )) : (
               <div className="py-8 text-center border border-dashed border-slate-800 rounded-lg">
-                <span className="text-[9px] text-slate-600 uppercase font-bold tracking-tighter font-fix">No Secured Sectors</span>
+                <span className="text-[9px] text-slate-600 uppercase font-bold font-fix">No Secured Sectors</span>
               </div>
             )}
           </div>
@@ -174,10 +178,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
 
         {/* --- 3. Inventory & Tactical Feed Area --- */}
         <div className="flex-none px-6 py-4 space-y-3 bg-slate-950/80 backdrop-blur-md">
-          <button 
-            onClick={onOpenInventory}
-            className="w-full py-2.5 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 hover:border-emerald-500/50 rounded flex items-center justify-center gap-2 transition-all group pointer-events-auto shadow-lg"
-          >
+          <button onClick={onOpenInventory} className="w-full py-2.5 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 hover:border-emerald-500/50 rounded flex items-center justify-center gap-2 transition-all shadow-lg group">
             <span className="material-symbols-outlined text-emerald-400 text-sm group-hover:scale-110 transition-transform">inventory_2</span>
             <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest font-fix">Open Inventory</span>
           </button>
@@ -189,16 +190,10 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
                 <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest font-fix">Tactical Feed</span>
               </div>
               <div className="flex gap-4">
-                <button onClick={onOpenHelp} className="text-slate-600 hover:text-cyan-400 transition-colors pointer-events-auto" title="Tactical Help">
-                  <span className="material-symbols-outlined text-base">help</span>
-                </button>
-                <button onClick={onOpenSettings} className="text-slate-600 hover:text-orange-400 transition-colors pointer-events-auto" title="Systems">
-                  <span className="material-symbols-outlined text-base">settings</span>
-                </button>
+                <button onClick={onOpenHelp} className="text-slate-600 hover:text-cyan-400 transition-colors"><span className="material-symbols-outlined text-base">help</span></button>
+                <button onClick={onOpenSettings} className="text-slate-600 hover:text-orange-400 transition-colors"><span className="material-symbols-outlined text-base">settings</span></button>
               </div>
             </div>
-            
-            {/* ✅ 修正：Tactical Feed を一行レイアウトに変更 */}
             <div className="bg-black/60 rounded border border-white/5 h-36 p-3 text-[9px] font-mono custom-scrollbar overflow-y-auto space-y-1.5 shadow-inner">
               {logs.map((log, i) => (
                 <div key={i} className={`flex items-baseline gap-2 leading-tight ${i === 0 ? 'text-orange-400 font-bold' : 'text-slate-500 opacity-80'}`}>

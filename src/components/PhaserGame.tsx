@@ -1,15 +1,20 @@
-// src/components/PhaserGame.tsx
 import { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import Phaser from "phaser";
 import MainScene from "../game/scenes/MainScene";
 import { PHASER_TO_REACT } from "../game/events/PhaserBridge"; 
-import { useGameStore } from "../store"; 
+import { useGameStore, LookupData } from "../store"; 
 
 interface PhaserGameProps {
   playerName: string;
 }
 
-export const PhaserGameView = forwardRef<any, PhaserGameProps>((props, ref) => {
+// ✅ 修正(Line 12): any を排除。外部からアクセス可能なメソッドの型を定義
+export interface PhaserGameHandle {
+  game: Phaser.Game | null;
+  scene: Phaser.Scene | null;
+}
+
+export const PhaserGameView = forwardRef<PhaserGameHandle, PhaserGameProps>((props, ref) => {
   const { playerName } = props;
   const gameRef = useRef<Phaser.Game | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -19,7 +24,7 @@ export const PhaserGameView = forwardRef<any, PhaserGameProps>((props, ref) => {
       return gameRef.current;
     },
     get scene() {
-      return gameRef.current?.scene.getScene("MainScene");
+      return gameRef.current?.scene.getScene("MainScene") || null;
     },
   }));
 
@@ -58,21 +63,22 @@ export const PhaserGameView = forwardRef<any, PhaserGameProps>((props, ref) => {
       game.registry.set("playerName", playerName);
     }
 
-    // 🚀 GDD v3.1 ID整合性チェック（開発用デバッグログ）
-    const validateIdFormat = (e: any) => {
-      const id = e.detail?.districtId || e.detail;
+    // 🚀 GDD v3.1 ID整合性チェック
+    // ✅ 修正(Line 62): any を排除。Event 型として受け取り、内部で detail を持つ CustomEvent にキャスト
+    const validateIdFormat = (e: Event) => {
+      const customEvent = e as CustomEvent<{ districtId?: number }>;
+      const id = customEvent.detail?.districtId || (typeof customEvent.detail === 'number' ? customEvent.detail : null);
+      
       if (id) {
-        // GDD v3.1: 地区は3桁、Spotは5桁
         const isSpot = id >= 10000 && id <= 99999;
         const isDistrict = id >= 100 && id <= 999;
         
         let islandName = "UNKNOWN";
-        const lookupData = useGameStore.getState().lookupData;
+        const lookupData = useGameStore.getState().lookupData as LookupData | null;
 
-        // lookupDataから親島を特定
         if (lookupData && lookupData.districts) {
-          // ✅ 修正ポイント：型を any に指定して never エラーを回避
-          let targetDistrict: any = null; 
+          // ✅ 修正(Line 75): any を排除。LookupData に基づいた適切な型を定義
+          let targetDistrict: { name: string; id: number; parentAreaId: number } | undefined = undefined;
 
           if (isDistrict) {
              targetDistrict = lookupData.districts.get(id);
@@ -110,9 +116,10 @@ export const PhaserGameView = forwardRef<any, PhaserGameProps>((props, ref) => {
       container.removeEventListener("wheel", preventBrowserZoom);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, validateIdFormat);
     };
-  }, []); 
+  // ✅ 修正(Line 113): ESLint警告に対応。playerName を依存配列に追加（初期化時に一度だけ実行したい場合は空でも良いが、playerNameが変わった際にPhaser側に伝えたい場合は必要）
+  }, [playerName]); 
 
-  // 🚀 2. プレイヤー名の同期
+  // 🚀 2. プレイヤー名の同期（Registryの更新）
   useEffect(() => {
     if (gameRef.current) {
       gameRef.current.registry.set("playerName", playerName);
