@@ -3,14 +3,28 @@
 import { useEffect } from 'react';
 import socket from '../socket';
 import { SERVER_EVENTS } from '../../shared/socketEvents.js'; 
-import { useGameStore } from '../store';
+import { useGameStore, Player } from '../store'; // 🚀 Player型をインポート
 import { emitToPhaser, REACT_TO_PHASER, PHASER_TO_REACT } from '../game/events/PhaserBridge'; 
+
+// サーバーから受信するプレイヤーデータの型定義
+interface ServerPlayerPayload {
+  playerId: string;
+  id?: string;
+  username?: string;
+  playerName?: string;
+  godId?: number | null;
+  selectedGodId?: number | null;
+  isReady?: boolean;
+  [key: string]: unknown;
+}
+
+interface SyncStatePayload {
+  players?: Record<string, ServerPlayerPayload> | ServerPlayerPayload[];
+  [key: string]: unknown;
+}
 
 /**
  * 🛰️ useGameEvents: Socket.IO サーバーおよび Phaser からのリアルタイム同期を管理
- * 修正内容: 
- * 1. フロー制御を App.tsx に一任するため setView を排除
- * 2. GDD v3.1 準拠: Phaser からの STATS_UPDATED リスナーを追加
  */
 export const useGameEvents = () => {
   const { 
@@ -30,11 +44,9 @@ export const useGameEvents = () => {
     // ---------------------------------------------------------
     // A. Phaser → React 同期リスナー (Task 3: HUD更新用)
     // ---------------------------------------------------------
-    // 🚀 修正: anyを排除。標準のEvent型で受け取り、CustomEventにキャストして安全にdetailを展開
     const handleStatsUpdate = (e: Event) => {
       const customEvent = e as CustomEvent;
       const { hp, stamina, atk, def, faith } = customEvent.detail;
-      // GDD 4-1 のパラメータ名に基づき Zustand を更新
       setStatus({ 
         hp, 
         ap: stamina, 
@@ -51,37 +63,34 @@ export const useGameEvents = () => {
     // ---------------------------------------------------------
 
     // 1. 🛡️ サーバー全体のステート同期 (syncState)
-    socket.on(SERVER_EVENTS.SYNC_STATE, (data) => {
-      // 🚀 修正: 現在の画面状態を直接取得
+    socket.on(SERVER_EVENTS.SYNC_STATE, (data: unknown) => {
       const currentView = useGameStore.getState().view;
 
-      syncServerState(data, myId);
+      // 🚀 修正: unknownからRecord<string, Player>へキャスト
+      const castedData = data as Record<string, Player>;
+      syncServerState(castedData, myId);
 
-      // 🚀 lobbyPlayers 同期: syncStateのペイロードに players が含まれていれば lobbyPlayers も更新
-      if (data.players) {
-        const rawPlayers = data.players as Record<string, unknown>;
-        
-        // 修正箇所: 配列として明示的にキャストし、map内の引数 p の型指定を外して推論させる
-        const playersArray = (Array.isArray(data.players) ? data.players : Object.values(rawPlayers)) as Record<string, unknown>[];
+      const payload = data as SyncStatePayload;
+      if (payload.players) {
+        const rawPlayers = payload.players;
+        const playersArray = Array.isArray(rawPlayers) 
+          ? rawPlayers 
+          : Object.values(rawPlayers);
         
         setLobbyPlayers(playersArray.map((p) => ({
-          playerId: p.id as string,
-          username: p.username as string | undefined,
-          playerName: (p.playerName || p.username) as string | undefined,
-          godId: (p.selectedGodId || p.godId || null) as number | null,
+          playerId: (p.id || p.playerId) as string,
+          username: p.username,
+          playerName: p.playerName || p.username,
+          godId: p.selectedGodId || p.godId || null,
           isReady: !!(p.selectedGodId || p.godId || p.isReady),
         })));
       }
 
-      // 🚀 ゴースト遷移ブロック 2（最終防衛線）:
-      // TACTICAL SETUP 画面にいる間に、サーバーが過去の部屋情報（roomId）を送ってきて
-      // syncServerState が勝手に view を 'lobby' に変えてしまっても、強制的に 'setup' に引き戻す！
       if (currentView === 'setup') {
         useGameStore.setState({ view: 'setup', roomId: undefined });
       }
 
-      // Phaser側へ同期命令
-      emitToPhaser(REACT_TO_PHASER.SYNC_MAP, data);
+      emitToPhaser(REACT_TO_PHASER.SYNC_MAP, data as Record<string, unknown>);
     });
 
     // 2. 🎮 試合開始通知 (gameStart)
@@ -92,51 +101,55 @@ export const useGameEvents = () => {
     });
 
     // 3. 🤖 NPC情報の更新受信 (npcUpdate)
-    socket.on(SERVER_EVENTS.NPC_UPDATE, (npcData) => {
-      setNpcs(npcData);
-      emitToPhaser(REACT_TO_PHASER.UPDATE_NPCS, npcData);
+    socket.on(SERVER_EVENTS.NPC_UPDATE, (npcData: unknown) => {
+      // 🚀 修正: ここでも期待される型 Record<string, Player> にキャスト
+      const castedNpcs = npcData as Record<string, Player>; 
+      setNpcs(castedNpcs);
+      emitToPhaser(REACT_TO_PHASER.UPDATE_NPCS, npcData as Record<string, unknown>);
     });
 
     // 3.5. 📡 ロビー更新通知 (lobbyUpdated)
-    // サーバーがロビー参加者の変更を通知するイベント
-    socket.on('lobbyUpdated', (data: { players?: Record<string, unknown>[] }) => {
-      if (data.players) {
-        // 修正箇所: 引数 p の型指定を外し、TSの推論に任せる
-        setLobbyPlayers(data.players.map((p) => ({
+    socket.on('lobbyUpdated', (data: unknown) => {
+      const payload = data as SyncStatePayload;
+      if (payload?.players && Array.isArray(payload.players)) {
+        setLobbyPlayers(payload.players.map((p) => ({
           playerId: (p.id || p.playerId) as string,
-          username: p.username as string | undefined,
-          playerName: (p.playerName || p.username) as string | undefined,
-          godId: (p.selectedGodId || p.godId || null) as number | null,
+          username: p.username,
+          playerName: p.playerName || p.username,
+          godId: p.selectedGodId || p.godId || null,
           isReady: !!(p.selectedGodId || p.godId || p.isReady),
         })));
       }
     });
 
     // 4. 📢 ターン開始通知 (turnStart)
-    socket.on(SERVER_EVENTS.TURN_START, (data) => {
-      const isMe = data.turnOwnerId === myId;
+    socket.on(SERVER_EVENTS.TURN_START, (data: unknown) => {
+      const payload = data as { turnOwnerId: string; turn: number };
+      const isMe = payload.turnOwnerId === myId;
       setStatus({ 
         isMyTurn: isMe,
-        turn: data.turn 
+        turn: payload.turn 
       });
-      addLog(`📢 Turn ${data.turn} 開始: ${isMe ? 'あなたのフェーズです' : '敵対勢力のフェーズです'}`);
+      addLog(`📢 Turn ${payload.turn} 開始: ${isMe ? 'あなたのフェーズです' : '敵対勢力のフェーズです'}`);
       
       emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, {
-        turn: data.turn, 
+        turn: payload.turn, 
         isMyTurn: isMe 
       });
     });
 
     // 5. ⚔️ 戦闘結果の受信 (battleResult)
-    socket.on(SERVER_EVENTS.BATTLE_RESULT, (result) => {
-      addLog(`⚔️ 記録確認: ${result.winnerId === myId ? '作戦成功（勝利）' : '作戦失敗（敗北）'}`);
-      emitToPhaser(REACT_TO_PHASER.BATTLE_EFFECT, result);
+    socket.on(SERVER_EVENTS.BATTLE_RESULT, (result: unknown) => {
+      const payload = result as { winnerId: string };
+      addLog(`⚔️ 記録確認: ${payload.winnerId === myId ? '作戦成功（勝利）' : '作戦失敗（敗北）'}`);
+      emitToPhaser(REACT_TO_PHASER.BATTLE_EFFECT, result as Record<string, unknown>);
     });
 
     // 6. 🚩 領土更新通知 (territoryUpdated)
-    socket.on(SERVER_EVENTS.TERRITORY_UPDATED, (data) => {
-      addLog(`🚩 地区 ${data.districtId} が ${data.ownerName} により制圧されました`);
-      emitToPhaser(REACT_TO_PHASER.TERRITORY_EFFECT, data);
+    socket.on(SERVER_EVENTS.TERRITORY_UPDATED, (data: unknown) => {
+      const payload = data as { districtId: string; ownerName: string };
+      addLog(`🚩 地区 ${payload.districtId} が ${payload.ownerName} により制圧されました`);
+      emitToPhaser(REACT_TO_PHASER.TERRITORY_EFFECT, data as Record<string, unknown>);
     });
 
     // 7. 🚫 アクション拒否通知 (actionRejected)
@@ -154,13 +167,13 @@ export const useGameEvents = () => {
     });
 
     // 9. 🏆 ゲーム終了通知 (gameOver)
-    socket.on(SERVER_EVENTS.GAME_OVER, (data) => {
-      addLog(`🏁 ミッション終了。勝者: ${data.winnerName}`);
-      setStatus({ isGameOver: true, winnerId: data.winnerId });
-      emitToPhaser(REACT_TO_PHASER.GAME_OVER_EFFECT, data);
+    socket.on(SERVER_EVENTS.GAME_OVER, (data: unknown) => {
+      const payload = data as { winnerName: string; winnerId: string };
+      addLog(`🏁 ミッション終了。勝者: ${payload.winnerName}`);
+      setStatus({ isGameOver: true, winnerId: payload.winnerId });
+      emitToPhaser(REACT_TO_PHASER.GAME_OVER_EFFECT, payload as Record<string, unknown>);
     });
 
-    // クリーンアップ
     return () => {
       socket.off(SERVER_EVENTS.SYNC_STATE);
       socket.off(SERVER_EVENTS.GAME_START);
