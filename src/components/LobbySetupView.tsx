@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { useGameStore } from '../store';
 import socket from '../socket';
 import SoundManager from '../game/SoundManager';
@@ -10,7 +10,7 @@ interface LobbySetupViewProps {
   onOpenRanking: () => void;
 }
 
-export const LobbySetupView: React.FC<LobbySetupViewProps> = ({ 
+export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({ 
   onJoinSuccess, onOpenSettings, onOpenHelp, onOpenRanking 
 }) => {
   const { addLog, setStatus, playerName } = useGameStore();
@@ -36,7 +36,7 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({
       username: playerName 
     };
 
-    socket.emit('CREATE_ROOM', createPayload, (response: any) => {
+    socket.emit('CREATE_ROOM', createPayload, (response: { success: boolean; roomId: string; maxPlayers?: number }) => {
       if (response && response.success) {
         addLog(`✅ 作戦承認: Room[${response.roomId}] を構築しました`);
         setStatus({ maxPlayers: response.maxPlayers || config.maxPlayers });
@@ -59,7 +59,7 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({
         username: playerName 
       };
 
-      socket.emit('JOIN_ROOM', joinPayload, (response: any) => {
+      socket.emit('JOIN_ROOM', joinPayload, (response: { success: boolean; maxPlayers?: number }) => {
         if (response && response.success) {
           if (response.maxPlayers) {
             setStatus({ maxPlayers: response.maxPlayers });
@@ -74,20 +74,20 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({
   };
 
   return (
-    // 🚀 修正：w-screen h-screen を w-full h-full に変更
-    <div className="w-full h-full bg-slate-950 text-slate-200 font-body relative overflow-hidden flex flex-col">
+    /* 🚀 修正1: h-full を min-h-screen に、overflow-hidden を削除してスクロール可能に */
+    <div className="w-full min-h-screen bg-slate-950 text-slate-200 font-body relative flex flex-col overflow-y-auto custom-scrollbar">
       
-      {/* 🚀 修正：タクティカル・パラメータ設定モーダル */}
+      {/* タクティカル・パラメータ設定モーダル */}
       {showConfig && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-xl bg-black/80">
           <div className="w-full max-w-lg glass-panel tactical-border-modal border-t-4 border-brand-500 p-1 bg-slate-900/90 shadow-[0_0_80px_rgba(250,112,0,0.2)] animate-fadeIn">
-            <div className="p-10 bg-black/40">
+            <div className="p-10 bg-black/40 text-left">
               
               {/* Header: プロトコル名風 */}
-              <div className="mb-10 flex justify-between items-start text-left">
+              <div className="mb-10 flex justify-between items-start">
                 <div>
                   <div className="text-[10px] font-black text-brand-500 tracking-[0.4em] uppercase mb-1 font-fix">System:// Protocol_Init</div>
-                  <h2 className="text-4xl font-black italic text-white uppercase tracking-tighter font-fix">
+                  <h2 className="text-4xl font-black italic text-white uppercase tracking-tighter font-fix text-left">
                     Operation <span className="text-brand-500">Parameters</span>
                   </h2>
                 </div>
@@ -98,7 +98,7 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({
               </div>
 
               {/* 人数選択：スロット風デザイン */}
-              <div className="space-y-8 text-left">
+              <div className="space-y-8">
                 <div>
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 flex items-center gap-2 font-fix">
                     <span className="w-1 h-3 bg-brand-500"></span> Max Operators
@@ -128,7 +128,7 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({
 
                 {/* 警告表示 */}
                 <div className="bg-slate-800/20 border-l-2 border-brand-500 p-4">
-                  <p className="text-[9px] text-slate-400 leading-relaxed italic uppercase tracking-wider font-fix">
+                  <p className="text-[9px] text-slate-400 leading-relaxed italic uppercase tracking-wider font-fix text-left">
                     Warning: Changing operator capacity will reconfigure the neural link. 
                     Confirm all members are ready before initiating.
                   </p>
@@ -160,7 +160,7 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({
       )}
 
       {/* Header */}
-      <header className="px-10 py-6 flex justify-between items-center border-b border-white/5 bg-slate-950/50 backdrop-blur-md z-10">
+      <header className="px-10 py-6 flex justify-between items-center border-b border-white/5 bg-slate-950/50 backdrop-blur-md z-10 shrink-0">
         <div className="text-2xl font-black italic tracking-tighter text-brand-500 font-mono text-left font-fix">CEBU CONQUEST</div>
         <div className="flex items-center gap-6">
           <button onClick={onOpenRanking} className="hover:scale-110 transition-all group" title="LEADERBOARD">
@@ -175,7 +175,8 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-center p-10 z-10">
+      {/* 🚀 修正2: justify-center を justify-start md:justify-center に変更し、上部が切れないように調整 */}
+      <main className="flex-1 flex flex-col items-center justify-start md:justify-center p-10 z-10 py-20">
         <h1 className="text-5xl md:text-7xl font-black italic tracking-tighter text-white uppercase mb-12 animate-pulse font-fix">Tactical Setup</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full max-w-5xl">
@@ -192,7 +193,7 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({
           <div className="glass-panel p-10 flex flex-col border border-white/5 bg-slate-900/40 text-left">
             <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter font-fix">Join Room</h2>
             <div className="mb-10">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block font-fix">Enter Command Code</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block font-fix text-left">Enter Command Code</label>
               <input type="text" maxLength={6} value={joinId} onChange={(e) => setJoinId(e.target.value.toUpperCase())}
                 placeholder="0 0 0 0 0 0"
                 className="w-full bg-black/40 border border-slate-800 rounded-lg py-4 px-6 text-3xl font-black tracking-[0.5em] text-cyan-400 text-center focus:outline-none focus:border-cyan-500 transition-all font-mono"
@@ -213,7 +214,12 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = ({
         }
         .animate-fadeIn { animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        /* 🚀 修正3: スクロールバーのスタイルを追加 */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #fa7000; border-radius: 10px; }
       `}</style>
     </div>
   );
-};
+});
+
+export default LobbySetupView;

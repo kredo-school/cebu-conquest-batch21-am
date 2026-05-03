@@ -1,35 +1,53 @@
-// src/components/BattleModal.tsx
 import React, { useEffect, useMemo, memo } from 'react';
 import { useGameStore } from '../store';
 import SoundManager from '../game/SoundManager';
+
+// 🚀 ESLint警告対策：anyを使わず、隣接チェックに必要な型を定義
+interface Territory {
+  district_id: number;
+  neighbors?: number[];
+}
 
 // 🚀 React.memoでラップし、不要なレンダリングをガード 
 export const BattleModal: React.FC = memo(() => {
   const { 
     predictionModalOpen, 
     targetDistrictInfo, 
+    selectedDistrictId,
+    masterData,
     atk, blessing, attack, move, closePrediction, ap,
     isMyTurn, escape, addLog,
     isUnderAttack, setUnderAttack,
-    lookupData // ✅ GDD v3.1: ルックアップ辞書を取得
+    lookupData 
   } = useGameStore();
 
-  // ✅ GDD v3.1: lookupData を使って安全にターゲット情報を取得
+  // ✅ 修正箇所1: lookupData を使って安全にターゲット情報を取得（undefined エラー対策）
   const targetParsed = useMemo(() => {
     if (!targetDistrictInfo || !lookupData || !lookupData.districts) return null;
     
     const district = lookupData.districts.get(targetDistrictInfo.id);
     if (!district) return null;
 
-    // parentAreaId から Area と Island の名前を遡って取得
     const area = lookupData.areas?.get(district.parentAreaId);
-    const island = lookupData.islands?.get(area?.parentIslandId);
+    
+    // 🚀 TSエラー対策：parentIslandId が undefined でないことを確認してから get を実行
+    const islandId = area?.parentIslandId;
+    const island = typeof islandId === 'number' ? lookupData.islands?.get(islandId) : null;
 
     return {
       islandName: island?.name?.toUpperCase() || area?.name?.toUpperCase() || "UNKNOWN SECTOR",
-      sectorCode: targetDistrictInfo.id // 地区ID (例: 131)
+      sectorCode: targetDistrictInfo.id 
     };
   }, [targetDistrictInfo, lookupData]);
+
+  // 🚀 修正箇所2: 隣接チェックロジック（(t: any) を排除）
+  const isAdjacent = useMemo(() => {
+    if (!targetDistrictInfo || !masterData || selectedDistrictId === null) return false;
+    
+    // 型を Territory に指定することで ESLint 警告を解消
+    const current = (masterData.territories as Territory[])?.find((t) => t.district_id === selectedDistrictId);
+    return current?.neighbors?.includes(Number(targetDistrictInfo.id)) || false;
+  }, [targetDistrictInfo, masterData, selectedDistrictId]);
 
   // 🚨 敵からの被弾アラート用ロジック
   useEffect(() => {
@@ -55,7 +73,7 @@ export const BattleModal: React.FC = memo(() => {
     setUnderAttack(false);
   };
 
-  // ⚔️ バトルロジック変数（GDD v3.0準拠）
+  // ⚔️ バトルロジック変数
   let isMyTerritory = false;
   let isNeutral = false;
   let isEnemy = false;
@@ -77,11 +95,12 @@ export const BattleModal: React.FC = memo(() => {
     isNeutral = targetDistrictInfo.isNeutral || false;
     isEnemy = !isMyTerritory && !isNeutral;
 
-    // 🚀 GDD v3.0 計算式: P = A / (A + D)
     finalAtk = atk * blessing;
     enemyDef = targetDistrictInfo.enemyDef || 40;
     winRate = (finalAtk / (finalAtk + enemyDef)) * 100;
-    canAction = ap >= AP_COST;
+
+    // 🚀 リンク状況とAPの両方が揃った時だけアクション可能
+    canAction = isAdjacent && ap >= AP_COST;
 
     if (isMyTerritory) {
       themeColor = 'text-blue-400';
@@ -101,7 +120,7 @@ export const BattleModal: React.FC = memo(() => {
   }
 
   const handleExecute = () => {
-    if (!targetDistrictInfo) return;
+    if (!targetDistrictInfo || !canAction) return;
     try { SoundManager.playSe('click'); } catch {}
     if (isMyTerritory) {
       move(targetDistrictInfo.id);
@@ -110,7 +129,6 @@ export const BattleModal: React.FC = memo(() => {
     }
   };
 
-  // 表示判定
   if (!predictionModalOpen && !isUnderAttack) return null;
 
   return (
@@ -191,6 +209,14 @@ export const BattleModal: React.FC = memo(() => {
               </div>
             </div>
 
+            {/* 🚀 リンクステータスのバッジ */}
+            <div className="flex justify-between items-center mb-4 px-1">
+               <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest font-fix">Link Status</span>
+               <span className={`text-[10px] font-black font-fix px-2 py-0.5 rounded ${isAdjacent ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10 animate-pulse'}`}>
+                 {isAdjacent ? 'STABLE (ADJACENT)' : 'OUT OF RANGE'}
+               </span>
+            </div>
+
             {isEnemy && (
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-6 relative z-10">
                 <div className="flex justify-between items-center mb-2">
@@ -230,9 +256,11 @@ export const BattleModal: React.FC = memo(() => {
               <button 
                 onClick={handleExecute} 
                 disabled={!canAction} 
-                className={`flex-[2] text-white font-black py-3 rounded-lg text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 ${canAction ? btnClass : 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none'}`}
+                className={`flex-[2] text-white font-black py-3 rounded-lg text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 ${canAction ? btnClass : 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none grayscale opacity-60'}`}
               >
-                <span className="font-fix">{canAction ? `${actionText} (-${AP_COST} AP)` : 'NO AP'}</span>
+                <span className="font-fix">
+                  {!isAdjacent ? 'OUT OF RANGE' : (ap >= AP_COST ? `${actionText} (-${AP_COST} AP)` : 'NO AP')}
+                </span>
               </button>
             </div>
           </div>

@@ -3,10 +3,11 @@ import { useGameStore } from '../store';
 
 /**
  * 🛰️ ErrorNotification: サーバーからの拒絶応答や通信エラーを表示
- * 担当: いっせい (React + Vite + TS) [cite: 13]
+ * 担当: いっせい (React + Vite + TS)
  * 仕様: Week 5 エラーUI実装項目 
  */
 export const ErrorNotification: React.FC = memo(() => {
+  // 🚀 Step 1 で拡張したストアからエラー情報を取得
   const errorMessage = useGameStore(state => state.errorMessage);
   const hideError = useGameStore(state => state.hideError);
 
@@ -36,10 +37,10 @@ export const ErrorNotification: React.FC = memo(() => {
           </div>
 
           <div className="flex flex-col text-left">
-            <span className="text-[10px] font-black text-orange-500 uppercase tracking-[0.4em] mb-1 font-fix">
+            <span className="text-[10px] font-black text-orange-500 uppercase tracking-[0.4em] mb-1 font-fix text-left">
               System Alert: Action Rejected
             </span>
-            <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase font-fix drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">
+            <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase font-fix drop-shadow-[0_0_10px_rgba(255,255,255,0.5)] text-left">
               {errorMessage}
             </h2>
           </div>
