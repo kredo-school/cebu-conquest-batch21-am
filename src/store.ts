@@ -101,6 +101,16 @@ interface ApiResponse<T = unknown> {
   message?: string;
 }
 
+/** ロビープレイヤー情報: サーバーから受信する参加者データ */
+export interface LobbyPlayer {
+  playerId: string;
+  username?: string;
+  playerName?: string;
+  godKey?: string;
+  godId?: number | null;
+  isReady?: boolean;
+}
+
 type ViewType = 'login' | 'tutorial' | 'setup' | 'lobby' | 'selection' | 'waiting' | 'game' | 'ranking';
 
 export interface GameState {
@@ -143,6 +153,8 @@ export interface GameState {
 
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  lobbyPlayers: LobbyPlayer[];
+  setLobbyPlayers: (players: LobbyPlayer[]) => void;
   rankingData: unknown[];
   setRanking: (data: unknown[]) => void;
   inventory: Item[];
@@ -208,6 +220,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   setUnderAttack: (status) => set({ isUnderAttack: status }),
 
   sidebarOpen: false, setSidebarOpen: (open) => set({ sidebarOpen: open }),
+  lobbyPlayers: [],
+  setLobbyPlayers: (players) => set({ lobbyPlayers: players }),
   rankingData: [], setRanking: (data) => set({ rankingData: data }),
   inventory: [], setInventory: (items) => set({ inventory: items }),
 
@@ -371,7 +385,18 @@ export const useGameStore = create<GameState>((set, get) => ({
         selectedDistrictId: myPlayerData?.districtId ?? myPlayerData?.location ?? state.selectedDistrictId, 
         selectedGodId: myPlayerData?.selectedGodId ?? myPlayerData?.godId ?? state.selectedGodId,
         districts: (data.districts as Record<string, string>) ?? state.districts,
-        players: playersArray, 
+        players: playersArray,
+        // 🚀 lobbyPlayers 自動同期: ロビー/選択/待機画面では players → lobbyPlayers にミラーリング
+        lobbyPlayers: (['lobby', 'selection', 'waiting'].includes(nextView))
+          ? playersArray.map(p => ({
+              playerId: p.id,
+              username: p.username,
+              playerName: p.playerName || p.username,
+              godKey: undefined,
+              godId: p.selectedGodId || p.godId || null,
+              isReady: !!(p.selectedGodId || p.godId || p.isReady),
+            }))
+          : state.lobbyPlayers,
         turn: (data.turn as number) ?? state.turn,
         isMyTurn: (data.turnOwnerId as string) === myId,
         turnOwner: (data.turnOwnerId as string) === myId ? "YOU" : ((data.turnOwnerName as string) || "ENEMY"),
