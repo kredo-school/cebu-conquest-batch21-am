@@ -1,4 +1,5 @@
-// src/server/index.js
+// src/socket-server/server.js
+// ※GDD準拠: ファイルパスは socket-server/server.js に正規化されています。
 
 import express from 'express';
 import http from 'http';
@@ -90,7 +91,7 @@ function generateRoomId() {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-// 📌 【新規追加】ロビー状態同期用のヘルパー関数（いっせいさんの要望対応）
+// 📌 【ロビー同期用ヘルパー】React側にlobbyUpdatedを発行
 function broadcastLobbyUpdate(roomId, roomState) {
     if (!roomState) return;
     const playersArr = Object.values(roomState.players).map(p => ({
@@ -479,7 +480,7 @@ io.on('connection', (socket) => {
         broadcastLobbyUpdate(roomId, roomState); // ロビー同期
     });
 
-    // 🚀 【神の選択】
+    // 🚀 【神の選択】 ★修正箇所：isReadyや開始判定を完全に削除し、共有のみ行う
     socket.on(CLIENT_EVENTS.SELECT_GOD, (data) => {
         const roomId = socket.roomId;
         if (!roomId) return;
@@ -489,13 +490,14 @@ io.on('connection', (socket) => {
         const p = roomState.players[socket.id];
         if (p) {
             p.selectedGodId = data.godId;
+            // 純粋に神が選ばれたことだけを部屋の全員に通知する（Lobbyの表示更新のため）
             io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
-            broadcastLobbyUpdate(roomId, roomState); // ロビー同期
+            broadcastLobbyUpdate(roomId, roomState);
             console.log(`✨ [Room ${roomId}] ${p.username} selected god: ${data.godId}`);
         }
     });
 
-    // 🚀 3. 準備完了の同期 & ゲーム開始
+    // 🚀 3. 準備完了の同期 & ゲーム開始 ★修正箇所：ゲーム開始ロジックは純粋にここだけに分離
     socket.on(CLIENT_EVENTS.PLAYER_READY, (data) => {
         const roomId = socket.roomId || data.roomId;
         if (!roomId) return;
@@ -504,6 +506,7 @@ io.on('connection', (socket) => {
 
         const p = roomState.players[socket.id];
         if (p) {
+            // ここで初めて isReady を true にする
             p.isReady = data.ready !== undefined ? data.ready : true;
             
             if (data.startDistrictId) {
@@ -517,9 +520,10 @@ io.on('connection', (socket) => {
             const playersArr = Object.values(roomState.players);
             const currentCount = playersArr.length;
             const maxPlayers = roomState.maxPlayers;
+            // 全員が isReady かチェックする
             const allReady = currentCount > 0 && playersArr.every(pl => pl.isReady);
 
-            // 【修正ポイント】参加人数がMAXに達しており、かつ全員が準備完了状態の場合のみ開始
+            // 参加人数がMAXに達しており、かつ全員が準備完了状態の場合のみ開始
             if (currentCount >= maxPlayers && allReady) {
                 Object.values(roomState.players).forEach(p => {
                     if (p.isNpc && !p.districtId) {
