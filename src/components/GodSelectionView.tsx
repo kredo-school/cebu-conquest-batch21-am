@@ -1,3 +1,5 @@
+// src/components/GodSelectionView.tsx
+
 import React, { useState, memo, useMemo } from 'react';
 import { useGameStore, LobbyPlayer } from '../store';
 import { REACT_TO_PHASER } from '../game/events/PhaserBridge';
@@ -26,15 +28,16 @@ const INTERNAL_SPAWN_MAP: Record<number, number> = {
   5: 1120, 6: 1301, 7: 1401, 8: 1108, 
 };
 
+// 画像パスは名前ベースでローカルディレクトリを参照
 const GOD_SLOTS: GodSlot[] = [
-  { id: 1, textureKey: 'god-neil',   name: "Neil", role: "WAR",         bonus: "ATK +20",    img: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400", desc: "近接攻撃ダメージ+25%、物理防御力強化。" },
-  { id: 2, textureKey: 'god-garry',  name: "Garry", role: "STRATEGIST", bonus: "MAX AP +30", img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400", desc: "タクティカルアビリティのクールダウン-15%。" },
-  { id: 3, textureKey: 'god-shem',   name: "Shem", role: "BURN",       bonus: "SOLAR",      img: "https://images.unsplash.com/photo-1533240332313-0db49b459ad6?q=80&w=400", desc: "昼間戦闘フェーズ中、全弾薬にソーラーバーン効果付与。" },
-  { id: 4, textureKey: 'god-quisie', name: "Quisie", role: "STEALTH",    bonus: "SILENT",     img: "https://images.unsplash.com/photo-1506466010722-395aa2bef877?q=80&w=400", desc: "隠密探知範囲を拡大、足音の静音性+40%。" },
-  { id: 5, textureKey: 'god-eduardo', name: "Eduardo", role: "HEAVY",      bonus: "ARMOR +40",  img: "https://images.unsplash.com/photo-1584281722573-0f723675017e?q=80&w=400", desc: "アーマー耐久値増加、燃焼ステータス無効化。" },
-  { id: 6, textureKey: 'god-kurt',   name: "Kurt", role: "SUPPORT",    bonus: "SPEED +15",  img: "https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?q=80&w=400", desc: "山岳地帯ダッシュ速度・ジャンプ高度+20%。" },
-  { id: 7, textureKey: 'god-stephen', name: "Stephen", role: "SHADOW",     bonus: "INVIS",      img: "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?q=80&w=400", desc: "夜間サイクル中の一時的な不可視化。" },
-  { id: 8, textureKey: 'god-bernardine', name: "Bernardine", role: "RECON",      bonus: "SCAN",       img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=400", desc: "障害物越しのリソース・敵足跡をハイライト。" },
+  { id: 1, textureKey: 'god-neil',   name: "Neil", role: "WAR",        bonus: "ATK +20",    img: "/assets/images/gods/Neil.png", desc: "近接攻撃ダメージ+25%、物理防御力強化。" },
+  { id: 2, textureKey: 'god-garry',  name: "Garry", role: "STRATEGIST", bonus: "MAX AP +30", img: "/assets/images/gods/Garry.png", desc: "タクティカルアビリティのクールダウン-15%。" },
+  { id: 3, textureKey: 'god-shem',   name: "Shem", role: "BURN",       bonus: "SOLAR",      img: "/assets/images/gods/Shem.png", desc: "昼間戦闘フェーズ中、全弾薬にソーラーバーン効果付与。" },
+  { id: 4, textureKey: 'god-quisie', name: "Quisie", role: "STEALTH",    bonus: "SILENT",     img: "/assets/images/gods/Quesie.png", desc: "隠密探知範囲を拡大、足音の静音性+40%。" },
+  { id: 5, textureKey: 'god-eduardo', name: "Eduardo", role: "HEAVY",      bonus: "ARMOR +40",  img: "/assets/images/gods/Eduardo.png", desc: "アーマー耐久値増加、燃焼ステータス無効化。" },
+  { id: 6, textureKey: 'god-kurt',   name: "Kurt", role: "SUPPORT",    bonus: "SPEED +15",  img: "/assets/images/gods/Kurt.png", desc: "山岳地帯ダッシュ速度・ジャンプ高度+20%。" },
+  { id: 7, textureKey: 'god-stephen', name: "Stephen", role: "SHADOW",     bonus: "INVIS",      img: "/assets/images/gods/Stephen.png", desc: "夜間サイクル中の一時的な不可視化。" },
+  { id: 8, textureKey: 'god-bernardine', name: "Bernardine", role: "RECON",      bonus: "SCAN",       img: "/assets/images/gods/Bernardine.png", desc: "障害物越しのリソース・敵足跡をハイライト。" },
 ];
 
 export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({ 
@@ -61,16 +64,12 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
     };
   }, [players, maxPlayers]);
 
-  // 🚀 修正: lobbyPlayers（サーバー同期済み）と players の両方をチェックして
-  //    他のプレイヤーが既にその神をロックしているか判定
   const getLockInfo = (godId: number) => {
-    // lobbyPlayers 優先でチェック（サーバーからの最新データ）
     const lobbySelector = lobbyPlayers.find(
       (p: LobbyPlayer) => p.playerId !== myId && Number(p.godId) === godId
     );
     if (lobbySelector) return { name: lobbySelector.playerName || lobbySelector.username || "Operator" };
 
-    // フォールバック: players 配列もチェック
     const selector = players.find(
       p => p.id !== myId && (Number(p.selectedGodId) === godId || Number(p.godId) === godId)
     );
@@ -88,22 +87,21 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
     const startId = INTERNAL_SPAWN_MAP[godId];
 
     const updatedPlayers = players.map(p => 
-        p.id === myId ? { ...p, selectedGodId: godId, godId: godId, isReady: true } : p
+        p.id === myId ? { ...p, selectedGodId: godId, godId: godId } : p
     );
 
     useGameStore.setState({ 
       selectedGodId: godId,
       selectedDistrictId: startId,
       players: updatedPlayers,
-      // 🚀 楽観的UI更新: lobbyPlayers にも自分の選択を即時反映
       lobbyPlayers: useGameStore.getState().lobbyPlayers.map(lp =>
         lp.playerId === myId
-          ? { ...lp, godId: godId, isReady: true }
+          ? { ...lp, godId: godId }
           : lp
       ),
     });
     
-    socket.emit(CLIENT_EVENTS.READY_TO_START, { 
+    socket.emit(CLIENT_EVENTS.SELECT_GOD, { 
       godId: godId, 
       districtId: startId 
     });
@@ -118,7 +116,7 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
   return (
     <div className="absolute w-full h-full z-[10000] bg-slate-950 font-body text-slate-200 select-none flex items-center justify-center p-4 overflow-hidden text-left">
       <div className="absolute inset-0 pointer-events-none opacity-10 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[size:100%_4px,3px_100%]"></div>
-      <div className="w-full max-w-6xl h-[90vh] flex flex-col bg-zinc-950/80 border border-white/10 rounded-2xl overflow-hidden relative shadow-[0_0_50px_rgba(0,0,0,0.5)] backdrop-blur-xl animate-fadeIn text-left">
+      <div className="w-full max-w-[1400px] h-[95vh] flex flex-col bg-zinc-950/80 border border-white/10 rounded-2xl overflow-hidden relative shadow-[0_0_50px_rgba(0,0,0,0.5)] backdrop-blur-xl animate-fadeIn text-left">
         
         {errorMessage && (
           <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[11000] min-w-[400px] animate-bounce text-left">
@@ -135,20 +133,22 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
           </div>
         )}
 
-        <div className="px-10 py-8 flex flex-col items-start gap-1 shrink-0 border-b border-white/5 text-left">
-          <h1 className="text-3xl font-black italic tracking-tighter text-orange-500 uppercase font-fix animate-glitch-text text-left">
+        <div className="px-8 py-5 flex flex-col items-start gap-1 shrink-0 border-b border-white/5 text-left">
+          <h1 className="text-2xl lg:text-3xl font-black italic tracking-tighter text-orange-500 uppercase font-fix animate-glitch-text text-left">
             Choose the god you believe in
           </h1>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 mt-1">
             <span className="w-2 h-2 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]"></span>
-            <span className="text-[11px] uppercase tracking-[0.3em] text-cyan-400 font-black font-fix text-left">
+            <span className="text-[10px] uppercase tracking-[0.3em] text-cyan-400 font-black font-fix text-left">
               Syncing Units: {readyInfo.ready} / {readyInfo.total} Ready for Deployment
             </span>
           </div>
         </div>
 
-        <div className="flex-1 px-10 py-6 overflow-y-auto custom-scrollbar">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* 🚀 修正: overflow-hidden と h-full でスクロールを無くす */}
+        <div className="flex-1 p-5 overflow-hidden">
+          {/* 🚀 修正: 4列2行のグリッドで親の高さを100%使う */}
+          <div className="grid grid-cols-4 grid-rows-2 gap-4 h-full">
             {GOD_SLOTS.map((god) => {
               const lock = getLockInfo(god.id); 
               const isSelected = pendingSelection?.id === god.id;
@@ -156,20 +156,27 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
               return (
                 <div 
                   key={god.id} 
-                  // 🚀 修正: ロックされている、または既に自分が確定済みの場合はクリック無効
                   onClick={() => !lock && selectedGodId === null && setPendingSelection(god)} 
                   className={`group relative flex flex-col bg-zinc-900/40 border-2 transition-all duration-300 rounded-xl overflow-hidden ${
                     isSelected 
-                      ? "border-orange-500 shadow-[0_0_30px_rgba(249,115,22,0.3)] scale-[1.02]" 
+                      ? "border-orange-500 shadow-[0_0_30px_rgba(249,115,22,0.3)] scale-[1.02] z-10" 
                       : lock 
                         ? "border-transparent opacity-30 grayscale cursor-not-allowed" 
                         : selectedGodId !== null
-                          ? "border-white/5 opacity-50 cursor-default" // 自分が確定済みなら他のカードを暗くする
+                          ? "border-white/5 opacity-50 cursor-default"
                           : "border-white/5 hover:border-white/20 hover:bg-zinc-800/50 cursor-pointer"
                   }`}
                 >
-                  <div className="relative h-40 overflow-hidden">
-                    <img src={god.img} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={god.name} />
+                  {/* 🚀 修正: 高さをカード全体の45%に設定し、画像が潰れないようにする */}
+                  <div className="relative h-[45%] shrink-0 overflow-hidden bg-black flex items-center justify-center">
+                    <img 
+                      src={god.img} 
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                      alt={god.name} 
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/assets/images/gods/fallback.png';
+                      }}
+                    />
                     {isSelected && (
                       <div className="absolute inset-0 flex items-center justify-center bg-orange-600/30 backdrop-blur-sm">
                         <div className="bg-orange-500 text-black text-[10px] font-black px-4 py-1 skew-x-[-15deg] border-r-4 border-black font-fix text-left">
@@ -179,26 +186,33 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
                     )}
                     {lock && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
-                         <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest border border-zinc-700 px-3 py-1 font-fix mb-2 text-left text-center">Occupied</div>
-                         <div className="text-[9px] text-orange-500 uppercase font-black font-fix animate-pulse text-left text-center">
-                           Locked by {lock.name}
+                         <div className="w-10 h-10 rounded-full border-2 border-zinc-600 bg-zinc-800 mb-2 overflow-hidden flex items-center justify-center">
+                            <span className="material-symbols-outlined text-zinc-500">person</span>
+                         </div>
+                         <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-700 px-3 py-1 font-fix mb-1 bg-black/50 text-center">
+                           Player Locked
+                         </div>
+                         <div className="text-[8px] text-orange-500 uppercase font-black font-fix animate-pulse text-center">
+                           {lock.name}
                          </div>
                       </div>
                     )}
-                    <div className="absolute top-3 right-3 bg-black/80 px-2 py-1 text-[8px] font-black text-cyan-400 border border-cyan-400/30 uppercase tracking-widest font-fix text-left">
+                    <div className="absolute top-2 right-2 bg-black/80 px-2 py-1 text-[8px] font-black text-cyan-400 border border-cyan-400/30 uppercase tracking-widest font-fix text-left">
                       {god.role}
                     </div>
                   </div>
 
-                  <div className="p-5 flex flex-col flex-1 gap-3 text-left">
-                    <h3 className={`text-lg font-black tracking-tight font-fix italic ${lock ? 'text-zinc-600' : 'text-white'}`}>
-                      {god.name}
-                    </h3>
-                    <div className="h-px w-8 bg-orange-500/50"></div>
-                    <p className={`text-[11px] leading-relaxed line-clamp-3 font-fix ${lock ? 'text-zinc-700' : 'text-zinc-400'}`}>
-                      {god.desc}
-                    </p>
-                    <div className={`mt-auto pt-4 flex items-center justify-between text-[10px] font-black font-fix ${lock ? 'text-zinc-700' : 'text-orange-500/80'}`}>
+                  <div className="p-4 flex flex-col flex-1 gap-2 text-left justify-between">
+                    <div>
+                      <h3 className={`text-base lg:text-lg font-black tracking-tight font-fix italic ${lock ? 'text-zinc-600' : 'text-white'}`}>
+                        {god.name}
+                      </h3>
+                      <div className="h-px w-8 bg-orange-500/50 my-1.5"></div>
+                      <p className={`text-[10px] leading-snug line-clamp-3 font-fix ${lock ? 'text-zinc-700' : 'text-zinc-400'}`}>
+                        {god.desc}
+                      </p>
+                    </div>
+                    <div className={`pt-2 flex items-center justify-between text-[9px] font-black font-fix ${lock ? 'text-zinc-700' : 'text-orange-500/80'}`}>
                        <span>BONUS: {god.bonus}</span>
                        <span className="material-symbols-outlined text-sm">bolt</span>
                     </div>
@@ -209,34 +223,34 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
           </div>
         </div>
 
-        <div className="px-10 py-8 border-t border-white/5 bg-black/40 flex items-center justify-between shrink-0 text-left">
-          {/* 🚀 修正: 確定後は戻るボタンを消す（一方通行フロー） */}
+        {/* フッター部分も少し高さを抑える */}
+        <div className="px-8 py-5 border-t border-white/5 bg-black/40 flex items-center justify-between shrink-0 text-left">
           {selectedGodId === null ? (
             <button 
               onClick={onBack}
-              className="flex items-center gap-2 px-6 py-3 border border-zinc-800 text-zinc-500 text-[10px] font-black uppercase tracking-widest hover:bg-zinc-800 hover:text-white transition-all font-fix"
+              className="flex items-center gap-2 px-6 py-2.5 border border-zinc-800 text-zinc-500 text-[10px] font-black uppercase tracking-widest hover:bg-zinc-800 hover:text-white transition-all font-fix"
             >
               <span className="material-symbols-outlined text-sm">arrow_back</span>
               <span className="text-[10px] font-black uppercase tracking-widest">Abort Selection</span>
             </button>
           ) : (
-            <div className="flex items-center gap-2 px-6 py-3 text-cyan-500/40 text-[10px] font-black uppercase tracking-widest font-fix">
+            <div className="flex items-center gap-2 px-6 py-2.5 text-cyan-500/40 text-[10px] font-black uppercase tracking-widest font-fix">
               <span className="material-symbols-outlined text-sm">lock</span>
               Neural Link Finalized
             </div>
           )}
 
-          <div className={`flex flex-col items-end gap-3 transition-all duration-500 ${pendingSelection && !getLockInfo(pendingSelection.id) ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
-            <p className="text-zinc-500 text-[10px] uppercase tracking-[0.2em] font-black italic font-fix">
+          <div className={`flex flex-col items-end gap-2 transition-all duration-500 ${pendingSelection && !getLockInfo(pendingSelection.id) ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+            <p className="text-zinc-500 text-[9px] uppercase tracking-[0.2em] font-black italic font-fix">
               Initialize synchronization with <span className="text-orange-500 underline underline-offset-4">'{pendingSelection?.name}'</span>?
             </p>
             <button 
               onClick={handleFinalSelect}
               disabled={selectedGodId !== null} 
-              className={`group relative px-16 py-4 text-black text-[12px] font-black uppercase tracking-widest overflow-hidden transition-all font-fix text-left
+              className={`group relative px-12 py-3 text-black text-[11px] font-black uppercase tracking-widest overflow-hidden transition-all font-fix text-left
                 ${selectedGodId !== null 
                   ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
-                  : 'bg-orange-600 shadow-[0_0_30px_rgba(234,88,12,0.4)] active:scale-95'}`}
+                  : 'bg-orange-600 shadow-[0_0_20px_rgba(234,88,12,0.4)] active:scale-95'}`}
             >
               <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-[-15deg]"></div>
               {selectedGodId !== null ? 'SYNC ESTABLISHED' : 'Confirm Neural Link'}
@@ -260,8 +274,6 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
         }
         .animate-glitch-text { animation: glitch-text 4s infinite linear alternate-reverse; }
         .font-fix { line-height: 1.2; }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #f97316; border-radius: 10px; }
       `}</style>
     </div>
   );

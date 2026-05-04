@@ -82,7 +82,7 @@ export const useGameEvents = () => {
           username: p.username,
           playerName: p.playerName || p.username,
           godId: p.selectedGodId || p.godId || null,
-          isReady: !!(p.selectedGodId || p.godId || p.isReady),
+          isReady: !!p.isReady,
         })));
       }
 
@@ -117,7 +117,7 @@ export const useGameEvents = () => {
           username: p.username,
           playerName: p.playerName || p.username,
           godId: p.selectedGodId || p.godId || null,
-          isReady: !!(p.selectedGodId || p.godId || p.isReady),
+          isReady: !!p.isReady,
         })));
       }
     });
