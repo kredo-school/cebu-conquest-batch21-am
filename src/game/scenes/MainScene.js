@@ -107,6 +107,7 @@ export default class MainScene extends Phaser.Scene {
       this._updateHoverText(hoveredId);
     });
 
+    this._setupPointerInput();
     this._initSocket();
     this._setupReactListeners();
     this._setupKeyboard();
@@ -368,8 +369,8 @@ export default class MainScene extends Phaser.Scene {
   _drawDistrictPolygons() {
     const w = this.tiledMap.widthInPixels * MAP_SCALE;
     const h = this.tiledMap.heightInPixels * MAP_SCALE;
-    const overlay = this.add.rectangle(0, 0, w, h, 0, 0).setOrigin(0).setInteractive().setDepth(1);
-    overlay.on("pointerup", (p) => this._onMapClicked(p.x, p.y));
+    // クリックは _setupPointerInput の scene.input.on('pointerup') で一元処理
+    this.add.rectangle(0, 0, w, h, 0, 0).setOrigin(0).setDepth(1);
 
     const sizeByType = {
       islandName: "36px",
@@ -392,59 +393,99 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  _onMapClicked(x, y) {
-    if (this._dragMoved) return;
-    const worldPoint = this.cameras.main.getWorldPoint(x, y);
+  // ─── ポインター入力（優先順位: spot > district > area）──────────
 
-    // _getDistrictAtPoint は districts のキー（Number）をそのまま返す
-    // 本番マップではズームが十分なら spotId（5桁 Number）が返る
-    const spotId = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
-    if (!spotId) return;
+  _setupPointerInput() {
+    // pointerup で判定（pointerdown では _dragMoved がまだ確定していないため）
+    this.input.on('pointerup', (pointer) => {
+      if (this._dragMoved) return;
+
+      const worldX = pointer.worldX;
+      const worldY = pointer.worldY;
+
+      // 優先順位: spot > district > area > island
+      const hitSpot = this._findObjectAt('spotName', worldX, worldY);
+      if (hitSpot) {
+        this._handleSpotClick(hitSpot);
+        return;
+      }
+
+      const hitDistrict = this._findObjectAt('districtName', worldX, worldY);
+      if (hitDistrict) {
+        this._handleDistrictClick(hitDistrict);
+        return;
+      }
+
+      // area / island は現状クリック対象外
+      // 必要になったら以下を有効化：
+      // const hitArea = this._findObjectAt('areaName', worldX, worldY);
+      // if (hitArea) { this._handleAreaClick(hitArea); return; }
+    });
+  }
+
+  _handleSpotClick(spotObj) {
+    // TMJ properties[0].name がスポットID（文字列 → Number に正規化）
+    const spotId = normalizeId(spotObj.properties?.[0]?.name ?? spotObj.id);
+    if (spotId == null) return;
+
+    const d = this.districts[spotId];
+    if (import.meta.env.DEV) console.log('[hit] spot:', spotId, spotObj.name);
 
     if (this.isSelectionMode) {
       // ── 初期スポット選択フェーズ ──
       SoundManager.playSe('click');
-      Object.values(this.districts).forEach((d) => this._redrawDistrict(d, COLOR.NEUTRAL));
-      this._redrawDistrict(this.districts[spotId], COLOR.HIGHLIGHT, 0.8);
+      Object.values(this.districts).forEach((dist) => this._redrawDistrict(dist, COLOR.NEUTRAL));
+      this._redrawDistrict(d, COLOR.HIGHLIGHT, 0.8);
 
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
-        districtId: spotId,                                       // Number のまま渡す
-        districtName: this.districts[spotId]?.name ?? String(spotId),
+        districtId: spotId,
+        districtName: d?.name ?? String(spotId),
       });
-
     } else {
       // ── プレイ中：移動・攻撃フェーズ ──
-
-      // Number 同士で同一スポット判定
       if (spotId === this.currentDistrictId) return;
 
-      // ADJACENCY は Number キー・Number 配列なので型一致
       const neighbors = ADJACENCY[this.currentDistrictId] ?? [];
       if (!neighbors.includes(spotId)) {
-        this.showLog("⚠️ 隣接していないスポットには行動できません。");
+        this.showLog('⚠️ 隣接していないスポットには行動できません。');
         return;
       }
 
       SoundManager.playSe('click');
-      this._pendingTargetId = spotId;                             // Number で保持
+      this._pendingTargetId = spotId;
 
-      const targetOwner = (this.districts[spotId]?.owner ?? "neutral").toLowerCase();
+      const targetOwner = (d?.owner ?? 'neutral').toLowerCase();
       const isMyTerritory = targetOwner === this._myTeam;
-      const isNeutral     = targetOwner === "neutral";
+      const isNeutral     = targetOwner === 'neutral';
 
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
-        districtId: spotId,                                       // Number
-        districtName: this.districts[spotId]?.name ?? String(spotId),
+        districtId: spotId,
+        districtName: d?.name ?? String(spotId),
         isMyTerritory,
         isNeutral,
       });
 
-      if (isMyTerritory) {
-        this.showLog(`🚚 移動先: ${this.districts[spotId]?.name}`);
-      } else {
-        this.showLog(`🎯 攻撃対象: ${this.districts[spotId]?.name}`);
-      }
+      this.showLog(isMyTerritory
+        ? `🚚 移動先: ${d?.name}`
+        : `🎯 攻撃対象: ${d?.name}`
+      );
     }
+  }
+
+  _handleDistrictClick(districtObj) {
+    const districtId = normalizeId(districtObj.properties?.[0]?.name ?? districtObj.id);
+    if (districtId == null) return;
+
+    const d = this.districts[districtId];
+    if (import.meta.env.DEV) console.log('[hit] district:', districtId, districtObj.name);
+
+    const owner = (d?.owner ?? 'neutral').toLowerCase();
+    emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
+      districtId,
+      districtName: d?.name ?? String(districtId),
+      isMyTerritory: owner === this._myTeam,
+      isNeutral:     owner === 'neutral',
+    });
   }
 
   _getDistrictAtPoint(x, y) {
@@ -461,6 +502,49 @@ export default class MainScene extends Phaser.Scene {
       }
     }
     return hitId;
+  }
+
+  /**
+   * 指定レイヤー上で worldX/worldY にヒットするオブジェクトを返す。
+   * @param {string} layerName - TMJのobjectレイヤー名
+   * @param {number} worldX
+   * @param {number} worldY
+   * @returns {Phaser.Types.Tilemaps.TiledObject | null}
+   */
+  _findObjectAt(layerName, worldX, worldY) {
+    const layer = this.tiledMap.getObjectLayer(layerName);
+    if (!layer) {
+      if (import.meta.env.DEV) console.warn(`[MainScene] objectLayer not found: ${layerName}`);
+      return null;
+    }
+
+    for (const obj of layer.objects) {
+      if (obj.polygon) {
+        // ポリゴン座標はTMJ上の値なのでMAP_SCALEを適用してワールド座標に合わせる
+        const points = obj.polygon.map((p) => ({
+          x: (obj.x + p.x) * MAP_SCALE,
+          y: (obj.y + p.y) * MAP_SCALE,
+        }));
+        const polygon = new Phaser.Geom.Polygon(points);
+        if (Phaser.Geom.Polygon.Contains(polygon, worldX, worldY)) {
+          return obj;
+        }
+        continue;
+      }
+
+      if (obj.width && obj.height) {
+        const rect = new Phaser.Geom.Rectangle(
+          obj.x * MAP_SCALE,
+          obj.y * MAP_SCALE,
+          obj.width * MAP_SCALE,
+          obj.height * MAP_SCALE,
+        );
+        if (Phaser.Geom.Rectangle.Contains(rect, worldX, worldY)) {
+          return obj;
+        }
+      }
+    }
+    return null;
   }
 
   _redrawDistrict(d, color, alpha = 0) {
