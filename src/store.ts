@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import socket from './socket';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
 import { REACT_TO_PHASER, PHASER_TO_REACT } from './game/events/PhaserBridge';
@@ -204,17 +205,19 @@ export interface GameState {
 
 const nowTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-export const useGameStore = create<GameState>((set, get) => ({
-  view: 'login',
-  setView: (view) => set({ view }),
-  token: typeof window !== 'undefined' ? localStorage.getItem('cebu_token') : null,
-  isAuthenticated: typeof window !== 'undefined' && localStorage.getItem('cebu_token') !== null,
-  hasSeenTutorial: typeof window !== 'undefined' && localStorage.getItem('cebu_conquest_tutorial_seen') === 'true',
-  errorMessage: null, isServerOnline: socket.connected, zoomLevel: 1.0, 
-  hp: 100, maxHp: 100, ap: 100, maxAp: 100, blessing: 1.0, atk: 50, def: 40,
-  turn: 0, maxTurn: 10, logs: [], chatLogs: [], roomId: '', players: [], maxPlayers: 2,
-  districts: {}, currentDistrictName: "地点未選択", selectedDistrictId: null,
-  playerName: typeof window !== 'undefined' ? localStorage.getItem('cebu_player_name') || "" : "",
+export const useGameStore = create<GameState>()(
+  persist(
+    (set, get) => ({
+      view: 'login',
+      setView: (view) => set({ view }),
+      token: null,
+      isAuthenticated: false,
+      hasSeenTutorial: false,
+      errorMessage: null, isServerOnline: socket.connected, zoomLevel: 1.0, 
+      hp: 100, maxHp: 100, ap: 100, maxAp: 100, blessing: 1.0, atk: 50, def: 40,
+      turn: 0, maxTurn: 10, logs: [], chatLogs: [], roomId: '', players: [], maxPlayers: 2,
+      districts: {}, currentDistrictName: "地点未選択", selectedDistrictId: null,
+      playerName: "",
   myId: "", myTeam: "Explorer", isMyTurn: true, turnOwner: "YOU",
   isGameOver: false, winnerId: null, isSubmitted: false,
   isGameStarted: false,
@@ -253,8 +256,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       if (json.status === 'success' && json.data) {
         const { token, user } = json.data;
         const name = user.playerName || user.username;
-        localStorage.setItem('cebu_token', token);
-        localStorage.setItem('cebu_player_name', name);
         
         set({
           token, 
@@ -287,8 +288,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   logout: () => { 
-    localStorage.removeItem('cebu_token'); 
-    localStorage.removeItem('cebu_player_name');
+    useGameStore.persist.clearStorage();
     window.location.reload(); 
   },
   
@@ -296,7 +296,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   hideError: () => set({ errorMessage: null }),
   setZoomLevel: (zoom) => set({ zoomLevel: zoom }),
   completeTutorial: () => {
-    localStorage.setItem('cebu_conquest_tutorial_seen', 'true');
     set({ hasSeenTutorial: true, view: 'lobby' });
   },
   nextTurn: () => set({ turn: get().turn + 1 }),
@@ -472,7 +471,18 @@ export const useGameStore = create<GameState>((set, get) => ({
   resetGame: () => window.location.reload(),
   setBgmVolume: (vol) => set({ bgmVolume: vol }),
   setSeVolume: (vol) => set({ seVolume: vol }),
-}));
+    }),
+    {
+      name: 'cebu-conquest-storage',
+      partialize: (state) => ({
+        token: state.token,
+        isAuthenticated: state.isAuthenticated,
+        hasSeenTutorial: state.hasSeenTutorial,
+        playerName: state.playerName,
+      }),
+    }
+  )
+);
 
 // --- リアルタイムイベントリスナー ---
 
