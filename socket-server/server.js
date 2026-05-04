@@ -1,4 +1,4 @@
-// server/index.js
+// src/server/index.js
 
 import express from 'express';
 import http from 'http';
@@ -54,8 +54,6 @@ const DISTRICTS_MASTER = {
     "13204": { name: "Basilica del Santo Nino（サント・ニーニョ大聖堂）", priority: 9, buff: { atk: 0, def: 25 } },
 };
 
-// 隣接リストは shared/adjacency.js で一元管理（getNeighbors を使用）
-
 // ==========================================
 // 🚀 【設定】ルーム管理とゲーム状態の初期化
 // ==========================================
@@ -90,6 +88,20 @@ function createInitialGameState(maxPlayers = 4) {
 // 汎用的なランダムID生成関数（部屋ID用）
 function generateRoomId() {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+// 📌 【新規追加】ロビー状態同期用のヘルパー関数（いっせいさんの要望対応）
+function broadcastLobbyUpdate(roomId, roomState) {
+    if (!roomState) return;
+    const playersArr = Object.values(roomState.players).map(p => ({
+        id: p.id,
+        username: p.username,
+        playerName: p.username,
+        selectedGodId: p.selectedGodId || null,
+        godId: p.selectedGodId || null,
+        isReady: p.isReady || false
+    }));
+    io.to(roomId).emit("lobbyUpdated", { players: playersArr });
 }
 
 // ==========================================
@@ -313,7 +325,7 @@ io.on('connection', (socket) => {
                     baseStats.atk += dbUser.user.god_buff_atk || 0;
                     baseStats.def += dbUser.user.god_buff_def || 0;
                     godName = dbUser.user.god_name || "名もなき神";
-                    inventory = dbUser.user.inventory || []; // DBからインベントリを初期ロード
+                    inventory = dbUser.user.inventory || [];
                 }
             } catch (e) {
                 console.error("❌ [DB] ユーザー・神データ取得エラー:", e);
@@ -326,8 +338,9 @@ io.on('connection', (socket) => {
             dbUserId: config.id || null,
             token: socket.authToken,
             godName: godName,
+            selectedGodId: null, // 初期化
             ...baseStats,
-            inventory: inventory, // プレイヤー状態にインベントリを持たせる
+            inventory: inventory,
             team: teamInfo.id,
             teamColor: teamInfo.color,
             isReady: false,
@@ -342,6 +355,8 @@ io.on('connection', (socket) => {
         }
 
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
+        broadcastLobbyUpdate(roomId, roomState); // ロビー同期
+
         if (callback) callback({ success: true, roomId: roomId });
     });
 
@@ -384,7 +399,7 @@ io.on('connection', (socket) => {
                     baseStats.atk += dbUser.user.god_buff_atk || 0;
                     baseStats.def += dbUser.user.god_buff_def || 0;
                     godName = dbUser.user.god_name || "名もなき神";
-                    inventory = dbUser.user.inventory || []; // DBからインベントリを初期ロード
+                    inventory = dbUser.user.inventory || [];
                 }
             } catch (e) {
                 console.error("❌ [DB] ユーザー・神データ取得エラー:", e);
@@ -397,8 +412,9 @@ io.on('connection', (socket) => {
             dbUserId: data?.id || null,
             token: socket.authToken,
             godName: godName,
+            selectedGodId: null, // 初期化
             ...baseStats,
-            inventory: inventory, // プレイヤー状態にインベントリを持たせる
+            inventory: inventory,
             team: teamInfo.id,
             teamColor: teamInfo.color,
             isReady: false,
@@ -412,6 +428,8 @@ io.on('connection', (socket) => {
         }
 
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
+        broadcastLobbyUpdate(roomId, roomState); // ロビー同期
+
         if (callback) callback({ success: true });
     });
 
@@ -440,6 +458,7 @@ io.on('connection', (socket) => {
             id: npcId,
             username: `猛将ラプパプ(${teamInfo.name})`,
             dbUserId: null, token: null, godName: "セブの精霊",
+            selectedGodId: 99, // NPC用ダミー
             hp: 120, maxHp: 120, ap: 100, maxAp: 100,
             atk: 75, def: 55, faith: 1.0,
             inventory: [],
@@ -457,6 +476,7 @@ io.on('connection', (socket) => {
             `🤖 ${roomState.players[npcId].username} が ${DISTRICTS_MASTER[startDistrictId]?.name || startDistrictId} に展開しました！`
         );
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
+        broadcastLobbyUpdate(roomId, roomState); // ロビー同期
     });
 
     // 🚀 【神の選択】
@@ -470,6 +490,7 @@ io.on('connection', (socket) => {
         if (p) {
             p.selectedGodId = data.godId;
             io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
+            broadcastLobbyUpdate(roomId, roomState); // ロビー同期
             console.log(`✨ [Room ${roomId}] ${p.username} selected god: ${data.godId}`);
         }
     });
@@ -490,11 +511,16 @@ io.on('connection', (socket) => {
                 roomState.districts[p.districtId] = socket.id;
             }
 
+            // 状態が更新されたのでロビーをブロードキャスト
+            broadcastLobbyUpdate(roomId, roomState);
+
             const playersArr = Object.values(roomState.players);
             const currentCount = playersArr.length;
             const maxPlayers = roomState.maxPlayers;
+            const allReady = currentCount > 0 && playersArr.every(pl => pl.isReady);
 
-            if (currentCount >= maxPlayers && playersArr.every(pl => pl.isReady)) {
+            // 【修正ポイント】参加人数がMAXに達しており、かつ全員が準備完了状態の場合のみ開始
+            if (currentCount >= maxPlayers && allReady) {
                 Object.values(roomState.players).forEach(p => {
                     if (p.isNpc && !p.districtId) {
                         const allDistrictIds = Object.keys(DISTRICTS_MASTER);
@@ -589,7 +615,6 @@ io.on('connection', (socket) => {
                             console.log(`✅ [Room ${roomId} DB] 陣地 ${targetId} 制圧:`, dbResult.message || dbResult);
 
                             if (dbResult.dropped_item) {
-                                // 戦利品をサーバーのインベントリに即座に反映
                                 p.inventory.push(dbResult.dropped_item);
                                 io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🎁 ${p.username} が戦利品【${dbResult.dropped_item.name}】を獲得！`);
                             }
@@ -653,27 +678,24 @@ io.on('connection', (socket) => {
         finalizeTurn(roomId, socket.id);
     });
 
-    // 🚀 【アイテム使用ロジック - Server State駆動】
+    // 🚀 【アイテム使用ロジック】
     socket.on(CLIENT_EVENTS.ACTION_USE_ITEM, async ({ itemId }) => {
         const roomId = socket.roomId;
         if (!roomId) return;
         const roomState = rooms.get(roomId);
         if (!roomState) return;
 
-        // ターン制の制約（自分のターンでのみ使用可能にするなら残す。いつでも使える仕様なら削除）
         if (roomState.turnOwnerId !== socket.id) return;
         
         const p = roomState.players[socket.id];
         if (!p || p.isNpc) return;
 
-        // 1. 在庫検証 (Server State 内の inventory を確認)
         const itemIndex = p.inventory.findIndex(item => item.id === itemId);
         if (itemIndex === -1) {
             socket.emit(SERVER_EVENTS.ACTION_REJECTED, { reason: 'ITEM_NOT_FOUND' });
             return;
         }
 
-        // 2. アイテム効果の即時適用（GDD準拠）
         const item = p.inventory[itemIndex];
         switch (item.type) {
             case 'ATK_BUFF':
@@ -690,18 +712,14 @@ io.on('connection', (socket) => {
                 break;
         }
 
-        // 使用したアイテムを Server State から削除
         p.inventory.splice(itemIndex, 1);
 
-        // 3. 全クライアントへ即座に最新状態をブロードキャスト
         io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, {
             message: `🧪 ${p.username} が ${item.name} を使用した！`
         });
         
-        // ★コンフリクト解消：mainのセキュリティ対応 (sanitizeRoomState) を適用！
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
 
-        // 4. DBへの非同期反映（なおのAPIエンドポイントへ送信して永続化）
         if (p.token) {
             try {
                 await fetch(`${API_BASE_URL}use-item.php`, {
@@ -750,6 +768,7 @@ io.on('connection', (socket) => {
                 finalizeTurn(roomId, socket.id);
             } else {
                 io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
+                broadcastLobbyUpdate(roomId, roomState); // ロビー同期
             }
         }
     });
@@ -766,7 +785,6 @@ io.on('connection', (socket) => {
         const disconnectedId = socket.id;
         const wasTurnOwner = (roomState.turnOwnerId === disconnectedId);
 
-        // BUG-011: delete前にプレイヤー順序を記録しないと finalizeTurn が -1 を返す
         const prevIds = Object.keys(roomState.players);
         const prevIndex = prevIds.indexOf(disconnectedId);
 
@@ -797,6 +815,7 @@ io.on('connection', (socket) => {
             }
         } else {
             io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
+            broadcastLobbyUpdate(roomId, roomState); // ロビー同期
         }
     });
 });
