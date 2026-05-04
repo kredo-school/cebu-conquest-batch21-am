@@ -16,7 +16,6 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
   const [newPassword, setNewPassword] = useState(''); 
   const [isLoading, setIsLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
-  const [stayLoggedIn, setStayLoggedIn] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -190,13 +189,6 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
                   <input type="text" disabled={isLoading} className="w-full bg-slate-950/50 border border-cyan-800/50 text-white px-4 py-2 rounded-lg outline-none text-xs focus:border-cyan-500 disabled:opacity-50" placeholder="その答え" value={securityAnswer} onChange={(e) => setSecurityAnswer(e.target.value)} />
                 </div>
               )}
-
-              <div className="flex items-center justify-between text-[10px]">
-                <label className="flex items-center text-slate-400 cursor-pointer" onClick={() => !isLoading && setStayLoggedIn(!stayLoggedIn)}>
-                  <input checked={stayLoggedIn} readOnly className={`rounded bg-slate-800 border-slate-700 ${isRegisterMode ? 'text-cyan-500' : 'text-orange-500'} focus:ring-offset-slate-900 mr-2 w-3 h-3`} type="checkbox"/> Stay logged in
-                </label>
-                <span onClick={() => !isLoading && setMode('recovery_user')} className={`${isRegisterMode ? 'text-cyan-500 hover:text-cyan-400' : 'text-orange-400 hover:text-orange-300'} transition-colors cursor-pointer`}>Forgot password?</span>
-              </div>
 
               {/* 🚀 修正3: INITIATE REGISTRATION ボタンをシアン化 */}
               <button disabled={isLoading} className={`w-full font-black py-3 rounded-lg shadow-lg active:opacity-80 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm ${isRegisterMode ? 'bg-cyan-700 hover:bg-cyan-600 shadow-cyan-900/20' : 'bg-orange-600 hover:bg-orange-500 shadow-orange-900/20'} text-white font-fix`} type="submit">
