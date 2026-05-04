@@ -480,6 +480,26 @@ io.on('connection', (socket) => {
         broadcastLobbyUpdate(roomId, roomState); // ロビー同期
     });
 
+    // 🚀 【神選択画面への入室】全プレイヤーの isReady をリセット
+    socket.on(CLIENT_EVENTS.ENTER_GOD_SELECTION, (data) => {
+        const roomId = socket.roomId || data?.roomId;
+        if (!roomId) return;
+        
+        const roomState = rooms.get(roomId);
+        if (!roomState) return;
+
+        // 部屋にいる全プレイヤーの isReady を強制的に false にリセット
+        Object.values(roomState.players).forEach(p => {
+            p.isReady = false;
+        });
+
+        console.log(`🔄 [Room ${roomId}] 神選択画面遷移: 全プレイヤーの isReady をリセットしました`);
+
+        // リセットされた安全な状態を全員に同期
+        io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
+        broadcastLobbyUpdate(roomId, roomState);
+    });
+
     // 🚀 【神の選択】 ★修正箇所：isReadyや開始判定を完全に削除し、共有のみ行う
     socket.on(CLIENT_EVENTS.SELECT_GOD, (data) => {
         const roomId = socket.roomId;
