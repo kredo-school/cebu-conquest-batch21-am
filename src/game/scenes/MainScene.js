@@ -4,6 +4,12 @@ import { CLIENT_EVENTS, SERVER_EVENTS } from "../../../shared/socketEvents.js";
 import { PHASER_TO_REACT, REACT_TO_PHASER, emitToReact } from "../events/PhaserBridge";
 import { MAP_CONFIG } from "../config/mapConfig";
 import { ADJACENCY } from "../../../shared/adjacency.js";
+import {
+  GOD_SACRED_LANDS,
+  getSacredDistrict,
+  getSpawnSpot,
+  getGodName,
+} from "../../../shared/godSacredLands.js";
 import ZoomManager from "./ZoomManager";
 import SoundManager from "../SoundManager";
 import EffectManager from "../effects/EffectManager";
@@ -103,14 +109,77 @@ export default class MainScene extends Phaser.Scene {
   }
 
   // 🚀 リスナー統合版（重複を削除してクリーンアップ）
+  // ═══════════════════════════════════════════════
+  // 神聖地占領処理
+  // ═══════════════════════════════════════════════
+
+  /**
+   * 神選択時に聖地districtを自陣カラーで占領表示する
+   * GDD v3.1 §3-1 に基づき、神ごとの聖地を自動占領
+   * @param {number} godId - 1〜8（GOD_SACRED_LANDS のキー）
+   */
+  _claimSacredLand(godId) {
+    const sacredDistrictId = getSacredDistrict(godId);
+    if (sacredDistrictId == null) {
+      console.warn(`[MainScene] godId=${godId} に対応する聖地が見つかりません`);
+      return;
+    }
+
+    const district = this.districts[sacredDistrictId];
+    if (!district) {
+      console.warn(
+        `[MainScene] district ${sacredDistrictId} が描画されていません。` +
+        `TMJのdistrictNameレイヤーにIDが存在するか確認してください`
+      );
+      return;
+    }
+
+    // チームカラー判定（_myTeamが未確定の場合は赤を暫定使用）
+    const teamColor = this._myTeam === 'blue' ? COLOR.TEAM_BLUE : COLOR.TEAM_RED;
+
+    // 自陣カラーで塗りつぶす
+    district.polygon.setFillStyle(teamColor, 0.6);
+    district.owner = 'me';
+    this._sacredDistrictId = sacredDistrictId; // 後続処理用に保持
+
+    this.showLog(`⛩️ ${getGodName(godId)} の聖地（地区${sacredDistrictId}）を獲得！`);
+
+    // Reactへ占領通知（HUD・ミニマップ更新用）
+    emitToReact(PHASER_TO_REACT.TERRITORY_CLAIMED, {
+      districtId: sacredDistrictId,
+      owner: 'me',
+      team: this._myTeam,
+    });
+  }
+
   _setupReactListeners() {
     const handlers = [
       {
         event: REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM,
         handler: (e) => {
           this.isSelectionMode = false;
-          this.currentDistrictId = normalizeId(e.detail.districtId);
-          this._placePlayer(this.currentDistrictId);
+
+          // 🚀 startDistrictId（GDD v3.1 仕様）または互換用 districtId の両対応
+          const rawId = normalizeId(e.detail.startDistrictId ?? e.detail.districtId);
+          if (rawId == null) {
+            console.error("[MainScene] startDistrictId が不正です", e.detail);
+            return;
+          }
+
+          // 5桁ならspot_id → district_idに変換（上3桁を取得）
+          // 例: 14101（spot） → 141（district）
+          const districtId = rawId >= 10000 ? Math.floor(rawId / 100) : rawId;
+
+          // 聖地と一致するなら追加占領処理は不要（Step3で既に塗布済み）
+          if (this._sacredDistrictId !== districtId) {
+            console.warn(
+              `[MainScene] deployment district(${districtId}) と聖地(${this._sacredDistrictId}) が不一致。` +
+              `通常占領フローで処理します`
+            );
+          }
+
+          this.currentDistrictId = districtId;
+          this._placePlayer(districtId);
           SoundManager.playSe('move');
         },
       },
@@ -156,10 +225,21 @@ export default class MainScene extends Phaser.Scene {
       {
         event: REACT_TO_PHASER.SET_AVATAR,
         handler: (e) => {
-          const key = e.detail?.godKey;
-          if (!key || !this.textures.exists(key)) return;
-          this._avatarKey = key;
-          if (this.currentDistrictId !== null) this._placePlayer(this.currentDistrictId);
+          const { godKey, godId } = e.detail || {};
+
+          // アバター画像キーの更新
+          if (godKey) {
+            this._avatarKey = godKey;
+            // プレイヤースプライトが既に存在すれば差し替え
+            if (this.player && this.textures.exists(godKey)) {
+              this.player.setTexture(godKey);
+            }
+          }
+
+          // 🚀 神に対応する聖地を自陣カラーで先塗り
+          if (godId != null) {
+            this._claimSacredLand(godId);
+          }
         },
       },
     ];
