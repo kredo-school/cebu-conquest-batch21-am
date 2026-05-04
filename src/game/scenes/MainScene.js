@@ -13,6 +13,7 @@ import {
 import ZoomManager from "./ZoomManager";
 import SoundManager from "../SoundManager";
 import EffectManager from "../effects/EffectManager";
+import CameraController from "../camera/CameraController.js";
 
 const MAP_SCALE = 0.5;
 
@@ -93,7 +94,19 @@ export default class MainScene extends Phaser.Scene {
     this._setupTilemap();
     this._loadDistrictsFromTMJ();
     this._drawDistrictPolygons();
-    this._setupCamera();
+
+    // A-2: CameraController に置き換え
+    this.cameraController = new CameraController(this);
+    this.cameraController.setup(this.tiledMap, MAP_SCALE);
+    this.cameraController.onZoomChanged((zoom) => {
+      this._updateLabelVisibility();
+      emitToReact(PHASER_TO_REACT.ZOOM_UPDATED, { zoom });
+    });
+    this.cameraController.onHoverChanged((worldPoint) => {
+      const hoveredId = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
+      this._updateHoverText(hoveredId);
+    });
+
     this._initSocket();
     this._setupReactListeners();
     this._setupKeyboard();
@@ -105,7 +118,8 @@ export default class MainScene extends Phaser.Scene {
 
   update() {
     this.zoomManager.tick(this.cameras.main.zoom, this.districts);
-    this._handleCameraKeyboard();
+    // A-2: _handleCameraKeyboard を CameraController.update に置き換え
+    this.cameraController?.update();
   }
 
   // 🚀 リスナー統合版（重複を削除してクリーンアップ）
@@ -378,56 +392,6 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  _setupCamera() {
-    const cam = this.cameras.main;
-    this.input.on("pointerdown", () => {
-      this._dragMoved = false;
-    });
-    this.input.on("pointermove", (p) => {
-      if (p.isDown) {
-        if (p.getDistance() > 3) this._dragMoved = true;
-        cam.scrollX -= (p.x - p.prevPosition.x) / cam.zoom;
-        cam.scrollY -= (p.y - p.prevPosition.y) / cam.zoom;
-        this._clampCamera();
-      } else {
-        const worldPoint = cam.getWorldPoint(p.x, p.y);
-        const hoveredId = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
-        this._updateHoverText(hoveredId);
-      }
-    });
-    this.input.on("wheel", (pointer, _objs, _dx, deltaY) => {
-      const nativeEvent = pointer.event;
-      const isPinch = nativeEvent?.ctrlKey === true;
-      const zoomSpeed = isPinch ? 0.1 : 0.001;
-      const oldZoom = cam.zoom;
-      const newZoom = Phaser.Math.Clamp(oldZoom - deltaY * zoomSpeed, 0.5, 8);
-      if (oldZoom === newZoom) return;
-      const worldX = cam.scrollX + pointer.x / oldZoom;
-      const worldY = cam.scrollY + pointer.y / oldZoom;
-      cam.setZoom(newZoom);
-      cam.scrollX = worldX - pointer.x / newZoom;
-      cam.scrollY = worldY - pointer.y / newZoom;
-      this._clampCamera();
-      this._updateLabelVisibility();
-      if (isPinch) nativeEvent.preventDefault();
-      emitToReact(PHASER_TO_REACT.ZOOM_UPDATED, { zoom: newZoom });
-    });
-    cam.setZoom(1);
-    this._clampCamera();
-  }
-
-  _clampCamera() {
-    const cam = this.cameras.main;
-    const mapW = this.tiledMap.widthInPixels * MAP_SCALE;
-    const mapH = this.tiledMap.heightInPixels * MAP_SCALE;
-    const viewW = cam.width / cam.zoom;
-    const viewH = cam.height / cam.zoom;
-    cam.scrollX =
-      mapW > viewW ? Phaser.Math.Clamp(cam.scrollX, 0, mapW - viewW) : (mapW - viewW) / 2;
-    cam.scrollY =
-      mapH > viewH ? Phaser.Math.Clamp(cam.scrollY, 0, mapH - viewH) : (mapH - viewH) / 2;
-  }
-
   _onMapClicked(x, y) {
     if (this._dragMoved) return;
     const worldPoint = this.cameras.main.getWorldPoint(x, y);
@@ -529,7 +493,13 @@ export default class MainScene extends Phaser.Scene {
       .setDisplaySize(48, 48)
       .setDepth(1000);
 
-    this.cameras.main.pan(d.center.x, d.center.y, 600, "Power2");
+    // A-2: pan の代わりに startFollow で滑らかに追従
+    if (!this.isSelectionMode) {
+      this.cameraController?.follow(this.player);
+    } else {
+      // 選択フェーズ中は追従せずに pan のみ（既存挙動維持）
+      this.cameras.main.pan(d.center.x, d.center.y, 600, "Power2");
+    }
   }
 
   _syncDistricts(serverDistricts, serverPlayers) {
@@ -637,32 +607,13 @@ export default class MainScene extends Phaser.Scene {
   // ─── キーボード操作 ───────────────────────────
 
   _setupKeyboard() {
-    // 矢印キー（常時カメラパン用）
-    this.cursors = this.input.keyboard.createCursorKeys();
-
-    // WASDキー（選択フェーズ：カメラパン／プレイフェーズ：行動キー）
-    this.wasdKeys = this.input.keyboard.addKeys({
-      up:    Phaser.Input.Keyboard.KeyCodes.W,
-      down:  Phaser.Input.Keyboard.KeyCodes.S,
-      left:  Phaser.Input.Keyboard.KeyCodes.A,
-      right: Phaser.Input.Keyboard.KeyCodes.D,
-    });
-
     // 行動キー（プレイフェーズのみ有効）
+    // カーソル・WASD・ズームキーは CameraController が担当
     this.input.keyboard.on('keydown-SPACE', () => this._handleKeyAction('stay'));
     this.input.keyboard.on('keydown-S',     () => this._handleKeyAction('stay'));
     this.input.keyboard.on('keydown-A',     () => this._handleKeyAction('attack'));
     this.input.keyboard.on('keydown-D',     () => this._handleKeyAction('defend'));
     this.input.keyboard.on('keydown-E',     () => this._handleKeyAction('escape'));
-
-    // ズームキー（=／+：ズームイン、-：ズームアウト、0：リセット）
-    this.input.keyboard.on('keydown', (ev) => {
-      const focused = document.activeElement;
-      if (focused?.tagName === 'INPUT' || focused?.tagName === 'TEXTAREA') return;
-      if (ev.key === '=' || ev.key === '+') this._keyZoom(1);
-      else if (ev.key === '-') this._keyZoom(-1);
-      else if (ev.key === '0') this._keyZoomReset();
-    });
 
     if (import.meta.env.DEV) this._setupDevKeys();
   }
@@ -706,30 +657,6 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  _handleCameraKeyboard() {
-    const focused = document.activeElement;
-    if (focused?.tagName === 'INPUT' || focused?.tagName === 'TEXTAREA') return;
-
-    const cam = this.cameras.main;
-    const speed = 8 / cam.zoom;
-    let moved = false;
-
-    if (this.cursors.left.isDown)       { cam.scrollX -= speed; moved = true; }
-    else if (this.cursors.right.isDown) { cam.scrollX += speed; moved = true; }
-    if (this.cursors.up.isDown)         { cam.scrollY -= speed; moved = true; }
-    else if (this.cursors.down.isDown)  { cam.scrollY += speed; moved = true; }
-
-    // WASDはスポーン地点選択フェーズ中のみカメラパンに使う
-    if (this.isSelectionMode) {
-      if (this.wasdKeys.left.isDown)       { cam.scrollX -= speed; moved = true; }
-      else if (this.wasdKeys.right.isDown) { cam.scrollX += speed; moved = true; }
-      if (this.wasdKeys.up.isDown)         { cam.scrollY -= speed; moved = true; }
-      else if (this.wasdKeys.down.isDown)  { cam.scrollY += speed; moved = true; }
-    }
-
-    if (moved) this._clampCamera();
-  }
-
   _handleKeyAction(type) {
     const focused = document.activeElement;
     if (focused?.tagName === 'INPUT' || focused?.tagName === 'TEXTAREA') return;
@@ -757,20 +684,4 @@ export default class MainScene extends Phaser.Scene {
     }
   }
 
-  _keyZoom(dir) {
-    const cam = this.cameras.main;
-    const newZoom = Phaser.Math.Clamp(cam.zoom + dir * 0.5, 0.5, 8);
-    if (cam.zoom === newZoom) return;
-    cam.setZoom(newZoom);
-    this._clampCamera();
-    this._updateLabelVisibility();
-    emitToReact(PHASER_TO_REACT.ZOOM_UPDATED, { zoom: newZoom });
-  }
-
-  _keyZoomReset() {
-    this.cameras.main.setZoom(1);
-    this._clampCamera();
-    this._updateLabelVisibility();
-    emitToReact(PHASER_TO_REACT.ZOOM_UPDATED, { zoom: 1 });
-  }
 }
