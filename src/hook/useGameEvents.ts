@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import socket from '../socket';
 import { SERVER_EVENTS } from '../../shared/socketEvents.js'; 
-import { useGameStore, Player } from '../store'; // 🚀 Player型をインポート
+import { useGameStore, Player, LobbyPlayer } from '../store'; 
 import { emitToPhaser, REACT_TO_PHASER, PHASER_TO_REACT } from '../game/events/PhaserBridge'; 
 
 // サーバーから受信するプレイヤーデータの型定義
@@ -42,7 +42,7 @@ export const useGameEvents = () => {
     if (!socket) return;
 
     // ---------------------------------------------------------
-    // A. Phaser → React 同期リスナー (Task 3: HUD更新用)
+    // A. Phaser → React 同期リスナー (HUD更新用)
     // ---------------------------------------------------------
     const handleStatsUpdate = (e: Event) => {
       const customEvent = e as CustomEvent;
@@ -66,7 +66,7 @@ export const useGameEvents = () => {
     socket.on(SERVER_EVENTS.SYNC_STATE, (data: unknown) => {
       const currentView = useGameStore.getState().view;
 
-      // 🚀 修正: unknownからRecord<string, Player>へキャスト
+      // 🚀 Record<string, Player>へキャストして同期
       const castedData = data as Record<string, Player>;
       syncServerState(castedData, myId);
 
@@ -93,16 +93,19 @@ export const useGameEvents = () => {
       emitToPhaser(REACT_TO_PHASER.SYNC_MAP, data as Record<string, unknown>);
     });
 
-    // 2. 🎮 試合開始通知 (gameStart)
-    socket.on(SERVER_EVENTS.GAME_START, () => {
+    // 2. 🎮 試合開始通知 (gameStart / commenceOperation)
+    // 🚀 修正: GDD v3.1 準拠のため、両方のイベントで遷移をトリガーする
+    const handleGameBegin = () => {
       addLog("🎮 サーバーが作戦開始を承認。システム同期中...");
       setGameStarted(true);
       emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, { isFirstTurn: true });
-    });
+    };
+
+    socket.on(SERVER_EVENTS.GAME_START, handleGameBegin);
+    socket.on(SERVER_EVENTS.COMMENCE_OPERATION, handleGameBegin); 
 
     // 3. 🤖 NPC情報の更新受信 (npcUpdate)
     socket.on(SERVER_EVENTS.NPC_UPDATE, (npcData: unknown) => {
-      // 🚀 修正: ここでも期待される型 Record<string, Player> にキャスト
       const castedNpcs = npcData as Record<string, Player>; 
       setNpcs(castedNpcs);
       emitToPhaser(REACT_TO_PHASER.UPDATE_NPCS, npcData as Record<string, unknown>);
@@ -177,6 +180,7 @@ export const useGameEvents = () => {
     return () => {
       socket.off(SERVER_EVENTS.SYNC_STATE);
       socket.off(SERVER_EVENTS.GAME_START);
+      socket.off(SERVER_EVENTS.COMMENCE_OPERATION);
       socket.off(SERVER_EVENTS.NPC_UPDATE);
       socket.off(SERVER_EVENTS.TURN_START);
       socket.off(SERVER_EVENTS.BATTLE_RESULT);
