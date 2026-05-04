@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import socket from './socket';
 import { useGameStore, MasterData, GameState } from './store';
 
@@ -33,7 +34,26 @@ const App: React.FC = () => {
     authenticatedFetch, setLookupData, syncServerState, myId,
     updateSelectedDistrict, updateStatsFromPhaser,
     isGameStarted, selectedGodId
-  } = useGameStore();
+  } = useGameStore(useShallow(state => ({
+    addLog: state.addLog,
+    playerName: state.playerName,
+    token: state.token,
+    hasSeenTutorial: state.hasSeenTutorial,
+    setZoomLevel: state.setZoomLevel,
+    isGameOver: state.isGameOver,
+    roomId: state.roomId,
+    players: state.players,
+    setView: state.setView,
+    view: state.view,
+    authenticatedFetch: state.authenticatedFetch,
+    setLookupData: state.setLookupData,
+    syncServerState: state.syncServerState,
+    myId: state.myId,
+    updateSelectedDistrict: state.updateSelectedDistrict,
+    updateStatsFromPhaser: state.updateStatsFromPhaser,
+    isGameStarted: state.isGameStarted,
+    selectedGodId: state.selectedGodId
+  })));
   
   const gameRef = useRef<PhaserGameHandle | null>(null);
   const [isDeploying, setIsDeploying] = useState(false); 
