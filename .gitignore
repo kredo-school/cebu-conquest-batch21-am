@@ -27,7 +27,7 @@ CLAUDE.md
 instructions/
 
 # Environment variables
-.env
+
 .env.*
 *.local
 
