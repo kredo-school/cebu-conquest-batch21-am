@@ -1,3 +1,4 @@
+// src/App.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import socket from './socket';
@@ -32,8 +33,7 @@ const App: React.FC = () => {
     addLog, playerName: storePlayerName, token, hasSeenTutorial, 
     setZoomLevel, isGameOver, roomId, players, setView, view,
     authenticatedFetch, setLookupData, syncServerState, myId,
-    updateSelectedDistrict, updateStatsFromPhaser,
-    isGameStarted, selectedGodId
+    updateSelectedDistrict, updateStatsFromPhaser
   } = useGameStore(useShallow(state => ({
     addLog: state.addLog,
     playerName: state.playerName,
@@ -50,9 +50,7 @@ const App: React.FC = () => {
     syncServerState: state.syncServerState,
     myId: state.myId,
     updateSelectedDistrict: state.updateSelectedDistrict,
-    updateStatsFromPhaser: state.updateStatsFromPhaser,
-    isGameStarted: state.isGameStarted,
-    selectedGodId: state.selectedGodId
+    updateStatsFromPhaser: state.updateStatsFromPhaser
   })));
   
   const gameRef = useRef<PhaserGameHandle | null>(null);
@@ -103,6 +101,7 @@ const App: React.FC = () => {
 
     const handleCommence = (data: Record<string, unknown>) => {
       const currentView = useGameStore.getState().view;
+      // selection または waiting 画面にいる時のみ出撃を許可
       if (currentView === 'waiting' || currentView === 'selection') {
         if (data) syncServerState(data, myId);
         addLog("🚀 全員のリンク承認を確認。出撃します。");
@@ -110,7 +109,9 @@ const App: React.FC = () => {
       }
     };
 
+    // サーバーからの正式な開始合図をリッスン
     socket.on(SERVER_EVENTS.COMMENCE_OPERATION, handleCommence);
+    socket.on(SERVER_EVENTS.GAME_START, handleCommence); // GDD v3.1 互換用
 
     const handleZoomUpdate = (e: Event) => {
       const ce = e as CustomEvent<{ zoom: number }>;
@@ -133,24 +134,12 @@ const App: React.FC = () => {
 
     return () => {
       socket.off(SERVER_EVENTS.COMMENCE_OPERATION, handleCommence);
+      socket.off(SERVER_EVENTS.GAME_START, handleCommence);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
       window.removeEventListener(PHASER_TO_REACT.ZOOM_UPDATED, handleZoomUpdate);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleSelectDistrict);
     };
   }, [triggerDeploySequence, setZoomLevel, addLog, syncServerState, myId, updateStatsFromPhaser, updateSelectedDistrict]);
-
-  // 🚀 3.5. gameStart フラグによる自動遷移
-  // isGameStarted が true になったら、待機/選択画面からゲーム画面へ自動遷移
-  // setTimeout で非同期化し、カスケードレンダリング（react-hooks/set-state-in-effect）を防止
-  useEffect(() => {
-    if (isGameStarted && selectedGodId !== null && (view === 'waiting' || view === 'selection')) {
-      const timerId = setTimeout(() => {
-        addLog("🚀 gameStart 受信。出撃シーケンスを開始します。");
-        triggerDeploySequence();
-      }, 0);
-      return () => clearTimeout(timerId);
-    }
-  }, [isGameStarted, selectedGodId, view, addLog, triggerDeploySequence]);
 
   // 🚀 4. 遷移制御ロジック
   const handleLoginSubmit = async (name: string) => {
@@ -197,7 +186,6 @@ const App: React.FC = () => {
       mainContent = <GodSelectionView onComplete={handleSelectionComplete} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onBack={() => setView('lobby')} />;
       break;
     case 'waiting':
-      // 🚀 修正: image_188c3d.png のエラー箇所。WaitingViewProps に合わせて onBack を削除
       mainContent = <WaitingView onStart={triggerDeploySequence} />;
       break;
     case 'game':

@@ -33,7 +33,7 @@ const GOD_SLOTS: GodSlot[] = [
   { id: 1, textureKey: 'god-neil',   name: "Neil", role: "WAR",        bonus: "ATK +20",    img: "/assets/images/gods/Neil.png", desc: "近接攻撃ダメージ+25%、物理防御力強化。" },
   { id: 2, textureKey: 'god-garry',  name: "Garry", role: "STRATEGIST", bonus: "MAX AP +30", img: "/assets/images/gods/Garry.png", desc: "タクティカルアビリティのクールダウン-15%。" },
   { id: 3, textureKey: 'god-shem',   name: "Shem", role: "BURN",       bonus: "SOLAR",      img: "/assets/images/gods/Shem.png", desc: "昼間戦闘フェーズ中、全弾薬にソーラーバーン効果付与。" },
-  { id: 4, textureKey: 'god-quisie', name: "Quisie", role: "STEALTH",    bonus: "SILENT",     img: "/assets/images/gods/Quesie.png", desc: "隠密探知範囲を拡大、足音の静音性+40%。" },
+  { id: 4, textureKey: 'god-quisie', name: "Quisie", role: "STEALTH",    bonus: "SILENT",     img: "/assets/images/gods/Quisie.png", desc: "隠密探知範囲を拡大、足音の静音性+40%。" },
   { id: 5, textureKey: 'god-eduardo', name: "Eduardo", role: "HEAVY",      bonus: "ARMOR +40",  img: "/assets/images/gods/Eduardo.png", desc: "アーマー耐久値増加、燃焼ステータス無効化。" },
   { id: 6, textureKey: 'god-kurt',   name: "Kurt", role: "SUPPORT",    bonus: "SPEED +15",  img: "/assets/images/gods/Kurt.png", desc: "山岳地帯ダッシュ速度・ジャンプ高度+20%。" },
   { id: 7, textureKey: 'god-stephen', name: "Stephen", role: "SHADOW",     bonus: "INVIS",      img: "/assets/images/gods/Stephen.png", desc: "夜間サイクル中の一時的な不可視化。" },

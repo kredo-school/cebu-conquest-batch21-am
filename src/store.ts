@@ -1,3 +1,4 @@
+// src/store.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import socket from './socket';
@@ -7,7 +8,7 @@ import { buildLookup } from '../shared/idLookup';
 
 /**
  * Cebu Conquest: Zustand Global Store
- * GDD v3.1 準拠 | 最終更新: 2026-05-03
+ * GDD v3.1 準拠 | 最終更新: 2026-05-04
  */
 
 // --- 🏗️ 型定義セクション ---
@@ -83,7 +84,6 @@ export interface Item {
 }
 
 export interface LookupData {
-  // 🚀 修正: isislands を islands に変更（image_19787e.png の原因）
   islands: Map<number, { name: string; id: number }>;
   areas: Map<number, { name: string; id: number; parentIslandId: number }>;
   districts: Map<number, { name: string; id: number; parentAreaId: number }>;
@@ -218,259 +218,262 @@ export const useGameStore = create<GameState>()(
       turn: 0, maxTurn: 10, logs: [], chatLogs: [], roomId: '', players: [], maxPlayers: 2,
       districts: {}, currentDistrictName: "地点未選択", selectedDistrictId: null,
       playerName: "",
-  myId: "", myTeam: "Explorer", isMyTurn: true, turnOwner: "YOU",
-  isGameOver: false, winnerId: null, isSubmitted: false,
-  isGameStarted: false,
-  setGameStarted: (started) => set({ isGameStarted: started }),
-  selectedGodId: null, godsList: [], resultData: null, predictionModalOpen: false,
-  targetDistrictInfo: null, activeBuffs: [], bgmVolume: 0.5, seVolume: 0.5, isUnderAttack: false,
-  setUnderAttack: (status) => set({ isUnderAttack: status }),
+      myId: "", myTeam: "Explorer", isMyTurn: true, turnOwner: "YOU",
+      isGameOver: false, winnerId: null, isSubmitted: false,
+      isGameStarted: false,
+      setGameStarted: (started) => set({ isGameStarted: started }),
+      selectedGodId: null, godsList: [], resultData: null, predictionModalOpen: false,
+      targetDistrictInfo: null, activeBuffs: [], bgmVolume: 0.5, seVolume: 0.5, isUnderAttack: false,
+      setUnderAttack: (status) => set({ isUnderAttack: status }),
 
-  sidebarOpen: false, setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  lobbyPlayers: [],
-  setLobbyPlayers: (players) => set({ lobbyPlayers: players }),
-  rankingData: [], setRanking: (data) => set({ rankingData: data }),
-  inventory: [], setInventory: (items) => set({ inventory: items }),
+      sidebarOpen: false, setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      lobbyPlayers: [],
+      setLobbyPlayers: (players) => set({ lobbyPlayers: players }),
+      rankingData: [], setRanking: (data) => set({ rankingData: data }),
+      inventory: [], setInventory: (items) => set({ inventory: items }),
 
-  getApiUrl: (endpoint) => {
-    const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-    return `http://${hostname}/Cebu_Conquest/cebu-conquest-batch21-am/api/${endpoint}`;
-  },
-
-  masterData: null, lookupData: null,
-  setLookupData: (data) => {
-    if (!data) return;
-    const lookup = buildLookup(data) as unknown as LookupData;
-    set({ masterData: data, lookupData: lookup });
-  },
-  npcs: {}, setNpcs: (npcData) => set({ npcs: npcData }),
-
-  login: async (username, password = "password123") => {
-    try {
-      const url = get().getApiUrl('login.php');
-      const res = await fetch(url, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      const json = await res.json() as ApiResponse<{ token: string; user: Player }>;
-      if (json.status === 'success' && json.data) {
-        const { token, user } = json.data;
-        const name = user.playerName || user.username;
-        
-        set({
-          token, 
-          isAuthenticated: true, 
-          playerName: name, 
-          myTeam: user.team || "Explorer", 
-          hp: user.hp || user.current_hp || 100, maxHp: user.max_hp || 100,
-          atk: user.atk || 50, def: user.def || 40,
-          ap: user.ap || user.stamina || 100, maxAp: user.max_ap || 100,
-        });
-        await get().syncMasterData();
-        return true;
-      }
-      return false;
-    } catch { return false; }
-  },
-
-  syncMasterData: async () => {
-    try {
-      const json = await get().authenticatedFetch<MasterData>('master-data.php');
-      if (json?.status === 'success' && json.data) {
-        const districtsMap: Record<string, string> = {};
-        json.data.territories.forEach((t) => { 
-          districtsMap[String(t.district_id)] = t.owner_id || ''; 
-        });
-        const lookup = buildLookup(json.data) as unknown as LookupData;
-        set({ districts: districtsMap, masterData: json.data, lookupData: lookup });
-      }
-    } catch (e) { console.error(e); }
-  },
-
-  logout: () => { 
-    useGameStore.persist.clearStorage();
-    window.location.reload(); 
-  },
-  
-  setErrorMessage: (message) => set({ errorMessage: message }),
-  hideError: () => set({ errorMessage: null }),
-  setZoomLevel: (zoom) => set({ zoomLevel: zoom }),
-  completeTutorial: () => {
-    set({ hasSeenTutorial: true, view: 'lobby' });
-  },
-  nextTurn: () => set({ turn: get().turn + 1 }),
-
-  selectGod: (id: number) => {
-    const { roomId, myId, players } = get();
-    if (get().selectedGodId !== null) return;
-
-    const updatedPlayers = players.map(p => 
-      p.id === myId ? { ...p, selectedGodId: id, godId: id, isReady: true } : p
-    );
-
-    set({ 
-      selectedGodId: id, 
-      players: updatedPlayers,
-      view: 'waiting' 
-    });
-
-    socket.emit(CLIENT_EVENTS.READY_TO_START, { roomId, godId: id });
-  },
-
-  setPlayerName: (name) => set({ playerName: name }),
-
-  authenticatedFetch: async <T = unknown>(url: string, options: RequestInit = {}) => {
-    const { token } = get();
-    const headers = { 
-      'Content-Type': 'application/json', 
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}), 
-      ...(options.headers || {}) 
-    };
-    const res = await fetch(get().getApiUrl(url), { ...options, headers });
-    return await res.json() as ApiResponse<T>;
-  },
-
-  openPrediction: (id, name, isMyTerritory = false, isNeutral = false) => {
-    set({ 
-      predictionModalOpen: true, 
-      selectedDistrictId: Number(id), 
-      targetDistrictInfo: { id: Number(id), name, enemyDef: 40, isMyTerritory, isNeutral } 
-    });
-  },
-  closePrediction: () => set({ predictionModalOpen: false, targetDistrictInfo: null }),
-  updateBuffs: () => { /* 実装略 */ },
-
-  syncServerState: (data, myId) => {
-    if (!data) return;
-    
-    const rawPlayers = (data.players as Record<string, Player>) ?? {};
-    let playersArray = (Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers)) as Player[];
-    
-    playersArray = playersArray.map(p => ({
-      ...p,
-      playerName: p.playerName || p.username,
-      name: p.name || p.username,
-      godId: p.godId || p.selectedGodId, 
-      selectedGodId: p.selectedGodId || p.godId,
-      location: p.location || p.districtId,
-      current_hp: p.current_hp || p.hp,
-      isReady: !!(p.selectedGodId || p.godId || p.isReady)
-    }));
-
-    const myPlayerData = playersArray.find((p) => p.id === myId);
-
-    set((state) => {
-      let nextView = state.view;
-
-      const isActuallyStarted = !!data.gameStarted;
-      const hasInitialPosition = !!(myPlayerData?.districtId || myPlayerData?.location);
-
-      if (data.isGameOver) {
-        nextView = 'ranking';
-        if (!state.isGameOver) get().saveResult();
-      } else if (isActuallyStarted) {
-        if (hasInitialPosition) {
-          nextView = 'game';
-        } else {
-          nextView = 'waiting';
-        }
-      } else if (data.phase === 'selection' && nextView === 'lobby') {
-        nextView = 'selection';
-      }
-
-      return {
-        ...state,
-        myId,
-        roomId: (data.roomId as string) ?? state.roomId,
-        hp: myPlayerData?.hp ?? state.hp,
-        maxHp: myPlayerData?.maxHp ?? state.maxHp,
-        ap: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.ap,
-        selectedDistrictId: myPlayerData?.districtId ?? myPlayerData?.location ?? state.selectedDistrictId, 
-        selectedGodId: myPlayerData?.selectedGodId ?? myPlayerData?.godId ?? state.selectedGodId,
-        districts: (data.districts as Record<string, string>) ?? state.districts,
-        players: playersArray,
-        // 🚀 lobbyPlayers 自動同期: ロビー/選択/待機画面では players → lobbyPlayers にミラーリング
-        lobbyPlayers: (['lobby', 'selection', 'waiting'].includes(nextView))
-          ? playersArray.map(p => ({
-              playerId: p.id,
-              username: p.username,
-              playerName: p.playerName || p.username,
-              godKey: undefined,
-              godId: p.selectedGodId || p.godId || null,
-              isReady: !!(p.selectedGodId || p.godId || p.isReady),
-            }))
-          : state.lobbyPlayers,
-        turn: (data.turn as number) ?? state.turn,
-        isMyTurn: (data.turnOwnerId as string) === myId,
-        turnOwner: (data.turnOwnerId as string) === myId ? "YOU" : ((data.turnOwnerName as string) || "ENEMY"),
-        isGameOver: typeof data.isGameOver === 'boolean' ? data.isGameOver : state.isGameOver,
-        winnerId: (data.winnerId as string) ?? state.winnerId,
-        view: nextView,
-      };
-    });
-    
-    const playersAsObject = playersArray.reduce((acc: Record<string, Player>, p: Player) => { 
-      acc[p.id] = p; return acc; 
-    }, {});
-
-    if (get().view === 'game') {
-      window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: data.districts, players: playersAsObject } }));
-    }
-  },
-
-  updateSelectedDistrict: (data) => {
-    set({
-      selectedDistrictId: data.districtId,
-      currentDistrictName: data.districtName,
-      targetDistrictInfo: {
-        id: data.districtId,
-        name: data.districtName,
-        enemyDef: 40, 
-        isMyTerritory: data.isMyTerritory,
-        isNeutral: data.isNeutral
+      getApiUrl: (endpoint) => {
+        const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+        return `http://${hostname}/Cebu_Conquest/cebu-conquest-batch21-am/api/${endpoint}`;
       },
-      predictionModalOpen: true 
-    });
-  },
 
-  updateStatsFromPhaser: (stats) => {
-    if (get().isGameOver) return;
-    set((state) => ({ ...state, ...stats }));
-  },
+      masterData: null, lookupData: null,
+      setLookupData: (data) => {
+        if (!data) return;
+        const lookup = buildLookup(data) as unknown as LookupData;
+        set({ masterData: data, lookupData: lookup });
+      },
+      npcs: {}, setNpcs: (npcData) => set({ npcs: npcData }),
 
-  saveResult: async () => {
-    try {
-      const { players, myId } = get();
-      const myResult = players.find(p => p.id === myId);
-      await get().authenticatedFetch('result.php', {
-        method: 'POST',
-        body: JSON.stringify({ 
-          score: myResult?.occupancy || 0, 
-          team: myResult?.team 
-        })
-      });
-    } catch (e) { console.error(e); }
-  },
+      login: async (username, password = "password123") => {
+        try {
+          const url = get().getApiUrl('login.php');
+          const res = await fetch(url, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+          });
+          const json = await res.json() as ApiResponse<{ token: string; user: Player }>;
+          if (json.status === 'success' && json.data) {
+            const { token, user } = json.data;
+            const name = user.playerName || user.username;
+            
+            set({
+              token, 
+              isAuthenticated: true, 
+              playerName: name, 
+              myTeam: user.team || "Explorer", 
+              hp: user.hp || user.current_hp || 100, maxHp: user.max_hp || 100,
+              atk: user.atk || 50, def: user.def || 40,
+              ap: user.ap || user.stamina || 100, maxAp: user.max_ap || 100,
+            });
+            await get().syncMasterData();
+            return true;
+          }
+          return false;
+        } catch { return false; }
+      },
 
-  attack: (id) => socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'attack', targetId: id }),
-  move: (id) => socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'move', targetId: id }),
-  stay: () => {
-    socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'stay' });
-    window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_STAY));
-  },
-  defend: () => socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'defend' }),
-  escape: () => socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'escape' }),
-  useItem: (id) => socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId: id }),
-  endTurn: () => { socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'turn_end' }); set({ isMyTurn: false, isSubmitted: true }); },
-  setStatus: (status) => set((state) => ({ ...state, ...status })),
-  addLog: (text) => set((state) => ({ logs: [{ text, time: nowTime() }, ...state.logs].slice(0, 10) })),
-  addChatLog: (msg) => {
-    set((state) => ({ chatLogs: [...state.chatLogs, msg].slice(-50) }));
-  },
+      syncMasterData: async () => {
+        try {
+          const json = await get().authenticatedFetch<MasterData>('master-data.php');
+          if (json?.status === 'success' && json.data) {
+            const districtsMap: Record<string, string> = {};
+            json.data.territories.forEach((t) => { 
+              districtsMap[String(t.district_id)] = t.owner_id || ''; 
+            });
+            const lookup = buildLookup(json.data) as unknown as LookupData;
+            set({ districts: districtsMap, masterData: json.data, lookupData: lookup });
+          }
+        } catch (e) { console.error(e); }
+      },
 
-  resetGame: () => window.location.reload(),
-  setBgmVolume: (vol) => set({ bgmVolume: vol }),
-  setSeVolume: (vol) => set({ seVolume: vol }),
+      logout: () => { 
+        useGameStore.persist.clearStorage();
+        window.location.reload(); 
+      },
+      
+      setErrorMessage: (message) => set({ errorMessage: message }),
+      hideError: () => set({ errorMessage: null }),
+      setZoomLevel: (zoom) => set({ zoomLevel: zoom }),
+      completeTutorial: () => {
+        set({ hasSeenTutorial: true, view: 'lobby' });
+      },
+      nextTurn: () => set({ turn: get().turn + 1 }),
+
+      selectGod: (id: number) => {
+        const { roomId, myId, players } = get();
+        if (get().selectedGodId !== null) return;
+
+        // 🚀 修正: 神を選んだ時点では Ready フラグを立てず、WaitingViewでのボタン押下を待つ
+        const updatedPlayers = players.map(p => 
+          p.id === myId ? { ...p, selectedGodId: id, godId: id, isReady: false } : p
+        );
+
+        set({ 
+          selectedGodId: id, 
+          players: updatedPlayers,
+          view: 'waiting' 
+        });
+
+        // 🚀 修正: 神の選択のみを通知 (Readyフラグのリセットを兼ねる)
+        socket.emit('SELECT_GOD', { roomId, godId: id });
+      },
+
+      setPlayerName: (name) => set({ playerName: name }),
+
+      authenticatedFetch: async <T = unknown>(url: string, options: RequestInit = {}) => {
+        const { token } = get();
+        const headers = { 
+          'Content-Type': 'application/json', 
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}), 
+          ...(options.headers || {}) 
+        };
+        const res = await fetch(get().getApiUrl(url), { ...options, headers });
+        return await res.json() as ApiResponse<T>;
+      },
+
+      openPrediction: (id, name, isMyTerritory = false, isNeutral = false) => {
+        set({ 
+          predictionModalOpen: true, 
+          selectedDistrictId: Number(id), 
+          targetDistrictInfo: { id: Number(id), name, enemyDef: 40, isMyTerritory, isNeutral } 
+        });
+      },
+      closePrediction: () => set({ predictionModalOpen: false, targetDistrictInfo: null }),
+      updateBuffs: () => { /* 実装略 */ },
+
+      syncServerState: (data, myId) => {
+        if (!data) return;
+        
+        const rawPlayers = (data.players as Record<string, Player>) ?? {};
+        let playersArray = (Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers)) as Player[];
+        
+        playersArray = playersArray.map(p => ({
+          ...p,
+          playerName: p.playerName || p.username,
+          name: p.name || p.username,
+          godId: p.godId || p.selectedGodId, 
+          selectedGodId: p.selectedGodId || p.godId,
+          location: p.location || p.districtId,
+          current_hp: p.current_hp || p.hp,
+          // 🚀 修正: サーバーから同期される isReady フラグのみを信頼し、神の有無による自動Readyを排除
+          isReady: !!p.isReady
+        }));
+
+        const myPlayerData = playersArray.find((p) => p.id === myId);
+
+        set((state) => {
+          let nextView = state.view;
+
+          const isActuallyStarted = !!data.gameStarted;
+          const hasInitialPosition = !!(myPlayerData?.districtId || myPlayerData?.location);
+
+          if (data.isGameOver) {
+            nextView = 'ranking';
+            if (!state.isGameOver) get().saveResult();
+          } else if (isActuallyStarted) {
+            if (hasInitialPosition) {
+              nextView = 'game';
+            } else {
+              nextView = 'waiting';
+            }
+          } else if (data.phase === 'selection' && nextView === 'lobby') {
+            nextView = 'selection';
+          }
+
+          return {
+            ...state,
+            myId,
+            roomId: (data.roomId as string) ?? state.roomId,
+            hp: myPlayerData?.hp ?? state.hp,
+            maxHp: myPlayerData?.maxHp ?? state.maxHp,
+            ap: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.ap,
+            selectedDistrictId: myPlayerData?.districtId ?? myPlayerData?.location ?? state.selectedDistrictId, 
+            selectedGodId: myPlayerData?.selectedGodId ?? myPlayerData?.godId ?? state.selectedGodId,
+            districts: (data.districts as Record<string, string>) ?? state.districts,
+            players: playersArray,
+            // 🚀 修正: lobbyPlayers ミラーリング時もサーバーの isReady フラグをそのまま採用
+            lobbyPlayers: (['lobby', 'selection', 'waiting'].includes(nextView))
+              ? playersArray.map(p => ({
+                  playerId: p.id,
+                  username: p.username,
+                  playerName: p.playerName || p.username,
+                  godKey: undefined,
+                  godId: p.selectedGodId || p.godId || null,
+                  isReady: !!p.isReady,
+                }))
+              : state.lobbyPlayers,
+            turn: (data.turn as number) ?? state.turn,
+            isMyTurn: (data.turnOwnerId as string) === myId,
+            turnOwner: (data.turnOwnerId as string) === myId ? "YOU" : ((data.turnOwnerName as string) || "ENEMY"),
+            isGameOver: typeof data.isGameOver === 'boolean' ? data.isGameOver : state.isGameOver,
+            winnerId: (data.winnerId as string) ?? state.winnerId,
+            view: nextView,
+          };
+        });
+        
+        const playersAsObject = playersArray.reduce((acc: Record<string, Player>, p: Player) => { 
+          acc[p.id] = p; return acc; 
+        }, {});
+
+        if (get().view === 'game') {
+          window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: data.districts, players: playersAsObject } }));
+        }
+      },
+
+      updateSelectedDistrict: (data) => {
+        set({
+          selectedDistrictId: data.districtId,
+          currentDistrictName: data.districtName,
+          targetDistrictInfo: {
+            id: data.districtId,
+            name: data.districtName,
+            enemyDef: 40, 
+            isMyTerritory: data.isMyTerritory,
+            isNeutral: data.isNeutral
+          },
+          predictionModalOpen: true 
+        });
+      },
+
+      updateStatsFromPhaser: (stats) => {
+        if (get().isGameOver) return;
+        set((state) => ({ ...state, ...stats }));
+      },
+
+      saveResult: async () => {
+        try {
+          const { players, myId } = get();
+          const myResult = players.find(p => p.id === myId);
+          await get().authenticatedFetch('result.php', {
+            method: 'POST',
+            body: JSON.stringify({ 
+              score: myResult?.occupancy || 0, 
+              team: myResult?.team 
+            })
+          });
+        } catch (e) { console.error(e); }
+      },
+
+      attack: (id) => socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'attack', targetId: id }),
+      move: (id) => socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'move', targetId: id }),
+      stay: () => {
+        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'stay' });
+        window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_STAY));
+      },
+      defend: () => socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'defend' }),
+      escape: () => socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'escape' }),
+      useItem: (id) => socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId: id }),
+      endTurn: () => { socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'turn_end' }); set({ isMyTurn: false, isSubmitted: true }); },
+      setStatus: (status) => set((state) => ({ ...state, ...status })),
+      addLog: (text) => set((state) => ({ logs: [{ text, time: nowTime() }, ...state.logs].slice(0, 10) })),
+      addChatLog: (msg) => {
+        set((state) => ({ chatLogs: [...state.chatLogs, msg].slice(-50) }));
+      },
+
+      resetGame: () => window.location.reload(),
+      setBgmVolume: (vol) => set({ bgmVolume: vol }),
+      setSeVolume: (vol) => set({ seVolume: vol }),
     }),
     {
       name: 'cebu-conquest-storage',

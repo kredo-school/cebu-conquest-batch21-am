@@ -1,6 +1,5 @@
 // src/components/WaitingView.tsx
-// (いっせいさんの提示したコードをそのまま採用)
-import React, { useState, useEffect, useRef, memo } from 'react';
+import React, { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useGameStore, Player, LobbyPlayer } from '../store';
 import socket from '../socket';
 import SoundManager from '../game/SoundManager';
@@ -8,31 +7,34 @@ import { CLIENT_EVENTS } from '../../shared/socketEvents.js';
 
 /**
  * 🛡️ 内部定数：画像のデザインに合わせた神々のデータ
+ * パスは /assets/images/gods/ 配下のローカルファイルを参照
  */
 const GOD_TRAITS: Record<number, { name: string; img: string; icon: string }> = {
-  1: { name: "LAPU-LAPU", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDM6_rZpC_4I_U-rSInUoYVreK68Y_OqPof_8S07hKnd6H4n7Y7-4rYVvP7W5_R9Zz-eZ2_f4R8E6h7V_r_v6P_Qz-R_z-e", icon: "https://api.dicebear.com/7.x/identicon/svg?seed=1" },
-  2: { name: "MACTAN",    img: "https://lh3.googleusercontent.com/aida-public/AB6AXuC7_Y7-4rYVvP7W5_R9Zz-eZ2_f4R8E6h7V_r_v6P_Qz-R_z-e", icon: "https://api.dicebear.com/7.x/identicon/svg?seed=2" },
-  3: { name: "APO LAKI",  img: "https://lh3.googleusercontent.com/aida-public/AB6AXuD8E6h7V_r_v6P_Qz-R_z-eR6z-eZ2_f4R8E6h7V_r_v6P_Qz-R_z-e", icon: "https://api.dicebear.com/7.x/identicon/svg?seed=3" },
-  4: { name: "LUMAWIG",   img: "https://lh3.googleusercontent.com/aida-public/AB6AXuB_v6P_Qz-R_z-eR6z-eZ2_f4R8E6h7V_r_v6P_Qz-R_z-e", icon: "https://api.dicebear.com/7.x/identicon/svg?seed=4" },
-  5: { name: "EDUARDO",   img: "https://images.unsplash.com/photo-1584281722573-0f723675017e?q=80&w=600", icon: "https://api.dicebear.com/7.x/identicon/svg?seed=5" },
-  6: { name: "KURT",      img: "https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?q=80&w=600", icon: "https://api.dicebear.com/7.x/identicon/svg?seed=6" },
-  7: { name: "STEPHEN",   img: "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?q=80&w=600", icon: "https://api.dicebear.com/7.x/identicon/svg?seed=7" },
-  8: { name: "BERNARDINE", img: "https://images.unsplash.com/photo-1555664424-778a1e5e1b48?q=80&w=600", icon: "https://api.dicebear.com/7.x/identicon/svg?seed=8" },
+  1: { name: "Neil",       img: "/assets/images/gods/Neil.png",       icon: "https://api.dicebear.com/7.x/identicon/svg?seed=1" },
+  2: { name: "Garry",      img: "/assets/images/gods/Garry.png",      icon: "https://api.dicebear.com/7.x/identicon/svg?seed=2" },
+  3: { name: "Shem",       img: "/assets/images/gods/Shem.png",       icon: "https://api.dicebear.com/7.x/identicon/svg?seed=3" },
+  4: { name: "Quisie",     img: "/assets/images/gods/Quisie.png",     icon: "https://api.dicebear.com/7.x/identicon/svg?seed=4" }, // スペル修正済み
+  5: { name: "Eduardo",    img: "/assets/images/gods/Eduardo.png",    icon: "https://api.dicebear.com/7.x/identicon/svg?seed=5" },
+  6: { name: "Kurt",       img: "/assets/images/gods/Kurt.png",       icon: "https://api.dicebear.com/7.x/identicon/svg?seed=6" },
+  7: { name: "Stephen",    img: "/assets/images/gods/Stephen.png",    icon: "https://api.dicebear.com/7.x/identicon/svg?seed=7" },
+  8: { name: "Bernardine", img: "/assets/images/gods/Bernardine.png", icon: "https://api.dicebear.com/7.x/identicon/svg?seed=8" },
 };
 
 const PlayerCard = memo(({ player, isMe, isHost }: { player: Player; isMe: boolean; isHost: boolean }) => {
   const godId = player.selectedGodId || player.godId;
   const god = godId ? GOD_TRAITS[godId] : null;
-  const isReady = !!godId;
+  // 🚀 修正: 神のIDの有無は無視し、サーバーからの isReady フラグのみを評価する
+  const isReady = player.isReady === true;
 
   return (
     <div className={`relative flex flex-col bg-[#0f172a]/60 border-t-2 rounded-xl overflow-hidden transition-all duration-500 h-[300px] w-full
       ${isReady ? 'border-orange-500 shadow-[0_10px_30px_rgba(249,115,22,0.15)]' : 'border-slate-800 opacity-60'}`}>
       <div className="relative h-44 w-full overflow-hidden bg-slate-950">
         <img 
-          className={`h-full w-full object-cover transition-all duration-1000 ${isReady ? 'grayscale-0 scale-100' : 'grayscale brightness-50 scale-110'}`} 
+          className={`h-full w-full object-cover transition-all duration-1000 ${god ? 'grayscale-0 scale-100' : 'grayscale brightness-50 scale-110'}`} 
           src={god ? god.img : `https://api.dicebear.com/7.x/avataaars/svg?seed=${player.id}`} 
           alt="Visual" 
+          onError={(e) => { (e.target as HTMLImageElement).src = '/assets/images/gods/fallback.png'; }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] to-transparent opacity-60"></div>
         {isHost && <div className="absolute top-3 right-3 px-2 py-0.5 bg-orange-500 text-[9px] font-black text-black rounded uppercase tracking-tighter shadow-lg font-fix text-center">HOST</div>}
@@ -76,20 +78,28 @@ export const WaitingView: React.FC<WaitingViewProps> = ({ onStart }) => {
 
   const handleReadyClick = () => {
     setIsLocked(true);
+    socket.emit(CLIENT_EVENTS.READY_TO_START); // 🚀 サーバーに準備完了を通知
     onStart(); 
     try { SoundManager.playSe('click'); } catch {}
   };
 
   const totalSlots = maxPlayers || 2;
-  // 🚀 修正: lobbyPlayers を優先して参加人数・ready判定を行う
-  const activeLobby = lobbyPlayers.length > 0 ? lobbyPlayers : players.map(p => ({
-    playerId: p.id,
-    username: p.username,
-    playerName: p.playerName || p.username,
-    godId: p.selectedGodId || p.godId || null,
-    isReady: !!(p.selectedGodId || p.godId || p.isReady),
-  } as LobbyPlayer));
-  const readyCount = activeLobby.filter(p => p.godId || p.isReady).length;
+
+  // 🚀 ロジック修正: 神選択の有無に関わらず、純粋な準備完了フラグのみで構成
+  const activeLobby = useMemo(() => {
+    if (lobbyPlayers.length > 0) return lobbyPlayers;
+    return players.map(p => ({
+      playerId: p.id,
+      username: p.username,
+      playerName: p.playerName || p.username,
+      godId: p.selectedGodId || p.godId || null,
+      isReady: p.isReady === true, 
+    } as LobbyPlayer));
+  }, [lobbyPlayers, players]);
+
+  // 🚀 人数カウント修正: isReady が true のプレイヤーのみカウント
+  const readyCount = useMemo(() => activeLobby.filter(p => p.isReady === true).length, [activeLobby]);
+  
   const syncPercentage = Math.floor((readyCount / totalSlots) * 100);
   const isAllReady = readyCount >= totalSlots && totalSlots > 0;
 
@@ -118,7 +128,6 @@ export const WaitingView: React.FC<WaitingViewProps> = ({ onStart }) => {
         @keyframes sync-pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
       `}</style>
 
-      {/* HEADER */}
       <header className="fixed top-0 w-full z-50 flex justify-between items-center px-10 py-8 bg-transparent">
         <span className="text-2xl font-black text-[#fa7000] uppercase tracking-tighter font-fix">CEBU CONQUEST</span>
         <div className="flex items-center gap-6">
@@ -154,9 +163,7 @@ export const WaitingView: React.FC<WaitingViewProps> = ({ onStart }) => {
 
           <div className={`grid gap-6 mb-12 items-stretch mx-auto w-full text-left
             ${totalSlots <= 2 ? 'max-w-4xl grid-cols-2' : totalSlots === 3 ? 'max-w-6xl grid-cols-3' : 'max-w-7xl grid-cols-4'}`}>
-            {/* 🚀 修正: lobbyPlayers から対応する Player を探して PlayerCard に渡す */}
             {activeLobby.map((lp: LobbyPlayer) => {
-              // lobbyPlayer に対応する players の Player オブジェクトを探す（PlayerCardが Player 型を要求するため）
               const playerData: Player = players.find(p => p.id === lp.playerId) || {
                 id: lp.playerId,
                 username: lp.username || 'Unknown',
@@ -215,13 +222,13 @@ export const WaitingView: React.FC<WaitingViewProps> = ({ onStart }) => {
                 {!isLocked ? (
                   <button 
                     onClick={handleReadyClick} 
-                    disabled={!isAllReady}
+                    disabled={activeLobby.length < totalSlots} // 全員揃うまで待機
                     className={`w-full py-5 rounded-xl font-black uppercase tracking-[0.3em] text-sm transition-all transform active:scale-95 shadow-2xl font-fix text-center
-                    ${isAllReady 
+                    ${activeLobby.length >= totalSlots 
                         ? 'bg-orange-600 text-white shadow-orange-950/40 hover:bg-orange-500' 
                         : 'bg-slate-800 text-slate-600 cursor-not-allowed opacity-50'}`}
                   >
-                    {isAllReady ? 'READY?' : 'WAITING...'}
+                    {activeLobby.length >= totalSlots ? 'READY?' : 'WAITING FOR SQUAD...'}
                   </button>
                 ) : (
                   <div className="w-full py-5 rounded-xl bg-cyan-950/20 border border-cyan-500/50 flex flex-col items-center justify-center sync-pulse shadow-2xl text-center">
