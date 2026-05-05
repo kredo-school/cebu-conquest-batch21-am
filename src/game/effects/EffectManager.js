@@ -1,115 +1,77 @@
-import Phaser from "phaser";
+// src/game/effects/EffectManager.js
+import { playCrossFlash  } from './CrossFlashEffect.js';
+import { playBellRipple  } from './BellRippleEffect.js';
+import { playHolyLight   } from './HolyLightEffect.js';
+import { playAshSmoke    } from './AshSmokeEffect.js';
+import { playPrayerHalo  } from './PrayerHaloEffect.js';
+import { CEBU_PALETTE    } from './CebuPalette.js';
 
 export default class EffectManager {
   constructor(scene) {
     this.scene = scene;
   }
 
+  /**
+   * 攻撃側エフェクト（ACTION_RESULT受信時・攻撃者位置）
+   * → 十字架の閃光（マゼランクロスモチーフ）
+   */
   playSlashEffect(x, y) {
-    const scene = this.scene;
-    const gfx = scene.add.graphics({ x, y }).setDepth(2000);
-    const len = 50;
-    const angles = [-45, 0, 45];
-
-    angles.forEach((deg) => {
-      const rad = Phaser.Math.DegToRad(deg);
-      const cx = Math.cos(rad) * len;
-      const cy = Math.sin(rad) * len;
-      gfx.lineStyle(3, 0xffffff, 1);
-      gfx.beginPath();
-      gfx.moveTo(-cx, -cy);
-      gfx.lineTo(cx, cy);
-      gfx.strokePath();
-    });
-
-    scene.tweens.add({
-      targets: gfx,
-      scaleX: 1.6,
-      scaleY: 1.6,
-      alpha: 0,
-      duration: 400,
-      ease: "Power2",
-      onComplete: () => gfx.destroy(),
-    });
+    playCrossFlash(this.scene, x, y);
   }
 
+  /**
+   * 被攻撃側エフェクト（ACTION_RESULT受信時・対象位置）
+   * → 灰・煙 + 鐘の波紋1回（ダメージを受けた荘厳な表現）
+   */
   playExplosionEffect(x, y) {
-    const scene = this.scene;
-    const DEPTH = 2000;
-    const colors = [0xff6600, 0xff9900, 0xffcc00, 0xff3300, 0xffffff];
-    const count = 10;
-
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2;
-      const dist = Phaser.Math.Between(60, 120);
-      const color = colors[Phaser.Math.Between(0, colors.length - 1)];
-      const radius = Phaser.Math.Between(4, 8);
-      const dot = scene.add.circle(x, y, radius, color).setDepth(DEPTH);
-
-      scene.tweens.add({
-        targets: dot,
-        x: x + Math.cos(angle) * dist,
-        y: y + Math.sin(angle) * dist,
-        scaleX: 0.2,
-        scaleY: 0.2,
-        alpha: 0,
-        duration: Phaser.Math.Between(400, 700),
-        ease: "Power2",
-        onComplete: () => dot.destroy(),
-      });
-    }
-
-    const flash = scene.add.circle(x, y, 30, 0xffffff).setDepth(DEPTH - 1).setAlpha(0.8);
-    scene.tweens.add({
-      targets: flash,
-      scaleX: 2,
-      scaleY: 2,
-      alpha: 0,
-      duration: 300,
-      ease: "Power2",
-      onComplete: () => flash.destroy(),
-    });
+    playAshSmoke(this.scene, x, y);
+    playBellRipple(this.scene, x, y, { rings: 1, color: CEBU_PALETTE.WHITE_SMOKE });
   }
 
+  /**
+   * 占領完了エフェクト（_syncDistricts で地区が自陣になった瞬間）
+   * → 鐘の波紋3回（占領の喜び）+ 金テキスト浮上
+   */
   playCapturePopup(x, y) {
-    const scene = this.scene;
-    const text = scene.add
-      .text(x, y, "+1地区", {
-        fontSize: "22px",
-        fontFamily: "Arial Black, sans-serif",
-        color: "#ffffff",
-        stroke: "#ff6600",
-        strokeThickness: 4,
-        shadow: { offsetX: 1, offsetY: 2, color: "#000000", blur: 3, fill: true },
+    playBellRipple(this.scene, x, y, { rings: 3 });
+    this._playGoldText(x, y, '+1地区');
+  }
+
+  // ─── 内部ヘルパー ───────────────────────────────────────
+
+  /**
+   * 金色テキストがゆっくり浮かび上がってフェードアウトする
+   * （占領ポップアップ用。派手なジャンプ・バウンスは使わない）
+   */
+  _playGoldText(x, y, label) {
+    const text = this.scene.add
+      .text(x, y, label, {
+        fontSize:        '20px',
+        fontFamily:      'serif',
+        color:           '#D4AF37',
+        stroke:          '#6B3410',
+        strokeThickness: 3,
+        shadow: { offsetX: 1, offsetY: 1, color: '#000000', blur: 2, fill: true },
       })
       .setOrigin(0.5, 0.5)
       .setDepth(3000)
-      .setScale(0);
+      .setAlpha(0);
 
-    scene.tweens.add({
-      targets: text,
-      scaleX: 1.3,
-      scaleY: 1.3,
-      duration: 200,
-      ease: "Back.Out",
+    this.scene.tweens.add({
+      targets:  text,
+      alpha:    { from: 0, to: 1 },
+      y:        y - 20,
+      duration: 400,
+      ease:     'Sine.easeOut',
       onComplete: () => {
-        scene.tweens.add({
-          targets: text,
-          scaleX: 1.0,
-          scaleY: 1.0,
-          duration: 100,
-          ease: "Linear",
-          onComplete: () => {
-            scene.tweens.add({
-              targets: text,
-              y: y - 80,
-              alpha: 0,
-              duration: 800,
-              ease: "Power1",
-              delay: 200,
-              onComplete: () => text.destroy(),
-            });
-          },
+        this.scene.tweens.add({
+          targets:  text,
+          alpha:    0,
+          y:        y - 60,
+          duration: 700,
+          delay:    400,
+          ease:     'Sine.easeIn',
+          onComplete: () => text.destroy(),
         });
       },
     });
