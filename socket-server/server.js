@@ -1,5 +1,4 @@
 // src/socket-server/server.js
-// ※GDD準拠: ファイルパスは socket-server/server.js に正規化されています。
 
 import express from 'express';
 import http from 'http';
@@ -16,7 +15,7 @@ const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } 
 // ==========================================
 // 🚀 【設定】APIとチームカラー設定
 // ==========================================
-const API_BASE_URL = 'http://localhost/cebu-conquest-batch21-am/api/';
+const API_BASE_URL = 'http://10.20.60.109:8000/api/';
 
 const TEAM_CONFIG = [
     { id: 'red', name: 'レッド', color: '#e74c3c' },
@@ -26,10 +25,24 @@ const TEAM_CONFIG = [
 ];
 
 // ==========================================
+// 🚀 【神の聖地設定】8神体制対応マスタ (K-1対応)
+// ==========================================
+// ※実際のgodIdのキーに合わせて調整してください
+const GOD_SACRED_LANDS = {
+    "god_1": { sacredDistrictId: "11101" }, // Maya Port
+    "god_2": { sacredDistrictId: "11105" }, // Central Cebu
+    "god_3": { sacredDistrictId: "11113" }, // Bogo Hilltop
+    "god_4": { sacredDistrictId: "11119" }, // Marine Giant
+    "god_5": { sacredDistrictId: "13101" }, // IT Park
+    "god_6": { sacredDistrictId: "13204" }, // Basilica
+    "god_7": { sacredDistrictId: "11120" }, // Heritage Gourmet
+    "god_8": { sacredDistrictId: "11117" }, // Sacred Spring
+};
+
+// ==========================================
 // 🚀 【27地区マスタ】すべての地区のバフと優先度
 // ==========================================
 const DISTRICTS_MASTER = {
-    // ── セブ市街地エリア（エリアID: 11）──
     "11101": { name: "Maya Port（マヤ港）", priority: 5, buff: { atk: 8, def: 8 } },
     "11102": { name: "Sugarcane Field（サトウキビ畑）", priority: 4, buff: { atk: 5, def: 5 } },
     "11103": { name: "Northern Hills（北の丘）", priority: 5, buff: { atk: 10, def: 5 } },
@@ -47,7 +60,6 @@ const DISTRICTS_MASTER = {
     "11119": { name: "Marine Giant（海の巨人）", priority: 10, buff: { atk: 25, def: 0 } },
     "11120": { name: "Heritage Gourmet（ヘリテージグルメ）", priority: 8, buff: { atk: 0, def: 25 } },
     "11121": { name: "Sunset Cove（夕日の入り江）", priority: 6, buff: { atk: 10, def: 10 } },
-    // ── 北部エリア（エリアID: 13）──
     "13101": { name: "IT Park（ITパーク）", priority: 9, buff: { atk: 15, def: 10 } },
     "13102": { name: "Waterfront Hotel（ウォーターフロントホテル）", priority: 7, buff: { atk: 10, def: 10 } },
     "13103": { name: "Ayala Malls Center（アヤラモール）", priority: 8, buff: { atk: 5, def: 15 } },
@@ -60,7 +72,6 @@ const DISTRICTS_MASTER = {
 // ==========================================
 const rooms = new Map();
 
-// BUG-005: SYNC_STATE 送信前に各プレイヤーのJWT等の機微情報を除去
 function sanitizeRoomState(roomState) {
     if (!roomState) return roomState;
     const safePlayers = {};
@@ -71,13 +82,12 @@ function sanitizeRoomState(roomState) {
     return { ...roomState, players: safePlayers };
 }
 
-// 新しい部屋の gameState を生成する関数
 function createInitialGameState(maxPlayers = 4) {
     return {
         roomId: null,
         status: 'waiting', 
         turn: 0, 
-        maxTurn: 30, // Day 10 (3ターン×10日分)
+        maxTurn: 30,
         maxPlayers: maxPlayers,
         turnOwnerId: null, 
         firstPlayerId: null,
@@ -86,12 +96,10 @@ function createInitialGameState(maxPlayers = 4) {
     };
 }
 
-// 汎用的なランダムID生成関数（部屋ID用）
 function generateRoomId() {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-// 📌 【ロビー同期用ヘルパー】React側にlobbyUpdatedを発行
 function broadcastLobbyUpdate(roomId, roomState) {
     if (!roomState) return;
     const playersArr = Object.values(roomState.players).map(p => ({
@@ -144,7 +152,7 @@ function resolveBattle(atk, def) {
 }
 
 // ==========================================
-// 🤖 タクティカル・ラプパプ AIエンジン (ルーム対応)
+// 🤖 タクティカル・ラプパプ AIエンジン
 // ==========================================
 function processNpcTurn(roomId) {
     const roomState = rooms.get(roomId);
@@ -298,7 +306,6 @@ io.on('connection', (socket) => {
     socket.authToken = socket.handshake.auth?.token || "";
     socket.roomId = null;
 
-    // 🚀 1. 部屋作成
     socket.on('CREATE_ROOM', async (config, callback) => {
         const roomId = generateRoomId();
         const roomState = createInitialGameState(config?.maxPlayers || 4);
@@ -339,7 +346,7 @@ io.on('connection', (socket) => {
             dbUserId: config.id || null,
             token: socket.authToken,
             godName: godName,
-            selectedGodId: null, // 初期化
+            selectedGodId: null,
             ...baseStats,
             inventory: inventory,
             team: teamInfo.id,
@@ -356,14 +363,18 @@ io.on('connection', (socket) => {
         }
 
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
-        broadcastLobbyUpdate(roomId, roomState); // ロビー同期
+        broadcastLobbyUpdate(roomId, roomState);
 
         if (callback) callback({ success: true, roomId: roomId });
     });
 
-    // 🚀 2. 部屋参加
+    // 🚀 [K-4 修正] 接続確認・IPミスマッチ確認用のログを追加
     socket.on('JOIN_ROOM', async (data, callback) => {
         const roomId = data.roomId?.toUpperCase();
+        
+        console.log(`[JOIN] socket=${socket.id} user=${data?.username} room=${roomId}`);
+        console.log(`[ROOMS] existing rooms: ${Array.from(rooms.keys()).join(', ')}`);
+
         const roomState = rooms.get(roomId);
 
         if (!roomState) {
@@ -413,7 +424,7 @@ io.on('connection', (socket) => {
             dbUserId: data?.id || null,
             token: socket.authToken,
             godName: godName,
-            selectedGodId: null, // 初期化
+            selectedGodId: null,
             ...baseStats,
             inventory: inventory,
             team: teamInfo.id,
@@ -429,20 +440,21 @@ io.on('connection', (socket) => {
         }
 
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
-        broadcastLobbyUpdate(roomId, roomState); // ロビー同期
+        broadcastLobbyUpdate(roomId, roomState);
 
         if (callback) callback({ success: true });
     });
 
-    // 🚀 【NPCの任意追加】
+    // 🚀 [K-5 修正] NPCの追加バリデーション
     socket.on('ADD_NPC', () => {
         const roomId = socket.roomId;
-        if (!roomId) return;
+        if (!roomId) return socket.emit(SERVER_EVENTS.ERROR_MESSAGE, { reason: 'room_not_found' });
+        
         const roomState = rooms.get(roomId);
-        if (!roomState) return;
+        if (!roomState) return socket.emit(SERVER_EVENTS.ERROR_MESSAGE, { reason: 'room_not_found' });
 
         const currentCount = Object.keys(roomState.players).length;
-        if (currentCount >= roomState.maxPlayers) return;
+        if (currentCount >= roomState.maxPlayers) return socket.emit(SERVER_EVENTS.ERROR_MESSAGE, { reason: 'room_full' });
 
         const npcId = `npc_${Date.now()}`;
         const teamInfo = TEAM_CONFIG[currentCount];
@@ -457,9 +469,9 @@ io.on('connection', (socket) => {
 
         roomState.players[npcId] = {
             id: npcId,
-            username: `猛将ラプパプ(${teamInfo.name})`,
+            username: `NPC_${currentCount + 1}(${teamInfo.name})`,
             dbUserId: null, token: null, godName: "セブの精霊",
-            selectedGodId: 99, // NPC用ダミー
+            selectedGodId: 99,
             hp: 120, maxHp: 120, ap: 100, maxAp: 100,
             atk: 75, def: 55, faith: 1.0,
             inventory: [],
@@ -477,10 +489,9 @@ io.on('connection', (socket) => {
             `🤖 ${roomState.players[npcId].username} が ${DISTRICTS_MASTER[startDistrictId]?.name || startDistrictId} に展開しました！`
         );
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
-        broadcastLobbyUpdate(roomId, roomState); // ロビー同期
+        broadcastLobbyUpdate(roomId, roomState);
     });
 
-    // 🚀 【神選択画面への入室】全プレイヤーの isReady をリセット
     socket.on(CLIENT_EVENTS.ENTER_GOD_SELECTION, (data) => {
         const roomId = socket.roomId || data?.roomId;
         if (!roomId) return;
@@ -488,62 +499,74 @@ io.on('connection', (socket) => {
         const roomState = rooms.get(roomId);
         if (!roomState) return;
 
-        // 部屋にいる全プレイヤーの isReady を強制的に false にリセット
         Object.values(roomState.players).forEach(p => {
             p.isReady = false;
         });
 
-        console.log(`🔄 [Room ${roomId}] 神選択画面遷移: 全プレイヤーの isReady をリセットしました`);
-
-        // リセットされた安全な状態を全員に同期
+        console.log(`🔄 [Room ${roomId}] 神選択フェーズ開始: Readyフラグを全員リセットしました`);
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
         broadcastLobbyUpdate(roomId, roomState);
     });
 
-    // 🚀 【神の選択】 ★修正箇所：isReadyや開始判定を完全に削除し、共有のみ行う
+    // 🚀 [K-1 & K-3 修正] 神の重複選択防止と聖地割り当て
     socket.on(CLIENT_EVENTS.SELECT_GOD, (data) => {
         const roomId = socket.roomId;
         if (!roomId) return;
         const roomState = rooms.get(roomId);
         if (!roomState) return;
 
+        // 重複チェック
+        const alreadyTaken = Object.values(roomState.players).some(
+            p => p.id !== socket.id && p.selectedGodId === data.godId
+        );
+
+        if (alreadyTaken) {
+            socket.emit(SERVER_EVENTS.ACTION_REJECTED, { reason: 'already_taken', godKey: data.godId });
+            return;
+        }
+
         const p = roomState.players[socket.id];
         if (p) {
             p.selectedGodId = data.godId;
-            // 純粋に神が選ばれたことだけを部屋の全員に通知する（Lobbyの表示更新のため）
+            
+            // K-1: 該当する神の聖地を自陣として設定
+            if (GOD_SACRED_LANDS[data.godId]) {
+                const sacredId = GOD_SACRED_LANDS[data.godId].sacredDistrictId;
+                roomState.districts[sacredId] = socket.id;
+                p.districtId = sacredId;
+                console.log(`✨ [Room ${roomId}] ${p.username} に聖地 ${sacredId} を付与しました`);
+            }
+            
             io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
             broadcastLobbyUpdate(roomId, roomState);
-            console.log(`✨ [Room ${roomId}] ${p.username} selected god: ${data.godId}`);
+            console.log(`✨ [Room ${roomId}] ${p.username} が神ID:${data.godId} を選択（準備は未完了）`);
         }
     });
 
-    // 🚀 3. 準備完了の同期 & ゲーム開始 ★修正箇所：ゲーム開始ロジックは純粋にここだけに分離
-    socket.on(CLIENT_EVENTS.PLAYER_READY, (data) => {
-        const roomId = socket.roomId || data.roomId;
+    socket.on(CLIENT_EVENTS.READY_TO_START, (data) => {
+        const roomId = socket.roomId || data?.roomId;
         if (!roomId) return;
         const roomState = rooms.get(roomId);
         if (!roomState) return;
 
         const p = roomState.players[socket.id];
         if (p) {
-            // ここで初めて isReady を true にする
             p.isReady = data.ready !== undefined ? data.ready : true;
+            console.log(`✅ [Room ${roomId}] ${p.username} の出撃準備が完了しました`);
             
-            if (data.startDistrictId) {
+            if (data.startDistrictId && !p.districtId) {
                 p.districtId = String(data.startDistrictId);
                 roomState.districts[p.districtId] = socket.id;
             }
 
-            // 状態が更新されたのでロビーをブロードキャスト
             broadcastLobbyUpdate(roomId, roomState);
 
             const playersArr = Object.values(roomState.players);
             const currentCount = playersArr.length;
             const maxPlayers = roomState.maxPlayers;
-            // 全員が isReady かチェックする
+            
             const allReady = currentCount > 0 && playersArr.every(pl => pl.isReady);
 
-            // 参加人数がMAXに達しており、かつ全員が準備完了状態の場合のみ開始
             if (currentCount >= maxPlayers && allReady) {
                 Object.values(roomState.players).forEach(p => {
                     if (p.isNpc && !p.districtId) {
@@ -566,7 +589,6 @@ io.on('connection', (socket) => {
                 roomState.turnOwnerId = firstId;
                 
                 io.to(roomId).emit(SERVER_EVENTS.GAME_START);
-                
                 io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
                 io.to(roomId).emit(SERVER_EVENTS.TURN_START, { 
                     turn: 1, 
@@ -582,7 +604,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 🚀 【アクション実行＆ DB保存】
     socket.on(CLIENT_EVENTS.ACTION_SUBMIT, async (data) => {
         const roomId = socket.roomId;
         if (!roomId) return;
@@ -664,7 +685,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 🚀 【防御アクション】
     socket.on(CLIENT_EVENTS.ACTION_DEFEND, () => {
         const roomId = socket.roomId;
         if (!roomId) return;
@@ -678,7 +698,6 @@ io.on('connection', (socket) => {
         finalizeTurn(roomId, socket.id);
     });
 
-    // 🚀 【逃走アクション】
     socket.on(CLIENT_EVENTS.ACTION_ESCAPE, () => {
         const roomId = socket.roomId;
         if (!roomId) return;
@@ -702,7 +721,6 @@ io.on('connection', (socket) => {
         finalizeTurn(roomId, socket.id);
     });
 
-    // 🚀 【アイテム使用ロジック】
     socket.on(CLIENT_EVENTS.ACTION_USE_ITEM, async ({ itemId }) => {
         const roomId = socket.roomId;
         if (!roomId) return;
@@ -757,20 +775,23 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 🚀 【チャット送信】
+    // 🚀 [K-2 修正] サーバー側のusernameを強制適用・Timestampの統一
     socket.on(CLIENT_EVENTS.SEND_CHAT, (data) => {
         const roomId = socket.roomId;
         if (!roomId) return;
+
+        const roomState = rooms.get(roomId);
+        const p = roomState?.players[socket.id];
+        if (!p) return;
         
         io.to(roomId).emit(SERVER_EVENTS.RECEIVE_CHAT, {
             senderId: socket.id,
-            username: data.username,
+            username: p.username, // ★ クライアントからの自己申告を無視し、サーバーの確実な状態を利用
             message: data.message,
-            timestamp: new Date().toISOString()
+            timestamp: Date.now()
         });
     });
 
-    // 🚀 【ルーム退出】
     socket.on(CLIENT_EVENTS.LEAVE_ROOM, (data) => {
         const roomId = data?.roomId || socket.roomId;
         if (!roomId) return;
@@ -792,12 +813,11 @@ io.on('connection', (socket) => {
                 finalizeTurn(roomId, socket.id);
             } else {
                 io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
-                broadcastLobbyUpdate(roomId, roomState); // ロビー同期
+                broadcastLobbyUpdate(roomId, roomState);
             }
         }
     });
 
-    // 🚀 【プレイヤー切断時のクリーンアップ】
     socket.on('disconnect', () => {
         console.log(`❌ Disconnected: ${socket.id}`);
         const roomId = socket.roomId;
@@ -839,12 +859,11 @@ io.on('connection', (socket) => {
             }
         } else {
             io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
-            broadcastLobbyUpdate(roomId, roomState); // ロビー同期
+            broadcastLobbyUpdate(roomId, roomState);
         }
     });
 });
 
-// BUG-010: ターン制ゲームのため毎秒同期は不要。5秒のヘルスチェックに変更。
 setInterval(() => {
     rooms.forEach((roomState, roomId) => {
         if (Object.keys(roomState.players).length > 0) {
@@ -853,6 +872,6 @@ setInterval(() => {
     });
 }, 5000);
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Heavy Tactical Server Running on port ${PORT}`);
 });
