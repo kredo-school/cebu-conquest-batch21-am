@@ -127,8 +127,19 @@ export const useGameEvents = () => {
 
     // 4. 📢 ターン開始通知 (turnStart)
     socket.on(SERVER_EVENTS.TURN_START, (data: unknown) => {
-      const payload = data as { turnOwnerId: string; turn: number };
-      const isMe = payload.turnOwnerId === myId;
+      // けいさんのサーバー実装がどのプロパティ名で送ってきても対応できる防衛的定義
+      const payload = data as { 
+        turnOwnerId?: string; 
+        activePlayerId?: string; 
+        turn: number; 
+        isMyTurn?: boolean 
+      };
+      
+      // isMyTurnが直接送られてきた場合はそれを優先、それ以外は自分のID(myId)と照合
+      const isMe = payload.isMyTurn !== undefined 
+        ? payload.isMyTurn 
+        : (payload.turnOwnerId === myId || payload.activePlayerId === myId);
+
       setStatus({ 
         isMyTurn: isMe,
         turn: payload.turn 
