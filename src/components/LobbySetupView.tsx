@@ -2,6 +2,8 @@ import React, { useState, memo } from 'react';
 import { useGameStore } from '../store';
 import socket from '../socket';
 import SoundManager from '../game/SoundManager';
+import { GlobalNavbar } from './layout/GlobalNavbar';
+import { CustomButton } from './common/CustomButton';
 
 interface LobbySetupViewProps {
   onJoinSuccess: (roomId: string) => void;
@@ -137,22 +139,20 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
 
               {/* アクションボタン */}
               <div className="flex gap-4 mt-12">
-                <button 
+                <CustomButton 
                   onClick={() => setShowConfig(false)} 
-                  className="flex-1 py-4 text-[11px] font-black uppercase text-slate-500 hover:text-white hover:bg-white/5 transition-all tracking-[0.2em] font-fix"
+                  variant="ghost"
+                  className="flex-1"
                 >
-                  [ Abort ]
-                </button>
-                <button 
+                  Abort
+                </CustomButton>
+                <CustomButton 
                   onClick={handleFinalCreate} 
-                  className="flex-[2] relative group overflow-hidden"
+                  variant="primary"
+                  className="flex-[2]"
                 >
-                  <div className="absolute inset-0 bg-brand-500 skew-x-[-12deg] transition-transform group-hover:scale-105 shadow-lg shadow-brand-500/20"></div>
-                  <span className="relative flex items-center justify-center gap-3 w-full py-4 text-slate-950 font-black uppercase tracking-[0.2em] text-sm italic font-fix">
-                    Initiate Operation
-                    <span className="material-symbols-outlined text-sm">rocket_launch</span>
-                  </span>
-                </button>
+                  Initiate Operation <span className="material-symbols-outlined text-sm">rocket_launch</span>
+                </CustomButton>
               </div>
             </div>
           </div>
@@ -160,20 +160,11 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
       )}
 
       {/* Header */}
-      <header className="px-10 py-6 flex justify-between items-center border-b border-white/5 bg-slate-950/50 backdrop-blur-md z-10 shrink-0">
-        <div className="text-2xl font-black italic tracking-tighter text-brand-500 font-mono text-left font-fix">CEBU CONQUEST</div>
-        <div className="flex items-center gap-6">
-          <button onClick={onOpenRanking} className="hover:scale-110 transition-all group" title="LEADERBOARD">
-            <span className="material-symbols-outlined text-slate-400 group-hover:text-orange-500">leaderboard</span>
-          </button>
-          <button onClick={onOpenHelp} className="hover:scale-110 transition-all group" title="HELP">
-            <span className="material-symbols-outlined text-cyan-400 group-hover:text-cyan-300">help</span>
-          </button>
-          <button onClick={onOpenSettings} className="hover:scale-110 transition-all group" title="SETTINGS">
-            <span className="material-symbols-outlined text-slate-400 group-hover:text-brand-500">settings</span>
-          </button>
-        </div>
-      </header>
+      <GlobalNavbar 
+        onOpenSettings={onOpenSettings} 
+        onOpenHelp={onOpenHelp} 
+        onOpenRanking={onOpenRanking}
+      />
 
       {/* 🚀 修正2: justify-center を justify-start md:justify-center に変更し、上部が切れないように調整 */}
       <main className="flex-1 flex flex-col items-center justify-start md:justify-center p-10 z-10 py-20">
@@ -183,11 +174,12 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
           <div className="glass-panel p-10 flex flex-col border border-white/5 bg-slate-900/40 text-left">
             <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter font-fix">Create Room</h2>
             <p className="text-slate-400 text-xs mb-10 leading-relaxed italic font-fix">Establish a new command post and generate a unique uplink code for your squad.</p>
-            <button onClick={() => { try{SoundManager.playSe('click');} catch {} setShowConfig(true); }}
-              className="mt-auto w-full bg-brand-500 hover:bg-brand-400 text-slate-950 py-5 rounded-lg font-black uppercase tracking-widest text-lg shadow-lg transition-all font-fix"
+            <CustomButton onClick={() => { try{SoundManager.playSe('click');} catch {} setShowConfig(true); }}
+              variant="primary"
+              className="mt-auto w-full text-lg py-4"
             >
               Configure Operation
-            </button>
+            </CustomButton>
           </div>
 
           <div className="glass-panel p-10 flex flex-col border border-white/5 bg-slate-900/40 text-left">
@@ -199,11 +191,12 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
                 className="w-full bg-black/40 border border-slate-800 rounded-lg py-4 px-6 text-3xl font-black tracking-[0.5em] text-cyan-400 text-center focus:outline-none focus:border-cyan-500 transition-all font-mono"
               />
             </div>
-            <button onClick={handleJoin} disabled={joinId.length !== 6}
-              className={`mt-auto w-full py-5 rounded-lg font-black uppercase tracking-widest text-lg transition-all font-fix ${joinId.length === 6 ? 'bg-slate-100 text-slate-900 hover:bg-white shadow-lg' : 'bg-slate-800 text-slate-600 cursor-not-allowed'}`}
+            <CustomButton onClick={handleJoin} disabled={joinId.length !== 6}
+              variant="primary"
+              className={`mt-auto w-full text-lg py-4 ${joinId.length === 6 ? '!bg-slate-100 !text-slate-900 hover:!bg-white' : ''}`}
             >
               Join Operation
-            </button>
+            </CustomButton>
           </div>
         </div>
       </main>
