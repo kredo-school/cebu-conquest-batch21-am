@@ -35,8 +35,6 @@ const PlayerCard = memo(({ player, isMe, isHost }: { player: ExtendedPlayer; isM
       isPlayerReady ? 'border-l-[#fa7000]' : 'border-l-slate-700 opacity-90'
     }`}>
       <div className="relative h-32 w-full shrink-0 overflow-hidden rounded-lg bg-slate-950">
-        
-        {/* 💡 修正箇所：神が選択されている場合はその画像を、無い場合はタクティカルなシルエットを表示 */}
         {god ? (
           <img 
             className={`w-full h-full object-cover object-top transition-all duration-500 ${isPlayerReady ? 'grayscale-0' : 'grayscale group-hover:grayscale-0'}`} 
@@ -50,7 +48,6 @@ const PlayerCard = memo(({ player, isMe, isHost }: { player: ExtendedPlayer; isM
             <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Unassigned</span>
           </div>
         )}
-
         {isHost && <div className="absolute top-2 right-2 px-2 py-0.5 bg-[#fa7000] text-[9px] font-bold text-black rounded leading-none">HOST</div>}
         {isMe && <div className="absolute top-2 right-2 px-2 py-0.5 bg-slate-900 text-[9px] font-bold text-[#fa7000] rounded border border-[#fa7000]/30 leading-none">YOU</div>}
       </div>
@@ -99,15 +96,15 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
 
   const handleSendMessage = () => {
     if (!chatInput.trim()) return;
-    const senderName = playerName || localStorage.getItem('cebu_player_name') || 'Operator';
+    const me = players.find(p => p.id === myId);
+    const senderName = me?.username || me?.playerName || playerName || localStorage.getItem('cebu_player_name') || 'Operator';
     socket.emit(CLIENT_EVENTS.SEND_CHAT, { roomId, message: chatInput, sender: senderName });
     setChatInput('');
   };
 
   const handleReadyClick = () => {
     setIsLocked(true);
-    socket.emit(CLIENT_EVENTS.READY_TO_START); 
-    onStart(); 
+    socket.emit(CLIENT_EVENTS.READY_TO_START, { roomId, ready: true }); 
     try { SoundManager.playSe('click'); } catch {}
   };
 
@@ -126,6 +123,17 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
 
   const readyCount = useMemo(() => activeLobby.filter(p => p.isReady === true).length, [activeLobby]);
 
+  // 💡 【超重要】修正：スキップ防止ロジック
+  // 準備完了フラグではなく、全員が神(godId)を確定させたかを確認する
+  useEffect(() => {
+    const isRoomFull = activeLobby.length > 0 && activeLobby.length === totalSlots;
+    const allGodsSelected = activeLobby.length > 0 && activeLobby.every((p) => p.godId !== null);
+
+    if (isRoomFull && allGodsSelected) {
+      onStart(); // これで全員が神を選び終えてからマップへ移行する
+    }
+  }, [activeLobby, totalSlots, onStart]);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatLogs]);
@@ -141,9 +149,7 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
       <GlobalNavbar onOpenSettings={onOpenSettings} onOpenHelp={onOpenHelp} onOpenRanking={onOpenRanking} onAbort={onAbort} />
 
       <main className="flex-1 mt-16 flex flex-col relative overflow-hidden min-h-0">
-        
         <section className="flex-1 flex flex-col py-6 px-8 z-10 max-w-7xl mx-auto w-full min-h-0 justify-between">
-          
           <div className="flex justify-between items-end mb-4 shrink-0 text-left">
             <div>
               <h1 className="text-4xl font-black text-white mb-1.5 tracking-tighter italic">WAITING...</h1>
@@ -161,7 +167,7 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4 shrink-0">
             {Array.from({ length: totalSlots }).map((_, index) => {
               const lp = activeLobby[index];
-              if (lp) {
+              if (lp && lp.playerId) {
                 const playerData: ExtendedPlayer = players.find(p => p.id === lp.playerId) || {
                   id: lp.playerId,
                   username: lp.username || 'Unknown',
@@ -183,7 +189,6 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
           </div>
 
           <div className="mt-auto grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0 text-left h-60 pb-2">
-            
             <div className="lg:col-span-2 glass-panel rounded-xl overflow-hidden flex flex-col h-full border-slate-800 shadow-2xl">
               <div className="flex-1 p-4 space-y-3 overflow-y-auto text-sm custom-scrollbar text-left font-mono">
                 {chatLogs?.length === 0 ? (
@@ -193,7 +198,7 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                   </div>
                 ) : (
                   chatLogs.map((log, i) => (
-                    <div key={i} className="flex gap-2 leading-tight">
+                    <div key={`chat-${i}`} className="flex gap-2 leading-tight">
                       <span className={`${log.sender === (playerName || localStorage.getItem('cebu_player_name')) ? 'text-cyan-400' : 'text-[#fa7000]'} font-bold shrink-0`}>{log.sender}:</span>
                       <span className="text-slate-300 break-words">{log.message}</span>
                     </div>
@@ -201,16 +206,9 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                 )}
                 <div ref={chatEndRef} />
               </div>
-              
               <div className="p-4 bg-slate-950/50 border-t border-slate-800 shrink-0">
                 <div className="relative flex items-center">
-                  <input 
-                    className="w-full bg-slate-900 border border-slate-800 rounded-lg py-2.5 pl-4 pr-10 text-sm focus:ring-[#fa7000] focus:border-[#fa7000] text-slate-200 outline-none" 
-                    placeholder="Transmit tactical data..." 
-                    value={chatInput} 
-                    onChange={(e) => setChatInput(e.target.value)} 
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                  />
+                  <input className="w-full bg-slate-900 border border-slate-800 rounded-lg py-2.5 pl-4 pr-10 text-sm focus:ring-[#fa7000] focus:border-[#fa7000] text-slate-200 outline-none" placeholder="Transmit tactical data..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}/>
                   <button onClick={handleSendMessage} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#fa7000] hover:text-orange-400 transition-colors">
                     <span className="material-symbols-outlined text-xl">send</span>
                   </button>
@@ -230,21 +228,13 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                   <div className="h-28 w-full rounded-lg overflow-hidden relative border border-slate-800 bg-slate-950">
                     <img alt="Map" className="w-full h-full object-cover grayscale brightness-75 opacity-80" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBirgWsIn47L0BozujaAOP9MPDSEj8eEqOD5ehGypotryAQyqA3LP7lycOy2aqSikaVPBmPBSUc0dM925SZitvjIXt5w4Af_Rg1AhwYS6kF2STerNUC5_iMPz_J3UbNW9cwmiLBMcMg3Y8VEL-erCj5K55O7sQ9mtBGNeWpbh7MWURfLi2TPY5VBElxvM4f7A7fHG7C_6MiywcCoGzxjY-ONOK9E5GLIhM0PTnlqbdpTXWiXxFZEvg4SVjeivIEAixwp29-eA3k9r8" />
                     <div className="absolute inset-0 bg-[#fa7000]/10 mix-blend-overlay"></div>
+                    <div className="absolute inset-0 flex items-center justify-center opacity-30 pointer-events-none">
+                      <span className="material-symbols-outlined text-5xl">grid_4x4</span>
+                    </div>
                   </div>
                 </div>
               </div>
-              
-              <button 
-                onClick={handleReadyClick}
-                disabled={activeLobby.length < totalSlots || isLocked}
-                className={`w-full py-3.5 rounded-xl font-black text-xl uppercase transition-all transform active:scale-95 shadow-lg shrink-0 ${
-                  isLocked 
-                    ? 'bg-slate-800 text-[#fa7000] border-2 border-[#fa7000] animate-pulse' 
-                    : activeLobby.length >= totalSlots 
-                      ? 'bg-[#fa7000] hover:bg-orange-600 text-black shadow-[0_0_20px_rgba(250,112,0,0.3)]' 
-                      : 'bg-[#fa7000] text-black cursor-not-allowed opacity-80'
-                }`}
-              >
+              <button onClick={handleReadyClick} disabled={activeLobby.length < totalSlots || isLocked} className={`w-full py-3.5 rounded-xl font-black text-xl uppercase transition-all transform active:scale-95 shadow-lg shrink-0 ${isLocked ? 'bg-slate-800 text-[#fa7000] border-2 border-[#fa7000] animate-pulse' : activeLobby.length >= totalSlots ? 'bg-[#fa7000] hover:bg-orange-600 text-black shadow-[0_0_20px_rgba(250,112,0,0.3)]' : 'bg-[#fa7000] text-black cursor-not-allowed opacity-80'}`}>
                 {isLocked ? 'LINK LOCKED' : 'READY?'}
               </button>
             </div>
