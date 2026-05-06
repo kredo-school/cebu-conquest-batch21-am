@@ -127,7 +127,6 @@ export const useGameEvents = () => {
 
     // 4. 📢 ターン開始通知 (turnStart)
     socket.on(SERVER_EVENTS.TURN_START, (data: unknown) => {
-      // けいさんのサーバー実装がどのプロパティ名で送ってきても対応できる防衛的定義
       const payload = data as { 
         turnOwnerId?: string; 
         activePlayerId?: string; 
@@ -135,7 +134,6 @@ export const useGameEvents = () => {
         isMyTurn?: boolean 
       };
       
-      // isMyTurnが直接送られてきた場合はそれを優先、それ以外は自分のID(myId)と照合
       const isMe = payload.isMyTurn !== undefined 
         ? payload.isMyTurn 
         : (payload.turnOwnerId === myId || payload.activePlayerId === myId);
@@ -180,6 +178,15 @@ export const useGameEvents = () => {
       addLog(data.message);
     });
 
+    // 💡 10. 💬 チャットメッセージの受信 (名前が表示されない問題を修正)
+    // 🚀 修正: サーバーの "username" を UI用の "sender" にマッピングして addLog に渡す
+    socket.on(SERVER_EVENTS.RECEIVE_CHAT, (data: { username: string; message: string }) => {
+      addLog({
+        sender: data.username || 'Operator', 
+        message: data.message
+      });
+    });
+
     // 9. 🏆 ゲーム終了通知 (gameOver)
     socket.on(SERVER_EVENTS.GAME_OVER, (data: unknown) => {
       const payload = data as { winnerName: string; winnerId: string };
@@ -198,6 +205,7 @@ export const useGameEvents = () => {
       socket.off(SERVER_EVENTS.TERRITORY_UPDATED);
       socket.off(SERVER_EVENTS.ACTION_REJECTED);
       socket.off(SERVER_EVENTS.ACTION_RESULT);
+      socket.off(SERVER_EVENTS.RECEIVE_CHAT); // クリーンアップを追加
       socket.off(SERVER_EVENTS.GAME_OVER);
       socket.off('lobbyUpdated');
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleStatsUpdate);
