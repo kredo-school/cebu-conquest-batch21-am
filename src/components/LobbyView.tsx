@@ -85,7 +85,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
   const handleSendMessage = () => {
     if (chatInput.trim()) {
-      // 💡 修正箇所：ZustandのplayerNameが空の場合に備え、players配列から確実に名前を取得する
       const me = players.find(p => p.id === myId);
       const senderName = me?.username || me?.playerName || playerName || localStorage.getItem('cebu_player_name') || 'Operator';
       
@@ -99,8 +98,12 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     const nextReadyState = !isReady;
     setIsReady(nextReadyState);
     try { SoundManager.playSe('click'); } catch {}
-    // 元のロジックのイベント名を使用
-    socket.emit(CLIENT_EVENTS.PLAYER_READY, { roomId, ready: nextReadyState });
+    
+    // 💡 修正箇所：GDD v3.1 のイベントコントラクトに基づき READY_TO_START に統一
+    socket.emit(CLIENT_EVENTS.READY_TO_START, { 
+      roomId, 
+      ready: nextReadyState 
+    });
   };
 
   const handleCopyId = () => {
@@ -177,7 +180,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             </div>
           </div>
 
-          {/* Bottom Action Section: items-end で底辺揃え */}
+          {/* Bottom Action Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0 mb-2 items-end">
             <div className="lg:col-span-2 glass-panel rounded-xl overflow-hidden flex flex-col h-64 border-slate-800 shadow-2xl">
               <div ref={scrollRef} className="flex-1 p-4 space-y-3 overflow-y-auto text-sm custom-scrollbar text-left font-mono">

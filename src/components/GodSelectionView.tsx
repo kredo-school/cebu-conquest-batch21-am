@@ -5,7 +5,7 @@ import { useGameStore, LobbyPlayer } from '../store';
 import { REACT_TO_PHASER } from '../game/events/PhaserBridge';
 import socket from '../socket';
 import { CLIENT_EVENTS } from '../../shared/socketEvents.js';
-import { GOD_SACRED_LANDS } from '../../shared/godSacredLands.js'; // 修正: 外部ファイルからインポート
+import { GOD_SACRED_LANDS } from '../../shared/godSacredLands.js';
 
 interface GodSelectionViewProps {
   onComplete: () => void;
@@ -24,7 +24,13 @@ interface GodSlot {
   desc: string;
 }
 
-// 修正: GDD v3.1 画像に基づき、ボーナスと説明文を更新
+// 修正: shared/godSacredLands.js の実態に合わせたインターフェース定義
+interface GodSacredLand {
+  name: string;
+  sacredDistrictId: number; // districtId ではなくこちら
+  spawnSpotId: number;     // spotId ではなくこちら
+}
+
 const GOD_SLOTS: GodSlot[] = [
   { id: 1, textureKey: 'god-neil',   name: "Neil", role: "WAR",        bonus: "MAX_HP +30, STAMINA -25, HP +10", img: "/assets/images/gods/Neil.png", desc: "高い耐久力を誇る戦士向けのステータス補正。" },
   { id: 2, textureKey: 'god-garry',  name: "Garry", role: "STRATEGIST", bonus: "ATK +20",    img: "/assets/images/gods/Garry.png", desc: "攻撃性能を純粋に強化するアタッカー仕様。" },
@@ -81,10 +87,17 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
     hideError();
     const godId = pendingSelection.id;
     
-    // 修正: shared/godSacredLands.js からデータを取得 (INTERNAL_SPAWN_MAP は破棄)
-    const godData = (GOD_SACRED_LANDS as any)[godId];
-    const sacredDistrictId = godData.districtId;
-    const spawnSpotId = godData.spotId;
+    // 修正ポイント: キャストとプロンプト上の変数名を一致させる[cite: 1]
+    const masterData = GOD_SACRED_LANDS as Record<number, GodSacredLand>;
+    const godData = masterData[godId];
+
+    if (!godData) {
+      console.error(`God ID ${godId} not found in master data.`);
+      return;
+    }
+
+    const targetDistrictId = godData.sacredDistrictId;
+    const targetSpotId = godData.spawnSpotId;
 
     const updatedPlayers = players.map(p => 
         p.id === myId ? { ...p, selectedGodId: godId, godId: godId } : p
@@ -92,23 +105,21 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
 
     useGameStore.setState({ 
       selectedGodId: godId,
-      selectedDistrictId: sacredDistrictId, 
+      selectedDistrictId: targetDistrictId, 
       players: updatedPlayers,
       lobbyPlayers: useGameStore.getState().lobbyPlayers.map(lp =>
-        lp.playerId === myId
-          ? { ...lp, godId: godId }
-          : lp
+        lp.playerId === myId ? { ...lp, godId: godId } : lp
       ),
     });
     
-    // 修正: SELECT_GOD emit時のpayloadに districtId と spotId を含める
+    // Socket.IO への emit[cite: 1]
     socket.emit(CLIENT_EVENTS.SELECT_GOD, { 
       godId: godId, 
-      districtId: sacredDistrictId,
-      spotId: spawnSpotId
+      districtId: targetDistrictId,
+      spotId: targetSpotId
     });
     
-    // 修正: SET_AVATAR の detail に godId を含める
+    // Phaser への emit[cite: 1]
     window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.SET_AVATAR, { 
       detail: { 
         godKey: pendingSelection.textureKey,
