@@ -25,7 +25,7 @@ const PlayerCard = memo(({ player, isMe, isHost }: { player: LobbyPlayer; isMe: 
       {/* 💡 アバター中央配置: items-center + justify-center */}
       <div className="relative h-32 w-full shrink-0 overflow-hidden rounded-lg bg-slate-950 flex items-center justify-center">
         
-        {/* 💡 修正箇所：ダサいアバターを廃止し、タクティカルなプレースホルダーを表示 */}
+        {/* 💡 ダサいアバターを廃止し、タクティカルなプレースホルダーを表示 */}
         <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/50 border border-dashed border-slate-700 opacity-70">
           <span className="material-symbols-outlined text-4xl text-slate-600 mb-1">person_search</span>
           <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Unassigned</span>
@@ -68,14 +68,16 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
   useEffect(() => { SoundManager.playBgm('lobby'); }, []);
 
-  // 💡 【ロジック復旧】いっせいさんの初期ロジック：全員READYで遷移
+  // 💡 定員（maxPlayers）に達し、全員がReadyなら進む
   useEffect(() => {
-    const allReady = players.length >= 2 && players.every((p) => p.isReady || p.ready);
-    if (allReady) {
+    const isRoomFull = players.length > 0 && players.length === maxPlayers;
+    const allReady = players.every((p) => p.isReady || p.ready);
+    
+    if (isRoomFull && allReady) {
       addLog("🚀 分隊全員のリンク承認。出撃フェーズへ移行。");
       onStart(); 
     }
-  }, [players, onStart, addLog]);
+  }, [players, maxPlayers, onStart, addLog]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -83,7 +85,10 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
   const handleSendMessage = () => {
     if (chatInput.trim()) {
-      const senderName = playerName || localStorage.getItem('cebu_player_name') || 'Operator';
+      // 💡 修正箇所：ZustandのplayerNameが空の場合に備え、players配列から確実に名前を取得する
+      const me = players.find(p => p.id === myId);
+      const senderName = me?.username || me?.playerName || playerName || localStorage.getItem('cebu_player_name') || 'Operator';
+      
       socket.emit(CLIENT_EVENTS.SEND_CHAT, { roomId, message: chatInput, sender: senderName });
       setChatInput(''); 
       try { SoundManager.playSe('click'); } catch {}
