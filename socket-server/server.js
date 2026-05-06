@@ -27,7 +27,6 @@ const TEAM_CONFIG = [
 // ==========================================
 // 🚀 【神の聖地設定】8神体制対応マスタ (K-1対応)
 // ==========================================
-// ※実際のgodIdのキーに合わせて調整してください
 const GOD_SACRED_LANDS = {
     "god_1": { sacredDistrictId: "11101" }, // Maya Port
     "god_2": { sacredDistrictId: "11105" }, // Central Cebu
@@ -105,7 +104,7 @@ function broadcastLobbyUpdate(roomId, roomState) {
     const playersArr = Object.values(roomState.players).map(p => ({
         id: p.id,
         username: p.username,
-        playerName: p.username,
+        playerName: p.playerName || p.username,
         selectedGodId: p.selectedGodId || null,
         godId: p.selectedGodId || null,
         isReady: p.isReady || false
@@ -343,6 +342,7 @@ io.on('connection', (socket) => {
         roomState.players[socket.id] = {
             id: socket.id,
             username: config.username || "Commander",
+            playerName: config.username || "Commander",
             dbUserId: config.id || null,
             token: socket.authToken,
             godName: godName,
@@ -368,7 +368,6 @@ io.on('connection', (socket) => {
         if (callback) callback({ success: true, roomId: roomId });
     });
 
-    // 🚀 [K-4 修正] 接続確認・IPミスマッチ確認用のログを追加
     socket.on('JOIN_ROOM', async (data, callback) => {
         const roomId = data.roomId?.toUpperCase();
         
@@ -421,6 +420,7 @@ io.on('connection', (socket) => {
         roomState.players[socket.id] = {
             id: socket.id,
             username: data?.username || `Player ${playerCount + 1}`,
+            playerName: data?.username || `Player ${playerCount + 1}`,
             dbUserId: data?.id || null,
             token: socket.authToken,
             godName: godName,
@@ -445,9 +445,9 @@ io.on('connection', (socket) => {
         if (callback) callback({ success: true });
     });
 
-    // 🚀 [K-5 修正] NPCの追加バリデーション
-    socket.on('ADD_NPC', () => {
-        const roomId = socket.roomId;
+    // 🚀 [修正] NPCの追加・ランダム神割り当て・Ready化
+    const handleAddNpc = (data) => {
+        const roomId = socket.roomId || data?.roomId;
         if (!roomId) return socket.emit(SERVER_EVENTS.ERROR_MESSAGE, { reason: 'room_not_found' });
         
         const roomState = rooms.get(roomId);
@@ -459,25 +459,36 @@ io.on('connection', (socket) => {
         const npcId = `npc_${Date.now()}`;
         const teamInfo = TEAM_CONFIG[currentCount];
 
-        const allDistrictIds = Object.keys(DISTRICTS_MASTER);
-        const occupiedIds = new Set(Object.keys(roomState.districts));
-        const freeDistrictIds = allDistrictIds.filter(id => !occupiedIds.has(id));
+        // 💡 1〜8のランダムな神を割り当て
+        const randomGodId = `god_${Math.floor(Math.random() * 8) + 1}`;
 
-        const startDistrictId = freeDistrictIds.length > 0
-            ? freeDistrictIds[Math.floor(Math.random() * freeDistrictIds.length)]
-            : allDistrictIds[Math.floor(Math.random() * allDistrictIds.length)];
+        // NPCのスポーン位置決定 (聖地優先、空いてなければランダム空き地)
+        let startDistrictId;
+        const sacredId = GOD_SACRED_LANDS[randomGodId]?.sacredDistrictId;
+        
+        if (sacredId && !roomState.districts[sacredId]) {
+            startDistrictId = sacredId;
+        } else {
+            const allDistrictIds = Object.keys(DISTRICTS_MASTER);
+            const occupiedIds = new Set(Object.keys(roomState.districts));
+            const freeDistrictIds = allDistrictIds.filter(id => !occupiedIds.has(id));
+            startDistrictId = freeDistrictIds.length > 0
+                ? freeDistrictIds[Math.floor(Math.random() * freeDistrictIds.length)]
+                : allDistrictIds[Math.floor(Math.random() * allDistrictIds.length)];
+        }
 
         roomState.players[npcId] = {
             id: npcId,
-            username: `NPC_${currentCount + 1}(${teamInfo.name})`,
+            username: `NPC_BOT`,
+            playerName: `NPC_BOT`,
             dbUserId: null, token: null, godName: "セブの精霊",
-            selectedGodId: 99,
+            selectedGodId: randomGodId, // 💡 ランダムな神をセット
             hp: 120, maxHp: 120, ap: 100, maxAp: 100,
             atk: 75, def: 55, faith: 1.0,
             inventory: [],
             team: teamInfo.id,
             teamColor: teamInfo.color,
-            isReady: true,
+            isReady: true, // 💡 NPCは最初からReady状態にしておく
             isNpc: true,
             districtId: String(startDistrictId),
             isDefending: false,
@@ -490,7 +501,11 @@ io.on('connection', (socket) => {
         );
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
         broadcastLobbyUpdate(roomId, roomState);
-    });
+    };
+
+    // フロントからの異なるイベント名に対応
+    socket.on('ADD_NPC', handleAddNpc);
+    socket.on('add_npc_request', handleAddNpc);
 
     socket.on(CLIENT_EVENTS.ENTER_GOD_SELECTION, (data) => {
         const roomId = socket.roomId || data?.roomId;
@@ -500,22 +515,20 @@ io.on('connection', (socket) => {
         if (!roomState) return;
 
         Object.values(roomState.players).forEach(p => {
-            p.isReady = false;
+            if (!p.isNpc) p.isReady = false; // NPCはReadyを維持
         });
 
-        console.log(`🔄 [Room ${roomId}] 神選択フェーズ開始: Readyフラグを全員リセットしました`);
+        console.log(`🔄 [Room ${roomId}] 神選択フェーズ開始: プレイヤーのReadyフラグをリセットしました`);
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
         broadcastLobbyUpdate(roomId, roomState);
     });
 
-    // 🚀 [K-1 & K-3 修正] 神の重複選択防止と聖地割り当て
     socket.on(CLIENT_EVENTS.SELECT_GOD, (data) => {
         const roomId = socket.roomId;
         if (!roomId) return;
         const roomState = rooms.get(roomId);
         if (!roomState) return;
 
-        // 重複チェック
         const alreadyTaken = Object.values(roomState.players).some(
             p => p.id !== socket.id && p.selectedGodId === data.godId
         );
@@ -529,7 +542,6 @@ io.on('connection', (socket) => {
         if (p) {
             p.selectedGodId = data.godId;
             
-            // K-1: 該当する神の聖地を自陣として設定
             if (GOD_SACRED_LANDS[data.godId]) {
                 const sacredId = GOD_SACRED_LANDS[data.godId].sacredDistrictId;
                 roomState.districts[sacredId] = socket.id;
@@ -775,7 +787,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 🚀 [K-2 修正] サーバー側のusernameを強制適用・Timestampの統一
     socket.on(CLIENT_EVENTS.SEND_CHAT, (data) => {
         const roomId = socket.roomId;
         if (!roomId) return;
@@ -786,7 +797,7 @@ io.on('connection', (socket) => {
         
         io.to(roomId).emit(SERVER_EVENTS.RECEIVE_CHAT, {
             senderId: socket.id,
-            username: p.username, // ★ クライアントからの自己申告を無視し、サーバーの確実な状態を利用
+            username: p.username,
             message: data.message,
             timestamp: Date.now()
         });
