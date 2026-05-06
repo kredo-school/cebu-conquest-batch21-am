@@ -70,16 +70,24 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     try { SoundManager.playBgm('lobby'); } catch (_e) {} 
   }, []);
 
+  // 💡 修正: GAME_START待ちのデッドロックを解消し、クライアント主導で神選択へ進むロジックを復活
   useEffect(() => {
     const currentCount = players.length;
     const isRoomFull = currentCount > 0 && currentCount === maxPlayers;
     const allReady = currentCount > 0 && players.every((p) => p.isReady === true || p.ready === true);
-    
+
     if (isRoomFull && allReady) {
       addLog("🚀 分隊全員のリンク承認。神託フェーズへ移行します。");
+      
+      // サーバーに神選択フェーズへの移行を通知（Ready状態のリセット等を行わせる）
+      if (socket) {
+        socket.emit(CLIENT_EVENTS.ENTER_GOD_SELECTION, { roomId });
+      }
+      
+      // クライアントの画面を GodSelectionView に切り替える
       onStart(); 
     }
-  }, [players, maxPlayers, onStart, addLog]);
+  }, [players, maxPlayers, onStart, addLog, roomId]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -114,7 +122,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   };
 
   const handleAddNPC = () => {
-    socket.emit(CLIENT_EVENTS.ADD_NPC || 'add_npc_request', { roomId });
+    socket.emit(CLIENT_EVENTS.ADD_NPC_REQUEST, { roomId });
   };
 
   return (
@@ -172,7 +180,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             <div className="lg:col-span-2 glass-panel rounded-xl overflow-hidden flex flex-col h-64 border-slate-800 shadow-2xl">
               <div ref={scrollRef} className="flex-1 p-4 space-y-3 overflow-y-auto text-sm custom-scrollbar text-left font-mono">
                 {chatLogs.map((log, i) => (
-                  <div key={i} className="flex gap-2">
+                  <div key={`chat-${i}`} className="flex gap-2">
                     <span className={`${log.sender === (playerName || 'Operator') ? 'text-cyan-400' : 'text-[#fa7000]'} font-bold`}>{log.sender}:</span>
                     <span className="text-slate-300">{log.message}</span>
                   </div>

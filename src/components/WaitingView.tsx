@@ -98,9 +98,9 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
       onStart();
     };
 
-    socket.on(SERVER_EVENTS.gameStart, handleGameStart);
+    socket.on(SERVER_EVENTS.GAME_START, handleGameStart);
     return () => {
-      socket.off(SERVER_EVENTS.gameStart, handleGameStart);
+      socket.off(SERVER_EVENTS.GAME_START, handleGameStart);
     };
   }, [onStart]);
 
