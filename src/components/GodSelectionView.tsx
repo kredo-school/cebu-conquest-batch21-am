@@ -5,6 +5,7 @@ import { useGameStore, LobbyPlayer } from '../store';
 import { REACT_TO_PHASER } from '../game/events/PhaserBridge';
 import socket from '../socket';
 import { CLIENT_EVENTS } from '../../shared/socketEvents.js';
+import { GOD_SACRED_LANDS } from '../../shared/godSacredLands.js'; // 修正: 外部ファイルからインポート
 
 interface GodSelectionViewProps {
   onComplete: () => void;
@@ -23,21 +24,16 @@ interface GodSlot {
   desc: string;
 }
 
-const INTERNAL_SPAWN_MAP: Record<number, number> = {
-  1: 1201, 2: 1205, 3: 1101, 4: 1501, 
-  5: 1120, 6: 1301, 7: 1401, 8: 1108, 
-};
-
-// 画像パスは名前ベースでローカルディレクトリを参照
+// 修正: GDD v3.1 画像に基づき、ボーナスと説明文を更新
 const GOD_SLOTS: GodSlot[] = [
-  { id: 1, textureKey: 'god-neil',   name: "Neil", role: "WAR",        bonus: "ATK +20",    img: "/assets/images/gods/Neil.png", desc: "近接攻撃ダメージ+25%、物理防御力強化。" },
-  { id: 2, textureKey: 'god-garry',  name: "Garry", role: "STRATEGIST", bonus: "MAX AP +30", img: "/assets/images/gods/Garry.png", desc: "タクティカルアビリティのクールダウン-15%。" },
-  { id: 3, textureKey: 'god-shem',   name: "Shem", role: "BURN",       bonus: "SOLAR",      img: "/assets/images/gods/Shem.png", desc: "昼間戦闘フェーズ中、全弾薬にソーラーバーン効果付与。" },
-  { id: 4, textureKey: 'god-quisie', name: "Quisie", role: "STEALTH",    bonus: "SILENT",     img: "/assets/images/gods/Quisie.png", desc: "隠密探知範囲を拡大、足音の静音性+40%。" },
-  { id: 5, textureKey: 'god-eduardo', name: "Eduardo", role: "HEAVY",      bonus: "ARMOR +40",  img: "/assets/images/gods/Eduardo.png", desc: "アーマー耐久値増加、燃焼ステータス無効化。" },
-  { id: 6, textureKey: 'god-kurt',   name: "Kurt", role: "SUPPORT",    bonus: "SPEED +15",  img: "/assets/images/gods/Kurt.png", desc: "山岳地帯ダッシュ速度・ジャンプ高度+20%。" },
-  { id: 7, textureKey: 'god-stephen', name: "Stephen", role: "SHADOW",     bonus: "INVIS",      img: "/assets/images/gods/Stephen.png", desc: "夜間サイクル中の一時的な不可視化。" },
-  { id: 8, textureKey: 'god-bernardine', name: "Bernardine", role: "RECON",      bonus: "SCAN",       img: "/assets/images/gods/Bernardine.png", desc: "障害物越しのリソース・敵足跡をハイライト。" },
+  { id: 1, textureKey: 'god-neil',   name: "Neil", role: "WAR",        bonus: "MAX_HP +30, STAMINA -25, HP +10", img: "/assets/images/gods/Neil.png", desc: "高い耐久力を誇る戦士向けのステータス補正。" },
+  { id: 2, textureKey: 'god-garry',  name: "Garry", role: "STRATEGIST", bonus: "ATK +20",    img: "/assets/images/gods/Garry.png", desc: "攻撃性能を純粋に強化するアタッカー仕様。" },
+  { id: 3, textureKey: 'god-shem',   name: "Shem", role: "BURN",       bonus: "MAX_AP +15, HP +10, AP +10", img: "/assets/images/gods/Shem.png", desc: "行動回数と継戦能力のバランスを重視。" },
+  { id: 4, textureKey: 'god-quisie', name: "Quisie", role: "STEALTH",    bonus: "HP -20, FAITH 100", img: "/assets/images/gods/Quisie.png", desc: "FAITHが初回から100でスタートする特殊構成。" },
+  { id: 5, textureKey: 'god-eduardo', name: "Eduardo", role: "HEAVY",      bonus: "DEF +15",    img: "/assets/images/gods/Eduardo.png", desc: "防御力を高め、敵の反撃ダメージを抑える構成。" },
+  { id: 6, textureKey: 'god-kurt',   name: "Kurt", role: "SUPPORT",    bonus: "STAMINA +30, HP -10", img: "/assets/images/gods/Kurt.png", desc: "スタミナ上限を大きく伸ばし、機動力を確保。" },
+  { id: 7, textureKey: 'god-stephen', name: "Stephen", role: "SHADOW",     bonus: "FAITH_REGEN (5)", img: "/assets/images/gods/Stephen.png", desc: "毎ターン信仰心が5回復する、長期戦特化型。" },
+  { id: 8, textureKey: 'god-bernardine', name: "Bernardine", role: "RECON",      bonus: "MAX_AP +30, AP +30", img: "/assets/images/gods/Bernardine.png", desc: "圧倒的なリソース量を活かした立ち回りが可能。" },
 ];
 
 export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({ 
@@ -84,7 +80,11 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
 
     hideError();
     const godId = pendingSelection.id;
-    const startId = INTERNAL_SPAWN_MAP[godId];
+    
+    // 修正: shared/godSacredLands.js からデータを取得 (INTERNAL_SPAWN_MAP は破棄)
+    const godData = (GOD_SACRED_LANDS as any)[godId];
+    const sacredDistrictId = godData.districtId;
+    const spawnSpotId = godData.spotId;
 
     const updatedPlayers = players.map(p => 
         p.id === myId ? { ...p, selectedGodId: godId, godId: godId } : p
@@ -92,7 +92,7 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
 
     useGameStore.setState({ 
       selectedGodId: godId,
-      selectedDistrictId: startId,
+      selectedDistrictId: sacredDistrictId, 
       players: updatedPlayers,
       lobbyPlayers: useGameStore.getState().lobbyPlayers.map(lp =>
         lp.playerId === myId
@@ -101,13 +101,19 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
       ),
     });
     
+    // 修正: SELECT_GOD emit時のpayloadに districtId と spotId を含める
     socket.emit(CLIENT_EVENTS.SELECT_GOD, { 
       godId: godId, 
-      districtId: startId 
+      districtId: sacredDistrictId,
+      spotId: spawnSpotId
     });
     
+    // 修正: SET_AVATAR の detail に godId を含める
     window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.SET_AVATAR, { 
-      detail: { godKey: pendingSelection.textureKey }
+      detail: { 
+        godKey: pendingSelection.textureKey,
+        godId: godId 
+      }
     }));
     
     onComplete(); 
@@ -145,9 +151,7 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
           </div>
         </div>
 
-        {/* 🚀 修正: overflow-hidden と h-full でスクロールを無くす */}
         <div className="flex-1 p-5 overflow-hidden">
-          {/* 🚀 修正: 4列2行のグリッドで親の高さを100%使う */}
           <div className="grid grid-cols-4 grid-rows-2 gap-4 h-full">
             {GOD_SLOTS.map((god) => {
               const lock = getLockInfo(god.id); 
@@ -167,7 +171,6 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
                           : "border-white/5 hover:border-white/20 hover:bg-zinc-800/50 cursor-pointer"
                   }`}
                 >
-                  {/* 🚀 修正: 高さをカード全体の45%に設定し、画像が潰れないようにする */}
                   <div className="relative h-[45%] shrink-0 overflow-hidden bg-black flex items-center justify-center">
                     <img 
                       src={god.img} 
@@ -223,7 +226,6 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
           </div>
         </div>
 
-        {/* フッター部分も少し高さを抑える */}
         <div className="px-8 py-5 border-t border-white/5 bg-black/40 flex items-center justify-between shrink-0 text-left">
           {selectedGodId === null ? (
             <button 

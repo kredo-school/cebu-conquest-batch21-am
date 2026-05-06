@@ -99,7 +99,11 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
 
   const handleSendMessage = () => {
     if (!chatInput.trim()) return;
-    const senderName = playerName || localStorage.getItem('cebu_player_name') || 'Operator';
+    
+    // 💡 修正箇所：ZustandのplayerNameが空の場合に備え、players配列から確実に名前を取得する
+    const me = players.find(p => p.id === myId);
+    const senderName = me?.username || me?.playerName || playerName || localStorage.getItem('cebu_player_name') || 'Operator';
+    
     socket.emit(CLIENT_EVENTS.SEND_CHAT, { roomId, message: chatInput, sender: senderName });
     setChatInput('');
   };
@@ -107,7 +111,6 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
   const handleReadyClick = () => {
     setIsLocked(true);
     socket.emit(CLIENT_EVENTS.READY_TO_START); 
-    onStart(); 
     try { SoundManager.playSe('click'); } catch {}
   };
 
@@ -125,6 +128,15 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
   }, [lobbyPlayers, players]);
 
   const readyCount = useMemo(() => activeLobby.filter(p => p.isReady === true).length, [activeLobby]);
+
+  useEffect(() => {
+    const isRoomFull = activeLobby.length > 0 && activeLobby.length === totalSlots;
+    const allReady = activeLobby.length > 0 && activeLobby.every((p) => p.isReady);
+
+    if (isRoomFull && allReady) {
+      onStart();
+    }
+  }, [activeLobby, totalSlots, onStart]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -230,6 +242,9 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                   <div className="h-28 w-full rounded-lg overflow-hidden relative border border-slate-800 bg-slate-950">
                     <img alt="Map" className="w-full h-full object-cover grayscale brightness-75 opacity-80" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBirgWsIn47L0BozujaAOP9MPDSEj8eEqOD5ehGypotryAQyqA3LP7lycOy2aqSikaVPBmPBSUc0dM925SZitvjIXt5w4Af_Rg1AhwYS6kF2STerNUC5_iMPz_J3UbNW9cwmiLBMcMg3Y8VEL-erCj5K55O7sQ9mtBGNeWpbh7MWURfLi2TPY5VBElxvM4f7A7fHG7C_6MiywcCoGzxjY-ONOK9E5GLIhM0PTnlqbdpTXWiXxFZEvg4SVjeivIEAixwp29-eA3k9r8" />
                     <div className="absolute inset-0 bg-[#fa7000]/10 mix-blend-overlay"></div>
+                    <div className="absolute inset-0 flex items-center justify-center opacity-30 pointer-events-none">
+                      <span className="material-symbols-outlined text-5xl">grid_4x4</span>
+                    </div>
                   </div>
                 </div>
               </div>
