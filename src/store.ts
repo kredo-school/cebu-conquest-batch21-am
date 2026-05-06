@@ -8,7 +8,7 @@ import { buildLookup } from '../shared/idLookup';
 
 /**
  * Cebu Conquest: Zustand Global Store
- * GDD v3.1 準拠 | 最終更新: 2026-05-04
+ * GDD v3.1 準拠 | 最終更新: 2026-05-06
  */
 
 // --- 🏗️ 型定義セクション ---
@@ -19,7 +19,7 @@ export interface ChatMessage {
   sender: string;
   message: string;
   color?: string;
-  timestamp: string;
+  timestamp?: string | number; // 柔軟性を持たせるため string | number
 }
 
 export interface LogEntry {
@@ -192,7 +192,8 @@ export interface GameState {
   escape: () => void;
   useItem: (itemId: number) => void;
   endTurn: () => void; 
-  addLog: (text: string) => void;
+  // 💡 修正: string または ChatMessage オブジェクトを許可
+  addLog: (log: string | ChatMessage) => void;
   addChatLog: (msg: ChatMessage) => void; 
   saveResult: () => Promise<void>;
   resetGame: () => void;
@@ -304,7 +305,6 @@ export const useGameStore = create<GameState>()(
         const { roomId, myId, players } = get();
         if (get().selectedGodId !== null) return;
 
-        // 🚀 修正: 神を選んだ時点では Ready フラグを立てず、WaitingViewでのボタン押下を待つ
         const updatedPlayers = players.map(p => 
           p.id === myId ? { ...p, selectedGodId: id, godId: id, isReady: false } : p
         );
@@ -315,7 +315,6 @@ export const useGameStore = create<GameState>()(
           view: 'waiting' 
         });
 
-        // 🚀 修正: 神の選択のみを通知 (Readyフラグのリセットを兼ねる)
         socket.emit('SELECT_GOD', { roomId, godId: id });
       },
 
@@ -356,7 +355,6 @@ export const useGameStore = create<GameState>()(
           selectedGodId: p.selectedGodId || p.godId,
           location: p.location || p.districtId,
           current_hp: p.current_hp || p.hp,
-          // 🚀 修正: サーバーから同期される isReady フラグのみを信頼し、神の有無による自動Readyを排除
           isReady: !!p.isReady
         }));
 
@@ -364,7 +362,6 @@ export const useGameStore = create<GameState>()(
 
         set((state) => {
           let nextView = state.view;
-
           const isActuallyStarted = !!data.gameStarted;
           const hasInitialPosition = !!(myPlayerData?.districtId || myPlayerData?.location);
 
@@ -392,7 +389,6 @@ export const useGameStore = create<GameState>()(
             selectedGodId: myPlayerData?.selectedGodId ?? myPlayerData?.godId ?? state.selectedGodId,
             districts: (data.districts as Record<string, string>) ?? state.districts,
             players: playersArray,
-            // 🚀 修正: lobbyPlayers ミラーリング時もサーバーの isReady フラグをそのまま採用
             lobbyPlayers: (['lobby', 'selection', 'waiting'].includes(nextView))
               ? playersArray.map(p => ({
                   playerId: p.id,
@@ -466,7 +462,23 @@ export const useGameStore = create<GameState>()(
       useItem: (id) => socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId: id }),
       endTurn: () => { socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'turn_end' }); set({ isMyTurn: false, isSubmitted: true }); },
       setStatus: (status) => set((state) => ({ ...state, ...status })),
-      addLog: (text) => set((state) => ({ logs: [{ text, time: nowTime() }, ...state.logs].slice(0, 10) })),
+
+      // 💡 修正: string ならシステムログ、ChatMessageならチャットログとして処理
+      addLog: (log) => set((state) => {
+        if (typeof log === 'string') {
+          // システムメッセージ（文字列）の場合
+          return { logs: [{ text: log, time: nowTime() }, ...state.logs].slice(0, 10) };
+        } else {
+          // チャットメッセージ（オブジェクト）の場合
+          const chatMsg = { ...log, timestamp: log.timestamp || nowTime() };
+          // チャットログに追加しつつ、システムログにも「送信者: メッセージ」の形式で表示
+          return { 
+            chatLogs: [...state.chatLogs, chatMsg].slice(-50),
+            logs: [{ text: `${log.sender}: ${log.message}`, time: nowTime() }, ...state.logs].slice(0, 10)
+          };
+        }
+      }),
+
       addChatLog: (msg) => {
         set((state) => ({ chatLogs: [...state.chatLogs, msg].slice(-50) }));
       },
@@ -489,13 +501,14 @@ export const useGameStore = create<GameState>()(
 
 // --- リアルタイムイベントリスナー ---
 
-socket.on(SERVER_EVENTS.GAME_STATE_UPDATE, (data: Record<string, unknown>) => {
+socket.on(SERVER_EVENTS.SYNC_STATE, (data: Record<string, unknown>) => {
   const { myId } = useGameStore.getState();
   useGameStore.getState().syncServerState(data, myId);
 });
 
 socket.on(SERVER_EVENTS.RECEIVE_CHAT, (msg: ChatMessage) => {
-  useGameStore.getState().addChatLog(msg);
+  // 💡 ここで store の addLog を呼ぶことでマッピングが完了します
+  useGameStore.getState().addLog(msg);
 });
 
 declare global {
