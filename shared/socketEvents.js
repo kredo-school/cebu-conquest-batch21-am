@@ -14,6 +14,8 @@ export const CLIENT_EVENTS = {
   PLAYER_READY:       "PLAYER_READY",     // 準備完了/解除
   LEAVE_ROOM:         "LEAVE_ROOM",       // 部屋を離れる
   READY_TO_START:     "READY_TO_START",   // マッチング完了通知
+  CREATE_ROOM:        "CREATE_ROOM",      // 部屋作成
+  JOIN_ROOM:          "JOIN_ROOM",        // 部屋参加
 
   // 基本移動・占領（アクション系は camelCase）
   PLAYER_MOVE:        "playerMove",       // 地区移動
@@ -41,6 +43,7 @@ export const SERVER_EVENTS = {
   COMMENCE_OPERATION: "commenceOperation", // 🚀 修正: ログの傾向に合わせ camelCase
   GAME_START:         "gameStart",         // 試合開始（ログ一致）
   GAME_OVER:          "gameOver",          // 試合終了
+  LOBBY_UPDATED:      "lobbyUpdated",      // ロビー情報更新
 
   // 状態同期 (最重要)
   SYNC_STATE:         "syncState",         // 🚀 修正: ログ(image_8502e1.png)と完全一致

@@ -315,7 +315,7 @@ export const useGameStore = create<GameState>()(
           view: 'waiting' 
         });
 
-        socket.emit('SELECT_GOD', { roomId, godId: id });
+        socket.emit(CLIENT_EVENTS.SELECT_GOD, { roomId, godId: id });
       },
 
       setPlayerName: (name) => set({ playerName: name }),
@@ -499,17 +499,6 @@ export const useGameStore = create<GameState>()(
   )
 );
 
-// --- リアルタイムイベントリスナー ---
-
-socket.on(SERVER_EVENTS.SYNC_STATE, (data: Record<string, unknown>) => {
-  const { myId } = useGameStore.getState();
-  useGameStore.getState().syncServerState(data, myId);
-});
-
-socket.on(SERVER_EVENTS.RECEIVE_CHAT, (msg: ChatMessage) => {
-  // 💡 ここで store の addLog を呼ぶことでマッピングが完了します
-  useGameStore.getState().addLog(msg);
-});
 
 declare global {
   interface Window {

@@ -4,6 +4,7 @@ import socket from '../socket';
 import SoundManager from '../game/SoundManager';
 import { GlobalNavbar } from './layout/GlobalNavbar';
 import { CustomButton } from './common/CustomButton';
+import { CLIENT_EVENTS } from '../../shared/socketEvents.js';
 
 interface LobbySetupViewProps {
   onJoinSuccess: (roomId: string) => void;
@@ -38,7 +39,7 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
       username: playerName 
     };
 
-    socket.emit('CREATE_ROOM', createPayload, (response: { success: boolean; roomId: string; maxPlayers?: number }) => {
+    socket.emit(CLIENT_EVENTS.CREATE_ROOM, createPayload, (response: { success: boolean; roomId: string; maxPlayers?: number }) => {
       if (response && response.success) {
         addLog(`✅ 作戦承認: Room[${response.roomId}] を構築しました`);
         setStatus({ maxPlayers: response.maxPlayers || config.maxPlayers });
@@ -61,7 +62,7 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
         username: playerName 
       };
 
-      socket.emit('JOIN_ROOM', joinPayload, (response: { success: boolean; maxPlayers?: number }) => {
+      socket.emit(CLIENT_EVENTS.JOIN_ROOM, joinPayload, (response: { success: boolean; maxPlayers?: number }) => {
         if (response && response.success) {
           if (response.maxPlayers) {
             setStatus({ maxPlayers: response.maxPlayers });

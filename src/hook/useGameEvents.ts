@@ -112,7 +112,7 @@ export const useGameEvents = () => {
     });
 
     // 3.5. 📡 ロビー更新通知 (lobbyUpdated)
-    socket.on('lobbyUpdated', (data: unknown) => {
+    socket.on(SERVER_EVENTS.LOBBY_UPDATED, (data: unknown) => {
       const payload = data as SyncStatePayload;
       if (payload?.players && Array.isArray(payload.players)) {
         setLobbyPlayers(payload.players.map((p) => ({
@@ -207,7 +207,7 @@ export const useGameEvents = () => {
       socket.off(SERVER_EVENTS.ACTION_RESULT);
       socket.off(SERVER_EVENTS.RECEIVE_CHAT); // クリーンアップを追加
       socket.off(SERVER_EVENTS.GAME_OVER);
-      socket.off('lobbyUpdated');
+      socket.off(SERVER_EVENTS.LOBBY_UPDATED);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleStatsUpdate);
     };
   }, [myId, syncServerState, setNpcs, addLog, setStatus, setErrorMessage, setLobbyPlayers, setGameStarted]);
