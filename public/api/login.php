@@ -1,17 +1,6 @@
 <?php
-
-// ── 最優先: CORS ヘッダーを require より前に全送信 ──────────────────
-header("Access-Control-Allow-Origin: http://localhost:5173");
-header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header("Content-Type: application/json; charset=UTF-8");
-header("X-Content-Type-Options: nosniff");
-
-// OPTIONS プリフライトはここで完結（require より絶対に前）
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
+require_once __DIR__ . '/api-cors.php';
+require_once __DIR__ . '/../db_connection.php';
 
 // HTTPメソッド制限（POST以外は405を返す）
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -22,9 +11,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   ]);
   exit;
 }
-
-require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/jwt-helper.php';
 
 // フロント(issei)からの入力を受け取る
 $input = json_decode(file_get_contents("php://input"), true);
@@ -86,7 +72,7 @@ try {
       throw new Exception("パスワードは8文字以上で設定してください", 400);
     }
 
-    // 人数制限チェック（最大2名）
+    // 人数制限チェック（最大4名）
     $countStmt = $pdo->query("SELECT COUNT(*) FROM users");
     if ($countStmt->fetchColumn() >= 4) {
       throw new Exception("満員です（最大4名まで）", 403);

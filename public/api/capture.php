@@ -1,13 +1,6 @@
 <?php
-
-header("Access-Control-Allow-Origin: http://localhost:5173");
-header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header("Content-Type: application/json; charset=UTF-8");
-header("X-Content-Type-Options: nosniff"); // MIMEタイプの偽装防止
-
-// プリフライトリクエストの処理
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
+require_once __DIR__ . '/api-cors.php';
+require_once __DIR__ . '/../db_connection.php';
 
 // ★追加：HTTPメソッド制限（POST以外を弾き、405を返す）
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -18,10 +11,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   ]);
   exit;
 }
-
-// 共通のデータベース設定を読み込む
-require_once __DIR__ . '/jwt-helper.php';
-require_once __DIR__ . '/../config/database.php';
 
 // --- JWT認証チェック (検問) ---
 $headers = getallheaders();
