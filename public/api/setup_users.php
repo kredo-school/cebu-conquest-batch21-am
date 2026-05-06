@@ -5,7 +5,8 @@
  * 使い方: ブラウザで http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api/setup_users.php を開くだけ
  */
 
-require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/api-cors.php';
+require_once __DIR__ . '/../db_connection.php';
 
 header("Content-Type: text/plain; charset=UTF-8");
 

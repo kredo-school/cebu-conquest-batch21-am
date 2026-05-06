@@ -1,13 +1,6 @@
 <?php
-
-// CORS対策
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, OPTIONS"); // 取得専用なのでGET
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header("Content-Type: application/json; charset=UTF-8");
-header("X-Content-Type-Options: nosniff");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
+require_once __DIR__ . '/api-cors.php';
+require_once __DIR__ . '/../db_connection.php';
 
 // HTTPメソッド制限（GET以外を405で弾く）
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
@@ -19,15 +12,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     exit;
 }
 
-// ここで共通のデータベース設定を読み込む
-require_once __DIR__ . '/jwt-helper.php';
-require_once __DIR__ . '/../config/database.php';
-
 // --- JWT認証チェック ---
 $headers = getallheaders();
 $authHeader = $headers['Authorization'] ?? '';
 
-// "Bearer <token>" の形式で届くことを想定
+//"Bearer <token>" の形式で届くことを想定
 if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
     $jwt = $matches[1];
     $userData = validateJWT($jwt); // ここで検証！
@@ -95,18 +84,17 @@ try {
     }, $items);
 
     // 3.4柱の神データの取得
-    $stmtG = $pdo->query("SELECT * FROM gods"); // テーブル名は gods と仮定
+    $stmtG = $pdo->query("SELECT * FROM gods ORDER BY id ASC");
     $gods = $stmtG->fetchAll(PDO::FETCH_ASSOC);
 
     $formattedGods = array_map(function ($g) {
-return [
+        return [
             'id'             => (int)$g['id'],
             'name'           => $g['name'],
-            'atk_bonus'      => (int)$g['atk_bonus'],      // 戦神ラプラプ用 (ATK+20)
-            'stamina_bonus'  => (int)$g['stamina_bonus'],  // 豊穣の女神セブナ用 (AP+30)
-            'ap_regen_bonus' => (int)$g['ap_regen_bonus'], // 知恵の神クレド用 (毎ターンAP+5)
-            'start_item_id'  => (int)$g['start_item_id'],
-            'image_url'      => $g['image_url'],           // icon_urlからimage_urlに変更
+            'district_id'    => (int)$g['district_id'], // 追加：聖地ID
+            'spot_id'        => (int)$g['spot_id'],     // 追加：スポーン地点ID
+            'special_effect' => $g['special_effect'],   // 修正：v3.1のステータス文字列
+            'image_url'      => $g['image_url'],
             'description'    => $g['description']
         ];
     }, $gods);
@@ -120,7 +108,6 @@ return [
             'gods'        => $formattedGods
         ]
     ], JSON_UNESCAPED_UNICODE);
-    
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode([

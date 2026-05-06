@@ -1,12 +1,6 @@
 <?php
-
-header("Access-Control-Allow-Origin: http://localhost:5173");
-header("Access-Control-Allow-Methods: GET, OPTIONS"); // GETに限定
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header("Content-Type: application/json; charset=UTF-8");
-header("X-Content-Type-Options: nosniff");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
+require_once __DIR__ . '/api-cors.php';
+require_once __DIR__ . '/../db_connection.php';
 
 // HTTPメソッド制限（GET以外を405で弾く）
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
@@ -17,10 +11,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     ]);
     exit;
 }
-
-// ここで共通のデータベース設定を読み込む
-require_once __DIR__ . '/jwt-helper.php';
-require_once __DIR__ . '/../config/database.php';
 
 // JWT認証チェック (検問)
 $headers = getallheaders();
@@ -54,12 +44,11 @@ try {
               i.description,
               i.buff_target,
               i.buff_value,
-              ui.quantity,
-              ui.acquired_at
+              ui.quantity
             FROM user_items ui
             JOIN items i ON ui.item_id = i.id
             WHERE ui.user_id = ?
-            ORDER BY ui.acquired_at DESC";
+            ORDER BY ui.item_id ASC";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$userId]);

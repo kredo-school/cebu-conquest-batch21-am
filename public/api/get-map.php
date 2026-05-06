@@ -1,12 +1,6 @@
 <?php
-
-header("Access-Control-Allow-Origin: http://localhost:5173"); // ReactのURLを許可
-header("Access-Control-Allow-Methods: GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header("Content-Type: application/json; charset=UTF-8");
-header("X-Content-Type-Options: nosniff");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
+require_once __DIR__ . '/api-cors.php';
+require_once __DIR__ . '/../db_connection.php';
 
 //HTTPメソッド制限（GET以外を405で弾く）
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
@@ -17,10 +11,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
   ]);
   exit;
 }
-
-// ここで共通のデータベース設定を読み込む
-require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/jwt-helper.php';
 
 // JWT認証チェック
 $headers = getallheaders();

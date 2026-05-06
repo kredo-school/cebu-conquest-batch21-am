@@ -1,11 +1,6 @@
 <?php
-header("Access-Control-Allow-Origin: http://localhost:5173");
-header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header("Content-Type: application/json; charset=UTF-8");
-header("X-Content-Type-Options: nosniff");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
+require_once __DIR__ . '/api-cors.php';
+require_once __DIR__ . '/../db_connection.php';
 
 // HTTPメソッド制限（POST以外を405で弾く）
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -13,10 +8,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['status' => 'error', 'message' => 'Method Not Allowed. This endpoint requires POST.']);
     exit;
 }
-
-// 共通のデータベース設定を読み込む
-require_once __DIR__ . '/jwt-helper.php';
-require_once __DIR__ . '/../config/database.php';
 
 // JWT認証チェック (検問)
 $headers = getallheaders();
@@ -58,7 +49,7 @@ try {
 
     // --- 不正スコアの検証ロジック ---
     // セブ島の全スポット数は27なので、合計がそれ以上になるのは不正なデータ
-    $maxSpots = 30;
+    $maxSpots = 32;
     if (($winnerScore + $loserScore) > $maxSpots) {
         http_response_code(400);
         exit(json_encode(['status' => 'error', 'message' => "Invalid score: Total exceeds {$maxSpots}"]));

@@ -1,20 +1,6 @@
 <?php
-// CORS対策: Reactからのアクセスを許可
-header("Access-Control-Allow-Origin: http://localhost:5173");
-header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header("Content-Type: application/json; charset=UTF-8");
-header("X-Content-Type-Options: nosniff");
-
-
-// プリフライトリクエストの処理
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(204);
-    exit();
-}
-
-require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/jwt-helper.php';
+require_once __DIR__ . '/api-cors.php';
+require_once __DIR__ . '/../db_connection.php';
 
 // 1. JWT認証（Authorizationヘッダーからユーザーを特定）
 $headers = getallheaders();
@@ -25,7 +11,7 @@ if (!preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
     exit;
 }
 
-$userData = validateJWT($matches[1]); 
+$userData = validateJWT($matches[1]);
 if (!$userData) {
     http_response_code(401);
     echo json_encode(['status' => 'error', 'message' => '無効なトークンです']);
@@ -41,7 +27,7 @@ try {
     $is_unique = false;
     $room_key = "";
 
- while (!$is_unique) {
+    while (!$is_unique) {
         $room_key = str_pad(mt_rand(0, 99999), 5, '0', STR_PAD_LEFT);
         $check = $pdo->prepare("SELECT id FROM rooms WHERE room_key = ? AND status != 'finished'");
         $check->execute([$room_key]);
@@ -52,15 +38,23 @@ try {
     $stmt = $pdo->prepare("INSERT INTO rooms (room_key, host_user_id, status) VALUES (?, ?, 'waiting')");
     $stmt->execute([$room_key, $host_id]);
 
+    // 【重要】新しく作成された部屋の自動採番ID(idカラム)を取得
+    $new_room_id = $pdo->lastInsertId();
+
+    // 4. 【追加】room_playersテーブルにホスト自身を登録
+    // これにより、join-room.phpでのカウントが「1」から始まるようになります
+    $insertHost = $pdo->prepare("INSERT INTO room_players (room_id, user_id) VALUES (?, ?)");
+    $insertHost->execute([$new_room_id, $host_id]);
+
     $pdo->commit();
 
     // 4. 成功レスポンス（500ms以内の応答を維持）
     echo json_encode([
         'status' => 'success',
-        'room_id' => $room_key,
+        'room_id' => $new_room_id,    // フロントエンドの遷移には数値のIDを返すのが一般的です
+        'room_key' => $room_key,      // 5桁のキーも一緒に返します
         'message' => 'Room created successfully!'
     ]);
-
 } catch (Exception $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     http_response_code(500);

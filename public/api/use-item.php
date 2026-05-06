@@ -1,12 +1,6 @@
 <?php
-// api/use-item.php
-header("Access-Control-Allow-Origin: http://localhost:5173");
-header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header("Content-Type: application/json; charset=UTF-8");
-header("X-Content-Type-Options: nosniff");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
+require_once __DIR__ . '/api-cors.php';
+require_once __DIR__ . '/../db_connection.php';
 
 // HTTPメソッド制限
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -14,10 +8,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['status' => 'error', 'message' => 'Method Not Allowed']);
     exit;
 }
-
-// 共通設定の読み込み
-require_once __DIR__ . '/jwt-helper.php';
-require_once __DIR__ . '/../config/database.php';
 
 // JWT認証チェック
 $headers = getallheaders();
