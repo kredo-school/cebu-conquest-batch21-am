@@ -1,5 +1,9 @@
-import React, { useState, memo } from 'react'; // 🚀 修正: 不要な useEffect を削除
+// src/views/LoginView.tsx
+
+import React, { useState, memo } from 'react';
 import { useGameStore } from '../store';
+import { GlobalNavbar } from './layout/GlobalNavbar';
+import { CustomButton } from './common/CustomButton';
 
 interface LoginViewProps {
   onLogin: (name: string) => void;
@@ -10,7 +14,6 @@ interface LoginViewProps {
 export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettings, onOpenHelp }) => {
   const { login, addLog, getApiUrl, setErrorMessage, setView } = useGameStore();
   
-  // 🚀 既存ロジック・ステート（一切変更なし）
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState(''); 
@@ -22,6 +25,9 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
   const [mode, setMode] = useState<'login' | 'recovery_user' | 'recovery_answer' | 'reset'>('login');
   const [customQuestion, setCustomQuestion] = useState(''); 
   const [securityAnswer, setSecurityAnswer] = useState(''); 
+
+  // カテゴリー表示用のState（モーダル開閉管理）
+  const [activeCategory, setActiveCategory] = useState<'laravel' | 'gods' | 'about' | null>(null);
 
   const SCAN_CYCLE = 4000; 
 
@@ -109,17 +115,11 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
       <div className="fixed inset-0 z-0 island-silhouette opacity-40" />
       <div className="fixed inset-0 z-10 tropical-flare pointer-events-none" />
 
-      <header className="fixed top-0 left-0 w-full z-50 bg-transparent flex justify-between items-center px-6 py-4">
-        <div className="text-2xl font-black tracking-tighter text-orange-500 uppercase tracking-widest font-fix">
-          Cebu Conquest
-        </div>
-        <div className="flex items-center gap-6">
-          <button onClick={onOpenSettings} className="text-slate-400 hover:text-orange-300 transition-colors material-symbols-outlined">settings</button>
-          <button onClick={onOpenHelp} className="text-slate-400 hover:text-orange-300 transition-colors material-symbols-outlined">help</button>
-        </div>
-      </header>
+      <GlobalNavbar 
+        onOpenSettings={onOpenSettings} 
+        onOpenHelp={onOpenHelp} 
+      />
 
-      {/* 🚀 修正1: スクロール対応（justify-start + pt-24） */}
       <main className="relative z-20 flex-1 flex flex-col items-center justify-start md:justify-center px-4 pt-24 pb-8 overflow-y-auto custom-scrollbar">
         <div className="text-center mb-4 shrink-0">
           <div className={`inline-block px-3 py-0.5 rounded-full border ${isRegisterMode ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-400' : 'border-orange-500/30 bg-orange-500/10 text-orange-400'} text-[10px] font-bold tracking-[0.2em] mb-2 uppercase transition-colors duration-500`}>
@@ -131,7 +131,6 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
           <p className="text-slate-400 text-sm font-medium tracking-wide">Enter the battlefield.</p>
         </div>
 
-        {/* 🚀 修正2: Register時のボーダー色をシアン化 */}
         <div className={`w-full max-w-sm bg-slate-900/60 backdrop-blur-xl p-6 rounded-2xl border transition-colors duration-500 ${isRegisterMode ? 'border-cyan-800/50 shadow-cyan-900/20' : 'border-slate-800 shadow-2xl'} relative overflow-hidden text-left shrink-0`}>
           {isLoading && <div key="active-scan-line" className={`absolute inset-0 z-30 pointer-events-none scanning-line ${isRegisterMode ? 'bg-cyan-500 shadow-cyan-500' : 'bg-orange-500 shadow-orange-500'}`} />}
           
@@ -139,21 +138,21 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
             <form className="space-y-4 animate-fadeIn" onSubmit={handleIdentifyUser}>
               <div className="mb-4 text-left"><h2 className="text-xl font-black text-white italic uppercase leading-none">Find Account</h2><p className="text-orange-500 text-[10px] uppercase font-bold tracking-tight mt-2">Enter User ID to initiate recovery</p></div>
               <input type="text" className="w-full bg-slate-950/50 border border-slate-700 text-white px-4 py-2.5 rounded-lg outline-none text-sm" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
-              <button type="submit" className="w-full font-black py-3 bg-orange-600 hover:bg-orange-500 text-white rounded-lg shadow-lg text-sm uppercase transition-all">Identify Operator</button>
-              <button type="button" onClick={() => setMode('login')} className="w-full border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold py-2.5 rounded-lg text-sm uppercase mt-2">Return to Login</button>
+              <CustomButton type="submit" variant="primary" className="w-full text-sm">Identify Operator</CustomButton>
+              <CustomButton type="button" variant="ghost" onClick={() => setMode('login')} className="w-full text-sm mt-2">Return to Login</CustomButton>
             </form>
           ) : mode === 'recovery_answer' ? (
             <form className="space-y-4 animate-fadeIn" onSubmit={handleVerifyAnswer}>
               <div className="mb-4 text-left"><h2 className="text-xl font-black text-white italic uppercase leading-none">Identity Check</h2><p className="text-orange-400 text-xs font-bold mt-2 italic font-fix">Hint: Security Question Set</p></div>
               <input type="text" className="w-full bg-slate-950/50 border border-slate-700 text-orange-400 px-4 py-2.5 rounded-lg outline-none text-sm" placeholder="Your Answer" value={securityAnswer} onChange={(e) => setSecurityAnswer(e.target.value)} />
-              <button type="submit" className="w-full font-black py-3 bg-orange-600 hover:bg-orange-500 text-white rounded-lg shadow-lg text-sm uppercase transition-all">Verify Credentials</button>
-              <button type="button" onClick={() => setMode('login')} className="w-full border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold py-2.5 rounded-lg text-sm uppercase mt-2">Abort Protocol</button>
+              <CustomButton type="submit" variant="primary" className="w-full text-sm">Verify Credentials</CustomButton>
+              <CustomButton type="button" variant="ghost" onClick={() => setMode('login')} className="w-full text-sm mt-2">Abort Protocol</CustomButton>
             </form>
           ) : mode === 'reset' ? (
             <form className="space-y-4 animate-fadeIn" onSubmit={(e) => { e.preventDefault(); alert('Updated.'); setMode('login'); }}>
               <div className="mb-4 text-left"><h2 className="text-xl font-black text-white italic uppercase leading-none">New Credentials</h2><p className="text-green-500 text-[10px] uppercase font-bold tracking-tight mt-2">Access Granted. Set password.</p></div>
               <input type="password" required className="w-full bg-slate-950/50 border border-slate-700 text-white px-4 py-2.5 rounded-lg outline-none text-sm" placeholder="New Password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-              <button type="submit" className="w-full font-black py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg shadow-lg uppercase text-sm">Update & Return</button>
+              <CustomButton type="submit" variant="primary" className="w-full text-sm !bg-green-600 hover:!bg-green-500">Update & Return</CustomButton>
             </form>
           ) : (
             <form className="space-y-4" onSubmit={handleAuthSubmit}>
@@ -190,11 +189,10 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
                 </div>
               )}
 
-              {/* 🚀 修正3: INITIATE REGISTRATION ボタンをシアン化 */}
-              <button disabled={isLoading} className={`w-full font-black py-3 rounded-lg shadow-lg active:opacity-80 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm ${isRegisterMode ? 'bg-cyan-700 hover:bg-cyan-600 shadow-cyan-900/20' : 'bg-orange-600 hover:bg-orange-500 shadow-orange-900/20'} text-white font-fix`} type="submit">
+              <CustomButton type="submit" disabled={isLoading} variant="primary" className={`w-full text-sm ${isRegisterMode ? '!bg-cyan-700 hover:!bg-cyan-600' : ''}`}>
                 {isLoading ? 'PROCESSING...' : (isRegisterMode ? 'INITIATE REGISTRATION' : 'ENTER CEBU (LOGIN)')}
                 {!isLoading && <span className="material-symbols-outlined text-lg">arrow_forward</span>}
-              </button>
+              </CustomButton>
 
               <div className="relative py-2">
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800"></div></div>
@@ -203,27 +201,87 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
                 </div>
               </div>
 
-              <button disabled={isLoading} onClick={() => { setIsRegisterMode(!isRegisterMode); setErrorMsg(null); }} className={`w-full border ${isRegisterMode ? 'border-cyan-900/50 hover:bg-cyan-900/20 text-cyan-400' : 'border-slate-700 hover:bg-slate-800 text-slate-300'} font-bold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50 font-fix`} type="button">
+              <CustomButton disabled={isLoading} onClick={() => { setIsRegisterMode(!isRegisterMode); setErrorMsg(null); }} type="button" variant="ghost" className={`w-full text-sm ${isRegisterMode ? '!border-cyan-900/50 hover:!bg-cyan-900/20 !text-cyan-400' : ''}`}>
                 {isRegisterMode ? 'BACK TO LOGIN' : 'CREATE NEW ACCOUNT'}
-              </button>
+              </CustomButton>
             </form>
           )}
         </div>
 
         <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3 w-full max-w-3xl shrink-0">
-          <BentoCard icon="groups" title="No Laravel" sub={<>The First project in GI history <div className="text-[9px] opacity-70">that does not use Laravel</div></>} />
-          <BentoCard icon="military_tech" title="God Teachers" sub="Do you believe in God" />
-          <BentoCard icon="map" title="What is Cebu Conquest" sub="You can learn about Cebu and God" />
+          <BentoCard 
+            icon="groups" 
+            title="No Laravel" 
+            sub={<>The First project in GI history <div className="text-[9px] opacity-70">that does not use Laravel</div></>} 
+            isActive={activeCategory === 'laravel'}
+            onClick={() => setActiveCategory('laravel')}
+          />
+          <BentoCard 
+            icon="military_tech" 
+            title="God Teachers" 
+            sub="Do you believe in God" 
+            isActive={activeCategory === 'gods'}
+            onClick={() => setActiveCategory('gods')}
+          />
+          <BentoCard 
+            icon="map" 
+            title="What is Cebu Conquest" 
+            sub="You can learn about Cebu and God" 
+            isActive={activeCategory === 'about'}
+            onClick={() => setActiveCategory('about')}
+          />
         </div>
       </main>
 
-      <footer className="relative z-20 bg-slate-950/80 backdrop-blur-md flex flex-col md:flex-row justify-between items-center w-full px-8 py-4 gap-2 border-t border-slate-800 font-headline text-[10px] text-left">
-        <div className="text-orange-500 font-bold uppercase tracking-widest font-fix">© 2026 Batch21 [AM GI Offline - March] All rights reserved.</div>
-        <div className="flex gap-6 text-slate-500">
-          <span className="hover:text-slate-300 transition-all cursor-pointer">Privacy Policy</span>
-          <span className="hover:text-slate-300 transition-all cursor-pointer">Terms of Service</span>
-          <span className="hover:text-slate-300 transition-all cursor-pointer">Support</span>
+      {/* 🚀 復元: モーダル（ポップアップ）形式の詳細表示 */}
+      {activeCategory && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setActiveCategory(null)} // 背景クリックで閉じる
+        >
+          <div 
+            className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()} // モーダル内クリックで閉じないようにする
+          >
+            <button 
+              onClick={() => setActiveCategory(null)} 
+              className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+            
+            <div className="text-slate-300 text-sm leading-relaxed mt-2">
+              {activeCategory === 'laravel' && (
+                <>
+                  <h4 className="text-orange-500 font-bold mb-4 flex items-center gap-2 text-xl">
+                    <span className="material-symbols-outlined">groups</span> No Laravel - 開発の背景
+                  </h4>
+                  <p>今回の『Cebu Conquest』は、GIの歴史上初めてLaravelを使用せず、Node.js + Socket.IOによるフルタイムリアルタイム通信を採用しています。ReactとPhaserが連携する挑戦的なアーキテクチャです。</p>
+                </>
+              )}
+              {activeCategory === 'gods' && (
+                <>
+                  <h4 className="text-orange-500 font-bold mb-4 flex items-center gap-2 text-xl">
+                    <span className="material-symbols-outlined">military_tech</span> God Teachers - セブの神々
+                  </h4>
+                  <p>この世界では、セブに根付く8柱の神々から1つを選び信仰します。選んだ神によって初期ステータスやバフ効果が変動し、激しい領土争いにおける戦略が大きく変わります。</p>
+                </>
+              )}
+              {activeCategory === 'about' && (
+                <>
+                  <h4 className="text-orange-500 font-bold mb-4 flex items-center gap-2 text-xl">
+                    <span className="material-symbols-outlined">map</span> What is Cebu Conquest
+                  </h4>
+                  <p>セブ島を舞台にした陣取り合戦ゲーム。10日間の限られたターンの中で、自身のAPを管理しながら地区を制圧し、最終的に最も多くの領土を獲得した者が勝者となります。</p>
+                </>
+              )}
+            </div>
+          </div>
         </div>
+      )}
+
+      <footer className="relative z-20 bg-slate-950/80 backdrop-blur-md flex flex-col md:flex-row justify-between items-center w-full px-8 py-4 gap-2 border-t border-slate-800 font-headline text-[10px] text-left shrink-0">
+        <div className="text-orange-500 font-bold uppercase tracking-widest font-fix">© 2026 Batch21 [AM GI Offline - March] All rights reserved.</div>
       </footer>
 
       <style>{`
@@ -238,8 +296,8 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
           position: absolute; width: 100%; top: 0; animation: scan 4s linear infinite; 
         }
         @keyframes scan { 0% { top: 0%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
-        .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fadeIn { animation: fadeIn 0.2s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
         .font-fix { line-height: 1.1; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
@@ -248,13 +306,13 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
   );
 });
 
-const BentoCard = ({ icon, title, sub }: { icon: string, title: React.ReactNode, sub: React.ReactNode }) => (
-  <div className="bg-slate-900/40 backdrop-blur-sm p-3 rounded-xl border border-slate-800/50 flex items-center gap-3 group hover:bg-slate-800 transition-all cursor-pointer text-left">
-    <div className="bg-orange-500/20 p-1.5 rounded-lg group-hover:bg-orange-500/40 transition-colors shrink-0 text-left flex items-center justify-center">
-      <span className="material-symbols-outlined text-orange-400 text-lg">{icon}</span>
+const BentoCard = ({ icon, title, sub, onClick, isActive }: { icon: string, title: React.ReactNode, sub: React.ReactNode, onClick?: () => void, isActive?: boolean }) => (
+  <div onClick={onClick} className={`bg-slate-900/40 backdrop-blur-sm p-3 rounded-xl border flex items-center gap-3 group transition-all cursor-pointer text-left ${isActive ? 'bg-slate-800 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.2)]' : 'border-slate-800/50 hover:bg-slate-800'}`}>
+    <div className={`p-1.5 rounded-lg transition-colors shrink-0 text-left flex items-center justify-center ${isActive ? 'bg-orange-500 text-white' : 'bg-orange-500/20 group-hover:bg-orange-500/40 text-orange-400'}`}>
+      <span className="material-symbols-outlined text-lg">{icon}</span>
     </div>
     <div className="text-left">
-      <div className="text-white font-bold text-sm leading-tight">{title}</div>
+      <div className={`font-bold text-sm leading-tight ${isActive ? 'text-orange-400' : 'text-white'}`}>{title}</div>
       <div className="text-slate-500 text-[10px] leading-tight mt-0.5">{sub}</div>
     </div>
   </div>

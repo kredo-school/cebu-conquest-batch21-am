@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import socket from '../socket';
 import { SERVER_EVENTS } from '../../shared/socketEvents.js'; 
-import { useGameStore, Player } from '../store'; // 🚀 Player型をインポート
+import { useGameStore, Player, LobbyPlayer } from '../store'; 
 import { emitToPhaser, REACT_TO_PHASER, PHASER_TO_REACT } from '../game/events/PhaserBridge'; 
 
 // サーバーから受信するプレイヤーデータの型定義
@@ -42,7 +42,7 @@ export const useGameEvents = () => {
     if (!socket) return;
 
     // ---------------------------------------------------------
-    // A. Phaser → React 同期リスナー (Task 3: HUD更新用)
+    // A. Phaser → React 同期リスナー (HUD更新用)
     // ---------------------------------------------------------
     const handleStatsUpdate = (e: Event) => {
       const customEvent = e as CustomEvent;
@@ -66,7 +66,7 @@ export const useGameEvents = () => {
     socket.on(SERVER_EVENTS.SYNC_STATE, (data: unknown) => {
       const currentView = useGameStore.getState().view;
 
-      // 🚀 修正: unknownからRecord<string, Player>へキャスト
+      // 🚀 Record<string, Player>へキャストして同期
       const castedData = data as Record<string, Player>;
       syncServerState(castedData, myId);
 
@@ -93,23 +93,26 @@ export const useGameEvents = () => {
       emitToPhaser(REACT_TO_PHASER.SYNC_MAP, data as Record<string, unknown>);
     });
 
-    // 2. 🎮 試合開始通知 (gameStart)
-    socket.on(SERVER_EVENTS.GAME_START, () => {
+    // 2. 🎮 試合開始通知 (gameStart / commenceOperation)
+    // 🚀 修正: GDD v3.1 準拠のため、両方のイベントで遷移をトリガーする
+    const handleGameBegin = () => {
       addLog("🎮 サーバーが作戦開始を承認。システム同期中...");
       setGameStarted(true);
       emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, { isFirstTurn: true });
-    });
+    };
+
+    socket.on(SERVER_EVENTS.GAME_START, handleGameBegin);
+    socket.on(SERVER_EVENTS.COMMENCE_OPERATION, handleGameBegin); 
 
     // 3. 🤖 NPC情報の更新受信 (npcUpdate)
     socket.on(SERVER_EVENTS.NPC_UPDATE, (npcData: unknown) => {
-      // 🚀 修正: ここでも期待される型 Record<string, Player> にキャスト
       const castedNpcs = npcData as Record<string, Player>; 
       setNpcs(castedNpcs);
       emitToPhaser(REACT_TO_PHASER.UPDATE_NPCS, npcData as Record<string, unknown>);
     });
 
     // 3.5. 📡 ロビー更新通知 (lobbyUpdated)
-    socket.on('lobbyUpdated', (data: unknown) => {
+    socket.on(SERVER_EVENTS.LOBBY_UPDATED, (data: unknown) => {
       const payload = data as SyncStatePayload;
       if (payload?.players && Array.isArray(payload.players)) {
         setLobbyPlayers(payload.players.map((p) => ({
@@ -124,8 +127,17 @@ export const useGameEvents = () => {
 
     // 4. 📢 ターン開始通知 (turnStart)
     socket.on(SERVER_EVENTS.TURN_START, (data: unknown) => {
-      const payload = data as { turnOwnerId: string; turn: number };
-      const isMe = payload.turnOwnerId === myId;
+      const payload = data as { 
+        turnOwnerId?: string; 
+        activePlayerId?: string; 
+        turn: number; 
+        isMyTurn?: boolean 
+      };
+      
+      const isMe = payload.isMyTurn !== undefined 
+        ? payload.isMyTurn 
+        : (payload.turnOwnerId === myId || payload.activePlayerId === myId);
+
       setStatus({ 
         isMyTurn: isMe,
         turn: payload.turn 
@@ -166,6 +178,15 @@ export const useGameEvents = () => {
       addLog(data.message);
     });
 
+    // 💡 10. 💬 チャットメッセージの受信 (名前が表示されない問題を修正)
+    // 🚀 修正: サーバーの "username" を UI用の "sender" にマッピングして addLog に渡す
+    socket.on(SERVER_EVENTS.RECEIVE_CHAT, (data: { username: string; message: string }) => {
+      addLog({
+        sender: data.username || 'Operator', 
+        message: data.message
+      });
+    });
+
     // 9. 🏆 ゲーム終了通知 (gameOver)
     socket.on(SERVER_EVENTS.GAME_OVER, (data: unknown) => {
       const payload = data as { winnerName: string; winnerId: string };
@@ -177,14 +198,16 @@ export const useGameEvents = () => {
     return () => {
       socket.off(SERVER_EVENTS.SYNC_STATE);
       socket.off(SERVER_EVENTS.GAME_START);
+      socket.off(SERVER_EVENTS.COMMENCE_OPERATION);
       socket.off(SERVER_EVENTS.NPC_UPDATE);
       socket.off(SERVER_EVENTS.TURN_START);
       socket.off(SERVER_EVENTS.BATTLE_RESULT);
       socket.off(SERVER_EVENTS.TERRITORY_UPDATED);
       socket.off(SERVER_EVENTS.ACTION_REJECTED);
       socket.off(SERVER_EVENTS.ACTION_RESULT);
+      socket.off(SERVER_EVENTS.RECEIVE_CHAT); // クリーンアップを追加
       socket.off(SERVER_EVENTS.GAME_OVER);
-      socket.off('lobbyUpdated');
+      socket.off(SERVER_EVENTS.LOBBY_UPDATED);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleStatsUpdate);
     };
   }, [myId, syncServerState, setNpcs, addLog, setStatus, setErrorMessage, setLobbyPlayers, setGameStarted]);

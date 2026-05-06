@@ -1,3 +1,4 @@
+// src/App.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import socket from './socket';
@@ -32,8 +33,7 @@ const App: React.FC = () => {
     addLog, playerName: storePlayerName, token, hasSeenTutorial, 
     setZoomLevel, isGameOver, roomId, players, setView, view,
     authenticatedFetch, setLookupData, syncServerState, myId,
-    updateSelectedDistrict, updateStatsFromPhaser,
-    isGameStarted, selectedGodId
+    updateSelectedDistrict, updateStatsFromPhaser
   } = useGameStore(useShallow(state => ({
     addLog: state.addLog,
     playerName: state.playerName,
@@ -50,17 +50,24 @@ const App: React.FC = () => {
     syncServerState: state.syncServerState,
     myId: state.myId,
     updateSelectedDistrict: state.updateSelectedDistrict,
-    updateStatsFromPhaser: state.updateStatsFromPhaser,
-    isGameStarted: state.isGameStarted,
-    selectedGodId: state.selectedGodId
+    updateStatsFromPhaser: state.updateStatsFromPhaser
   })));
   
   const gameRef = useRef<PhaserGameHandle | null>(null);
   const [isDeploying, setIsDeploying] = useState(false); 
   const [showSettings, setShowSettings] = useState(false); 
   const [showHelp, setShowHelp] = useState(false); 
+  const [showRanking, setShowRanking] = useState(false); // 💡 修正：追加
   const [showInventory, setShowInventory] = useState(false); 
   const [playerName, setLocalPlayerName] = useState('');
+
+  // 💡 修正：追加（WaitingView等で使用）
+  const handleAbortGame = useCallback(() => {
+    if (window.confirm("Abort mission and return to setup?")) {
+      useGameStore.setState({ roomId: undefined, players: [] });
+      setView('setup');
+    }
+  }, [setView]);
 
   // 🚀 1. マスターデータ同期
   useEffect(() => {
@@ -111,6 +118,7 @@ const App: React.FC = () => {
     };
 
     socket.on(SERVER_EVENTS.COMMENCE_OPERATION, handleCommence);
+    socket.on(SERVER_EVENTS.GAME_START, handleCommence); 
 
     const handleZoomUpdate = (e: Event) => {
       const ce = e as CustomEvent<{ zoom: number }>;
@@ -133,24 +141,12 @@ const App: React.FC = () => {
 
     return () => {
       socket.off(SERVER_EVENTS.COMMENCE_OPERATION, handleCommence);
+      socket.off(SERVER_EVENTS.GAME_START, handleCommence);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
       window.removeEventListener(PHASER_TO_REACT.ZOOM_UPDATED, handleZoomUpdate);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleSelectDistrict);
     };
   }, [triggerDeploySequence, setZoomLevel, addLog, syncServerState, myId, updateStatsFromPhaser, updateSelectedDistrict]);
-
-  // 🚀 3.5. gameStart フラグによる自動遷移
-  // isGameStarted が true になったら、待機/選択画面からゲーム画面へ自動遷移
-  // setTimeout で非同期化し、カスケードレンダリング（react-hooks/set-state-in-effect）を防止
-  useEffect(() => {
-    if (isGameStarted && selectedGodId !== null && (view === 'waiting' || view === 'selection')) {
-      const timerId = setTimeout(() => {
-        addLog("🚀 gameStart 受信。出撃シーケンスを開始します。");
-        triggerDeploySequence();
-      }, 0);
-      return () => clearTimeout(timerId);
-    }
-  }, [isGameStarted, selectedGodId, view, addLog, triggerDeploySequence]);
 
   // 🚀 4. 遷移制御ロジック
   const handleLoginSubmit = async (name: string) => {
@@ -176,7 +172,7 @@ const App: React.FC = () => {
     setView('waiting');
   }, [setView]);
 
-  const handleOpenRanking = () => setView('ranking');
+  const handleOpenRanking = () => setShowRanking(true);
 
   // --- 🖼️ コンテンツ切り替え ---
   let mainContent;
@@ -197,8 +193,16 @@ const App: React.FC = () => {
       mainContent = <GodSelectionView onComplete={handleSelectionComplete} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onBack={() => setView('lobby')} />;
       break;
     case 'waiting':
-      // 🚀 修正: image_188c3d.png のエラー箇所。WaitingViewProps に合わせて onBack を削除
-      mainContent = <WaitingView onStart={triggerDeploySequence} />;
+      // 💡 修正：propsを正しく渡すことで型エラーを解消
+      mainContent = (
+        <WaitingView 
+          onStart={triggerDeploySequence} 
+          onOpenSettings={() => setShowSettings(true)}
+          onOpenHelp={() => setShowHelp(true)}
+          onOpenRanking={() => setShowRanking(true)}
+          onAbort={handleAbortGame}
+        />
+      );
       break;
     case 'game':
       mainContent = (
@@ -222,8 +226,7 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-screen h-screen bg-slate-950 text-slate-200 overflow-hidden select-none">
-      
-      <div className="w-full h-full relative overflow-y-auto overflow-x-hidden touch-pan-y custom-scrollbar text-left">
+      <div className="w-full h-full relative overflow-hidden touch-pan-y custom-scrollbar text-left">
          {mainContent}
       </div>
       
@@ -240,7 +243,8 @@ const App: React.FC = () => {
       )}
       {showSettings && <div className="fixed inset-0 z-[300000]"><SettingsView onBack={() => setShowSettings(false)} /></div>}
       {showHelp && <div className="fixed inset-0 z-[310000]"><HelpModal onClose={() => setShowHelp(false)} /></div>}
-      {showInventory && <div className="fixed inset-0 z-[320000]"><InventoryModal onClose={() => setShowInventory(false)} /></div>}
+      {showRanking && <div className="fixed inset-0 z-[320000]"><RankingView onBack={() => setShowRanking(false)} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} /></div>}
+      {showInventory && <div className="fixed inset-0 z-[330000]"><InventoryModal onClose={() => setShowInventory(false)} /></div>}
 
       <style>{`
         @keyframes progressBar { 0% { width: 0%; } 100% { width: 100%; } }
@@ -249,7 +253,6 @@ const App: React.FC = () => {
         .font-fix { line-height: 1.1; }
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-        * { -webkit-overflow-scrolling: touch; }
       `}</style>
     </div>
   );

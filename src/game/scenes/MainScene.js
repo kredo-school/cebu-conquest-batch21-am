@@ -4,9 +4,16 @@ import { CLIENT_EVENTS, SERVER_EVENTS } from "../../../shared/socketEvents.js";
 import { PHASER_TO_REACT, REACT_TO_PHASER, emitToReact } from "../events/PhaserBridge";
 import { MAP_CONFIG } from "../config/mapConfig";
 import { ADJACENCY } from "../../../shared/adjacency.js";
+import {
+  GOD_SACRED_LANDS,
+  getSacredDistrict,
+  getSpawnSpot,
+  getGodName,
+} from "../../../shared/godSacredLands.js";
 import ZoomManager from "./ZoomManager";
 import SoundManager from "../SoundManager";
 import EffectManager from "../effects/EffectManager";
+import CameraController from "../camera/CameraController.js";
 
 const MAP_SCALE = 0.5;
 
@@ -87,7 +94,20 @@ export default class MainScene extends Phaser.Scene {
     this._setupTilemap();
     this._loadDistrictsFromTMJ();
     this._drawDistrictPolygons();
-    this._setupCamera();
+
+    // A-2: CameraController に置き換え
+    this.cameraController = new CameraController(this);
+    this.cameraController.setup(this.tiledMap, MAP_SCALE);
+    this.cameraController.onZoomChanged((zoom) => {
+      this._updateLabelVisibility();
+      emitToReact(PHASER_TO_REACT.ZOOM_UPDATED, { zoom });
+    });
+    this.cameraController.onHoverChanged((worldPoint) => {
+      const hoveredId = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
+      this._updateHoverText(hoveredId);
+    });
+
+    this._setupPointerInput();
     this._initSocket();
     this._setupReactListeners();
     this._setupKeyboard();
@@ -99,18 +119,82 @@ export default class MainScene extends Phaser.Scene {
 
   update() {
     this.zoomManager.tick(this.cameras.main.zoom, this.districts);
-    this._handleCameraKeyboard();
+    // A-2: _handleCameraKeyboard を CameraController.update に置き換え
+    this.cameraController?.update();
   }
 
   // 🚀 リスナー統合版（重複を削除してクリーンアップ）
+  // ═══════════════════════════════════════════════
+  // 神聖地占領処理
+  // ═══════════════════════════════════════════════
+
+  /**
+   * 神選択時に聖地districtを自陣カラーで占領表示する
+   * GDD v3.1 §3-1 に基づき、神ごとの聖地を自動占領
+   * @param {number} godId - 1〜8（GOD_SACRED_LANDS のキー）
+   */
+  _claimSacredLand(godId) {
+    const sacredDistrictId = getSacredDistrict(godId);
+    if (sacredDistrictId == null) {
+      console.warn(`[MainScene] godId=${godId} に対応する聖地が見つかりません`);
+      return;
+    }
+
+    const district = this.districts[sacredDistrictId];
+    if (!district) {
+      console.warn(
+        `[MainScene] district ${sacredDistrictId} が描画されていません。` +
+        `TMJのdistrictNameレイヤーにIDが存在するか確認してください`
+      );
+      return;
+    }
+
+    // チームカラー判定（_myTeamが未確定の場合は赤を暫定使用）
+    const teamColor = this._myTeam === 'blue' ? COLOR.TEAM_BLUE : COLOR.TEAM_RED;
+
+    // 自陣カラーで塗りつぶす
+    district.polygon.setFillStyle(teamColor, 0.6);
+    district.owner = 'me';
+    this._sacredDistrictId = sacredDistrictId; // 後続処理用に保持
+
+    this.showLog(`⛩️ ${getGodName(godId)} の聖地（地区${sacredDistrictId}）を獲得！`);
+
+    // Reactへ占領通知（HUD・ミニマップ更新用）
+    emitToReact(PHASER_TO_REACT.TERRITORY_CLAIMED, {
+      districtId: sacredDistrictId,
+      owner: 'me',
+      team: this._myTeam,
+    });
+  }
+
   _setupReactListeners() {
     const handlers = [
       {
         event: REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM,
         handler: (e) => {
           this.isSelectionMode = false;
-          this.currentDistrictId = normalizeId(e.detail.districtId);
-          this._placePlayer(this.currentDistrictId);
+
+          // 🚀 startDistrictId（GDD v3.1 仕様）または互換用 districtId の両対応
+          const rawId = normalizeId(e.detail.startDistrictId ?? e.detail.districtId);
+          if (rawId == null) {
+            console.error("[MainScene] startDistrictId が不正です", e.detail);
+            return;
+          }
+
+          // 5桁ならspot_id → district_idに変換（上3桁を取得）
+          // 例: 14101（spot） → 141（district）
+          const districtId = rawId >= 10000 ? Math.floor(rawId / 100) : rawId;
+
+          // 聖地と一致するなら追加占領処理は不要（Step3で既に塗布済み）
+          if (this._sacredDistrictId !== districtId) {
+            console.warn(
+              `[MainScene] deployment district(${districtId}) と聖地(${this._sacredDistrictId}) が不一致。` +
+              `通常占領フローで処理します`
+            );
+          }
+
+          this.currentDistrictId = districtId;
+          this._placePlayer(districtId);
           SoundManager.playSe('move');
         },
       },
@@ -156,10 +240,21 @@ export default class MainScene extends Phaser.Scene {
       {
         event: REACT_TO_PHASER.SET_AVATAR,
         handler: (e) => {
-          const key = e.detail?.godKey;
-          if (!key || !this.textures.exists(key)) return;
-          this._avatarKey = key;
-          if (this.currentDistrictId !== null) this._placePlayer(this.currentDistrictId);
+          const { godKey, godId } = e.detail || {};
+
+          // アバター画像キーの更新
+          if (godKey) {
+            this._avatarKey = godKey;
+            // プレイヤースプライトが既に存在すれば差し替え
+            if (this.player && this.textures.exists(godKey)) {
+              this.player.setTexture(godKey);
+            }
+          }
+
+          // 🚀 神に対応する聖地を自陣カラーで先塗り
+          if (godId != null) {
+            this._claimSacredLand(godId);
+          }
         },
       },
     ];
@@ -274,8 +369,8 @@ export default class MainScene extends Phaser.Scene {
   _drawDistrictPolygons() {
     const w = this.tiledMap.widthInPixels * MAP_SCALE;
     const h = this.tiledMap.heightInPixels * MAP_SCALE;
-    const overlay = this.add.rectangle(0, 0, w, h, 0, 0).setOrigin(0).setInteractive().setDepth(1);
-    overlay.on("pointerup", (p) => this._onMapClicked(p.x, p.y));
+    // クリックは _setupPointerInput の scene.input.on('pointerup') で一元処理
+    this.add.rectangle(0, 0, w, h, 0, 0).setOrigin(0).setDepth(1);
 
     const sizeByType = {
       islandName: "36px",
@@ -298,109 +393,99 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  _setupCamera() {
-    const cam = this.cameras.main;
-    this.input.on("pointerdown", () => {
-      this._dragMoved = false;
-    });
-    this.input.on("pointermove", (p) => {
-      if (p.isDown) {
-        if (p.getDistance() > 3) this._dragMoved = true;
-        cam.scrollX -= (p.x - p.prevPosition.x) / cam.zoom;
-        cam.scrollY -= (p.y - p.prevPosition.y) / cam.zoom;
-        this._clampCamera();
-      } else {
-        const worldPoint = cam.getWorldPoint(p.x, p.y);
-        const hoveredId = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
-        this._updateHoverText(hoveredId);
+  // ─── ポインター入力（優先順位: spot > district > area）──────────
+
+  _setupPointerInput() {
+    // pointerup で判定（pointerdown では _dragMoved がまだ確定していないため）
+    this.input.on('pointerup', (pointer) => {
+      if (this._dragMoved) return;
+
+      const worldX = pointer.worldX;
+      const worldY = pointer.worldY;
+
+      // 優先順位: spot > district > area > island
+      const hitSpot = this._findObjectAt('spotName', worldX, worldY);
+      if (hitSpot) {
+        this._handleSpotClick(hitSpot);
+        return;
       }
+
+      const hitDistrict = this._findObjectAt('districtName', worldX, worldY);
+      if (hitDistrict) {
+        this._handleDistrictClick(hitDistrict);
+        return;
+      }
+
+      // area / island は現状クリック対象外
+      // 必要になったら以下を有効化：
+      // const hitArea = this._findObjectAt('areaName', worldX, worldY);
+      // if (hitArea) { this._handleAreaClick(hitArea); return; }
     });
-    this.input.on("wheel", (pointer, _objs, _dx, deltaY) => {
-      const nativeEvent = pointer.event;
-      const isPinch = nativeEvent?.ctrlKey === true;
-      const zoomSpeed = isPinch ? 0.1 : 0.001;
-      const oldZoom = cam.zoom;
-      const newZoom = Phaser.Math.Clamp(oldZoom - deltaY * zoomSpeed, 0.5, 8);
-      if (oldZoom === newZoom) return;
-      const worldX = cam.scrollX + pointer.x / oldZoom;
-      const worldY = cam.scrollY + pointer.y / oldZoom;
-      cam.setZoom(newZoom);
-      cam.scrollX = worldX - pointer.x / newZoom;
-      cam.scrollY = worldY - pointer.y / newZoom;
-      this._clampCamera();
-      this._updateLabelVisibility();
-      if (isPinch) nativeEvent.preventDefault();
-      emitToReact(PHASER_TO_REACT.ZOOM_UPDATED, { zoom: newZoom });
-    });
-    cam.setZoom(1);
-    this._clampCamera();
   }
 
-  _clampCamera() {
-    const cam = this.cameras.main;
-    const mapW = this.tiledMap.widthInPixels * MAP_SCALE;
-    const mapH = this.tiledMap.heightInPixels * MAP_SCALE;
-    const viewW = cam.width / cam.zoom;
-    const viewH = cam.height / cam.zoom;
-    cam.scrollX =
-      mapW > viewW ? Phaser.Math.Clamp(cam.scrollX, 0, mapW - viewW) : (mapW - viewW) / 2;
-    cam.scrollY =
-      mapH > viewH ? Phaser.Math.Clamp(cam.scrollY, 0, mapH - viewH) : (mapH - viewH) / 2;
-  }
+  _handleSpotClick(spotObj) {
+    // TMJ properties[0].name がスポットID（文字列 → Number に正規化）
+    const spotId = normalizeId(spotObj.properties?.[0]?.name ?? spotObj.id);
+    if (spotId == null) return;
 
-  _onMapClicked(x, y) {
-    if (this._dragMoved) return;
-    const worldPoint = this.cameras.main.getWorldPoint(x, y);
-
-    // _getDistrictAtPoint は districts のキー（Number）をそのまま返す
-    // 本番マップではズームが十分なら spotId（5桁 Number）が返る
-    const spotId = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
-    if (!spotId) return;
+    const d = this.districts[spotId];
+    if (import.meta.env.DEV) console.log('[hit] spot:', spotId, spotObj.name);
 
     if (this.isSelectionMode) {
       // ── 初期スポット選択フェーズ ──
       SoundManager.playSe('click');
-      Object.values(this.districts).forEach((d) => this._redrawDistrict(d, COLOR.NEUTRAL));
-      this._redrawDistrict(this.districts[spotId], COLOR.HIGHLIGHT, 0.8);
+      Object.values(this.districts).forEach((dist) => this._redrawDistrict(dist, COLOR.NEUTRAL));
+      this._redrawDistrict(d, COLOR.HIGHLIGHT, 0.8);
 
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
-        districtId: spotId,                                       // Number のまま渡す
-        districtName: this.districts[spotId]?.name ?? String(spotId),
+        districtId: spotId,
+        districtName: d?.name ?? String(spotId),
       });
-
     } else {
       // ── プレイ中：移動・攻撃フェーズ ──
-
-      // Number 同士で同一スポット判定
       if (spotId === this.currentDistrictId) return;
 
-      // ADJACENCY は Number キー・Number 配列なので型一致
       const neighbors = ADJACENCY[this.currentDistrictId] ?? [];
       if (!neighbors.includes(spotId)) {
-        this.showLog("⚠️ 隣接していないスポットには行動できません。");
+        this.showLog('⚠️ 隣接していないスポットには行動できません。');
         return;
       }
 
       SoundManager.playSe('click');
-      this._pendingTargetId = spotId;                             // Number で保持
+      this._pendingTargetId = spotId;
 
-      const targetOwner = (this.districts[spotId]?.owner ?? "neutral").toLowerCase();
+      const targetOwner = (d?.owner ?? 'neutral').toLowerCase();
       const isMyTerritory = targetOwner === this._myTeam;
-      const isNeutral     = targetOwner === "neutral";
+      const isNeutral     = targetOwner === 'neutral';
 
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
-        districtId: spotId,                                       // Number
-        districtName: this.districts[spotId]?.name ?? String(spotId),
+        districtId: spotId,
+        districtName: d?.name ?? String(spotId),
         isMyTerritory,
         isNeutral,
       });
 
-      if (isMyTerritory) {
-        this.showLog(`🚚 移動先: ${this.districts[spotId]?.name}`);
-      } else {
-        this.showLog(`🎯 攻撃対象: ${this.districts[spotId]?.name}`);
-      }
+      this.showLog(isMyTerritory
+        ? `🚚 移動先: ${d?.name}`
+        : `🎯 攻撃対象: ${d?.name}`
+      );
     }
+  }
+
+  _handleDistrictClick(districtObj) {
+    const districtId = normalizeId(districtObj.properties?.[0]?.name ?? districtObj.id);
+    if (districtId == null) return;
+
+    const d = this.districts[districtId];
+    if (import.meta.env.DEV) console.log('[hit] district:', districtId, districtObj.name);
+
+    const owner = (d?.owner ?? 'neutral').toLowerCase();
+    emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
+      districtId,
+      districtName: d?.name ?? String(districtId),
+      isMyTerritory: owner === this._myTeam,
+      isNeutral:     owner === 'neutral',
+    });
   }
 
   _getDistrictAtPoint(x, y) {
@@ -417,6 +502,49 @@ export default class MainScene extends Phaser.Scene {
       }
     }
     return hitId;
+  }
+
+  /**
+   * 指定レイヤー上で worldX/worldY にヒットするオブジェクトを返す。
+   * @param {string} layerName - TMJのobjectレイヤー名
+   * @param {number} worldX
+   * @param {number} worldY
+   * @returns {Phaser.Types.Tilemaps.TiledObject | null}
+   */
+  _findObjectAt(layerName, worldX, worldY) {
+    const layer = this.tiledMap.getObjectLayer(layerName);
+    if (!layer) {
+      if (import.meta.env.DEV) console.warn(`[MainScene] objectLayer not found: ${layerName}`);
+      return null;
+    }
+
+    for (const obj of layer.objects) {
+      if (obj.polygon) {
+        // ポリゴン座標はTMJ上の値なのでMAP_SCALEを適用してワールド座標に合わせる
+        const points = obj.polygon.map((p) => ({
+          x: (obj.x + p.x) * MAP_SCALE,
+          y: (obj.y + p.y) * MAP_SCALE,
+        }));
+        const polygon = new Phaser.Geom.Polygon(points);
+        if (Phaser.Geom.Polygon.Contains(polygon, worldX, worldY)) {
+          return obj;
+        }
+        continue;
+      }
+
+      if (obj.width && obj.height) {
+        const rect = new Phaser.Geom.Rectangle(
+          obj.x * MAP_SCALE,
+          obj.y * MAP_SCALE,
+          obj.width * MAP_SCALE,
+          obj.height * MAP_SCALE,
+        );
+        if (Phaser.Geom.Rectangle.Contains(rect, worldX, worldY)) {
+          return obj;
+        }
+      }
+    }
+    return null;
   }
 
   _redrawDistrict(d, color, alpha = 0) {
@@ -449,7 +577,13 @@ export default class MainScene extends Phaser.Scene {
       .setDisplaySize(48, 48)
       .setDepth(1000);
 
-    this.cameras.main.pan(d.center.x, d.center.y, 600, "Power2");
+    // A-2: pan の代わりに startFollow で滑らかに追従
+    if (!this.isSelectionMode) {
+      this.cameraController?.follow(this.player);
+    } else {
+      // 選択フェーズ中は追従せずに pan のみ（既存挙動維持）
+      this.cameras.main.pan(d.center.x, d.center.y, 600, "Power2");
+    }
   }
 
   _syncDistricts(serverDistricts, serverPlayers) {
@@ -557,32 +691,13 @@ export default class MainScene extends Phaser.Scene {
   // ─── キーボード操作 ───────────────────────────
 
   _setupKeyboard() {
-    // 矢印キー（常時カメラパン用）
-    this.cursors = this.input.keyboard.createCursorKeys();
-
-    // WASDキー（選択フェーズ：カメラパン／プレイフェーズ：行動キー）
-    this.wasdKeys = this.input.keyboard.addKeys({
-      up:    Phaser.Input.Keyboard.KeyCodes.W,
-      down:  Phaser.Input.Keyboard.KeyCodes.S,
-      left:  Phaser.Input.Keyboard.KeyCodes.A,
-      right: Phaser.Input.Keyboard.KeyCodes.D,
-    });
-
     // 行動キー（プレイフェーズのみ有効）
+    // カーソル・WASD・ズームキーは CameraController が担当
     this.input.keyboard.on('keydown-SPACE', () => this._handleKeyAction('stay'));
     this.input.keyboard.on('keydown-S',     () => this._handleKeyAction('stay'));
     this.input.keyboard.on('keydown-A',     () => this._handleKeyAction('attack'));
     this.input.keyboard.on('keydown-D',     () => this._handleKeyAction('defend'));
     this.input.keyboard.on('keydown-E',     () => this._handleKeyAction('escape'));
-
-    // ズームキー（=／+：ズームイン、-：ズームアウト、0：リセット）
-    this.input.keyboard.on('keydown', (ev) => {
-      const focused = document.activeElement;
-      if (focused?.tagName === 'INPUT' || focused?.tagName === 'TEXTAREA') return;
-      if (ev.key === '=' || ev.key === '+') this._keyZoom(1);
-      else if (ev.key === '-') this._keyZoom(-1);
-      else if (ev.key === '0') this._keyZoomReset();
-    });
 
     if (import.meta.env.DEV) this._setupDevKeys();
   }
@@ -626,30 +741,6 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  _handleCameraKeyboard() {
-    const focused = document.activeElement;
-    if (focused?.tagName === 'INPUT' || focused?.tagName === 'TEXTAREA') return;
-
-    const cam = this.cameras.main;
-    const speed = 8 / cam.zoom;
-    let moved = false;
-
-    if (this.cursors.left.isDown)       { cam.scrollX -= speed; moved = true; }
-    else if (this.cursors.right.isDown) { cam.scrollX += speed; moved = true; }
-    if (this.cursors.up.isDown)         { cam.scrollY -= speed; moved = true; }
-    else if (this.cursors.down.isDown)  { cam.scrollY += speed; moved = true; }
-
-    // WASDはスポーン地点選択フェーズ中のみカメラパンに使う
-    if (this.isSelectionMode) {
-      if (this.wasdKeys.left.isDown)       { cam.scrollX -= speed; moved = true; }
-      else if (this.wasdKeys.right.isDown) { cam.scrollX += speed; moved = true; }
-      if (this.wasdKeys.up.isDown)         { cam.scrollY -= speed; moved = true; }
-      else if (this.wasdKeys.down.isDown)  { cam.scrollY += speed; moved = true; }
-    }
-
-    if (moved) this._clampCamera();
-  }
-
   _handleKeyAction(type) {
     const focused = document.activeElement;
     if (focused?.tagName === 'INPUT' || focused?.tagName === 'TEXTAREA') return;
@@ -677,20 +768,4 @@ export default class MainScene extends Phaser.Scene {
     }
   }
 
-  _keyZoom(dir) {
-    const cam = this.cameras.main;
-    const newZoom = Phaser.Math.Clamp(cam.zoom + dir * 0.5, 0.5, 8);
-    if (cam.zoom === newZoom) return;
-    cam.setZoom(newZoom);
-    this._clampCamera();
-    this._updateLabelVisibility();
-    emitToReact(PHASER_TO_REACT.ZOOM_UPDATED, { zoom: newZoom });
-  }
-
-  _keyZoomReset() {
-    this.cameras.main.setZoom(1);
-    this._clampCamera();
-    this._updateLabelVisibility();
-    emitToReact(PHASER_TO_REACT.ZOOM_UPDATED, { zoom: 1 });
-  }
 }
