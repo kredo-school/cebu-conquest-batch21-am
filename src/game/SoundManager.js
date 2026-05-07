@@ -21,7 +21,7 @@
  */
 
 const BGM_FILES = {
-  title:  '/assets/audio/bgm/bgm_title.mp3',
+  title:  '/assets/audio/bgm/login-joinroom.ogg',
   lobby:  '/assets/audio/bgm/bgm_lobby.mp3',
   map:    '/assets/audio/bgm/bgm_map.mp3',
   battle: '/assets/audio/bgm/bgm_battle.mp3',
