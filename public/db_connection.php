@@ -1,10 +1,10 @@
 <?php
 // データベース接続設定
-$host = '10.29.219.57';
-$port = '3306';         // ポート番号
+$host    = 'localhost';
+$port    = '3306';         // ポート番号
 $db      = 'cebu_conquest';
-$user    = 'cebu_user';
-$pass    = 'Cebu2026!test';
+$user    = 'root';  //cebu_user
+$pass    = '';  //cebu2026
 $charset = 'utf8mb4';
 
 // portをDSNに含める書き方

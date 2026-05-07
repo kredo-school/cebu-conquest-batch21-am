@@ -1,6 +1,7 @@
 <?php
-require_once __DIR__ . '/api-cors.php';
+require_once 'api-cors.php';
 require_once __DIR__ . '/../db_connection.php';
+require_once 'jwt-helper.php';
 
 // HTTPメソッド制限（POST以外は405を返す）
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -74,7 +75,7 @@ try {
 
     // 人数制限チェック（最大4名）
     $countStmt = $pdo->query("SELECT COUNT(*) FROM users");
-    if ($countStmt->fetchColumn() >= 4) {
+    if ($countStmt->fetchColumn() >= 100) {
       throw new Exception("満員です（最大4名まで）", 403);
     }
 
