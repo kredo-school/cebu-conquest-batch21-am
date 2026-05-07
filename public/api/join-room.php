@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/api-cors.php';
 require_once __DIR__ . '/../db_connection.php';
+require_once 'jwt-helper.php';
 
 $headers = getallheaders();
 $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
@@ -53,8 +54,8 @@ try {
     }
 
     // 4. 中間テーブルに参加者を追加
-    $insertPlayer = $pdo->prepare("INSERT INTO room_players (room_id, user_id) VALUES (?, ?)");
-    $insertPlayer->execute([$room_id, $guest_id]);
+    $insertStmt = $pdo->prepare("INSERT INTO room_players (room_id, user_id, joined_at) VALUES (?, ?, NOW())");
+    $insertStmt->execute([$room_id, $guest_id]);
 
     // 5. 4人になったらステータスを更新する（任意）
     if ($currentCount + 1 >= 4) {

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/api-cors.php';
 require_once __DIR__ . '/../db_connection.php';
+require_once 'jwt-helper.php';
 
 // 1. JWT認証（Authorizationヘッダーからユーザーを特定）
 $headers = getallheaders();
@@ -43,7 +44,7 @@ try {
 
     // 4. 【追加】room_playersテーブルにホスト自身を登録
     // これにより、join-room.phpでのカウントが「1」から始まるようになります
-    $insertHost = $pdo->prepare("INSERT INTO room_players (room_id, user_id) VALUES (?, ?)");
+    $insertHost = $pdo->prepare("INSERT INTO room_players (room_id, user_id, joined_at) VALUES (?, ?, NOW())");
     $insertHost->execute([$new_room_id, $host_id]);
 
     $pdo->commit();

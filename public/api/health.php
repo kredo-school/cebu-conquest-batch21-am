@@ -2,6 +2,7 @@
 // 通信許可設定の読み込み
 require_once __DIR__ . '/api-cors.php';
 require_once __DIR__ . '/../db_connection.php';
+require_once 'jwt-helper.php';
 
 try {
     // DB接続設定の読み込み

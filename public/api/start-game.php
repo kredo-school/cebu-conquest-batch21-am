@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/api-cors.php';
 require_once __DIR__ . '/../db_connection.php';
+require_once 'jwt-helper.php';
 
 // 1. JWT認証（Authorizationヘッダーからホストを特定）
 $headers = getallheaders();

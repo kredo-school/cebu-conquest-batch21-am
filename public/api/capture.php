@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/api-cors.php';
 require_once __DIR__ . '/../db_connection.php';
+require_once 'jwt-helper.php';
 
 // ★追加：HTTPメソッド制限（POST以外を弾き、405を返す）
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
