@@ -5,10 +5,11 @@ import socket from './socket';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
 import { REACT_TO_PHASER, PHASER_TO_REACT } from './game/events/PhaserBridge';
 import { buildLookup } from '../shared/idLookup'; 
+import SoundManager from './game/SoundManager';
 
 /**
  * Cebu Conquest: Zustand Global Store
- * GDD v3.1 準拠 | 最終更新: 2026-05-06
+ * GDD v3.1 準拠 | 最終更新: 2026-05-07
  */
 
 // --- 🏗️ 型定義セクション ---
@@ -19,7 +20,7 @@ export interface ChatMessage {
   sender: string;
   message: string;
   color?: string;
-  timestamp?: string | number; // 柔軟性を持たせるため string | number
+  timestamp?: string | number;
 }
 
 export interface LogEntry {
@@ -102,7 +103,6 @@ interface ApiResponse<T = unknown> {
   message?: string;
 }
 
-/** ロビープレイヤー情報: サーバーから受信する参加者データ */
 export interface LobbyPlayer {
   playerId: string;
   username?: string;
@@ -150,7 +150,31 @@ export interface GameState {
   predictionModalOpen: boolean;
   targetDistrictInfo: { id: number; name: string; enemyDef: number; isMyTerritory?: boolean; isNeutral?: boolean } | null;
   activeBuffs: { id: number; name: string; effect: string }[];
+  
+  // 設定ステート
   bgmVolume: number; seVolume: number;
+  masterVolume: number;
+  setMasterVolume: (vol: number) => void;
+  graphicsQuality: 'LOW' | 'MEDIUM' | 'HIGH' | 'ULTRA';
+  setGraphicsQuality: (quality: 'LOW' | 'MEDIUM' | 'HIGH' | 'ULTRA') => void;
+  fpsLimit: number;
+  setFpsLimit: (fps: number) => void;
+  notifyMatchRequest: boolean;
+  setNotifyMatchRequest: (status: boolean) => void;
+  notifyEventUpdate: boolean;
+  setNotifyEventUpdate: (status: boolean) => void;
+  
+  cameraSensitivity: number;
+  setCameraSensitivity: (val: number) => void;
+  autoBattle: boolean;
+  setAutoBattle: (status: boolean) => void;
+  language: string;
+  setLanguage: (lang: string) => void;
+
+  // 💡 追加: アバター画像用
+  playerAvatar: string | null;
+  setPlayerAvatar: (avatar: string | null) => void;
+
   isUnderAttack: boolean;
   setUnderAttack: (status: boolean) => void;
 
@@ -192,7 +216,6 @@ export interface GameState {
   escape: () => void;
   useItem: (itemId: number) => void;
   endTurn: () => void; 
-  // 💡 修正: string または ChatMessage オブジェクトを許可
   addLog: (log: string | ChatMessage) => void;
   addChatLog: (msg: ChatMessage) => void; 
   saveResult: () => Promise<void>;
@@ -224,7 +247,32 @@ export const useGameStore = create<GameState>()(
       isGameStarted: false,
       setGameStarted: (started) => set({ isGameStarted: started }),
       selectedGodId: null, godsList: [], resultData: null, predictionModalOpen: false,
-      targetDistrictInfo: null, activeBuffs: [], bgmVolume: 0.5, seVolume: 0.5, isUnderAttack: false,
+      targetDistrictInfo: null, activeBuffs: [], 
+      
+      bgmVolume: 0.5, seVolume: 0.5,
+      masterVolume: 0.8,
+      setMasterVolume: (vol) => set({ masterVolume: vol }),
+      graphicsQuality: 'HIGH',
+      setGraphicsQuality: (quality) => set({ graphicsQuality: quality }),
+      fpsLimit: 60,
+      setFpsLimit: (fps) => set({ fpsLimit: fps }),
+      notifyMatchRequest: true,
+      setNotifyMatchRequest: (status) => set({ notifyMatchRequest: status }),
+      notifyEventUpdate: true,
+      setNotifyEventUpdate: (status) => set({ notifyEventUpdate: status }),
+
+      cameraSensitivity: 75,
+      setCameraSensitivity: (val) => set({ cameraSensitivity: val }),
+      autoBattle: true,
+      setAutoBattle: (status) => set({ autoBattle: status }),
+      language: 'ja',
+      setLanguage: (lang) => set({ language: lang }),
+
+      // 💡 修正: 初期値追加
+      playerAvatar: null,
+      setPlayerAvatar: (avatar) => set({ playerAvatar: avatar }),
+
+      isUnderAttack: false,
       setUnderAttack: (status) => set({ isUnderAttack: status }),
 
       sidebarOpen: false, setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -233,10 +281,7 @@ export const useGameStore = create<GameState>()(
       rankingData: [], setRanking: (data) => set({ rankingData: data }),
       inventory: [], setInventory: (items) => set({ inventory: items }),
 
-      getApiUrl: (endpoint) => {
-        const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-        return `http://${hostname}/Cebu_Conquest/cebu-conquest-batch21-am/api/${endpoint}`;
-      },
+      getApiUrl: (endpoint) => `http://10.29.219.57/Cebu_Conquest/cebu-conquest-batch21-am/public/api/${endpoint}`,
 
       masterData: null, lookupData: null,
       setLookupData: (data) => {
@@ -463,15 +508,11 @@ export const useGameStore = create<GameState>()(
       endTurn: () => { socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'turn_end' }); set({ isMyTurn: false, isSubmitted: true }); },
       setStatus: (status) => set((state) => ({ ...state, ...status })),
 
-      // 💡 修正: string ならシステムログ、ChatMessageならチャットログとして処理
       addLog: (log) => set((state) => {
         if (typeof log === 'string') {
-          // システムメッセージ（文字列）の場合
           return { logs: [{ text: log, time: nowTime() }, ...state.logs].slice(0, 10) };
         } else {
-          // チャットメッセージ（オブジェクト）の場合
           const chatMsg = { ...log, timestamp: log.timestamp || nowTime() };
-          // チャットログに追加しつつ、システムログにも「送信者: メッセージ」の形式で表示
           return { 
             chatLogs: [...state.chatLogs, chatMsg].slice(-50),
             logs: [{ text: `${log.sender}: ${log.message}`, time: nowTime() }, ...state.logs].slice(0, 10)
@@ -484,7 +525,10 @@ export const useGameStore = create<GameState>()(
       },
 
       resetGame: () => window.location.reload(),
-      setBgmVolume: (vol) => set({ bgmVolume: vol }),
+      setBgmVolume: (vol) => {
+        set({ bgmVolume: vol });
+        SoundManager.setBgmVolume(vol);
+      },
       setSeVolume: (vol) => set({ seVolume: vol }),
     }),
     {
@@ -494,11 +538,22 @@ export const useGameStore = create<GameState>()(
         isAuthenticated: state.isAuthenticated,
         hasSeenTutorial: state.hasSeenTutorial,
         playerName: state.playerName,
+        masterVolume: state.masterVolume,
+        bgmVolume: state.bgmVolume,
+        seVolume: state.seVolume,
+        graphicsQuality: state.graphicsQuality,
+        fpsLimit: state.fpsLimit,
+        notifyMatchRequest: state.notifyMatchRequest,
+        notifyEventUpdate: state.notifyEventUpdate,
+        cameraSensitivity: state.cameraSensitivity,
+        autoBattle: state.autoBattle,
+        language: state.language,
+        // 💡 修正: 永続化対象に追加
+        playerAvatar: state.playerAvatar,
       }),
     }
   )
 );
-
 
 declare global {
   interface Window {

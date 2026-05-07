@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useGameStore } from '../store';
 import SoundManager from '../game/SoundManager';
 
@@ -8,7 +8,7 @@ interface SettingsViewProps {
 
 type TabType = 'sound' | 'gameplay' | 'notifications' | 'account';
 
-// ✅ サブコンポーネント用の型定義を追加（any排除）
+// ✅ サブコンポーネント用の型定義
 interface NavButtonProps {
   active: boolean;
   onClick: () => void;
@@ -28,20 +28,52 @@ interface ToggleItemProps {
   onToggle: () => void;
 }
 
+type GraphicsQuality = 'LOW' | 'MEDIUM' | 'HIGH' | 'ULTRA';
+
 export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
-  const { playerName, myId, bgmVolume, setBgmVolume, seVolume, setSeVolume } = useGameStore();
+  const { 
+    playerName, myId, 
+    bgmVolume, setBgmVolume, 
+    seVolume, setSeVolume,
+    masterVolume, setMasterVolume,
+    graphicsQuality, setGraphicsQuality,
+    notifyMatchRequest, setNotifyMatchRequest,
+    notifyEventUpdate, setNotifyEventUpdate,
+    cameraSensitivity, setCameraSensitivity,
+    playerAvatar, setPlayerAvatar 
+  } = useGameStore();
   
   const [activeTab, setActiveTab] = useState<TabType>('sound');
+  const [showToast, setShowToast] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- 状態管理 ---
-  const [masterVol, setMasterVol] = useState(80);
-  const [quality, setQuality] = useState('high');
-  const [fps, setFps] = useState('60 FPS');
-  const [allowRequests, setAllowRequests] = useState(true);
-  const [allowEvents, setAllowEvents] = useState(true);
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1 * 1024 * 1024) {
+        alert("画像サイズが大きすぎます。1MB以下の画像を選択してください。");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPlayerAvatar(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSave = () => {
+    SoundManager.playSe('capture');
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+      onBack();
+    }, 1500);
+  };
 
   const handleLogout = () => {
     if (window.confirm("ログアウトしてタイトルに戻りますか？")) {
+      useGameStore.persist.clearStorage();
       window.location.reload();
     }
   };
@@ -67,20 +99,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="hidden md:block text-right">
-              <p className="text-[10px] text-slate-400 font-mono uppercase font-fix">UID: {myId?.substring(0,8).toUpperCase() || '82739405'}</p>
+            <div className="hidden md:flex items-baseline gap-3 text-right">
+              <p className="text-[10px] text-slate-400 font-mono uppercase font-fix">UserID: {myId?.substring(0,8).toUpperCase() || '82739405'}</p>
               <p className="text-sm font-bold text-white italic font-fix">{playerName || "Operator"}</p>
             </div>
-            <div className="size-10 rounded-full border-2 border-[#fa7000] overflow-hidden bg-slate-800">
-               <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${playerName}`} alt="avatar" />
+            {/* 💡 修正：ヘッダーのアイコンを「No Image」対応 */}
+            <div className="size-10 rounded-full border-2 border-[#fa7000] overflow-hidden bg-slate-900 shrink-0 flex items-center justify-center shadow-[0_0_10px_rgba(250,112,0,0.2)]">
+               {playerAvatar ? (
+                 <img src={playerAvatar} alt="avatar" className="w-full h-full object-cover" />
+               ) : (
+                 <span className="material-symbols-outlined text-slate-600 text-2xl">person</span>
+               )}
             </div>
           </div>
         </header>
 
-        <main className="flex-1 px-6 py-8 lg:px-40 max-w-6xl mx-auto w-full relative z-10">
+        <main className="flex-1 px-6 py-8 lg:px-40 max-w-6xl mx-auto w-full relative z-10 text-left">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
-            {/* Sidebar Navigation */}
             <div className="hidden lg:flex flex-col col-span-3 gap-2">
               <NavButton active={activeTab === 'sound'} onClick={() => setActiveTab('sound')} icon="volume_up" label="サウンド" />
               <NavButton active={activeTab === 'gameplay'} onClick={() => setActiveTab('gameplay')} icon="sports_esports" label="ゲームプレイ" />
@@ -88,18 +124,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
               <NavButton active={activeTab === 'account'} onClick={() => setActiveTab('account')} icon="account_circle" label="アカウント" />
             </div>
 
-            {/* Main Content Area */}
             <div className="col-span-1 lg:col-span-9 space-y-10">
               
               {/* --- SOUND SECTION --- */}
               {activeTab === 'sound' && (
                 <section className="bg-white/5 rounded-xl p-8 border border-white/10 backdrop-blur-sm animate-fadeIn">
-                  <div className="flex items-center gap-2 mb-8 border-b border-white/5 pb-4 text-left">
+                  <div className="flex items-center gap-2 mb-8 border-b border-white/5 pb-4">
                     <span className="material-symbols-outlined text-[#fa7000]">volume_up</span>
                     <h2 className="text-lg font-bold text-white uppercase tracking-wider font-fix">Sound Settings</h2>
                   </div>
                   <div className="space-y-10">
-                    <VolumeSlider label="マスター音量" value={masterVol} onChange={setMasterVol} />
+                    <VolumeSlider label="マスター音量" value={Math.round(masterVolume * 100)} onChange={(v: number) => setMasterVolume(v/100)} />
                     <VolumeSlider label="BGM音量" value={Math.round(bgmVolume * 100)} onChange={(v: number) => { setBgmVolume(v/100); SoundManager.setBgmVolume(v/100); }} />
                     <VolumeSlider label="SE音量" value={Math.round(seVolume * 100)} onChange={(v: number) => { setSeVolume(v/100); SoundManager.playSe('click'); }} />
                   </div>
@@ -108,47 +143,57 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
 
               {/* --- GAMEPLAY SECTION --- */}
               {activeTab === 'gameplay' && (
-                <section className="bg-white/5 rounded-xl p-8 border border-white/10 backdrop-blur-sm animate-fadeIn text-left">
+                <section className="animate-fadeIn">
                   <header className="mb-10">
                     <h2 className="text-4xl font-black tracking-tight text-white uppercase leading-none font-fix">Gameplay</h2>
                     <p className="text-[#fa7000]/70 mt-2 font-medium italic text-sm font-fix">Fine-tune your tactical experience</p>
                   </header>
+
                   <div className="space-y-10">
-                    <div className="space-y-4">
-                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] font-fix">Graphics Quality</h3>
+                    <section>
+                      <div className="flex items-center gap-2 mb-4">
+                        <span className="material-symbols-outlined text-[#fa7000]">high_quality</span>
+                        <h3 className="text-lg font-bold text-white font-fix">グラフィックス品質</h3>
+                      </div>
                       <div className="flex h-12 w-full items-center justify-center rounded-xl bg-white/5 p-1 border border-white/10">
-                        {['low', 'medium', 'high', 'ultra'].map((q) => (
-                          <label key={q} className={`flex cursor-pointer h-full grow items-center justify-center rounded-lg px-2 text-[10px] font-black transition-all uppercase font-fix ${quality === q ? 'bg-[#fa7000] text-white shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}>
-                            {q}
-                            <input type="radio" className="hidden" value={q} checked={quality === q} onChange={(e) => setQuality(e.target.value)} />
+                        {(['LOW', 'MEDIUM', 'HIGH', 'ULTRA'] as GraphicsQuality[]).map((q) => (
+                          <label key={q} className={`flex cursor-pointer h-full grow items-center justify-center rounded-lg px-2 text-[10px] font-black transition-all uppercase font-fix ${graphicsQuality === q ? 'bg-[#fa7000] text-white shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}>
+                            {q === 'LOW' ? '低' : q === 'MEDIUM' ? '中' : q === 'HIGH' ? '高' : 'ウルトラ'}
+                            <input type="radio" className="hidden" value={q} checked={graphicsQuality === q} onChange={() => setGraphicsQuality(q)} />
                           </label>
                         ))}
                       </div>
-                    </div>
-                    <div className="space-y-4">
-                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] font-fix">Frame Rate Limit</h3>
-                      <div className="grid grid-cols-3 gap-3">
-                        {['30 FPS', '60 FPS', 'Unlimited'].map((f) => (
-                          <button key={f} onClick={() => setFps(f)} className={`py-3 rounded-xl border transition-all text-[10px] font-black uppercase font-fix ${fps === f ? 'border-[#fa7000] bg-[#fa7000]/10 text-[#fa7000]' : 'border-white/10 bg-white/5 text-slate-500'}`}>
-                            {f}
-                          </button>
-                        ))}
+                    </section>
+
+                    <section>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-[#fa7000]">photo_camera</span>
+                          <h3 className="text-lg font-bold text-white font-fix">カメラ感度</h3>
+                        </div>
+                        <span className="text-[#fa7000] font-black font-fix">{cameraSensitivity}%</span>
                       </div>
-                    </div>
+                      <input type="range" min="0" max="100" value={cameraSensitivity} onChange={(e) => setCameraSensitivity(parseInt(e.target.value))} className="w-full h-2 bg-white/10 rounded-full appearance-none cursor-pointer accent-[#fa7000]" />
+                    </section>
                   </div>
+
+                  <footer className="mt-16 pt-8 border-t border-white/10 flex justify-end gap-4 pb-4">
+                    <button onClick={onBack} className="px-6 py-2.5 rounded-lg text-sm font-bold text-white hover:bg-white/10 transition-colors font-fix">キャンセル</button>
+                    <button onClick={handleSave} className="px-8 py-2.5 rounded-lg bg-[#fa7000] text-white text-sm font-bold shadow-lg shadow-[#fa7000]/30 hover:scale-105 active:scale-95 transition-all font-fix">設定を保存</button>
+                  </footer>
                 </section>
               )}
 
               {/* --- NOTIFICATIONS SECTION --- */}
               {activeTab === 'notifications' && (
                 <section className="bg-white/5 rounded-xl p-8 border border-white/10 backdrop-blur-sm animate-fadeIn">
-                  <div className="flex items-center gap-2 mb-8 border-b border-white/5 pb-4 text-left">
+                  <div className="flex items-center gap-2 mb-8 border-b border-white/5 pb-4">
                     <span className="material-symbols-outlined text-[#fa7000]">notifications</span>
                     <h2 className="text-lg font-bold text-white uppercase tracking-wider font-fix">Notifications</h2>
                   </div>
                   <div className="space-y-4">
-                    <ToggleItem label="対戦リクエストを受け取る" active={allowRequests} onToggle={() => setAllowRequests(!allowRequests)} />
-                    <ToggleItem label="イベント・アップデート情報を受け取る" active={allowEvents} onToggle={() => setAllowEvents(!allowEvents)} />
+                    <ToggleItem label="対戦リクエストを受け取る" active={notifyMatchRequest} onToggle={() => setNotifyMatchRequest(!notifyMatchRequest)} />
+                    <ToggleItem label="イベント・アップデート情報を受け取る" active={notifyEventUpdate} onToggle={() => setNotifyEventUpdate(!notifyEventUpdate)} />
                   </div>
                 </section>
               )}
@@ -156,39 +201,70 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
               {/* --- ACCOUNT SECTION --- */}
               {activeTab === 'account' && (
                 <section className="bg-white/5 rounded-xl p-8 border border-white/10 backdrop-blur-sm animate-fadeIn" id="account">
-                  <div className="flex items-center gap-2 mb-8 border-b border-white/5 pb-4 text-left">
+                  <div className="flex items-center gap-2 mb-8 border-b border-white/5 pb-4">
                     <span className="material-symbols-outlined text-[#fa7000]">account_circle</span>
                     <h2 className="text-lg font-bold text-white uppercase tracking-wider font-fix">Account Management</h2>
                   </div>
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
-                    <div className="p-6 bg-[#23180f]/50 rounded-lg border border-white/5 flex-1 text-left">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] mb-2 font-bold leading-none font-fix">Current Operator ID</p>
-                      <p className="text-2xl font-mono font-bold text-white tracking-[0.2em] font-fix">
-                        {myId ? `${myId.substring(0,4)} - ${myId.substring(4,8)}`.toUpperCase() : '8273 - 9405'}
-                      </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="md:col-span-1 flex flex-col items-center justify-center p-6 bg-white/5 rounded-xl border border-white/5 group">
+                      <div className="relative cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                        {/* 💡 修正：プレビューを「No Image」対応 */}
+                        <div className="size-24 rounded-full border-4 border-[#fa7000] overflow-hidden shadow-[0_0_20px_rgba(250,112,0,0.3)] bg-slate-900 flex items-center justify-center">
+                          {playerAvatar ? (
+                            <img src={playerAvatar} alt="preview" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center opacity-60">
+                              <span className="material-symbols-outlined text-slate-600 text-5xl">no_accounts</span>
+                              <p className="text-[7px] text-slate-500 font-black mt-1 uppercase tracking-widest">No Data</p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 rounded-full transition-opacity">
+                          <span className="material-symbols-outlined text-white text-3xl">photo_camera</span>
+                        </div>
+                        <input type="file" ref={fileInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
+                      </div>
+                      <p className="mt-4 text-[10px] font-black text-slate-500 uppercase tracking-widest font-fix">Edit Profile Image</p>
+                      {playerAvatar && (
+                        <button onClick={() => setPlayerAvatar(null)} className="mt-2 text-[8px] text-red-500/60 hover:text-red-500 underline uppercase font-bold">画像をリセット</button>
+                      )}
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <button className="flex items-center justify-center gap-2 px-8 py-4 bg-[#fa7000] hover:bg-[#fa7000]/90 text-white font-black text-xs uppercase rounded-lg transition-all shadow-[0_0_20px_rgba(250,112,0,0.3)] active:scale-95 font-fix">
-                        <span className="material-symbols-outlined text-sm">link</span>
-                        Link Account
-                      </button>
-                      <button onClick={handleLogout} className="flex items-center justify-center gap-2 px-8 py-4 bg-transparent border border-white/20 hover:bg-red-500/10 hover:border-red-500/50 text-slate-400 hover:text-red-500 font-black text-xs uppercase rounded-lg transition-all active:scale-95 font-fix">
-                        <span className="material-symbols-outlined text-sm">logout</span>
-                        Logout
-                      </button>
+
+                    <div className="md:col-span-2 relative overflow-hidden bg-gradient-to-r from-[#23180f] to-[#2d1e14] rounded-xl border border-white/10 flex flex-col items-stretch transition-all shadow-2xl">
+                      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#fa7000] shadow-[0_0_15px_rgba(250,112,0,0.4)]"></div>
+                      <div className="flex-1 flex flex-col justify-center pl-10 py-6 text-left">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                          <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em] font-black font-fix">System Identity Active</p>
+                        </div>
+                        <div className="flex items-baseline gap-4">
+                          <span className="material-symbols-outlined text-[#fa7000]/50 text-2xl">fingerprint</span>
+                          <p className="text-3xl font-mono font-black text-white tracking-[0.2em] drop-shadow-md font-fix">
+                            {myId ? `${myId.substring(0,4)} - ${myId.substring(4,8)}`.toUpperCase() : '8273 - 9405'}
+                          </p>
+                        </div>
+                        <p className="text-[9px] text-slate-600 uppercase mt-2 tracking-widest font-fix">Operator: {playerName || "Unauthorized"}</p>
+                      </div>
+                      <div className="bg-black/20 px-8 py-6 flex flex-row lg:flex-col justify-center gap-4 min-w-[240px]">
+                        <button onClick={() => alert("【Phase 2 実装予定】\nGoogle / Discord アカウントとの連携機能を提供予定です。")} className="flex-1 flex items-center justify-center gap-3 px-6 py-3 bg-white/5 hover:bg-[#fa7000]/10 border border-white/10 hover:border-[#fa7000]/50 text-white font-black text-xs uppercase rounded-lg transition-all active:scale-95 group font-fix">
+                          <span className="material-symbols-outlined text-lg text-[#fa7000]">link</span>
+                          <span className="tracking-widest">Link Account</span>
+                        </button>
+                        <button onClick={handleLogout} className="flex-1 flex items-center justify-center gap-3 px-6 py-3 bg-red-500/5 hover:bg-red-500 border border-red-500/20 hover:border-red-500 text-red-500 hover:text-white font-black text-xs uppercase rounded-lg transition-all active:scale-95 group font-fix">
+                          <span className="material-symbols-outlined text-lg">logout</span>
+                          <span className="tracking-widest">Logout</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </section>
               )}
 
-              {/* Bottom Return Button */}
               <div className="flex justify-center pt-10 pb-12">
                 <button onClick={onBack} className="group relative px-16 py-4 overflow-hidden rounded-full bg-[#23180f] border border-[#fa7000]/50 text-white font-black tracking-[0.3em] uppercase transition-all hover:border-[#fa7000] hover:shadow-[0_0_30px_rgba(250,112,0,0.2)] active:scale-95 font-fix">
                   <div className="absolute inset-0 bg-[#fa7000]/10 group-hover:bg-[#fa7000]/20 transition-all"></div>
-                  <div className="relative flex items-center gap-2">
-                    <span className="material-symbols-outlined">chevron_left</span>
-                    Back to Command
-                  </div>
+                  <div className="relative flex items-center gap-2"><span className="material-symbols-outlined">chevron_left</span>Back to Command</div>
                 </button>
               </div>
 
@@ -196,6 +272,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
           </div>
         </main>
       </div>
+
+      {showToast && (
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[30000] animate-pulse pointer-events-none">
+          <div className="bg-[#fa7000] text-[#23180f] px-10 py-4 rounded-sm skew-x-[-10deg] shadow-[0_0_50px_rgba(250,112,0,0.5)] border-2 border-white/30">
+            <p className="text-xl font-black italic tracking-[0.2em] uppercase font-fix">System Config Updated</p>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
@@ -206,16 +290,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
 };
 
 // --- Sub-Components ---
-
-// ✅ 修正(Line 203): props の any を排除
 const NavButton: React.FC<NavButtonProps> = ({ active, onClick, icon, label }) => (
   <button onClick={onClick} className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-left group font-fix ${active ? 'bg-[#fa7000]/20 border-l-4 border-[#fa7000] text-white' : 'hover:bg-white/5 text-slate-400 hover:text-slate-200'}`}>
     <span className={`material-symbols-outlined ${active ? 'text-[#fa7000]' : 'group-hover:text-[#fa7000]'} transition-colors`}>{icon}</span>
-    <span className={`text-sm font-bold ${active ? '' : 'font-medium'}`}>{label}</span>
+    <span className={`text-sm font-bold`}>{label}</span>
   </button>
 );
 
-// ✅ 修正(Line 211): props の any を排除
 const VolumeSlider: React.FC<VolumeSliderProps> = ({ label, value, onChange }) => (
   <div className="flex flex-col gap-3 text-left">
     <div className="flex justify-between items-end">
@@ -226,9 +307,8 @@ const VolumeSlider: React.FC<VolumeSliderProps> = ({ label, value, onChange }) =
   </div>
 );
 
-// ✅ 修正(Line 223): props の any を排除
 const ToggleItem: React.FC<ToggleItemProps> = ({ label, active, onToggle }) => (
-  <div className="flex items-center justify-between py-4 border-b border-white/5 last:border-0">
+  <div className="flex items-center justify-between py-4 border-b border-white/5 last:border-0 text-left">
     <p className="text-sm font-bold text-slate-300 font-fix">{label}</p>
     <button onClick={onToggle} className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors ${active ? 'bg-[#fa7000]' : 'bg-slate-700'}`}>
       <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${active ? 'translate-x-7' : 'translate-x-1'}`}></span>
