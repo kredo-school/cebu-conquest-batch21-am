@@ -57,11 +57,48 @@ const App: React.FC = () => {
   const [isDeploying, setIsDeploying] = useState(false); 
   const [showSettings, setShowSettings] = useState(false); 
   const [showHelp, setShowHelp] = useState(false); 
-  const [showRanking, setShowRanking] = useState(false); // 💡 修正：追加
+  const [showRanking, setShowRanking] = useState(false);
   const [showInventory, setShowInventory] = useState(false); 
   const [playerName, setLocalPlayerName] = useState('');
 
-  // 💡 修正：追加（WaitingView等で使用）
+  // 🎵 BGM管理用のRef
+  const bgmRef = useRef<HTMLAudioElement | null>(null);
+
+  // ✅ 修正：BGMの初期化と自動再生ブロック対策
+  useEffect(() => {
+    // BGMインスタンス作成
+    const bgm = new Audio('/assets/audio/bgm/login-joinroom.ogg');
+    bgm.loop = true;
+    bgm.volume = 0.4;
+    bgmRef.current = bgm;
+
+    // ユーザー操作後に再生（ブラウザの自動再生ポリシー対策）
+    const handleFirstClick = () => {
+      bgm.play().catch(e => console.warn('[BGM] 再生失敗:', e));
+      window.removeEventListener('click', handleFirstClick);
+    };
+    window.addEventListener('click', handleFirstClick);
+
+    // クリーンアップ
+    return () => {
+      bgm.pause();
+      bgm.currentTime = 0;
+      window.removeEventListener('click', handleFirstClick);
+    };
+  }, []);
+
+  // ✅ 修正：ゲーム画面遷移時にBGMを停止し、Phaserへ開始合図を送る
+  useEffect(() => {
+    if (view === 'game' && bgmRef.current) {
+      // 1. React側のBGMを止める
+      bgmRef.current.pause();
+      bgmRef.current.currentTime = 0;
+
+      // 2. Phaser側に「本番BGMを鳴らしていいよ！」と合図を送る
+      window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.START_GAME_BGM));
+    }
+  }, [view]);
+
   const handleAbortGame = useCallback(() => {
     if (window.confirm("Abort mission and return to setup?")) {
       useGameStore.setState({ roomId: undefined, players: [] });
@@ -193,7 +230,6 @@ const App: React.FC = () => {
       mainContent = <GodSelectionView onComplete={handleSelectionComplete} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onBack={() => setView('lobby')} />;
       break;
     case 'waiting':
-      // 💡 修正：propsを正しく渡すことで型エラーを解消
       mainContent = (
         <WaitingView 
           onStart={triggerDeploySequence} 
@@ -227,7 +263,7 @@ const App: React.FC = () => {
   return (
     <div className="relative w-screen h-screen bg-slate-950 text-slate-200 overflow-hidden select-none">
       <div className="w-full h-full relative overflow-hidden touch-pan-y custom-scrollbar text-left">
-         {mainContent}
+          {mainContent}
       </div>
       
       <ErrorNotification />

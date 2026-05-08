@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+/// <reference types="vite/client" />
+import React, { useState, useRef, memo } from 'react';
 import { useGameStore } from '../store';
 import SoundManager from '../game/SoundManager';
 
@@ -7,6 +8,7 @@ interface SettingsViewProps {
 }
 
 type TabType = 'sound' | 'gameplay' | 'notifications' | 'account';
+type GraphicsQuality = 'LOW' | 'MEDIUM' | 'HIGH' | 'ULTRA';
 
 // ✅ サブコンポーネント用の型定義
 interface NavButtonProps {
@@ -28,9 +30,7 @@ interface ToggleItemProps {
   onToggle: () => void;
 }
 
-type GraphicsQuality = 'LOW' | 'MEDIUM' | 'HIGH' | 'ULTRA';
-
-export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
+export const SettingsView: React.FC<SettingsViewProps> = memo(({ onBack }) => {
   const { 
     playerName, myId, 
     bgmVolume, setBgmVolume, 
@@ -47,6 +47,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
   const [showToast, setShowToast] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // --- 画像変更プロトコル ---
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -57,13 +58,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         setPlayerAvatar(reader.result as string);
+        try { SoundManager.playSe('click'); } catch (_e) { /* ignore */ }
       };
       reader.readAsDataURL(file);
     }
   };
 
+  // --- 設定保存プロトコル ---
   const handleSave = () => {
-    SoundManager.playSe('capture');
+    try { SoundManager.playSe('capture'); } catch (_e) { /* ignore */ }
     setShowToast(true);
     setTimeout(() => {
       setShowToast(false);
@@ -71,6 +74,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
     }, 1500);
   };
 
+  // --- ログアウト ---
   const handleLogout = () => {
     if (window.confirm("ログアウトしてタイトルに戻りますか？")) {
       useGameStore.persist.clearStorage();
@@ -80,14 +84,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
 
   return (
     <div className="fixed inset-0 z-[20000] bg-[#23180f] text-slate-100 font-display overflow-y-auto custom-scrollbar">
-      {/* Background Decor */}
+      {/* 背景装飾 */}
       <div className="fixed inset-0 pointer-events-none opacity-20 overflow-hidden text-left">
         <div className="absolute -top-20 -left-20 w-96 h-96 bg-[#fa7000]/20 rounded-full blur-[120px]"></div>
         <div className="absolute top-1/2 -right-20 w-80 h-80 bg-green-500/10 rounded-full blur-[100px]"></div>
       </div>
 
       <div className="relative z-10 flex min-h-screen flex-col">
-        {/* Header */}
+        {/* ヘッダーエリア */}
         <header className="flex items-center justify-between border-b border-[#fa7000]/20 px-6 py-4 lg:px-40 bg-[#23180f]/80 backdrop-blur-md sticky top-0 z-20">
           <div className="flex items-center gap-4">
             <button onClick={onBack} className="flex items-center justify-center p-2 hover:bg-[#fa7000]/10 rounded-full transition-colors active:scale-90">
@@ -103,7 +107,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
               <p className="text-[10px] text-slate-400 font-mono uppercase font-fix">UserID: {myId?.substring(0,8).toUpperCase() || '82739405'}</p>
               <p className="text-sm font-bold text-white italic font-fix">{playerName || "Operator"}</p>
             </div>
-            {/* 💡 修正：ヘッダーのアイコンを「No Image」対応 */}
+            {/* アバター表示：No Image対応 */}
             <div className="size-10 rounded-full border-2 border-[#fa7000] overflow-hidden bg-slate-900 shrink-0 flex items-center justify-center shadow-[0_0_10px_rgba(250,112,0,0.2)]">
                {playerAvatar ? (
                  <img src={playerAvatar} alt="avatar" className="w-full h-full object-cover" />
@@ -117,6 +121,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
         <main className="flex-1 px-6 py-8 lg:px-40 max-w-6xl mx-auto w-full relative z-10 text-left">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
+            {/* サイドバータブ */}
             <div className="hidden lg:flex flex-col col-span-3 gap-2">
               <NavButton active={activeTab === 'sound'} onClick={() => setActiveTab('sound')} icon="volume_up" label="サウンド" />
               <NavButton active={activeTab === 'gameplay'} onClick={() => setActiveTab('gameplay')} icon="sports_esports" label="ゲームプレイ" />
@@ -124,6 +129,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
               <NavButton active={activeTab === 'account'} onClick={() => setActiveTab('account')} icon="account_circle" label="アカウント" />
             </div>
 
+            {/* コンテンツエリア */}
             <div className="col-span-1 lg:col-span-9 space-y-10">
               
               {/* --- SOUND SECTION --- */}
@@ -135,8 +141,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
                   </div>
                   <div className="space-y-10">
                     <VolumeSlider label="マスター音量" value={Math.round(masterVolume * 100)} onChange={(v: number) => setMasterVolume(v/100)} />
-                    <VolumeSlider label="BGM音量" value={Math.round(bgmVolume * 100)} onChange={(v: number) => { setBgmVolume(v/100); SoundManager.setBgmVolume(v/100); }} />
-                    <VolumeSlider label="SE音量" value={Math.round(seVolume * 100)} onChange={(v: number) => { setSeVolume(v/100); SoundManager.playSe('click'); }} />
+                    <VolumeSlider label="BGM音量" value={Math.round(bgmVolume * 100)} onChange={(v: number) => { setBgmVolume(v/100); try { SoundManager.setBgmVolume(v/100); } catch(_e) {} }} />
+                    <VolumeSlider label="SE音量" value={Math.round(seVolume * 100)} onChange={(v: number) => { setSeVolume(v/100); try { SoundManager.playSe('click'); } catch(_e) {} }} />
                   </div>
                 </section>
               )}
@@ -200,7 +206,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
 
               {/* --- ACCOUNT SECTION --- */}
               {activeTab === 'account' && (
-                <section className="bg-white/5 rounded-xl p-8 border border-white/10 backdrop-blur-sm animate-fadeIn" id="account">
+                <section className="bg-white/5 rounded-xl p-8 border border-white/10 backdrop-blur-sm animate-fadeIn">
                   <div className="flex items-center gap-2 mb-8 border-b border-white/5 pb-4">
                     <span className="material-symbols-outlined text-[#fa7000]">account_circle</span>
                     <h2 className="text-lg font-bold text-white uppercase tracking-wider font-fix">Account Management</h2>
@@ -209,14 +215,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="md:col-span-1 flex flex-col items-center justify-center p-6 bg-white/5 rounded-xl border border-white/5 group">
                       <div className="relative cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                        {/* 💡 修正：プレビューを「No Image」対応 */}
-                        <div className="size-24 rounded-full border-4 border-[#fa7000] overflow-hidden shadow-[0_0_20px_rgba(250,112,0,0.3)] bg-slate-900 flex items-center justify-center">
+                        {/* プレビュー：No Image対応 */}
+                        <div className="size-24 rounded-full border-4 border-[#fa7000] overflow-hidden shadow-[0_0_20px_rgba(250,112,0,0.3)] bg-slate-900 flex items-center justify-center transition-transform group-hover:scale-105">
                           {playerAvatar ? (
                             <img src={playerAvatar} alt="preview" className="w-full h-full object-cover" />
                           ) : (
-                            <div className="flex flex-col items-center justify-center opacity-60">
-                              <span className="material-symbols-outlined text-slate-600 text-5xl">no_accounts</span>
-                              <p className="text-[7px] text-slate-500 font-black mt-1 uppercase tracking-widest">No Data</p>
+                            <div className="flex flex-col items-center justify-center opacity-40">
+                              <span className="material-symbols-outlined text-slate-500 text-5xl">no_accounts</span>
                             </div>
                           )}
                         </div>
@@ -226,18 +231,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
                         <input type="file" ref={fileInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
                       </div>
                       <p className="mt-4 text-[10px] font-black text-slate-500 uppercase tracking-widest font-fix">Edit Profile Image</p>
-                      {playerAvatar && (
-                        <button onClick={() => setPlayerAvatar(null)} className="mt-2 text-[8px] text-red-500/60 hover:text-red-500 underline uppercase font-bold">画像をリセット</button>
-                      )}
                     </div>
 
                     <div className="md:col-span-2 relative overflow-hidden bg-gradient-to-r from-[#23180f] to-[#2d1e14] rounded-xl border border-white/10 flex flex-col items-stretch transition-all shadow-2xl">
                       <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#fa7000] shadow-[0_0_15px_rgba(250,112,0,0.4)]"></div>
                       <div className="flex-1 flex flex-col justify-center pl-10 py-6 text-left">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                          <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em] font-black font-fix">System Identity Active</p>
-                        </div>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em] font-black font-fix mb-1">System Identity Active</p>
                         <div className="flex items-baseline gap-4">
                           <span className="material-symbols-outlined text-[#fa7000]/50 text-2xl">fingerprint</span>
                           <p className="text-3xl font-mono font-black text-white tracking-[0.2em] drop-shadow-md font-fix">
@@ -247,13 +246,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
                         <p className="text-[9px] text-slate-600 uppercase mt-2 tracking-widest font-fix">Operator: {playerName || "Unauthorized"}</p>
                       </div>
                       <div className="bg-black/20 px-8 py-6 flex flex-row lg:flex-col justify-center gap-4 min-w-[240px]">
-                        <button onClick={() => alert("【Phase 2 実装予定】\nGoogle / Discord アカウントとの連携機能を提供予定です。")} className="flex-1 flex items-center justify-center gap-3 px-6 py-3 bg-white/5 hover:bg-[#fa7000]/10 border border-white/10 hover:border-[#fa7000]/50 text-white font-black text-xs uppercase rounded-lg transition-all active:scale-95 group font-fix">
+                        <button onClick={() => alert("Coming Soon...")} className="flex-1 flex items-center justify-center gap-3 px-6 py-3 bg-white/5 hover:bg-[#fa7000]/10 border border-white/10 hover:border-[#fa7000]/50 text-white font-black text-xs uppercase rounded-lg transition-all font-fix">
                           <span className="material-symbols-outlined text-lg text-[#fa7000]">link</span>
-                          <span className="tracking-widest">Link Account</span>
+                          <span>Link Account</span>
                         </button>
-                        <button onClick={handleLogout} className="flex-1 flex items-center justify-center gap-3 px-6 py-3 bg-red-500/5 hover:bg-red-500 border border-red-500/20 hover:border-red-500 text-red-500 hover:text-white font-black text-xs uppercase rounded-lg transition-all active:scale-95 group font-fix">
+                        <button onClick={handleLogout} className="flex-1 flex items-center justify-center gap-3 px-6 py-3 bg-red-500/5 hover:bg-red-500 border border-red-500/20 hover:border-red-500 text-red-500 hover:text-white font-black text-xs uppercase rounded-lg transition-all font-fix">
                           <span className="material-symbols-outlined text-lg">logout</span>
-                          <span className="tracking-widest">Logout</span>
+                          <span>Logout</span>
                         </button>
                       </div>
                     </div>
@@ -261,6 +260,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
                 </section>
               )}
 
+              {/* フッター戻るボタン */}
               <div className="flex justify-center pt-10 pb-12">
                 <button onClick={onBack} className="group relative px-16 py-4 overflow-hidden rounded-full bg-[#23180f] border border-[#fa7000]/50 text-white font-black tracking-[0.3em] uppercase transition-all hover:border-[#fa7000] hover:shadow-[0_0_30px_rgba(250,112,0,0.2)] active:scale-95 font-fix">
                   <div className="absolute inset-0 bg-[#fa7000]/10 group-hover:bg-[#fa7000]/20 transition-all"></div>
@@ -284,16 +284,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
       <style>{`
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+        .font-fix { line-height: 1.1; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #fa7000; border-radius: 10px; }
       `}</style>
     </div>
   );
-};
+});
 
-// --- Sub-Components ---
+// --- サブコンポーネント ---
+
 const NavButton: React.FC<NavButtonProps> = ({ active, onClick, icon, label }) => (
   <button onClick={onClick} className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-left group font-fix ${active ? 'bg-[#fa7000]/20 border-l-4 border-[#fa7000] text-white' : 'hover:bg-white/5 text-slate-400 hover:text-slate-200'}`}>
     <span className={`material-symbols-outlined ${active ? 'text-[#fa7000]' : 'group-hover:text-[#fa7000]'} transition-colors`}>{icon}</span>
-    <span className={`text-sm font-bold`}>{label}</span>
+    <span className="text-sm font-bold">{label}</span>
   </button>
 );
 
@@ -315,3 +319,5 @@ const ToggleItem: React.FC<ToggleItemProps> = ({ label, active, onToggle }) => (
     </button>
   </div>
 );
+
+export default SettingsView;
