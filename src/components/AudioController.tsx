@@ -1,36 +1,28 @@
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store'; 
 
-/**
- * ログイン・ロビー画面のBGMを管理するコンポーネント
- * 音量同期を維持しつつ、すべてのESLint警告・エラーを解消
- */
 export const AudioController = (): null => {
   const bgmRef = useRef<HTMLAudioElement | null>(null);
-  
-  // ストアから画面状態と音量を取得
   const view = useGameStore((state) => state.view);
   const bgmVolume = useGameStore((state) => state.bgmVolume);
 
   // 1️⃣ BGMの初期化（初回のみ実行）
   useEffect(() => {
-    const bgm = new Audio('/assets/audio/bgm/login-joinroom.ogg');
+    // 🚀 publicフォルダの中にあるので、ドメイン直下の「/」から始めるのが大正解！
+    const audioPath = '/assets/audio/bgm/login-joinroom.mp3';
+    const bgm = new Audio(audioPath);
     bgm.loop = true;
-    
-    // ✅ 解決策：getState() で取得することで、この useEffect は bgmVolume の変更を監視しなくなる。
-    // これにより、音量を変えるたびに BGM が最初から再生されるのを防ぎつつ、deps警告も出なくなる。
     bgm.volume = useGameStore.getState().bgmVolume;
     bgmRef.current = bgm;
 
     const handleInteraction = (): void => {
-      bgm.play().catch((_err: unknown) => {
-        console.warn("Autoplay prevented by browser policy.");
-      });
+      bgm.play()
+        .then(() => console.log("🎵 [Audio] 再生成功！ついに鳴ったぞ！"))
+        .catch(err => console.warn("⚠️ [Audio] 再生失敗:", err));
       window.removeEventListener('click', handleInteraction);
     };
 
     window.addEventListener('click', handleInteraction);
-
     return () => {
       bgm.pause();
       window.removeEventListener('click', handleInteraction);
@@ -38,11 +30,8 @@ export const AudioController = (): null => {
   }, []); 
 
   // 2️⃣ 音量設定のリアルタイム同期
-  // 設定画面で bgmVolume が変わったときだけ、この Effect が動いて音量を上書きする
   useEffect(() => {
-    if (bgmRef.current) {
-      bgmRef.current.volume = bgmVolume;
-    }
+    if (bgmRef.current) bgmRef.current.volume = bgmVolume;
   }, [bgmVolume]);
 
   // 3️⃣ ゲーム本編遷移時のフェードアウト

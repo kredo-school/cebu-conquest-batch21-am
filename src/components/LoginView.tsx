@@ -25,7 +25,7 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
   const [customQuestion, setCustomQuestion] = useState(''); 
   const [securityAnswer, setSecurityAnswer] = useState(''); 
 
-  // カテゴリー表示用のState
+  // カテゴリー表示用のState（これがボタンを押した時に変わる）
   const [activeCategory, setActiveCategory] = useState<'laravel' | 'gods' | 'about' | null>(null);
 
   // 🚀 スキャン演出の最低継続時間（3秒）
@@ -240,6 +240,50 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
             <BentoCard icon="map" title="Cebu Conquest" sub="Learn about Cebu" isActive={activeCategory === 'about'} onClick={() => setActiveCategory('about')}/>
           </div>
         )}
+
+        {/* 🚀 ここから追加：消えていたモーダル部分を復活！ */}
+        {activeCategory && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-fadeIn">
+            <div className="bg-slate-900 border border-orange-500/30 rounded-2xl p-6 max-w-sm w-full shadow-[0_0_40px_rgba(249,115,22,0.15)] relative text-left">
+              
+              {/* 閉じるボタン */}
+              <button 
+                onClick={() => setActiveCategory(null)}
+                className="absolute top-4 right-4 text-slate-500 hover:text-orange-400 transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+
+              {/* 中身のテキスト（後で好きに変えてね） */}
+              {activeCategory === 'laravel' && (
+                <>
+                  <div className="flex items-center gap-2 text-orange-500 mb-3"><span className="material-symbols-outlined">groups</span><h3 className="text-xl font-black uppercase tracking-widest">No Laravel</h3></div>
+                  <p className="text-slate-300 text-sm leading-relaxed">
+                    このプロジェクトはLaravel等のバックエンドフレームワークに依存せず、純粋なフロントエンド技術と軽量APIだけで構築された最初の挑戦です。
+                  </p>
+                </>
+              )}
+              {activeCategory === 'gods' && (
+                <>
+                  <div className="flex items-center gap-2 text-orange-500 mb-3"><span className="material-symbols-outlined">military_tech</span><h3 className="text-xl font-black uppercase tracking-widest">God Teachers</h3></div>
+                  <p className="text-slate-300 text-sm leading-relaxed">
+                    Batch 21の伝説的なメンターたちに敬意を表して。彼らの指導がなければ、この司令室のアルゴリズムは完成しませんでした。
+                  </p>
+                </>
+              )}
+              {activeCategory === 'about' && (
+                <>
+                  <div className="flex items-center gap-2 text-orange-500 mb-3"><span className="material-symbols-outlined">map</span><h3 className="text-xl font-black uppercase tracking-widest">Cebu Conquest</h3></div>
+                  <p className="text-slate-300 text-sm leading-relaxed">
+                    セブ島を舞台にしたリアルタイムタクティカルゲーム。味方と連携し、陣地を拡大してアーキペラゴ（群島）の覇者となれ。
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+        {/* 🚀 追加ここまで */}
+
       </main>
 
       <footer className="relative z-20 bg-slate-950/80 backdrop-blur-md flex flex-col md:flex-row justify-center items-center w-full py-3 border-t border-slate-800 shrink-0">
