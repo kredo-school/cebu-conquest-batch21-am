@@ -4,8 +4,6 @@ require_once __DIR__ . '/../db_connection.php';
 require_once 'jwt-helper.php';
 
 // 1. JWT認証（Authorizationヘッダーからユーザーを特定）
-$headers = getallheaders();
-$authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
 if (!preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
     http_response_code(401);
     echo json_encode(['status' => 'error', 'message' => '認証トークンが必要です']);
@@ -28,11 +26,12 @@ try {
     $is_unique = false;
     $room_key = "";
 
-    while (!$is_unique) {
-        $room_key = str_pad(mt_rand(0, 99999), 5, '0', STR_PAD_LEFT);
-        $check = $pdo->prepare("SELECT id FROM rooms WHERE room_key = ? AND status != 'finished'");
-        $check->execute([$room_key]);
-        if (!$check->fetch()) $is_unique = true;
+    $input = json_decode(file_get_contents("php://input"), true);
+    $room_key = $input['roomId'] ?? ''; // フロントから届く roomId を使う
+
+    if (!$room_key) {
+        http_response_code(400);
+        exit(json_encode(['status' => 'error', 'message' => 'Room IDが送信されていません']));
     }
 
     // 3. データベースへ登録
