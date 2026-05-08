@@ -74,6 +74,12 @@ export default class MainScene extends Phaser.Scene {
       this.load.on("filecomplete-audio-bgm_field", () =>
         console.log("[BGM] ロード成功: bgm_field"),
       );
+      this.load.on("filecomplete-audio-bgm_maingame", () =>
+        console.log("[BGM] ロード成功: bgm_maingame"),
+      );
+      this.load.on("filecomplete-audio-bgm_battle", () =>
+        console.log("[BGM] ロード成功: bgm_battle"),
+      );
       this.load.on("loaderror", (file) => console.error("[BGM] ロード失敗:", file.key, file.src));
     }
 
@@ -90,12 +96,13 @@ export default class MainScene extends Phaser.Scene {
     GOD_IMAGES.forEach(({ key, path }) => this.load.image(key, path));
 
     // BGM（game view 中に使うもののみ）
-    this.load.audio("bgm_map", "/assets/audio/bgm/maingame.mp3");
-    this.load.audio("bgm_battle", "/assets/audio/bgm/battle.mp3");
+    this.load.audio("bgm_maingame", "/assets/audio/bgm/maingame.ogg");
+    this.load.audio("bgm_battle", "/assets/audio/bgm/battle.ogg");
     // SE
     this.load.audio("se_click", "/assets/audio/se/se_click.mp3");
     this.load.audio("se_move", "/assets/audio/se/se_move.mp3");
     this.load.audio("se_capture", "/assets/audio/se/se_capture.mp3");
+    
   }
 
   create() {
@@ -131,6 +138,7 @@ export default class MainScene extends Phaser.Scene {
     });
     this.effectManager = new EffectManager(this);
     window.__SCENE__ = this;
+    this._setupBGMListeners();
   }
 
   update() {
@@ -231,7 +239,7 @@ export default class MainScene extends Phaser.Scene {
             type: "attack",
             targetId: this._pendingTargetId,
           });
-          SoundManager.playBgm("battle");
+          this.game.events.emit('battle:start');
         },
       },
       {
@@ -287,6 +295,33 @@ export default class MainScene extends Phaser.Scene {
       window.removeEventListener(event, handler),
     );
     SoundManager.clearScene();
+    window.removeEventListener(REACT_TO_PHASER.START_GAME_BGM, this._onStartGameBgm);
+    if (this._onBattleStart) this.game.events.off('battle:start', this._onBattleStart);
+    if (this._onBattleEnd)   this.game.events.off('battle:end',   this._onBattleEnd);
+  }
+
+  _setupBGMListeners() {
+    // ① React → Phaser：マップ画面に入ったらインゲームBGM開始
+    this._onStartGameBgm = () => {
+      if (import.meta.env.DEV) console.log('[BGM] react:startGameBgm 受信 → maingame.ogg 再生');
+      SoundManager.playBGM('bgm_maingame', { loop: true, volume: 0.5 });
+    };
+    window.addEventListener(REACT_TO_PHASER.START_GAME_BGM, this._onStartGameBgm);
+
+    // ② バトル開始 → battle.ogg に切り替え
+    this._onBattleStart = () => {
+      if (import.meta.env.DEV) console.log('[BGM] battle:start → battle.ogg 再生');
+      SoundManager.playBGM('bgm_battle', { loop: true, volume: 0.6 });
+    };
+
+    // ③ バトル終了 → maingame.ogg に戻す
+    this._onBattleEnd = () => {
+      if (import.meta.env.DEV) console.log('[BGM] battle:end → maingame.ogg 復帰');
+      SoundManager.playBGM('bgm_maingame', { loop: true, volume: 0.5 });
+    };
+
+    this.game.events.on('battle:start', this._onBattleStart);
+    this.game.events.on('battle:end',   this._onBattleEnd);
   }
 
   _initSocket() {
@@ -325,8 +360,14 @@ export default class MainScene extends Phaser.Scene {
         if (target) this.effectManager.playExplosionEffect(target.center.x, target.center.y);
         this._pendingTargetId = null;
       }
-      // バトル結果受信後、マップBGMへ戻す（2秒の余韻を持たせる）
-      this.time.delayedCall(2000, () => SoundManager.playBgm("map"));
+    });
+    socket.on(SERVER_EVENTS.BATTLE_RESULT, () => {
+      // バトルBGM開始（すでに再生中なら無視）
+      this.game.events.emit('battle:start');
+      // 演出終了後にフィールドBGMへ戻す
+      this.time.delayedCall(3000, () => {
+        this.game.events.emit('battle:end');
+      });
     });
   }
 
