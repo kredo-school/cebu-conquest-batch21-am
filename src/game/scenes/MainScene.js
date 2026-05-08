@@ -70,6 +70,12 @@ export default class MainScene extends Phaser.Scene {
       "/assets/audio/bgm/login-joinroom.ogg",
       "/assets/audio/bgm/login-joinroom.mp3",
     ]);
+    if (import.meta.env.DEV) {
+      this.load.on("filecomplete-audio-bgm_field", () =>
+        console.log("[BGM] ロード成功: bgm_field"),
+      );
+      this.load.on("loaderror", (file) => console.error("[BGM] ロード失敗:", file.key, file.src));
+    }
 
     const GOD_IMAGES = [
       { key: "god-john", path: "/assets/images/gods/John.png" },
@@ -98,17 +104,6 @@ export default class MainScene extends Phaser.Scene {
     this._setupTilemap();
     this._loadDistrictsFromTMJ();
     this._drawDistrictPolygons();
-    this.bgmField = this.sound.add("bgm_field", {
-      loop: true,
-      volume: 0.4,
-    });
-    // ブラウザの自動再生ブロック対策：初回クリック後に再生
-    this.input.once("pointerdown", () => {
-      if (!this.bgmField.isPlaying) {
-        this.bgmField.play();
-      }
-    });
-
     // A-2: CameraController に置き換え
     this.cameraController = new CameraController(this);
     this.cameraController.setup(this.tiledMap, MAP_SCALE);
@@ -127,8 +122,15 @@ export default class MainScene extends Phaser.Scene {
     this._setupKeyboard();
     this.updateStatusToReact();
     SoundManager.setScene(this);
-    SoundManager.playBgm("map");
+    // 初回ユーザー操作後に再生（自動再生ブロック対策）
+    // once なので既存の pointerdown ハンドラ（当たり判定）とは並列動作する
+    this.input.once("pointerdown", () => {
+      if (import.meta.env.DEV)
+        console.log("[BGM] 初回pointerdown, AudioContext:", this.sound.context?.state);
+      SoundManager.playBGM("bgm_field");
+    });
     this.effectManager = new EffectManager(this);
+    window.__SCENE__ = this;
   }
 
   update() {
