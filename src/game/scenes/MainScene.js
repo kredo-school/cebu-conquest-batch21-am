@@ -67,8 +67,8 @@ export default class MainScene extends Phaser.Scene {
     }
     this.load.tilemapTiledJSON(config.key, config.path);
     this.load.audio("bgm_field", [
-      "assets/audio/login-joinroom.ogg",
-      "assets/audio/login-joinroom.mp3",
+      "/assets/audio/bgm/login-joinroom.ogg",
+      "/assets/audio/bgm/login-joinroom.mp3",
     ]);
 
     const GOD_IMAGES = [
@@ -84,8 +84,8 @@ export default class MainScene extends Phaser.Scene {
     GOD_IMAGES.forEach(({ key, path }) => this.load.image(key, path));
 
     // BGM（game view 中に使うもののみ）
-    this.load.audio("bgm_map", "/assets/audio/bgm/bgm_map.mp3");
-    this.load.audio("bgm_battle", "/assets/audio/bgm/bgm_battle.mp3");
+    this.load.audio("bgm_map", "/assets/audio/bgm/maingame.mp3");
+    this.load.audio("bgm_battle", "/assets/audio/bgm/battle.mp3");
     // SE
     this.load.audio("se_click", "/assets/audio/se/se_click.mp3");
     this.load.audio("se_move", "/assets/audio/se/se_move.mp3");

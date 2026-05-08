@@ -22,9 +22,9 @@
 
 const BGM_FILES = {
   title:  '/assets/audio/bgm/login-joinroom.ogg',
-  lobby:  '/assets/audio/bgm/bgm_lobby.mp3',
-  map:    '/assets/audio/bgm/bgm_map.mp3',
-  battle: '/assets/audio/bgm/bgm_battle.mp3',
+  lobby:  '/assets/audio/bgm/login-joinroom.ogg',
+  map:    '/assets/audio/bgm/maingame.mp3',
+  battle: '/assets/audio/bgm/battle.mp3',
 };
 
 const SE_FILES = {
