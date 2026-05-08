@@ -21,10 +21,10 @@
  */
 
 const BGM_FILES = {
-  title:  '/assets/audio/bgm/bgm_title.mp3',
-  lobby:  '/assets/audio/bgm/bgm_lobby.mp3',
-  map:    '/assets/audio/bgm/bgm_map.mp3',
-  battle: '/assets/audio/bgm/bgm_battle.mp3',
+  title:  '/assets/audio/bgm/login-joinroom.ogg',
+  lobby:  '/assets/audio/bgm/login-joinroom.ogg',
+  map:    '/assets/audio/bgm/maingame.mp3',
+  battle: '/assets/audio/bgm/battle.mp3',
 };
 
 const SE_FILES = {
@@ -176,9 +176,55 @@ class SoundManager {
     const phaserKey = `bgm_${key}`;
     if (!this._scene?.cache.audio.has(phaserKey)) return;
     const bgm = this._scene.sound.add(phaserKey, { loop: true, volume: 0 });
-    bgm.play();
-    this._scene.tweens.add({ targets: bgm, volume: BGM_VOLUME, duration: FADE_MS });
     this._phaserBgm = bgm;
+    const ctx = this._scene.sound.context;
+    const startPlay = () => {
+      bgm.play();
+      this._scene.tweens.add({ targets: bgm, volume: BGM_VOLUME, duration: FADE_MS });
+    };
+    if (ctx?.state === 'suspended') {
+      ctx.resume().then(startPlay);
+    } else {
+      startPlay();
+    }
+  }
+
+  /**
+   * Phaserキーを直接指定してBGMを再生する。
+   * setScene() 後に使用する。AudioContext suspended を自動 resume する。
+   * @param {string} phaserKey - Phaser にロード済みの audio キー
+   * @param {object} config    - { loop, volume } (省略時は loop:true, volume:0.4)
+   */
+  playBGM(phaserKey, config = {}) {
+    if (!this._scene) return;
+    if (this._phaserBgm?.isPlaying && this._bgmKey === phaserKey) return;
+
+    if (this._phaserBgm) {
+      this._phaserBgm.stop();
+      this._phaserBgm.destroy();
+      this._phaserBgm = null;
+    }
+
+    if (!this._scene.cache.audio.has(phaserKey)) {
+      if (import.meta.env.DEV) console.warn('[SoundManager] audio not loaded:', phaserKey);
+      return;
+    }
+
+    const { loop = true, volume = BGM_VOLUME } = config;
+    const bgm = this._scene.sound.add(phaserKey, { loop, volume: 0 });
+    this._phaserBgm = bgm;
+    this._bgmKey = phaserKey;
+
+    const ctx = this._scene.sound.context;
+    const startPlay = () => {
+      bgm.play();
+      this._scene.tweens.add({ targets: bgm, volume, duration: FADE_MS });
+    };
+    if (ctx?.state === 'suspended') {
+      ctx.resume().then(startPlay);
+    } else {
+      startPlay();
+    }
   }
 
   // ─── HTML Audio内部 ──────────────────────────────
