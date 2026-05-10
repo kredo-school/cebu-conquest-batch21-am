@@ -38,6 +38,33 @@ const BGM_VOLUME = 0.5;
 const SE_VOLUME  = 0.8;
 
 class SoundManager {
+  // ──────────────────────────────────────
+  // アセットロード（preload()から呼ぶ）
+  // ──────────────────────────────────────
+  preloadAssets(scene) {
+    scene.load.audio('bgm_maingame', [
+      'assets/audio/bgm/maingame.ogg',
+      'assets/audio/bgm/maingame.mp3',
+    ]);
+    scene.load.audio('bgm_battle_music', [
+      'assets/audio/bgm/battle.ogg',
+      'assets/audio/bgm/battle.mp3',
+    ]);
+    const seKeys = [
+      'click_non_button',
+      'healing',
+      'moving',
+      'airport',
+      'emergency',
+      'escape',
+      'battle',
+      'territory_control',
+    ];
+    for (const key of seKeys) {
+      scene.load.audio(`se_${key}`, `assets/audio/se/${key}.mp3`);
+    }
+  }
+
   constructor() {
     this._bgmKey    = null;   // 現在再生中のBGMキー
     this._scene     = null;   // Phaser.Scene（game中のみ非null）
@@ -243,6 +270,29 @@ class SoundManager {
     audio.play().catch(() => {});
     this._fadeHtml(audio, 0, BGM_VOLUME, null);
     this._htmlBgm = audio;
+  }
+
+  // ──────────────────────────────────────
+  // SE（キーを直接指定する版）
+  // ──────────────────────────────────────
+
+  playSE(key) {
+    if (!this._scene) return;
+    if (!this._scene.cache.audio.has(key)) {
+      if (import.meta.env.DEV) console.warn(`[SE] キャッシュに存在しない: ${key}`);
+      return;
+    }
+    this._scene.sound.play(key, { volume: this._muted ? 0 : SE_VOLUME });
+  }
+
+  playSEChain(keys, delayMs = 1500) {
+    if (!keys.length) return;
+    this.playSE(keys[0]);
+    for (let i = 1; i < keys.length; i++) {
+      this._scene?.time.delayedCall(delayMs * i, () => {
+        this.playSE(keys[i]);
+      });
+    }
   }
 
   _fadeHtml(audio, from, to, onComplete) {

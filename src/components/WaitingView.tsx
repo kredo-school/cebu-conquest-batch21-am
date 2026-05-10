@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useGameStore, Player, LobbyPlayer } from '../store';
 import socket from '../socket';
 import SoundManager from '../game/SoundManager';
+import { useBGM } from '../hook/useBGM';
 import { GlobalNavbar } from './layout/GlobalNavbar';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../../shared/socketEvents.js';
 
@@ -126,13 +127,19 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
   );
 });
 
-export const WaitingView: React.FC<WaitingViewProps> = ({ 
-  onStart, onOpenSettings, onOpenHelp, onOpenRanking, onAbort 
+export const WaitingView: React.FC<WaitingViewProps> = ({
+  onStart, onOpenSettings, onOpenHelp, onOpenRanking, onAbort
 }) => {
   const { players, lobbyPlayers, myId, chatLogs, roomId, playerName, maxPlayers, selectedGodId, addLog, playerAvatar } = useGameStore();
   const [chatInput, setChatInput] = useState('');
   const [isLocked, setIsLocked] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const { playBGM, stopBGM } = useBGM();
+
+  useEffect(() => {
+    playBGM('waiting');
+    return () => stopBGM();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (roomId) {

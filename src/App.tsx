@@ -27,6 +27,7 @@ import { AudioController } from './components/AudioController';
 import { useGameEvents } from './hook/useGameEvents';
 import { PHASER_TO_REACT, REACT_TO_PHASER } from './game/events/PhaserBridge';
 import { SERVER_EVENTS } from '../shared/socketEvents.js';
+import { stopBGM } from './hook/useBGM';
 
 const App: React.FC = () => {
   useGameEvents();
@@ -65,9 +66,10 @@ const App: React.FC = () => {
 
   // ✅ 修正：App.tsx 側の BGM 初期化ロジック（旧77行目）は AudioController へ移行し削除
 
-  // ✅ 修正：ゲーム開始時、Phaser 側に「ゲーム内 BGM を鳴らしてOK」の合図だけを送る
+  // ✅ ゲーム開始時：waiting BGM を停止してから Phaser 側に maingame BGM 開始を通知
   useEffect(() => {
     if (view === 'game') {
+      stopBGM();
       window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.START_GAME_BGM));
     }
   }, [view]);
