@@ -95,14 +95,8 @@ export default class MainScene extends Phaser.Scene {
     ];
     GOD_IMAGES.forEach(({ key, path }) => this.load.image(key, path));
 
-    // BGM（game view 中に使うもののみ）
-    this.load.audio("bgm_maingame", "/assets/audio/bgm/maingame.ogg");
-    this.load.audio("bgm_battle", "/assets/audio/bgm/battle.ogg");
-    // SE
-    this.load.audio("se_click", "/assets/audio/se/se_click.mp3");
-    this.load.audio("se_move", "/assets/audio/se/se_move.mp3");
-    this.load.audio("se_capture", "/assets/audio/se/se_capture.mp3");
-    
+    // BGM・SE ロード（インゲーム分）
+    SoundManager.preloadAssets(this);
   }
 
   create() {
@@ -139,6 +133,7 @@ export default class MainScene extends Phaser.Scene {
     this.effectManager = new EffectManager(this);
     window.__SCENE__ = this;
     this._setupBGMListeners();
+    this._setupSEListeners();
   }
 
   update() {
@@ -219,7 +214,7 @@ export default class MainScene extends Phaser.Scene {
 
           this.currentDistrictId = districtId;
           this._placePlayer(districtId);
-          SoundManager.playSe("move");
+          SoundManager.playSE('se_moving');
         },
       },
       {
@@ -296,8 +291,14 @@ export default class MainScene extends Phaser.Scene {
     );
     SoundManager.clearScene();
     window.removeEventListener(REACT_TO_PHASER.START_GAME_BGM, this._onStartGameBgm);
-    if (this._onBattleStart) this.game.events.off('battle:start', this._onBattleStart);
-    if (this._onBattleEnd)   this.game.events.off('battle:end',   this._onBattleEnd);
+    if (this._onBattleStart)   this.game.events.off('battle:start',      this._onBattleStart);
+    if (this._onBattleEnd)     this.game.events.off('battle:end',        this._onBattleEnd);
+    if (this._onMoving)        this.game.events.off('se:moving',         this._onMoving);
+    if (this._onAirport)       this.game.events.off('se:airport',        this._onAirport);
+    if (this._onHealing)       this.game.events.off('se:healing',        this._onHealing);
+    if (this._onEmergency)     this.game.events.off('se:emergency',      this._onEmergency);
+    if (this._onEscapeResult)  this.game.events.off('se:escape_result',  this._onEscapeResult);
+    if (this._onDefenseResult) this.game.events.off('se:defense_result', this._onDefenseResult);
   }
 
   _setupBGMListeners() {
@@ -311,7 +312,7 @@ export default class MainScene extends Phaser.Scene {
     // ② バトル開始 → battle.ogg に切り替え
     this._onBattleStart = () => {
       if (import.meta.env.DEV) console.log('[BGM] battle:start → battle.ogg 再生');
-      SoundManager.playBGM('bgm_battle', { loop: true, volume: 0.6 });
+      SoundManager.playBGM('bgm_battle_music', { loop: true, volume: 0.6 });
     };
 
     // ③ バトル終了 → maingame.ogg に戻す
@@ -322,6 +323,35 @@ export default class MainScene extends Phaser.Scene {
 
     this.game.events.on('battle:start', this._onBattleStart);
     this.game.events.on('battle:end',   this._onBattleEnd);
+  }
+
+  _setupSEListeners() {
+    this._onMoving = () => SoundManager.playSE('se_moving');
+    this.game.events.on('se:moving', this._onMoving);
+
+    this._onAirport = () => SoundManager.playSE('se_airport');
+    this.game.events.on('se:airport', this._onAirport);
+
+    this._onHealing = () => SoundManager.playSE('se_healing');
+    this.game.events.on('se:healing', this._onHealing);
+
+    this._onEmergency = () => {
+      SoundManager.playSE('se_emergency');
+      this.game.events.emit('battle:start');
+    };
+    this.game.events.on('se:emergency', this._onEmergency);
+
+    this._onEscapeResult = () => {
+      SoundManager.playSEChain(['se_escape', 'se_territory_control'], 2000);
+      this.time.delayedCall(4000, () => this.game.events.emit('battle:end'));
+    };
+    this.game.events.on('se:escape_result', this._onEscapeResult);
+
+    this._onDefenseResult = () => {
+      SoundManager.playSEChain(['se_battle', 'se_territory_control'], 2000);
+      this.time.delayedCall(4000, () => this.game.events.emit('battle:end'));
+    };
+    this.game.events.on('se:defense_result', this._onDefenseResult);
   }
 
   _initSocket() {
@@ -360,14 +390,29 @@ export default class MainScene extends Phaser.Scene {
         if (target) this.effectManager.playExplosionEffect(target.center.x, target.center.y);
         this._pendingTargetId = null;
       }
-    });
-    socket.on(SERVER_EVENTS.BATTLE_RESULT, () => {
-      // バトルBGM開始（すでに再生中なら無視）
-      this.game.events.emit('battle:start');
-      // 演出終了後にフィールドBGMへ戻す
-      this.time.delayedCall(3000, () => {
+      // アクション種別に応じた SE
+      if (data.action === 'move') {
+        this.game.events.emit('se:moving');
+      } else if (data.action === 'move_airport') {
+        this.game.events.emit('se:airport');
+      } else if (data.action === 'stay') {
+        this.game.events.emit('se:healing');
         this.game.events.emit('battle:end');
-      });
+      }
+      if (data.hpDelta > 0 || data.apDelta > 0 || data.faithDelta > 0) {
+        if (data.action !== 'stay') this.game.events.emit('se:healing');
+      }
+    });
+    socket.on(SERVER_EVENTS.BATTLE_RESULT, (data) => {
+      // 防御側もバトルBGMを受け取れるよう emit（攻撃側は COMMAND_ATTACK で既に開始済みのため無視される）
+      this.game.events.emit('battle:start');
+      if (data?.defenderAction === 'escape') {
+        this.game.events.emit('se:escape_result');
+      } else if (data?.defenderAction === 'defense') {
+        this.game.events.emit('se:defense_result');
+      } else {
+        this.time.delayedCall(3000, () => this.game.events.emit('battle:end'));
+      }
     });
   }
 
@@ -493,7 +538,7 @@ export default class MainScene extends Phaser.Scene {
 
     if (this.isSelectionMode) {
       // ── 初期スポット選択フェーズ ──
-      SoundManager.playSe("click");
+      SoundManager.playSE('se_click_non_button');
       Object.values(this.districts).forEach((dist) => this._redrawDistrict(dist, COLOR.NEUTRAL));
       this._redrawDistrict(d, COLOR.HIGHLIGHT, 0.8);
 
@@ -511,7 +556,7 @@ export default class MainScene extends Phaser.Scene {
         return;
       }
 
-      SoundManager.playSe("click");
+      SoundManager.playSE('se_click_non_button');
       this._pendingTargetId = spotId;
 
       const targetOwner = (d?.owner ?? "neutral").toLowerCase();
@@ -663,7 +708,7 @@ export default class MainScene extends Phaser.Scene {
         team === this._myTeam &&
         d.owner !== this._myTeam
       ) {
-        SoundManager.playSe("capture");
+        SoundManager.playSE('se_territory_control');
         this.effectManager?.playCapturePopup(d.center.x, d.center.y);
       }
       d.owner = team;

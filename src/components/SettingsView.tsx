@@ -1,7 +1,8 @@
 /// <reference types="vite/client" />
-import React, { useState, useRef, memo } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { useGameStore } from '../store';
 import SoundManager from '../game/SoundManager';
+import { useBGM } from '../hook/useBGM';
 
 interface SettingsViewProps {
   onBack: () => void;
@@ -46,6 +47,12 @@ export const SettingsView: React.FC<SettingsViewProps> = memo(({ onBack }) => {
   const [activeTab, setActiveTab] = useState<TabType>('sound');
   const [showToast, setShowToast] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { playBGM, stopBGM } = useBGM();
+
+  useEffect(() => {
+    playBGM('setting');
+    return () => stopBGM();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- 画像変更プロトコル ---
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {

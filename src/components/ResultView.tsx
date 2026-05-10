@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useGameStore } from '../store';
+import { useBGM } from '../hook/useBGM';
 
 interface ResultViewProps {
   onRestart: () => void;
@@ -8,18 +9,25 @@ interface ResultViewProps {
   onOpenRanking: () => void;
 }
 
-export const ResultView: React.FC<ResultViewProps> = ({ 
-  onRestart, onOpenSettings, onOpenHelp: _onOpenHelp, onOpenRanking 
+export const ResultView: React.FC<ResultViewProps> = ({
+  onRestart, onOpenSettings, onOpenHelp: _onOpenHelp, onOpenRanking
 }) => {
-  const { 
-    isGameOver, winnerId, myId, playerName, districts, 
+  const {
+    isGameOver, winnerId, myId, playerName, districts,
     turn, players, godsList,
-    authenticatedFetch 
+    authenticatedFetch
   } = useGameStore();
 
   const hasSavedResult = useRef(false);
+  const { playBGM, stopBGM } = useBGM();
 
   const isWinner = useMemo(() => winnerId === myId, [winnerId, myId]);
+
+  useEffect(() => {
+    if (!isGameOver) return;
+    playBGM(isWinner ? 'winner' : 'Loser');
+    return () => stopBGM();
+  }, [isGameOver]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // 勝者の詳細情報を取得
   const winnerPlayer = useMemo(() => 

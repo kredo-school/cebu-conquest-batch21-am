@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { useGameStore } from '../store'; 
+import { useGameStore } from '../store';
+import { stopBGM } from '../hook/useBGM';
 
 export const AudioController = (): null => {
   const bgmRef = useRef<HTMLAudioElement | null>(null);
@@ -34,19 +35,28 @@ export const AudioController = (): null => {
     if (bgmRef.current) bgmRef.current.volume = bgmVolume;
   }, [bgmVolume]);
 
-  // 3️⃣ ゲーム本編遷移時のフェードアウト
+  // 3️⃣ waiting画面でログインBGMを停止 → useBGMに引き渡す
+  useEffect(() => {
+    if (view === 'waiting' && bgmRef.current) {
+      bgmRef.current.pause();
+      bgmRef.current.currentTime = 0;
+    }
+  }, [view]);
+
+  // 4️⃣ ゲーム本編遷移時のフェードアウト
   useEffect(() => {
     let fadeOutInterval: ReturnType<typeof setInterval>;
 
     if (view === 'game' && bgmRef.current) {
+      stopBGM(); // waiting/setting BGMが残っていれば停止
       const currentBgm = bgmRef.current;
-      
+
       fadeOutInterval = setInterval(() => {
         if (currentBgm.volume > 0.05) {
           currentBgm.volume -= 0.05;
         } else {
           currentBgm.pause();
-          currentBgm.currentTime = 0; 
+          currentBgm.currentTime = 0;
           clearInterval(fadeOutInterval);
         }
       }, 100);
@@ -57,5 +67,41 @@ export const AudioController = (): null => {
     };
   }, [view]);
 
-  return null; 
+  // 5️⃣ グローバルボタン cursor/click SE（イベント委譲）
+  useEffect(() => {
+    const cursor = new Audio('/assets/audio/se/cursor.mp3');
+    cursor.volume = 0.7;
+    const clickBtn = new Audio('/assets/audio/se/click_button.mp3');
+    clickBtn.volume = 0.7;
+
+    let lastButtonHovered: Element | null = null;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const btn = (e.target as Element).closest?.('button, [role="button"]') ?? null;
+      if (btn && btn !== lastButtonHovered) {
+        cursor.currentTime = 0;
+        cursor.play().catch(() => {});
+      }
+      lastButtonHovered = btn;
+    };
+
+    const handleClick = (e: MouseEvent) => {
+      if ((e.target as Element).closest?.('button, [role="button"], input[type="submit"]')) {
+        clickBtn.currentTime = 0;
+        clickBtn.play().catch(() => {});
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('click', handleClick);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('click', handleClick);
+      cursor.pause();
+      clickBtn.pause();
+    };
+  }, []);
+
+  return null;
 };
