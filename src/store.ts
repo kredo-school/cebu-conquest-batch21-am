@@ -350,6 +350,8 @@ export const useGameStore = create<GameState>()(
       },
       closePrediction: () => set({ predictionModalOpen: false, targetDistrictInfo: null }),
       updateBuffs: () => { /* 実装略 */ },
+
+      // 🚀 バックエンド担当の指示に従い、roomId を安全にマージするように修正！
       syncServerState: (data, myId) => {
         if (!data) return;
         const rawPlayers = (data.players as Record<string, Player>) ?? {};
@@ -365,6 +367,7 @@ export const useGameStore = create<GameState>()(
           isReady: !!p.isReady
         }));
         const myPlayerData = playersArray.find((p) => p.id === myId);
+        
         set((state) => {
           let nextView = state.view;
           const isActuallyStarted = !!data.gameStarted;
@@ -381,10 +384,16 @@ export const useGameStore = create<GameState>()(
           } else if (data.phase === 'selection' && nextView === 'lobby') {
             nextView = 'selection';
           }
+          
+          // 🚨 【重要】サーバーからの roomId が無い場合は、現在の state.roomId を維持する
+          const safeRoomId = (data.roomId && data.roomId !== "") 
+                             ? (data.roomId as string) 
+                             : state.roomId;
+
           return {
             ...state,
             myId,
-            roomId: (data.roomId as string) ?? state.roomId,
+            roomId: safeRoomId, // 👈 安全なマージ処理を適用！
             hp: myPlayerData?.hp ?? state.hp,
             maxHp: myPlayerData?.maxHp ?? state.maxHp,
             ap: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.ap,
@@ -410,6 +419,7 @@ export const useGameStore = create<GameState>()(
             view: nextView,
           };
         });
+        
         const playersAsObject = playersArray.reduce((acc: Record<string, Player>, p: Player) => { 
           acc[p.id] = p; return acc; 
         }, {});
