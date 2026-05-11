@@ -3,61 +3,66 @@ require_once __DIR__ . '/api-cors.php';
 require_once __DIR__ . '/../db_connection.php';
 require_once 'jwt-helper.php';
 
-// 1. JWT認証（Authorizationヘッダーからユーザーを特定）
+// 1. フロントから届くJSONを解析
+$input = json_decode(file_get_contents("php://input"), true);
+
+// 🚀 重要：変数を try の外で定義し、フロントのID（例: MI3L94）を確実に保持する
+$room_key = isset($input['roomId']) ? strtoupper(trim($input['roomId'])) : null;
+
+if (!$room_key) {
+    http_response_code(400);
+    exit(json_encode(['status' => 'error', 'message' => 'Front-end Room ID is missing']));
+}
+
+// 2. ユーザーIDの特定
 $headers = getallheaders();
 $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
-if (!preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-    http_response_code(401);
-    echo json_encode(['status' => 'error', 'message' => '認証トークンが必要です']);
-    exit;
+$host_id = 1; 
+if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches) && $matches[1] !== 'null') {
+    $userData = validateJWT($matches[1]);
+    if ($userData) $host_id = $userData['user_id'];
 }
-
-$userData = validateJWT($matches[1]);
-if (!$userData) {
-    http_response_code(401);
-    echo json_encode(['status' => 'error', 'message' => '無効なトークンです']);
-    exit;
-}
-
-$host_id = $userData['user_id']; // 連想配列のキー名
 
 try {
     $pdo->beginTransaction();
 
-    // 2. ユニークなRoom ID（5桁）の生成と重複チェック
-    $is_unique = false;
-    $room_key = "";
-
-    while (!$is_unique) {
-        $room_key = str_pad(mt_rand(0, 99999), 5, '0', STR_PAD_LEFT);
-        $check = $pdo->prepare("SELECT id FROM rooms WHERE room_key = ? AND status != 'finished'");
-        $check->execute([$room_key]);
-        if (!$check->fetch()) $is_unique = true;
-    }
-
-    // 3. データベースへ登録
+    // 🚀 3. フロントが生成した英数字（$room_key）をそのままINSERT
     $stmt = $pdo->prepare("INSERT INTO rooms (room_key, host_user_id, status) VALUES (?, ?, 'waiting')");
     $stmt->execute([$room_key, $host_id]);
 
-    // 【重要】新しく作成された部屋の自動採番ID(idカラム)を取得
     $new_room_id = $pdo->lastInsertId();
 
-    // 4. 【追加】room_playersテーブルにホスト自身を登録
-    // これにより、join-room.phpでのカウントが「1」から始まるようになります
+    // 4. room_playersにも紐付け
     $insertHost = $pdo->prepare("INSERT INTO room_players (room_id, user_id, joined_at) VALUES (?, ?, NOW())");
     $insertHost->execute([$new_room_id, $host_id]);
 
     $pdo->commit();
 
-    // 4. 成功レスポンス（500ms以内の応答を維持）
+    // 5. 成功レスポンス
     echo json_encode([
         'status' => 'success',
-        'room_id' => $new_room_id,    // フロントエンドの遷移には数値のIDを返すのが一般的です
-        'room_key' => $room_key,      // 5桁のキーも一緒に返します
-        'message' => 'Room created successfully!'
+        'room_id' => $new_room_id,
+        'room_key' => $room_key, // フロントへそのまま返す
+        'message' => 'Room created with Front-end ID!'
     ]);
+
 } catch (Exception $e) {
-    if ($pdo->inTransaction()) $pdo->rollBack();
+    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+
+    // 重複エラー(1062)が起きた場合でも、定義済みの $room_key を安全に使用できる
+    if (strpos($e->getMessage(), '1062') !== false) {
+        $stmtCheck = $pdo->prepare("SELECT id FROM rooms WHERE room_key = ?");
+        $stmtCheck->execute([$room_key]);
+        $existing = $stmtCheck->fetch();
+        
+        exit(json_encode([
+            'status' => 'success',
+            'room_id' => $existing['id'],
+            'room_key' => $room_key,
+            'message' => 'Room already exists, proceeding...'
+        ]));
+    }
+
     http_response_code(500);
     echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
 }
