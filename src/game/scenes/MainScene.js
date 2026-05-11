@@ -264,18 +264,34 @@ export default class MainScene extends Phaser.Scene {
         handler: (e) => {
           const { godKey, godId } = e.detail || {};
 
-          // アバター画像キーの更新
+          // ① アバター画像キーの更新（既存処理）
           if (godKey) {
             this._avatarKey = godKey;
-            // プレイヤースプライトが既に存在すれば差し替え
             if (this.player && this.textures.exists(godKey)) {
               this.player.setTexture(godKey);
             }
           }
 
-          // 🚀 神に対応する聖地を自陣カラーで先塗り
           if (godId != null) {
+            // ② 聖地を自陣カラーで先塗り（既存処理）
             this._claimSacredLand(godId);
+
+            // ③ GDD v4.0 §3-1 準拠: 聖地districtをスポーン位置として確定
+            const sacredId = getSacredDistrict(godId);
+            if (sacredId != null) {
+              this.isSelectionMode = false;
+              this.currentDistrictId = sacredId;
+              this._placePlayer(sacredId);
+              SoundManager.playSe('move');
+
+              if (import.meta.env.DEV) {
+                const spawnSpot = getSpawnSpot(godId);
+                console.log(
+                  `[SET_AVATAR] godId=${godId}(${getGodName(godId)})` +
+                  ` → district=${sacredId}, spawnSpot=${spawnSpot}`
+                );
+              }
+            }
           }
         },
       },
