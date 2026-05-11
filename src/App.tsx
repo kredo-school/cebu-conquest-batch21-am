@@ -21,10 +21,13 @@ import { HelpModal } from './components/HelpModal';
 import { InventoryModal } from './components/InventoryModal'; 
 import { TutorialView } from './components/TutorialView'; 
 import { ErrorNotification } from './components/ErrorNotification'; 
+// ✅ AudioController が音響を一括管理
+import { AudioController } from './components/AudioController';
 
 import { useGameEvents } from './hook/useGameEvents';
 import { PHASER_TO_REACT, REACT_TO_PHASER } from './game/events/PhaserBridge';
 import { SERVER_EVENTS } from '../shared/socketEvents.js';
+import { stopBGM } from './hook/useBGM';
 
 const App: React.FC = () => {
   useGameEvents();
@@ -61,40 +64,12 @@ const App: React.FC = () => {
   const [showInventory, setShowInventory] = useState(false); 
   const [playerName, setLocalPlayerName] = useState('');
 
-  // 🎵 BGM管理用のRef
-  const bgmRef = useRef<HTMLAudioElement | null>(null);
+  // ✅ 修正：App.tsx 側の BGM 初期化ロジック（旧77行目）は AudioController へ移行し削除
 
-  // ✅ 修正：BGMの初期化と自動再生ブロック対策
+  // ✅ ゲーム開始時：waiting BGM を停止してから Phaser 側に maingame BGM 開始を通知
   useEffect(() => {
-    // BGMインスタンス作成
-    const bgm = new Audio('/assets/audio/bgm/login-joinroom.ogg');
-    bgm.loop = true;
-    bgm.volume = 0.4;
-    bgmRef.current = bgm;
-
-    // ユーザー操作後に再生（ブラウザの自動再生ポリシー対策）
-    const handleFirstClick = () => {
-      bgm.play().catch(e => console.warn('[BGM] 再生失敗:', e));
-      window.removeEventListener('click', handleFirstClick);
-    };
-    window.addEventListener('click', handleFirstClick);
-
-    // クリーンアップ
-    return () => {
-      bgm.pause();
-      bgm.currentTime = 0;
-      window.removeEventListener('click', handleFirstClick);
-    };
-  }, []);
-
-  // ✅ 修正：ゲーム画面遷移時にBGMを停止し、Phaserへ開始合図を送る
-  useEffect(() => {
-    if (view === 'game' && bgmRef.current) {
-      // 1. React側のBGMを止める
-      bgmRef.current.pause();
-      bgmRef.current.currentTime = 0;
-
-      // 2. Phaser側に「本番BGMを鳴らしていいよ！」と合図を送る
+    if (view === 'game') {
+      stopBGM();
       window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.START_GAME_BGM));
     }
   }, [view]);
@@ -185,7 +160,6 @@ const App: React.FC = () => {
     };
   }, [triggerDeploySequence, setZoomLevel, addLog, syncServerState, myId, updateStatsFromPhaser, updateSelectedDistrict]);
 
-  // 🚀 4. 遷移制御ロジック
   const handleLoginSubmit = async (name: string) => {
     setLocalPlayerName(name);
     useGameStore.setState({ roomId: undefined, players: [] });
@@ -262,6 +236,9 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-screen h-screen bg-slate-950 text-slate-200 overflow-hidden select-none">
+      {/* 🚀 音響の司令塔 */}
+      <AudioController />
+
       <div className="w-full h-full relative overflow-hidden touch-pan-y custom-scrollbar text-left">
           {mainContent}
       </div>

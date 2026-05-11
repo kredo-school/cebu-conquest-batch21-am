@@ -1,36 +1,29 @@
 import { useEffect, useRef } from 'react';
-import { useGameStore } from '../store'; 
+import { useGameStore } from '../store';
+import { stopBGM } from '../hook/useBGM';
 
-/**
- * ログイン・ロビー画面のBGMを管理するコンポーネント
- * 音量同期を維持しつつ、すべてのESLint警告・エラーを解消
- */
 export const AudioController = (): null => {
   const bgmRef = useRef<HTMLAudioElement | null>(null);
-  
-  // ストアから画面状態と音量を取得
   const view = useGameStore((state) => state.view);
   const bgmVolume = useGameStore((state) => state.bgmVolume);
 
   // 1️⃣ BGMの初期化（初回のみ実行）
   useEffect(() => {
-    const bgm = new Audio('/assets/audio/bgm/login-joinroom.ogg');
+    // 🚀 publicフォルダの中にあるので、ドメイン直下の「/」から始めるのが大正解！
+    const audioPath = '/assets/audio/bgm/login-joinroom.mp3';
+    const bgm = new Audio(audioPath);
     bgm.loop = true;
-    
-    // ✅ 解決策：getState() で取得することで、この useEffect は bgmVolume の変更を監視しなくなる。
-    // これにより、音量を変えるたびに BGM が最初から再生されるのを防ぎつつ、deps警告も出なくなる。
     bgm.volume = useGameStore.getState().bgmVolume;
     bgmRef.current = bgm;
 
     const handleInteraction = (): void => {
-      bgm.play().catch((_err: unknown) => {
-        console.warn("Autoplay prevented by browser policy.");
-      });
+      bgm.play()
+        .then(() => console.log("🎵 [Audio] 再生成功！ついに鳴ったぞ！"))
+        .catch(err => console.warn("⚠️ [Audio] 再生失敗:", err));
       window.removeEventListener('click', handleInteraction);
     };
 
     window.addEventListener('click', handleInteraction);
-
     return () => {
       bgm.pause();
       window.removeEventListener('click', handleInteraction);
@@ -38,26 +31,32 @@ export const AudioController = (): null => {
   }, []); 
 
   // 2️⃣ 音量設定のリアルタイム同期
-  // 設定画面で bgmVolume が変わったときだけ、この Effect が動いて音量を上書きする
   useEffect(() => {
-    if (bgmRef.current) {
-      bgmRef.current.volume = bgmVolume;
-    }
+    if (bgmRef.current) bgmRef.current.volume = bgmVolume;
   }, [bgmVolume]);
 
-  // 3️⃣ ゲーム本編遷移時のフェードアウト
+  // 3️⃣ waiting画面でログインBGMを停止 → useBGMに引き渡す
+  useEffect(() => {
+    if (view === 'waiting' && bgmRef.current) {
+      bgmRef.current.pause();
+      bgmRef.current.currentTime = 0;
+    }
+  }, [view]);
+
+  // 4️⃣ ゲーム本編遷移時のフェードアウト
   useEffect(() => {
     let fadeOutInterval: ReturnType<typeof setInterval>;
 
     if (view === 'game' && bgmRef.current) {
+      stopBGM(); // waiting/setting BGMが残っていれば停止
       const currentBgm = bgmRef.current;
-      
+
       fadeOutInterval = setInterval(() => {
         if (currentBgm.volume > 0.05) {
           currentBgm.volume -= 0.05;
         } else {
           currentBgm.pause();
-          currentBgm.currentTime = 0; 
+          currentBgm.currentTime = 0;
           clearInterval(fadeOutInterval);
         }
       }, 100);
@@ -68,5 +67,41 @@ export const AudioController = (): null => {
     };
   }, [view]);
 
-  return null; 
+  // 5️⃣ グローバルボタン cursor/click SE（イベント委譲）
+  useEffect(() => {
+    const cursor = new Audio('/assets/audio/se/cursor.mp3');
+    cursor.volume = 0.7;
+    const clickBtn = new Audio('/assets/audio/se/click_button.mp3');
+    clickBtn.volume = 0.7;
+
+    let lastButtonHovered: Element | null = null;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const btn = (e.target as Element).closest?.('button, [role="button"]') ?? null;
+      if (btn && btn !== lastButtonHovered) {
+        cursor.currentTime = 0;
+        cursor.play().catch(() => {});
+      }
+      lastButtonHovered = btn;
+    };
+
+    const handleClick = (e: MouseEvent) => {
+      if ((e.target as Element).closest?.('button, [role="button"], input[type="submit"]')) {
+        clickBtn.currentTime = 0;
+        clickBtn.play().catch(() => {});
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('click', handleClick);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('click', handleClick);
+      cursor.pause();
+      clickBtn.pause();
+    };
+  }, []);
+
+  return null;
 };
