@@ -10,7 +10,7 @@
  */
 export const GOD_SACRED_LANDS = {
   1: { name: 'Neil',       sacredDistrictId: 141, spawnSpotId: 14101 },
-  2: { name: 'Garry',      sacredDistrictId: 241, spawnSpotId: 24101 },
+  2: { name: 'Garry',      sacredDistrictId: 241, spawnSpotId: 24104 }, // GDD v4.0 §3-1 準拠
   3: { name: 'Shem',       sacredDistrictId: 123, spawnSpotId: 12301 },
   4: { name: 'Quisie',     sacredDistrictId: 161, spawnSpotId: 16101 },
   5: { name: 'Eduardo',    sacredDistrictId: 131, spawnSpotId: 13101 },
