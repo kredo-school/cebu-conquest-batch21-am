@@ -5,6 +5,7 @@ import socket from '../socket';
 import SoundManager from '../game/SoundManager';
 import { useBGM } from '../hook/useBGM';
 import { GlobalNavbar } from './layout/GlobalNavbar';
+import { CustomButton } from './common/CustomButton'; // 🚀 追加：統一ボタンコンポーネント
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../../shared/socketEvents.js';
 
 interface WaitingViewProps {
@@ -177,15 +178,8 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
         .animate-fadeIn { animation: fadeIn 0.5s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; filter: blur(10px); } to { opacity: 1; filter: blur(0); } }
         .font-fix { line-height: 1; }
-        /* 🚀 修正：タクティカル背景とボタン */
         .tropical-flare { background: radial-gradient(circle at center, rgba(249, 115, 22, 0.35) 0%, rgba(249, 115, 22, 0) 70%); }
         .island-silhouette { background-image: linear-gradient(to top, #020617 10%, transparent 100%), url(https://images.unsplash.com/photo-1506466010722-395aa2bef877); background-size: cover; background-position: center bottom; }
-        .tactical-btn { 
-          clip-path: polygon(8% 0, 100% 0, 100% 75%, 92% 100%, 0 100%, 0 25%);
-          position: relative; overflow: hidden;
-          transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-        }
-        .tactical-btn:hover { transform: scale(1.02); filter: brightness(1.2); }
       `}</style>
       
       <div className="fixed inset-0 -z-10 island-silhouette opacity-40 pointer-events-none" />
@@ -203,7 +197,6 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                 Squad Synchronization active
               </div>
             </div>
-            {/* 🚀 修正：ここちかすぎ解消 */}
             <div className="flex items-baseline gap-10 text-right leading-none">
               <p className="text-slate-400 text-[10px] uppercase tracking-widest font-bold font-fix whitespace-nowrap">Link Status</p>
               <p className="text-3xl font-black text-white font-fix min-w-[120px]">
@@ -252,7 +245,6 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                   <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest leading-none font-fix mb-3">Mission Sector</p>
                   <h3 className="text-lg font-black text-white uppercase tracking-tight leading-none font-fix mb-3 italic">Cebu Island</h3>
                   <div className="h-28 w-full rounded-lg overflow-hidden relative border border-white/5 bg-slate-950">
-                    {/* 🚀 修正：マップ画像を 100% 表示 */}
                     <img alt="Map" className="w-full h-full object-cover opacity-100" src="https://images.unsplash.com/photo-1518107616385-ad302215a9a8" />
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <span className="text-[9px] font-mono text-[#fa7000] font-black uppercase drop-shadow-lg bg-black/40 px-2 py-0.5 rounded">Tactical Link Established</span>
@@ -260,24 +252,23 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                   </div>
               </div>
               
-              {/* 🚀 修正：アップグレードされたタクティカル・ボタン */}
-              <button 
+              {/* 🚀 修正：CustomButton に差し替えてデザインを統一 */}
+              <CustomButton 
                 onClick={handleReadyClick}
                 disabled={isLocked}
-                className={`tactical-btn w-full h-[64px] font-black text-2xl uppercase transition-all transform active:scale-95 shadow-2xl shrink-0 font-fix flex flex-col items-center justify-center border-l-4 ${
-                  isLocked 
-                    ? 'bg-slate-900 text-[#fa7000] border-l-[#fa7000] shadow-[0_0_20px_rgba(250,112,0,0.2)] opacity-80' 
-                    : 'bg-[#fa7000] text-black border-l-white shadow-[0_0_30px_rgba(250,112,0,0.4)]'
-                }`}
+                variant={isLocked ? "ghost" : "primary"}
+                className="w-full h-[64px] flex flex-col items-center justify-center"
               >
                 <div className="flex items-center gap-3">
                   {isLocked && <span className="material-symbols-outlined animate-pulse text-lg">lock</span>}
-                  <span>{isLocked ? 'WAITING FOR SQUAD' : 'DEPLOY SQUAD'}</span>
+                  <span className="text-2xl font-black italic tracking-widest leading-none font-fix">
+                    {isLocked ? 'WAITING FOR SQUAD' : 'DEPLOY SQUAD'}
+                  </span>
                 </div>
-                <div className={`text-[8px] font-mono tracking-[0.4em] mt-0.5 opacity-60 ${isLocked ? 'text-[#fa7000]' : 'text-black'}`}>
+                <div className={`text-[8px] font-mono tracking-[0.4em] mt-1 opacity-60 font-fix ${isLocked ? 'text-[#fa7000]' : 'text-black'}`}>
                   {isLocked ? 'SYNC_ACTIVE_100' : 'UPLINK_PROTOCOL_B21'}
                 </div>
-              </button>
+              </CustomButton>
             </div>
           </div>
         </section>
