@@ -259,7 +259,13 @@ export const useGameStore = create<GameState>()(
       setLobbyPlayers: (players) => set({ lobbyPlayers: players }),
       rankingData: [], setRanking: (data) => set({ rankingData: data }),
       inventory: [], setInventory: (items) => set({ inventory: items }),
-      getApiUrl: (endpoint) => `http://10.29.219.57/Cebu_Conquest/cebu-conquest-batch21-am/public/api/${endpoint}`,
+      
+      // 🚀 修正箇所: .env から読み込む（設定がなければハードコードのIPを使う）
+      getApiUrl: (endpoint) => {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://10.29.219.57/Cebu_Conquest/cebu-conquest-batch21-am/public/api';
+        return `${baseUrl.replace(/\/$/, '')}/${endpoint}`;
+      },
+
       masterData: null, lookupData: null,
       setLookupData: (data) => {
         if (!data) return;
