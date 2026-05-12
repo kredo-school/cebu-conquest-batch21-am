@@ -1,10 +1,10 @@
 <?php
 // データベース接続設定
-$host    = 'localhost';
-$port    = '3306';         // ポート番号
+$host    = '127.0.0.1';
+$port    = '8889';         // MAMP Port
 $db      = 'cebu_conquest';
-$user    = 'root';  //cebu_user
-$pass    = '';  //cebu2026
+$user    = 'root';
+$pass    = 'root';
 $charset = 'utf8mb4';
 
 // portをDSNに含める書き方

@@ -17,7 +17,7 @@ const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } 
 // 🚀 【設定】APIとチームカラー設定
 // ==========================================
 // 💡 ZeroTier導入に伴い、固定IP（なおPC）へ変更
-const API_BASE_URL = 'http://10.29.219.57/Cebu_Conquest/cebu-conquest-batch21-am/public/api/';
+const API_BASE_URL = 'http://localhost:8888/cebu-conquest-batch21-am/public/api/';
 
 const TEAM_CONFIG = [
     { id: 'red', name: 'レッド', color: '#e74c3c' },
@@ -72,6 +72,7 @@ const DISTRICTS_MASTER = {
 // 🚀 【設定】ルーム管理とゲーム状態の初期化
 // ==========================================
 const rooms = new Map();
+const roomDeleteTimers = new Map(); // 💡 追加: 部屋削除の猶予タイマー
 
 function sanitizeRoomState(roomState) {
     if (!roomState) return roomState;
@@ -306,10 +307,46 @@ async function handleGameOver(roomId, playerIds) {
 io.on('connection', (socket) => {
     console.log(`🔌 New connection: ${socket.id}`);
     socket.authToken = socket.handshake.auth?.token || "";
-    socket.roomId = null;
+    socket.on('RECOVER_CONNECTION', (data) => {
+        const roomId = data?.roomId;
+        const playerName = data?.playerName;
+        if (!roomId || !playerName) return;
+        
+        if (!rooms.has(roomId)) {
+            socket.emit(SERVER_EVENTS.ERROR_MESSAGE, { reason: 'room_destroyed', message: 'ルームが存在しないか解散されました。タイトルに戻ります。' });
+            return;
+        }
+
+        const roomState = rooms.get(roomId);
+
+        let p = Object.values(roomState.players).find(pl => pl.username === playerName || pl.playerName === playerName);
+        if (p && p.id !== socket.id) {
+            const oldId = p.id;
+            p.id = socket.id;
+            roomState.players[socket.id] = p;
+            delete roomState.players[oldId];
+            socket.join(roomId);
+            socket.roomId = roomId;
+            console.log(`[RECOVER] Player ${p.username} auto-recovered in room ${roomId} upon reconnect`);
+            
+            // 💡 プレイヤーが復帰したため、部屋の削除タイマーをキャンセル
+            if (roomDeleteTimers.has(roomId)) {
+                clearTimeout(roomDeleteTimers.get(roomId));
+                roomDeleteTimers.delete(roomId);
+                console.log(`⏱️ [Room ${roomId}] プレイヤー復帰のため、部屋の削除プロセスをキャンセルしました。`);
+            }
+        } else if (p && p.id === socket.id && !socket.roomId) {
+            socket.join(roomId);
+            socket.roomId = roomId;
+        }
+    });
 
     socket.on('CREATE_ROOM', async (config, callback) => {
-        const roomId = generateRoomId();
+        let roomId = generateRoomId();
+        while (rooms.has(roomId)) {
+            roomId = generateRoomId();
+        }
+
         const roomState = createInitialGameState(config?.maxPlayers || 4);
         roomState.roomId = roomId;
         rooms.set(roomId, roomState);
@@ -360,6 +397,7 @@ io.on('connection', (socket) => {
         };
         
         console.log(`🏠 Room[${roomId}] Created (Max: ${roomState.maxPlayers}) by ${socket.id}`);
+        roomState.players[socket.id].isHost = true;
         
         if (godName !== "なし") {
             io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`👼 ${roomState.players[socket.id].username} が【${godName}】の加護を受けてルームを作成！`);
@@ -383,6 +421,21 @@ io.on('connection', (socket) => {
             if (callback) callback({ success: false, message: "Room not found" });
             socket.emit(SERVER_EVENTS.ERROR_MESSAGE, "指定された部屋が存在しません");
             return;
+        }
+
+        // 💡 同じユーザー名（Ghost）がいれば削除して入れ替える
+        let existingPlayerId = Object.keys(roomState.players).find(
+            id => roomState.players[id].username === data.username
+        );
+        if (existingPlayerId) {
+            const oldSocket = io.sockets.sockets.get(existingPlayerId);
+            if (oldSocket && oldSocket.connected) {
+                console.log(`⚠️ User ${data.username} is already connected. Allowing multiple instances for testing.`);
+                data.username = `${data.username} (2)`; // Modify name to prevent overlap in the same room
+            } else {
+                delete roomState.players[existingPlayerId];
+                console.log(`🧹 Kicked ghost player: ${data.username} from room: ${roomId}`);
+            }
         }
 
         const playerCount = Object.keys(roomState.players).length;
@@ -428,6 +481,7 @@ io.on('connection', (socket) => {
             token: socket.authToken,
             godName: godName,
             selectedGodId: null,
+            isHost: playerCount === 0, // 💡 最初のプレイヤーだけがホスト
             ...baseStats,
             inventory: inventory,
             team: teamInfo.id,
@@ -437,7 +491,7 @@ io.on('connection', (socket) => {
             isDefending: false,
         };
 
-        console.log(`👤 Joined Room[${roomId}]`);
+        console.log(`👤 [SERVER] Player ${data?.username} joined Room[${roomId}]`);
         if (godName !== "なし") {
             io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`👼 ${roomState.players[socket.id].username} が【${godName}】の加護を受けて参戦！`);
         }
@@ -445,7 +499,7 @@ io.on('connection', (socket) => {
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
         broadcastLobbyUpdate(roomId, roomState);
 
-        if (callback) callback({ success: true });
+        if (callback) callback({ success: true, maxPlayers: roomState.maxPlayers });
     });
 
     const handleAddNpc = (data) => {
@@ -521,6 +575,8 @@ io.on('connection', (socket) => {
         const roomState = rooms.get(roomId);
         if (!roomState) return;
 
+        roomState.phase = 'selection'; // 💡 状態を明示して他クライアントを遷移させる
+
         Object.values(roomState.players).forEach(p => {
             if (!p.isNpc) p.isReady = false;
         });
@@ -531,7 +587,8 @@ io.on('connection', (socket) => {
     });
 
     socket.on(CLIENT_EVENTS.SELECT_GOD, (data) => {
-        const roomId = socket.roomId;
+        console.log("DEBUG: SELECT_GOD received. payload:", data, "socket.roomId:", socket.roomId, "socket.id:", socket.id);
+        const roomId = socket.roomId || data?.roomId;
         if (!roomId) return;
         const roomState = rooms.get(roomId);
         if (!roomState) return;
@@ -547,7 +604,20 @@ io.on('connection', (socket) => {
             return;
         }
 
-        const p = roomState.players[socket.id];
+        let p = roomState.players[socket.id];
+        if (!p && data.playerName) {
+            p = Object.values(roomState.players).find(pl => pl.username === data.playerName || pl.playerName === data.playerName);
+            if (p && p.id !== socket.id) {
+                const oldId = p.id;
+                p.id = socket.id;
+                roomState.players[socket.id] = p;
+                delete roomState.players[oldId];
+                socket.join(roomId);
+                socket.roomId = roomId;
+                console.log(`[RECOVER] Player ${p.username} recovered in room ${roomId} during SELECT_GOD`);
+            }
+        }
+
         if (p) {
             p.selectedGodId = godIdNum;
             
@@ -569,12 +639,26 @@ io.on('connection', (socket) => {
     });
 
     socket.on(CLIENT_EVENTS.READY_TO_START, (data) => {
+        console.log("DEBUG: READY_TO_START received. payload:", data, "socket.roomId:", socket.roomId, "socket.id:", socket.id);
         const roomId = socket.roomId || data?.roomId;
         if (!roomId) return;
         const roomState = rooms.get(roomId);
         if (!roomState) return;
 
-        const p = roomState.players[socket.id];
+        let p = roomState.players[socket.id];
+        if (!p && data.playerName) {
+            p = Object.values(roomState.players).find(pl => pl.username === data.playerName || pl.playerName === data.playerName);
+            if (p && p.id !== socket.id) {
+                const oldId = p.id;
+                p.id = socket.id;
+                roomState.players[socket.id] = p;
+                delete roomState.players[oldId];
+                socket.join(roomId);
+                socket.roomId = roomId;
+                console.log(`[RECOVER] Player ${p.username} recovered in room ${roomId} during READY_TO_START`);
+            }
+        }
+
         if (p) {
             p.isReady = data.ready !== undefined ? data.ready : true;
             console.log(`✅ [Room ${roomId}] ${p.username} の出撃準備が完了しました`);
@@ -628,6 +712,22 @@ io.on('connection', (socket) => {
                 io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
             }
         }
+    });
+
+    socket.on('LOBBY_COMMENCE', (data) => {
+        const roomId = socket.roomId || data?.roomId;
+        if (!roomId) return;
+        const roomState = rooms.get(roomId);
+        if (!roomState) return;
+
+        console.log(`⚔️ [FORCE START] Commander initiated battle sequence in Room: ${roomId}`);
+        
+        roomState.status = 'playing';
+        io.to(roomId).emit(SERVER_EVENTS.GAME_START, {
+            mapData: roomState.districts,
+            players: roomState.players,
+            status: 'playing'
+        });
     });
 
     socket.on(CLIENT_EVENTS.ACTION_SUBMIT, async (data) => {
@@ -861,8 +961,14 @@ io.on('connection', (socket) => {
 
         const remaining = Object.keys(roomState.players);
         if (remaining.length === 0) {
-            rooms.delete(roomId);
-            console.log(`🗑️ Room ${roomId} has been deleted.`);
+            // 💡 即座に削除せず、15秒間だけ復帰を待つ (Vite HMR対策)
+            console.log(`⚠️ Room ${roomId} is empty. Will delete in 15 seconds if no recovery...`);
+            const timer = setTimeout(() => {
+                rooms.delete(roomId);
+                roomDeleteTimers.delete(roomId);
+                console.log(`🗑️ Room ${roomId} has been permanently deleted after timeout.`);
+            }, 15000);
+            roomDeleteTimers.set(roomId, timer);
             return;
         }
 

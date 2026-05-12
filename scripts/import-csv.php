@@ -36,10 +36,10 @@ try {
     // 基本の5エリアを登録
     $pdo->exec("INSERT INTO areas (id, island_id, name) VALUES (11,1000,'North'),(13,1000,'Core'),(14,1000,'South Heritage'),(15,1000,'South Adventure'),(16,1000,'Mactan')");
     
-    $pdo->exec("INSERT INTO gods (name, atk_bonus, stamina_bonus, ap_regen_bonus, start_item_id, image_url, description) VALUES 
-        ('Garry', 20, 0, 0, 1, 'assets/images/gods/Garry.jpg', '戦いの神。初期攻撃力+20'),
-        ('Quisie', 0, 30, 0, 2, 'assets/images/gods/Quisie.jpg', '大地の女神。初期スタミナ+30'),
-        ('Shem', 0, 0, 5, 3, 'assets/images/gods/Shem.jpg', '知識の神。AP回復量+5')");
+    $pdo->exec("INSERT INTO gods (name, district_id, spot_id, special_effect, image_url, description) VALUES 
+        ('Garry', 131, 13101, 'ATK +20', 'assets/images/gods/Garry.jpg', '戦いの神。初期攻撃力+20'),
+        ('Quisie', 132, 13204, 'HP +30', 'assets/images/gods/Quisie.jpg', '大地の女神。初期スタミナ+30'),
+        ('Shem', 131, 13101, 'AP REGEN +5', 'assets/images/gods/Shem.jpg', '知識の神。AP回復量+5')");
 
 // --- 4. デモユーザー作成 ---
     $demoPassword = password_hash('password123', PASSWORD_DEFAULT);

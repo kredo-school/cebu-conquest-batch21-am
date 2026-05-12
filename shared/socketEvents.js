@@ -16,6 +16,7 @@ export const CLIENT_EVENTS = {
   READY_TO_START:     "READY_TO_START",   // マッチング完了通知
   CREATE_ROOM:        "CREATE_ROOM",      // 部屋作成
   JOIN_ROOM:          "JOIN_ROOM",        // 部屋参加
+  ENTER_GOD_SELECTION:"ENTER_GOD_SELECTION", // 神選択フェーズへの移行
 
   // 基本移動・占領（アクション系は camelCase）
   PLAYER_MOVE:        "playerMove",       // 地区移動

@@ -114,6 +114,8 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
     
     // Socket.IO への emit[cite: 1]
     socket.emit(CLIENT_EVENTS.SELECT_GOD, { 
+      roomId: useGameStore.getState().roomId,
+      playerName: useGameStore.getState().playerName,
       godId: godId, 
       districtId: targetDistrictId,
       spotId: targetSpotId

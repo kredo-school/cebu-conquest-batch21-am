@@ -122,7 +122,8 @@ const App: React.FC = () => {
 
     const handleCommence = (data: Record<string, unknown>) => {
       const currentView = useGameStore.getState().view;
-      if (currentView === 'waiting' || currentView === 'selection') {
+      const allowedViews = ['lobby', 'selection', 'waiting'];
+      if (allowedViews.includes(currentView)) {
         if (data) syncServerState(data, myId);
         addLog("🚀 全員のリンク承認を確認。出撃します。");
         triggerDeploySequence();
