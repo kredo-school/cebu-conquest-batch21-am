@@ -89,27 +89,34 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
     }
   }, [config, playerName, addLog, setStatus, onJoinSuccess, authenticatedFetch]);
 
-  // --- 🚀 参加ロジック ---
+  // --- 🚀 参加ロジック（スペース完全除去対応） ---
   const handleJoin = useCallback(async (): Promise<void> => {
-    if (joinId.length !== 6) return;
-    const targetRoomId = joinId.toUpperCase();
+    // 💡 スペースを全て消去して大文字にする
+    const cleanId = joinId.replace(/\s/g, '').toUpperCase();
+    
+    if (cleanId.length !== 6) {
+      addLog(`⚠️ IDは6文字必要です（現在は${cleanId.length}文字）`);
+      return;
+    }
+
     try { SoundManager.playSe('click'); } catch { /* ignore */ }
-    addLog(`📡 Room[${targetRoomId}] 接続試行中...`);
+    addLog(`📡 Room[${cleanId}] 接続試行中...`);
 
     try {
       const dbResult = await authenticatedFetch<{ status: string; message?: string }>('join-room.php', {
         method: 'POST',
-        body: JSON.stringify({ roomId: targetRoomId, username: playerName })
+        // 💡 サーバーにはスペースを取り除いた cleanId を送信
+        body: JSON.stringify({ roomId: cleanId, username: playerName })
       });
 
       if (dbResult.status === 'success') {
-        socket.emit(CLIENT_EVENTS.JOIN_ROOM, { roomId: targetRoomId, username: playerName });
+        socket.emit(CLIENT_EVENTS.JOIN_ROOM, { roomId: cleanId, username: playerName });
         setStatus({
-          roomId: targetRoomId,
+          roomId: cleanId,
           view: 'waiting',
           players: [{ id: "loading", name: playerName, username: playerName }]
         });
-        onJoinSuccess(targetRoomId);
+        onJoinSuccess(cleanId);
       } else {
         addLog(`❌ サーバー拒否: ${dbResult.message || "Unknown error"}`);
       }
@@ -185,11 +192,13 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
             <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter font-fix">Join Room</h2>
             <div className="mb-10 text-left">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block font-fix">Enter Command Code</label>
-              <input type="text" maxLength={6} value={joinId} onChange={(e) => setJoinId(e.target.value.toUpperCase())} placeholder="0 0 0 0 0 0"
+              {/* 💡 スペースを含めても入力できるように maxLength を 11 に変更 */}
+              <input type="text" maxLength={11} value={joinId} onChange={(e) => setJoinId(e.target.value.toUpperCase())} placeholder="0 0 0 0 0 0"
                 className="w-full bg-black/40 border border-slate-800 rounded-lg py-4 px-6 text-3xl font-black tracking-[0.5em] text-cyan-400 text-center focus:outline-none focus:border-cyan-500 transition-all font-mono"
               />
             </div>
-            <CustomButton onClick={handleJoin} disabled={joinId.length !== 6} variant="primary" className={`mt-auto w-full text-lg py-4 ${joinId.length === 6 ? '!bg-slate-100 !text-slate-900 hover:!bg-white' : ''}`}>
+            {/* 💡 disabled条件とクラス名の条件を「スペースを抜いた状態で6文字か」で判定 */}
+            <CustomButton onClick={handleJoin} disabled={joinId.replace(/\s/g, '').length !== 6} variant="primary" className={`mt-auto w-full text-lg py-4 ${joinId.replace(/\s/g, '').length === 6 ? '!bg-slate-100 !text-slate-900 hover:!bg-white' : ''}`}>
               Join Operation
             </CustomButton>
           </div>

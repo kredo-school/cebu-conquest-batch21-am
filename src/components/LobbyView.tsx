@@ -4,6 +4,7 @@ import socket from '../socket';
 import { useGameStore, Player } from '../store';
 import SoundManager from '../game/SoundManager';
 import { GlobalNavbar } from './layout/GlobalNavbar';
+import { CustomButton } from './common/CustomButton'; // 🚀 追加：統一ボタンコンポーネント
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../../shared/socketEvents.js';
 
 interface LobbyPlayer extends Player {
@@ -160,20 +161,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           background-image: linear-gradient(to top, #020617 10%, transparent 100%), url(https://images.unsplash.com/photo-1506466010722-395aa2bef877?auto=format&fit=crop&w=1920&q=80);
           background-size: cover; background-position: center bottom;
         }
-        /* 🚀 追加：タクティカル・ボタンのデザイン */
-        .tactical-btn { 
-          clip-path: polygon(8% 0, 100% 0, 100% 75%, 92% 100%, 0 100%, 0 25%);
-          position: relative;
-          overflow: hidden;
-          transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-        }
-        .tactical-btn::before {
-          content: ''; position: absolute; top: -100%; left: -100%; width: 300%; height: 300%;
-          background: linear-gradient(45deg, transparent 45%, rgba(255,255,255,0.15) 50%, transparent 55%);
-          transition: all 0.6s ease;
-        }
-        .tactical-btn:hover::before { top: -50%; left: -50%; }
-        .tactical-btn:hover { transform: scale(1.02); filter: brightness(1.2); }
       `}</style>
       
       <div className="fixed inset-0 -z-10 island-silhouette opacity-40 pointer-events-none" />
@@ -201,7 +188,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 </div>
               </div>
               
-              {/* 🚀 修正：Squad Capacity ラベルと数字の距離を確保 */}
               <div className="flex items-baseline gap-10 text-right leading-none">
                 <p className="text-slate-400 text-[10px] uppercase tracking-widest font-bold font-fix whitespace-nowrap">Squad Capacity</p>
                 <p className="text-3xl font-black text-white font-fix min-w-[80px]">
@@ -251,8 +237,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest leading-none font-fix">Mission Sector</p>
                   <h3 className="text-lg font-black text-white uppercase tracking-tight leading-none font-fix italic">Cebu Island</h3>
                   <div className="h-32 w-full rounded-lg overflow-hidden relative border border-white/5 bg-slate-950 shrink-0 shadow-inner">
-                    
-                    {/* 🚀 修正：マップ画像を 100% 表示に固定 */}
                     <img 
                       alt="Tactical Map" 
                       className="w-full h-full object-cover opacity-100" 
@@ -263,28 +247,27 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                       <div className="h-full w-[1px] bg-[#fa7000]/30 absolute left-1/2"></div>
                       <span className="text-[10px] font-mono text-[#fa7000] font-black uppercase drop-shadow-lg bg-black/40 px-2 py-0.5 rounded">Link Active</span>
                     </div>
-
                   </div>
                 </div>
               </div>
 
-              {/* 🚀 修正：タクティカル・デザインにアップグレードされたボタン */}
-              <button 
+              {/* 🚀 修正：CustomButton に差し替えてデザインを統一 */}
+              <CustomButton 
                 onClick={handleReady}
-                className={`tactical-btn w-full h-[64px] font-black text-2xl uppercase transition-all transform active:scale-95 shadow-[0_10px_30px_rgba(0,0,0,0.5)] shrink-0 font-fix flex flex-col items-center justify-center border-l-4 ${
-                  isReady 
-                    ? 'bg-slate-900 text-[#fa7000] border-l-[#fa7000] shadow-[0_0_20px_rgba(250,112,0,0.2)]' 
-                    : 'bg-[#fa7000] text-black border-l-white shadow-[0_0_30px_rgba(250,112,0,0.4)]'
-                }`}
+                variant={isReady ? "ghost" : "primary"}
+                className="w-full h-[64px] flex flex-col items-center justify-center"
               >
                 <div className="flex items-center gap-3">
                   {isReady && <span className="material-symbols-outlined animate-pulse text-lg">lock</span>}
-                  <span>{isReady ? 'LINK LOCKED' : 'ESTABLISH LINK'}</span>
+                  <span className="text-2xl font-black italic tracking-widest leading-none font-fix">
+                    {isReady ? 'LINK LOCKED' : 'ESTABLISH LINK'}
+                  </span>
                 </div>
-                <div className={`text-[8px] font-mono tracking-[0.4em] mt-0.5 opacity-60 ${isReady ? 'text-[#fa7000]' : 'text-black'}`}>
+                <div className={`text-[8px] font-mono tracking-[0.4em] mt-1 opacity-60 font-fix ${isReady ? 'text-[#fa7000]' : 'text-black'}`}>
                   {isReady ? 'SYNC_ACTIVE_100' : 'UPLINK_PROTOCOL_B21'}
                 </div>
-              </button>
+              </CustomButton>
+
             </div>
           </div>
         </section>
