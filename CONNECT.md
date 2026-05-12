@@ -2,16 +2,18 @@
 
 The team uses **ZeroTier** as a virtual LAN to allow all members to connect to a single host machine running **Windows + XAMPP**, no matter where they physically are.
 
+> **ZeroTier Network IP of the Host:** `10.29.219.57`
+
 ---
 
 ## Architecture Overview
 
 ```
 [Team Members]
-  Browser → ZeroTier IP → [Windows Host Machine]
-                                ├── XAMPP Apache   (port 80)  — PHP APIs & DB
-                                ├── Node Socket Server (port 3001) — Real-time game
-                                └── Vite Dev Server  (port 5173) — React frontend
+  Browser → ZeroTier (10.29.219.57) → [Windows Host Machine]
+                                            ├── XAMPP Apache   (port 80)   — PHP APIs & MySQL DB
+                                            ├── Node Socket Server (port 3001) — Real-time game
+                                            └── Vite Dev Server  (port 5173) — React frontend
 ```
 
 ---
@@ -22,46 +24,57 @@ The host machine runs everything: the Apache/PHP backend, MySQL database, Node s
 
 ### Step 1: Install ZeroTier
 1. Download and install ZeroTier from [https://www.zerotier.com/download/](https://www.zerotier.com/download/)
-2. Join your team's ZeroTier network using your **Network ID**.
-3. Find your **ZeroTier IP address** (it looks like `172.x.x.x`). You can find it in the ZeroTier app or by running `ipconfig` in Command Prompt and looking for the ZeroTier adapter.
+2. Join the team's ZeroTier network using the shared **Network ID**.
+3. Confirm your **ZeroTier IP is `10.29.219.57`**. You can verify this by running `ipconfig` in Command Prompt and looking for the ZeroTier adapter.
 
 ### Step 2: Place the Project in XAMPP
-- Put the project folder inside `C:\xampp\htdocs\` so the path is:
+- Put the project folder inside `C:\xampp\htdocs\` so the full path is:
   `C:\xampp\htdocs\cebu-conquest-batch21-am\`
 
-### Step 3: Configure the `.env` File
-Open the `.env` file in the project root and set it to your **ZeroTier IP address**:
+### Step 3: Verify the `.env` File
+The `.env` file in the project root is already configured with the correct ZeroTier IP:
 ```
-VITE_API_BASE_URL=http://<YOUR_ZEROTIER_IP>/cebu-conquest-batch21-am/public/api
+VITE_API_BASE_URL=http://10.29.219.57/cebu-conquest-batch21-am/public/api
+VITE_SOCKET_URL=http://10.29.219.57:3001
 ```
-> Example: `VITE_API_BASE_URL=http://172.23.14.5/cebu-conquest-batch21-am/public/api`
+> ⚠️ If the ZeroTier IP ever changes, update both values here and restart `npm run dev`.
 
 ### Step 4: Configure the Database
 1. Open XAMPP Control Panel and start **Apache** and **MySQL**.
-2. Go to `http://localhost/phpmyadmin` and import the database SQL file if not already done.
-3. Open `public/config/database.php` and confirm the DB credentials match your XAMPP setup (default: host=`localhost`, user=`root`, password=`""`).
+2. Go to `http://localhost/phpmyadmin` and import the project's SQL file if not already done.
+3. Verify `public/config/database.php` credentials match your XAMPP setup.
+   - Default XAMPP: host=`localhost`, user=`root`, password=`""`
 
 ### Step 5: Start the Node Socket Server
-Open a Command Prompt in `C:\xampp\htdocs\cebu-conquest-batch21-am\socket-server\` and run:
+Open a Command Prompt in:
+`C:\xampp\htdocs\cebu-conquest-batch21-am\socket-server\`
+
+Then run:
 ```bash
 node server.js
 ```
-The server should log: `Server running on port 3001`
+You should see: `Server running on port 3001`
 
 ### Step 6: Start the Vite Frontend
-Open a second Command Prompt in `C:\xampp\htdocs\cebu-conquest-batch21-am\` and run:
+Open a second Command Prompt in:
+`C:\xampp\htdocs\cebu-conquest-batch21-am\`
+
+Then run:
 ```bash
-npm install   # (only needed first time)
+npm install   # (only needed the first time)
 npm run dev
 ```
-Vite will start and display something like:
+
+Vite will display something like:
 ```
   Local:   http://localhost:5173/
-  Network: http://172.23.14.5:5173/    ← This is the URL to share!
+  Network: http://10.29.219.57:5173/    ← Share this URL with the team!
 ```
 
 ### Step 7: Share the URL
-Share the **Network URL** (the ZeroTier IP one) with all team members.
+Tell all team members to open their browsers and go to:
+
+**👉 `http://10.29.219.57:5173`**
 
 ---
 
@@ -69,17 +82,42 @@ Share the **Network URL** (the ZeroTier IP one) with all team members.
 
 ### Step 1: Install ZeroTier
 1. Download and install ZeroTier from [https://www.zerotier.com/download/](https://www.zerotier.com/download/)
-2. Join the **same ZeroTier Network ID** as the host.
-3. Wait until your status shows as **Connected** in the ZeroTier app.
+2. Join the **same ZeroTier Network ID** shared by the host.
+3. Wait until the ZeroTier app shows your status as **Connected/Online**.
 
 ### Step 2: Open the Application
-Open your browser (Chrome recommended) and go to the URL shared by the host:
+Open your browser (Chrome recommended) and navigate to:
 ```
-http://<HOST_ZEROTIER_IP>:5173
+http://10.29.219.57:5173
 ```
-> Example: `http://172.23.14.5:5173`
+You will see the Cebu Conquest login screen. Log in, create or join a room, and play!
 
-That's it! You will be able to log in, create rooms, and play in real-time.
+---
+
+## 🗺️ Map Information
+
+The game uses the **PRODUCTION** map (`cebu_map_production.tmj`) with the full tileset.
+
+All required tileset files are located in `public/assets/tilesets/`:
+| Tileset Key | File |
+|---|---|
+| `main` | `[Base]BaseChip_pipo.png` |
+| `main2` | `Slates.png` |
+| `water_light` | `[A]Water2_pipo.png` |
+| `special_small` | `pipo-map001.png` |
+| `flower` | `[A]Flower_pipo.png` |
+| `grass` | `[A]Grass4_pipo.png` |
+| `long_grass` | `[A]LongGrass_pipo.png` |
+| `dirt_road` | `[A]Dirt1_pipo.png` |
+| `water_dark` | `[A]Water1_pipo.png` |
+| `water_bright` | `water_bright.png` |
+| `waves` | `waves.png` |
+| `waterfall` | `waterfall.png` |
+| `japan` | `JapanProps-02.png` |
+| `heroes` | `heros.png` |
+| `animals` | `animals.png` |
+
+> ⚠️ If the map fails to load, make sure **all** tileset files above exist in `public/assets/tilesets/` on the host machine.
 
 ---
 
@@ -87,11 +125,12 @@ That's it! You will be able to log in, create rooms, and play in real-time.
 
 | Problem | Solution |
 |---|---|
-| Cannot reach the app URL | Make sure you are connected to the ZeroTier network and your status is **Online** |
-| Login fails / API errors | The host must have XAMPP's **Apache** and **MySQL** both running |
-| Cannot join a room | The host must have the **Node socket server** running (`node server.js` in `/socket-server/`) |
-| ZeroTier IP changed | Host updates `.env` with the new ZeroTier IP and restarts `npm run dev` |
-| `CORS` errors in console | Check that `public/api/api-cors.php` has `Access-Control-Allow-Origin: *` |
+| Cannot reach `http://10.29.219.57:5173` | Make sure ZeroTier is connected and status is **Online** |
+| Login fails / API 404 errors | Host must have XAMPP **Apache** running; check `VITE_API_BASE_URL` in `.env` |
+| Cannot join a room / Socket errors | Host must have `node server.js` running in `socket-server/` |
+| Map tiles missing / black squares | Ensure all tileset PNG files exist in `public/assets/tilesets/` on host |
+| ZeroTier IP changed | Update `.env` with the new IP and restart `npm run dev` |
+| `CORS` errors in browser console | Check that `public/api/api-cors.php` has `Access-Control-Allow-Origin: *` |
 
 ---
 
@@ -100,6 +139,6 @@ That's it! You will be able to log in, create rooms, and play in real-time.
 | Service | Port | Who runs it |
 |---|---|---|
 | XAMPP Apache (PHP APIs) | `80` | Host |
-| XAMPP MySQL | `3306` | Host |
+| XAMPP MySQL | `3306` | Host (internal only) |
 | Node Socket Server | `3001` | Host |
 | Vite Dev Server (Frontend) | `5173` | Host |

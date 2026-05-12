@@ -1,6 +1,6 @@
 export const MAP_CONFIG = {
     // 'SIMPLE' なら簡易版、 'PRODUCTION' なら本番用を表示
-    USE_MAP: 'SIMPLE', 
+    USE_MAP: 'PRODUCTION', 
 
     MAPS: {
         SIMPLE: {
