@@ -5,7 +5,7 @@ import socket from '../socket';
 import SoundManager from '../game/SoundManager';
 import { useBGM } from '../hook/useBGM';
 import { GlobalNavbar } from './layout/GlobalNavbar';
-import { CustomButton } from './common/CustomButton'; // 🚀 追加：統一ボタンコンポーネント
+import { CustomButton } from './common/CustomButton';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../../shared/socketEvents.js';
 
 interface WaitingViewProps {
@@ -119,7 +119,9 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
 
   useEffect(() => { playBGM('waiting'); return () => stopBGM(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (roomId) socket.emit(CLIENT_EVENTS.READY_TO_START, { roomId, ready: false }); }, [roomId]);
-  useEffect(() => { if (selectedGodId) socket.emit(CLIENT_EVENTS.SELECT_GOD || 'SELECT_GOD', { roomId, godId: selectedGodId }); }, [selectedGodId, roomId]);
+  
+  // 💡 修正: 不要な || 演算子を削除
+  useEffect(() => { if (selectedGodId) socket.emit(CLIENT_EVENTS.SELECT_GOD, { roomId, godId: selectedGodId }); }, [selectedGodId, roomId]);
 
   useEffect(() => {
     const handleGameStart = () => { if (!isLocked) return; onStart(); };
@@ -131,7 +133,10 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
     if (!chatInput.trim()) return;
     const me = players.find(p => p.id === myId || p.playerName === playerName);
     const senderName = me?.username || me?.playerName || playerName || 'Operator';
-    socket.emit(CLIENT_EVENTS.SEND_CHAT || 'SEND_CHAT', { roomId, message: chatInput, sender: senderName });
+    
+    // 💡 修正: 不要な || 演算子を削除
+    socket.emit(CLIENT_EVENTS.SEND_CHAT, { roomId, message: chatInput, sender: senderName });
+    
     addLog({ sender: senderName, message: chatInput, timestamp: Date.now() });
     setChatInput(''); try { SoundManager.playSe('click'); } catch {}
   };
@@ -139,7 +144,7 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
   const handleReadyClick = () => {
     setIsLocked(true);
     socket.emit(CLIENT_EVENTS.READY_TO_START, { roomId, ready: true }); 
-    socket.emit('forceGameStart', { roomId }); 
+    // 💡 修正: 不要だった socket.emit('forceGameStart', ...) を完全削除
     try { SoundManager.playSe('click'); } catch {}
     addLog("🚀 降下準備完了。味方の承認を待機しています...");
   };
@@ -252,7 +257,6 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                   </div>
               </div>
               
-              {/* 🚀 修正：CustomButton に差し替えてデザインを統一 */}
               <CustomButton 
                 onClick={handleReadyClick}
                 disabled={isLocked}
