@@ -16,4 +16,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // ③ 必要なファイルをここで一気に読み込む
 // (login.php からの相対パスではなく、api-cors.php から見たパスにする)
 require_once __DIR__ . '/../../config/database.php';
-// require_once __DIR__ . '/jwt-helper.php'; // 必要なら有効化
+require_once __DIR__ . '/jwt-helper.php'; // 必要なら有効化
+
+// 全パターンの Authorization ヘッダーを網羅
+$authHeader = $_SERVER['HTTP_AUTHORIZATION']
+    ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+    ?? getallheaders()['Authorization']
+    ?? getallheaders()['authorization']
+    ?? '';
+$_SERVER['HTTP_AUTHORIZATION'] = $authHeader;

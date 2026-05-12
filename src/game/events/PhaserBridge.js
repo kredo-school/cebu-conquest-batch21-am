@@ -39,6 +39,7 @@ export const REACT_TO_PHASER = {
   BATTLE_EFFECT:          'react:battleResult',        // { winnerId, ... }
   TERRITORY_EFFECT:       'react:territoryUpdated',    // { districtId, owner }
   GAME_OVER_EFFECT:       'react:gameOver',            // { winnerId, scores }
+  START_GAME_BGM:         'react:startGameBgm',        // なし（インゲームBGM開始トリガー）
 };
 
 /**

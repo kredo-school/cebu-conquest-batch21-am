@@ -4,6 +4,7 @@ import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
+import { getSpawnSpot } from '../shared/godSacredLands.js';
 import { getNeighbors } from '../shared/adjacency.js';
 
 const app = express();
@@ -621,10 +622,14 @@ io.on('connection', (socket) => {
             p.selectedGodId = godIdNum;
             
             if (GOD_SACRED_LANDS[godIdNum]) {
-                const sacredId = GOD_SACRED_LANDS[godIdNum].sacredDistrictId;
+                const sacredId  = GOD_SACRED_LANDS[godIdNum].sacredDistrictId; // 5桁 spot_id
+                const spawnSpot = getSpawnSpot(godIdNum);                       // 5桁 spot_id (GDD v4.0 §3-1)
+
                 roomState.districts[sacredId] = socket.id;
                 p.districtId = sacredId;
-                console.log(`✨ [Room ${roomId}] ${p.username} に聖地 ${sacredId} を付与しました`);
+                p.spotId     = spawnSpot;
+
+                console.log(`✨ [Room ${roomId}] ${p.username} に聖地 district=${sacredId}, spot=${spawnSpot} を付与しました`);
             }
             
             io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));

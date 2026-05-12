@@ -21,10 +21,13 @@ import { HelpModal } from './components/HelpModal';
 import { InventoryModal } from './components/InventoryModal'; 
 import { TutorialView } from './components/TutorialView'; 
 import { ErrorNotification } from './components/ErrorNotification'; 
+// ✅ AudioController が音響を一括管理
+import { AudioController } from './components/AudioController';
 
 import { useGameEvents } from './hook/useGameEvents';
 import { PHASER_TO_REACT, REACT_TO_PHASER } from './game/events/PhaserBridge';
 import { SERVER_EVENTS } from '../shared/socketEvents.js';
+import { stopBGM } from './hook/useBGM';
 
 const App: React.FC = () => {
   useGameEvents();
@@ -57,11 +60,20 @@ const App: React.FC = () => {
   const [isDeploying, setIsDeploying] = useState(false); 
   const [showSettings, setShowSettings] = useState(false); 
   const [showHelp, setShowHelp] = useState(false); 
-  const [showRanking, setShowRanking] = useState(false); // 💡 修正：追加
+  const [showRanking, setShowRanking] = useState(false);
   const [showInventory, setShowInventory] = useState(false); 
   const [playerName, setLocalPlayerName] = useState('');
 
-  // 💡 修正：追加（WaitingView等で使用）
+  // ✅ 修正：App.tsx 側の BGM 初期化ロジック（旧77行目）は AudioController へ移行し削除
+
+  // ✅ ゲーム開始時：waiting BGM を停止してから Phaser 側に maingame BGM 開始を通知
+  useEffect(() => {
+    if (view === 'game') {
+      stopBGM();
+      window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.START_GAME_BGM));
+    }
+  }, [view]);
+
   const handleAbortGame = useCallback(() => {
     if (window.confirm("Abort mission and return to setup?")) {
       useGameStore.setState({ roomId: undefined, players: [] });
@@ -149,7 +161,6 @@ const App: React.FC = () => {
     };
   }, [triggerDeploySequence, setZoomLevel, addLog, syncServerState, myId, updateStatsFromPhaser, updateSelectedDistrict]);
 
-  // 🚀 4. 遷移制御ロジック
   const handleLoginSubmit = async (name: string) => {
     setLocalPlayerName(name);
     useGameStore.setState({ roomId: undefined, players: [] });
@@ -194,7 +205,6 @@ const App: React.FC = () => {
       mainContent = <GodSelectionView onComplete={handleSelectionComplete} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onBack={() => setView('lobby')} />;
       break;
     case 'waiting':
-      // 💡 修正：propsを正しく渡すことで型エラーを解消
       mainContent = (
         <WaitingView 
           onStart={triggerDeploySequence} 
@@ -227,8 +237,11 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-screen h-screen bg-slate-950 text-slate-200 overflow-hidden select-none">
+      {/* 🚀 音響の司令塔 */}
+      <AudioController />
+
       <div className="w-full h-full relative overflow-hidden touch-pan-y custom-scrollbar text-left">
-         {mainContent}
+          {mainContent}
       </div>
       
       <ErrorNotification />

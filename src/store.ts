@@ -2,17 +2,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import socket from './socket';
-import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
-import { REACT_TO_PHASER, PHASER_TO_REACT } from './game/events/PhaserBridge';
+import { CLIENT_EVENTS } from '../shared/socketEvents.js';
+import { REACT_TO_PHASER } from './game/events/PhaserBridge';
 import { buildLookup } from '../shared/idLookup'; 
 import SoundManager from './game/SoundManager';
-
-/**
- * Cebu Conquest: Zustand Global Store
- * GDD v3.1 準拠 | 最終更新: 2026-05-07
- */
-
-// --- 🏗️ 型定義セクション ---
 
 const MAP_REPAINT_EVENT = 'react:mapRepaint';
 
@@ -85,6 +78,7 @@ export interface Item {
 }
 
 export interface LookupData {
+  // ✅ 修正箇所: image_63927e.png の構文エラーを修正
   islands: Map<number, { name: string; id: number }>;
   areas: Map<number, { name: string; id: number; parentIslandId: number }>;
   districts: Map<number, { name: string; id: number; parentAreaId: number }>;
@@ -150,8 +144,6 @@ export interface GameState {
   predictionModalOpen: boolean;
   targetDistrictInfo: { id: number; name: string; enemyDef: number; isMyTerritory?: boolean; isNeutral?: boolean } | null;
   activeBuffs: { id: number; name: string; effect: string }[];
-  
-  // 設定ステート
   bgmVolume: number; seVolume: number;
   masterVolume: number;
   setMasterVolume: (vol: number) => void;
@@ -163,21 +155,16 @@ export interface GameState {
   setNotifyMatchRequest: (status: boolean) => void;
   notifyEventUpdate: boolean;
   setNotifyEventUpdate: (status: boolean) => void;
-  
   cameraSensitivity: number;
   setCameraSensitivity: (val: number) => void;
   autoBattle: boolean;
   setAutoBattle: (status: boolean) => void;
   language: string;
   setLanguage: (lang: string) => void;
-
-  // 💡 追加: アバター画像用
   playerAvatar: string | null;
   setPlayerAvatar: (avatar: string | null) => void;
-
   isUnderAttack: boolean;
   setUnderAttack: (status: boolean) => void;
-
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   lobbyPlayers: LobbyPlayer[];
@@ -186,7 +173,6 @@ export interface GameState {
   setRanking: (data: unknown[]) => void;
   inventory: Item[];
   setInventory: (items: Item[]) => void;
-
   getApiUrl: (endpoint: string) => string;
   masterData: MasterData | null;
   lookupData: LookupData | null;
@@ -222,7 +208,6 @@ export interface GameState {
   resetGame: () => void;
   setBgmVolume: (vol: number) => void;
   setSeVolume: (vol: number) => void;
-
   updateSelectedDistrict: (data: { districtId: number; districtName: string; isMyTerritory: boolean; isNeutral: boolean }) => void;
   updateStatsFromPhaser: (stats: Partial<GameState>) => void;
 }
@@ -248,7 +233,6 @@ export const useGameStore = create<GameState>()(
       setGameStarted: (started) => set({ isGameStarted: started }),
       selectedGodId: null, godsList: [], resultData: null, predictionModalOpen: false,
       targetDistrictInfo: null, activeBuffs: [], 
-      
       bgmVolume: 0.5, seVolume: 0.5,
       masterVolume: 0.8,
       setMasterVolume: (vol) => set({ masterVolume: vol }),
@@ -260,29 +244,22 @@ export const useGameStore = create<GameState>()(
       setNotifyMatchRequest: (status) => set({ notifyMatchRequest: status }),
       notifyEventUpdate: true,
       setNotifyEventUpdate: (status) => set({ notifyEventUpdate: status }),
-
       cameraSensitivity: 75,
       setCameraSensitivity: (val) => set({ cameraSensitivity: val }),
       autoBattle: true,
       setAutoBattle: (status) => set({ autoBattle: status }),
       language: 'ja',
       setLanguage: (lang) => set({ language: lang }),
-
-      // 💡 修正: 初期値追加
       playerAvatar: null,
       setPlayerAvatar: (avatar) => set({ playerAvatar: avatar }),
-
       isUnderAttack: false,
       setUnderAttack: (status) => set({ isUnderAttack: status }),
-
       sidebarOpen: false, setSidebarOpen: (open) => set({ sidebarOpen: open }),
       lobbyPlayers: [],
       setLobbyPlayers: (players) => set({ lobbyPlayers: players }),
       rankingData: [], setRanking: (data) => set({ rankingData: data }),
       inventory: [], setInventory: (items) => set({ inventory: items }),
-
-      getApiUrl: (endpoint) => `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8888/cebu-conquest-batch21-am/public/api"}/${endpoint}`,
-
+      getApiUrl: (endpoint) => `http://10.29.219.57/Cebu_Conquest/cebu-conquest-batch21-am/public/api/${endpoint}`,
       masterData: null, lookupData: null,
       setLookupData: (data) => {
         if (!data) return;
@@ -290,7 +267,6 @@ export const useGameStore = create<GameState>()(
         set({ masterData: data, lookupData: lookup });
       },
       npcs: {}, setNpcs: (npcData) => set({ npcs: npcData }),
-
       login: async (username, password = "password123") => {
         try {
           const url = get().getApiUrl('login.php');
@@ -302,7 +278,6 @@ export const useGameStore = create<GameState>()(
           if (json.status === 'success' && json.data) {
             const { token, user } = json.data;
             const name = user.playerName || user.username;
-            
             set({
               token, 
               isAuthenticated: true, 
@@ -318,7 +293,6 @@ export const useGameStore = create<GameState>()(
           return false;
         } catch { return false; }
       },
-
       syncMasterData: async () => {
         try {
           const json = await get().authenticatedFetch<MasterData>('master-data.php');
@@ -332,12 +306,10 @@ export const useGameStore = create<GameState>()(
           }
         } catch (e) { console.error(e); }
       },
-
       logout: () => { 
         useGameStore.persist.clearStorage();
         window.location.reload(); 
       },
-      
       setErrorMessage: (message) => set({ errorMessage: message }),
       hideError: () => set({ errorMessage: null }),
       setZoomLevel: (zoom) => set({ zoomLevel: zoom }),
@@ -345,26 +317,20 @@ export const useGameStore = create<GameState>()(
         set({ hasSeenTutorial: true, view: 'lobby' });
       },
       nextTurn: () => set({ turn: get().turn + 1 }),
-
       selectGod: (id: number) => {
-        const { roomId, myId, players, playerName } = get();
+        const { roomId, myId, players } = get();
         if (get().selectedGodId !== null) return;
-
         const updatedPlayers = players.map(p => 
           p.id === myId ? { ...p, selectedGodId: id, godId: id, isReady: false } : p
         );
-
         set({ 
           selectedGodId: id, 
           players: updatedPlayers,
           view: 'waiting' 
         });
-
-        socket.emit(CLIENT_EVENTS.SELECT_GOD, { roomId, godId: id, playerName });
+        socket.emit(CLIENT_EVENTS.SELECT_GOD, { roomId, godId: id });
       },
-
       setPlayerName: (name) => set({ playerName: name }),
-
       authenticatedFetch: async <T = unknown>(url: string, options: RequestInit = {}) => {
         const { token } = get();
         const headers = { 
@@ -375,7 +341,6 @@ export const useGameStore = create<GameState>()(
         const res = await fetch(get().getApiUrl(url), { ...options, headers });
         return await res.json() as ApiResponse<T>;
       },
-
       openPrediction: (id, name, isMyTerritory = false, isNeutral = false) => {
         set({ 
           predictionModalOpen: true, 
@@ -386,12 +351,11 @@ export const useGameStore = create<GameState>()(
       closePrediction: () => set({ predictionModalOpen: false, targetDistrictInfo: null }),
       updateBuffs: () => { /* 実装略 */ },
 
+      // 🚀 バックエンド担当の指示に従い、roomId を安全にマージするように修正！
       syncServerState: (data, myId) => {
         if (!data) return;
-        
         const rawPlayers = (data.players as Record<string, Player>) ?? {};
         let playersArray = (Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers)) as Player[];
-        
         playersArray = playersArray.map(p => ({
           ...p,
           playerName: p.playerName || p.username,
@@ -402,14 +366,12 @@ export const useGameStore = create<GameState>()(
           current_hp: p.current_hp || p.hp,
           isReady: !!p.isReady
         }));
-
         const myPlayerData = playersArray.find((p) => p.id === myId);
-
+        
         set((state) => {
           let nextView = state.view;
-          const isActuallyStarted = data.status === 'playing';
+          const isActuallyStarted = !!data.gameStarted;
           const hasInitialPosition = !!(myPlayerData?.districtId || myPlayerData?.location);
-
           if (data.isGameOver) {
             nextView = 'ranking';
             if (!state.isGameOver) get().saveResult();
@@ -422,12 +384,16 @@ export const useGameStore = create<GameState>()(
           } else if (data.phase === 'selection' && nextView === 'lobby') {
             nextView = 'selection';
           }
+          
+          // 🚨 【重要】サーバーからの roomId が無い場合は、現在の state.roomId を維持する
+          const safeRoomId = (data.roomId && data.roomId !== "") 
+                             ? (data.roomId as string) 
+                             : state.roomId;
 
           return {
             ...state,
             myId,
-            roomId: (data.roomId as string) ?? state.roomId,
-            maxPlayers: (data.maxPlayers as number) ?? state.maxPlayers,
+            roomId: safeRoomId, // 👈 安全なマージ処理を適用！
             hp: myPlayerData?.hp ?? state.hp,
             maxHp: myPlayerData?.maxHp ?? state.maxHp,
             ap: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.ap,
@@ -457,12 +423,10 @@ export const useGameStore = create<GameState>()(
         const playersAsObject = playersArray.reduce((acc: Record<string, Player>, p: Player) => { 
           acc[p.id] = p; return acc; 
         }, {});
-
         if (get().view === 'game') {
           window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: data.districts, players: playersAsObject } }));
         }
       },
-
       updateSelectedDistrict: (data) => {
         set({
           selectedDistrictId: data.districtId,
@@ -477,12 +441,10 @@ export const useGameStore = create<GameState>()(
           predictionModalOpen: true 
         });
       },
-
       updateStatsFromPhaser: (stats) => {
         if (get().isGameOver) return;
         set((state) => ({ ...state, ...stats }));
       },
-
       saveResult: async () => {
         try {
           const { players, myId } = get();
@@ -496,7 +458,6 @@ export const useGameStore = create<GameState>()(
           });
         } catch (e) { console.error(e); }
       },
-
       attack: (id) => socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'attack', targetId: id }),
       move: (id) => socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'move', targetId: id }),
       stay: () => {
@@ -508,7 +469,6 @@ export const useGameStore = create<GameState>()(
       useItem: (id) => socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId: id }),
       endTurn: () => { socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'turn_end' }); set({ isMyTurn: false, isSubmitted: true }); },
       setStatus: (status) => set((state) => ({ ...state, ...status })),
-
       addLog: (log) => set((state) => {
         if (typeof log === 'string') {
           return { logs: [{ text: log, time: nowTime() }, ...state.logs].slice(0, 10) };
@@ -520,11 +480,9 @@ export const useGameStore = create<GameState>()(
           };
         }
       }),
-
       addChatLog: (msg) => {
         set((state) => ({ chatLogs: [...state.chatLogs, msg].slice(-50) }));
       },
-
       resetGame: () => window.location.reload(),
       setBgmVolume: (vol) => {
         set({ bgmVolume: vol });
@@ -534,11 +492,9 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: 'cebu-conquest-storage',
+      // ✅ 修正: ログイン情報は保存せず、設定値のみ永続化
       partialize: (state) => ({
-        token: state.token,
-        isAuthenticated: state.isAuthenticated,
         hasSeenTutorial: state.hasSeenTutorial,
-        playerName: state.playerName,
         masterVolume: state.masterVolume,
         bgmVolume: state.bgmVolume,
         seVolume: state.seVolume,
@@ -549,7 +505,6 @@ export const useGameStore = create<GameState>()(
         cameraSensitivity: state.cameraSensitivity,
         autoBattle: state.autoBattle,
         language: state.language,
-        // 💡 修正: 永続化対象に追加
         playerAvatar: state.playerAvatar,
       }),
     }

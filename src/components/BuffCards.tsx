@@ -2,11 +2,36 @@
 import React, { memo } from 'react';
 import { useGameStore } from '../store';
 
-// 🚀 最適化：React.memoでラップし、バフデータが不変なら再描画をスキップ
+// 🚀 自動で効果を判別して、5種類のデザイン（色・アイコン）を返す魔法の関数
+const getBuffStyle = (effect: string = '') => {
+  const e = effect.toUpperCase();
+  // ⚔️ ATK (攻撃)
+  if (e.includes('ATK') || e.includes('攻撃')) {
+    return { type: 'ATK', icon: 'swords', border: 'border-red-500', text: 'text-red-500', bg: 'bg-red-500/10', badge: 'bg-red-500/20', line: 'bg-red-500/60', gradient: 'from-red-500/0 via-red-500/5 to-red-500/0' };
+  }
+  // 🛡️ DEF (防御)
+  if (e.includes('DEF') || e.includes('防御')) {
+    return { type: 'DEF', icon: 'shield', border: 'border-blue-500', text: 'text-blue-500', bg: 'bg-blue-500/10', badge: 'bg-blue-500/20', line: 'bg-blue-500/60', gradient: 'from-blue-500/0 via-blue-500/5 to-blue-500/0' };
+  }
+  // 💚 HP (体力)
+  if (e.includes('HP') || e.includes('体力') || e.includes('回復')) {
+    return { type: 'HP', icon: 'favorite', border: 'border-emerald-500', text: 'text-emerald-500', bg: 'bg-emerald-500/10', badge: 'bg-emerald-500/20', line: 'bg-emerald-500/60', gradient: 'from-emerald-500/0 via-emerald-500/5 to-emerald-500/0' };
+  }
+  // ⚡ AP (スタミナ/行動力)
+  if (e.includes('AP') || e.includes('行動') || e.includes('スタミナ')) {
+    return { type: 'AP', icon: 'bolt', border: 'border-amber-500', text: 'text-amber-500', bg: 'bg-amber-500/10', badge: 'bg-amber-500/20', line: 'bg-amber-500/60', gradient: 'from-amber-500/0 via-amber-500/5 to-amber-500/0' };
+  }
+  // ✨ FAITH (信仰)
+  if (e.includes('FAITH') || e.includes('信仰') || e.includes('神')) {
+    return { type: 'FAITH', icon: 'auto_awesome', border: 'border-fuchsia-500', text: 'text-fuchsia-500', bg: 'bg-fuchsia-500/10', badge: 'bg-fuchsia-500/20', line: 'bg-fuchsia-500/60', gradient: 'from-fuchsia-500/0 via-fuchsia-500/5 to-fuchsia-500/0' };
+  }
+  // 📦 その他 (デフォルト)
+  return { type: 'BUFF', icon: 'extension', border: 'border-orange-500', text: 'text-orange-500', bg: 'bg-orange-500/10', badge: 'bg-orange-500/20', line: 'bg-orange-500/60', gradient: 'from-orange-500/0 via-orange-500/5 to-orange-500/0' };
+};
+
 export const BuffCards: React.FC = memo(() => {
-  // 🚀 最適化：必要なバフ配列とルックアップ辞書だけを個別に取得
   const activeBuffs = useGameStore(state => state.activeBuffs);
-  const lookupData = useGameStore(state => state.lookupData); // ✅ GDD v3.1: ルックアップ辞書を追加
+  const lookupData = useGameStore(state => state.lookupData);
 
   if (!activeBuffs || activeBuffs.length === 0) {
     return (
@@ -23,7 +48,6 @@ export const BuffCards: React.FC = memo(() => {
   return (
     <div className="flex flex-col gap-2 mt-4 w-full">
       {activeBuffs.map((buff) => {
-        // ✅ GDD v3.1: lookupData を使って安全に所属島とユニット情報を取得
         let islandName = "UNKNOWN";
         let unitId = buff.id;
 
@@ -40,25 +64,31 @@ export const BuffCards: React.FC = memo(() => {
                 }
               }
             }
-            // 表示用のユニットID (例: 11101 なら 01 の部分。下2桁)
             unitId = spot.id % 100;
           }
         }
 
+        // 🚀 バフの効果テキストからデザインスタイルを取得！
+        const style = getBuffStyle(buff.effect);
+
         return (
           <div 
             key={buff.id} 
-            className="group relative bg-slate-900/60 backdrop-blur-sm border-l-2 border-orange-500 p-3 rounded-r-lg shadow-lg overflow-hidden transition-all hover:bg-slate-800/80"
+            className={`group relative bg-slate-900/60 backdrop-blur-sm border-l-2 ${style.border} p-3 rounded-r-lg shadow-lg overflow-hidden transition-all hover:bg-slate-800/80`}
           >
-            <div className="absolute top-0 right-0 px-2 py-0.5 bg-orange-500/10 text-[8px] font-mono text-orange-500/60 font-bold font-fix group-hover:text-orange-500 transition-colors">
-              U-{String(unitId).padStart(2, '0')} {/* ✅ 下2桁でパディング */}
+            {/* 右上の小さな識別コード */}
+            <div className={`absolute top-0 right-0 px-2 py-0.5 ${style.badge} text-[8px] font-mono ${style.text} opacity-60 font-bold font-fix group-hover:opacity-100 transition-opacity`}>
+              U-{String(unitId).padStart(2, '0')}
             </div>
             
             <div className="relative z-10 text-left">
               <div className="flex items-center gap-1.5 mb-1">
-                <span className="w-1 h-1 bg-orange-500 rounded-full animate-pulse"></span>
-                <span className="text-[8px] font-black text-orange-500 uppercase tracking-widest opacity-80 font-fix line-clamp-1">
-                  {islandName} SPECIALTY
+                {/* 🚀 種類ごとのマテリアルアイコンを配置 */}
+                <span className={`material-symbols-outlined text-[12px] ${style.text}`}>
+                  {style.icon}
+                </span>
+                <span className={`text-[8px] font-black ${style.text} uppercase tracking-widest opacity-80 font-fix line-clamp-1`}>
+                  {islandName} SPECIALTY [{style.type}]
                 </span>
               </div>
 
@@ -67,22 +97,29 @@ export const BuffCards: React.FC = memo(() => {
               </div>
 
               <div className="flex items-center gap-1">
-                <span className="text-[9px] text-emerald-500 font-black tracking-tighter font-fix shrink-0">
+                <span className={`text-[9px] ${style.text} font-black tracking-tighter font-fix shrink-0`}>
                   [ ACTIVE ]
                 </span>
-                <span className="text-[10px] text-emerald-400 font-bold tracking-tight font-fix line-clamp-1">
+                <span className="text-[10px] text-slate-300 font-bold tracking-tight font-fix line-clamp-1">
                   {buff.effect}
                 </span>
               </div>
 
-              <div className="flex gap-0.5 mt-2">
-                <div className="h-0.5 w-8 bg-orange-500/60"></div>
-                <div className="h-0.5 w-1 bg-orange-500/30"></div>
-                <div className="h-0.5 w-1 bg-orange-500/10"></div>
+              {/* 装飾ラインもテーマカラーに */}
+              <div className="flex gap-0.5 mt-2 opacity-80">
+                <div className={`h-0.5 w-8 ${style.line}`}></div>
+                <div className={`h-0.5 w-1 ${style.line} opacity-50`}></div>
+                <div className={`h-0.5 w-1 ${style.line} opacity-20`}></div>
               </div>
             </div>
 
-            <div className="absolute inset-0 bg-gradient-to-b from-orange-500/0 via-orange-500/5 to-orange-500/0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+            {/* 背景のグラデーションもテーマカラーに */}
+            <div className={`absolute inset-0 bg-gradient-to-b ${style.gradient} opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none`}></div>
+            
+            {/* 🚀 背景にうっすら巨大なアイコンを透かして表示（超サイバーパンク！） */}
+            <span className={`material-symbols-outlined absolute -right-2 -bottom-2 text-[60px] ${style.text} opacity-[0.05] pointer-events-none rotate-12 group-hover:opacity-10 group-hover:scale-110 transition-all duration-500`}>
+              {style.icon}
+            </span>
           </div>
         );
       })}
