@@ -136,28 +136,31 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
 
   useEffect(() => {
     if (roomId) {
-      socket.emit(CLIENT_EVENTS.READY_TO_START, { roomId, ready: false });
+      // 初期状態は準備未完了として通知
+      socket.emit(CLIENT_EVENTS.READY_TO_START, { roomId, ready: false, playerName });
     }
-  }, [roomId]);
+  }, [roomId, playerName]);
 
   useEffect(() => {
     if (selectedGodId) {
-      socket.emit(CLIENT_EVENTS.SELECT_GOD || 'SELECT_GOD', { roomId, godId: selectedGodId });
+      socket.emit(CLIENT_EVENTS.SELECT_GOD || 'SELECT_GOD', { roomId, godId: selectedGodId, playerName });
     }
-  }, [selectedGodId, roomId]);
+  }, [selectedGodId, roomId, playerName]);
 
   useEffect(() => {
-    const handleGameStart = () => {
-      if (!isLocked) return; 
+    const handleGameBegin = () => {
       console.log("🚀 Server signal received: Starting Game Scene...");
       onStart();
     };
 
-    socket.on(SERVER_EVENTS.GAME_START, handleGameStart);
+    socket.on(SERVER_EVENTS.GAME_START, handleGameBegin);
+    socket.on(SERVER_EVENTS.COMMENCE_OPERATION, handleGameBegin);
+    
     return () => {
-      socket.off(SERVER_EVENTS.GAME_START, handleGameStart);
+      socket.off(SERVER_EVENTS.GAME_START, handleGameBegin);
+      socket.off(SERVER_EVENTS.COMMENCE_OPERATION, handleGameBegin);
     };
-  }, [onStart, isLocked]);
+  }, [onStart]);
 
   const handleSendMessage = () => {
     if (!chatInput.trim()) return;
@@ -171,8 +174,7 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
 
   const handleReadyClick = () => {
     setIsLocked(true);
-    socket.emit(CLIENT_EVENTS.READY_TO_START, { roomId, ready: true }); 
-    socket.emit('forceGameStart', { roomId }); 
+    socket.emit(CLIENT_EVENTS.READY_TO_START, { roomId, ready: true, playerName }); 
     try { SoundManager.playSe('click'); } catch {}
     addLog("🚀 降下準備完了。味方の承認を待機しています...");
   };
@@ -197,13 +199,7 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
 
   const readyCount = useMemo(() => activeLobby.filter(p => p.isReady === true).length, [activeLobby]);
 
-  useEffect(() => {
-    if (isLocked && readyCount > 0 && readyCount >= totalSlots) {
-      addLog("🚀 全員の最終承認を確認。作戦領域へ降下します！");
-      const timer = setTimeout(() => { onStart(); }, 1500); 
-      return () => clearTimeout(timer);
-    }
-  }, [readyCount, totalSlots, onStart, addLog, isLocked]);
+  // クライアント側での自動スタート判定を削除（サーバーからの GAME_START 信号を待機するため）
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -234,6 +230,8 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
               </div>
             </div>
             <div className="text-right">
+              <p className="text-slate-400 text-[10px] uppercase tracking-widest font-bold mb-1 font-fix">Command Code</p>
+              <p className="text-2xl font-black text-orange-500 font-fix tracking-[0.2em] mb-2">{roomId}</p>
               <p className="text-slate-400 text-[10px] uppercase tracking-widest font-bold mb-1 font-fix">Link Status</p>
               <p className="text-3xl font-black text-white font-fix">{readyCount} <span className="text-[#fa7000]">/ {totalSlots} READY</span></p>
             </div>
@@ -251,7 +249,8 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                   godId: lp.godId,
                   isReady: lp.isReady,
                 };
-                return <PlayerCard key={lp.playerId} player={playerData} isMe={lp.playerId === myId} isHost={index === 0} myAvatar={playerAvatar} />;
+                const isHostFromData = !!lp.isHost;
+                return <PlayerCard key={lp.playerId} player={playerData} isMe={lp.playerId === myId} isHost={isHostFromData} myAvatar={playerAvatar} />;
               }
               return (
                 <div key={`empty-${index}`} className="glass-panel rounded-xl border border-slate-800 flex flex-col items-center justify-center gap-2 h-[240px] w-full opacity-40">
@@ -297,20 +296,41 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                 </div>
               </div>
               
-              <button 
-                onClick={handleReadyClick}
-                disabled={isLocked}
-                className={`w-full h-[58px] rounded-xl font-black text-2xl uppercase transition-all transform active:scale-95 shadow-lg shrink-0 font-fix ${
-                  isLocked 
-                    ? 'bg-slate-800 text-[#fa7000] border-2 border-[#fa7000] shadow-[0_0_15px_rgba(250,112,0,0.3)]' 
-                    : 'bg-[#fa7000] hover:bg-orange-600 text-black hover:shadow-[0_0_25px_rgba(250,112,0,0.4)]'
-                }`}
-              >
-                {isLocked ? 'WAITING FOR SQUAD' : 'DEPLOY SQUAD'}
-              </button>
+              <div className="mt-auto">
+                {(readyCount >= totalSlots && totalSlots >= 2) ? (
+                  /* 🚀 全員準備完了：ホストが出撃ボタンを押せる */
+                  <button 
+                    onClick={() => {
+                      if (socket.id === activeLobby[0]?.playerId) {
+                         socket.emit('LOBBY_COMMENCE', { roomId });
+                         try { SoundManager.playSe('click'); } catch {}
+                      }
+                    }}
+                    className={`w-full h-[58px] rounded-xl font-black text-xl uppercase transition-all transform active:scale-95 shadow-[0_0_30px_rgba(250,112,0,0.4)] font-fix bg-[#fa7000] text-black hover:bg-orange-600 animate-pulse`}
+                  >
+                    {socket.id === activeLobby[0]?.playerId ? 'INITIALIZE BATTLE SEQUENCE' : 'AWAITING COMMANDER...'}
+                  </button>
+                ) : (
+                  /* 🚀 待機中：各自がREADYを押す */
+                  <button 
+                    onClick={handleReadyClick}
+                    disabled={isLocked}
+                    className={`w-full h-[58px] rounded-xl font-black text-2xl uppercase transition-all transform active:scale-95 shadow-lg shrink-0 font-fix ${
+                      isLocked 
+                        ? 'bg-slate-800 text-[#fa7000] border-2 border-[#fa7000] shadow-[0_0_15px_rgba(250,112,0,0.3)]' 
+                        : 'bg-[#fa7000] hover:bg-orange-600 text-black hover:shadow-[0_0_25px_rgba(250,112,0,0.4)]'
+                    }`}
+                  >
+                    {isLocked ? `SYNCING... (${readyCount}/${totalSlots})` : 'DEPLOY SQUAD'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </section>
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[8px] font-mono text-slate-800 uppercase tracking-[0.5em] pointer-events-none">
+          System Version: v2.1-SECURE
+        </div>
       </main>
     </div>
   );

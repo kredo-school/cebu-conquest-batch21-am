@@ -281,7 +281,7 @@ export const useGameStore = create<GameState>()(
       rankingData: [], setRanking: (data) => set({ rankingData: data }),
       inventory: [], setInventory: (items) => set({ inventory: items }),
 
-      getApiUrl: (endpoint) => `http://10.29.219.57/Cebu_Conquest/cebu-conquest-batch21-am/public/api/${endpoint}`,
+      getApiUrl: (endpoint) => `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8888/cebu-conquest-batch21-am/public/api"}/${endpoint}`,
 
       masterData: null, lookupData: null,
       setLookupData: (data) => {
@@ -347,7 +347,7 @@ export const useGameStore = create<GameState>()(
       nextTurn: () => set({ turn: get().turn + 1 }),
 
       selectGod: (id: number) => {
-        const { roomId, myId, players } = get();
+        const { roomId, myId, players, playerName } = get();
         if (get().selectedGodId !== null) return;
 
         const updatedPlayers = players.map(p => 
@@ -360,7 +360,7 @@ export const useGameStore = create<GameState>()(
           view: 'waiting' 
         });
 
-        socket.emit(CLIENT_EVENTS.SELECT_GOD, { roomId, godId: id });
+        socket.emit(CLIENT_EVENTS.SELECT_GOD, { roomId, godId: id, playerName });
       },
 
       setPlayerName: (name) => set({ playerName: name }),
@@ -407,7 +407,7 @@ export const useGameStore = create<GameState>()(
 
         set((state) => {
           let nextView = state.view;
-          const isActuallyStarted = !!data.gameStarted;
+          const isActuallyStarted = data.status === 'playing';
           const hasInitialPosition = !!(myPlayerData?.districtId || myPlayerData?.location);
 
           if (data.isGameOver) {
@@ -427,6 +427,7 @@ export const useGameStore = create<GameState>()(
             ...state,
             myId,
             roomId: (data.roomId as string) ?? state.roomId,
+            maxPlayers: (data.maxPlayers as number) ?? state.maxPlayers,
             hp: myPlayerData?.hp ?? state.hp,
             maxHp: myPlayerData?.maxHp ?? state.maxHp,
             ap: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.ap,

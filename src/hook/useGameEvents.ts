@@ -41,7 +41,23 @@ export const useGameEvents = () => {
   useEffect(() => {
     if (!socket) return;
 
-    // ---------------------------------------------------------
+    // 0. 🔌 接続時にIDを同期
+    const handleConnect = () => {
+      console.log("🔌 Connected to server. ID:", socket.id);
+      setStatus({ myId: socket.id });
+      const { roomId, playerName } = useGameStore.getState();
+      
+      // ✅ 確実に roomId が文字列として存在する場合のみ復旧を試みる
+      if (roomId && typeof roomId === 'string' && roomId.length > 0 && playerName) {
+        socket.emit('RECOVER_CONNECTION', { roomId, playerName });
+      }
+    };
+
+    // ✅ 常に connect イベントでのみ RECOVER を発火させ、不必要なループを防ぐ
+    socket.on('connect', handleConnect);
+    if (socket.connected && !useGameStore.getState().myId) {
+      handleConnect();
+    }
     // A. Phaser → React 同期リスナー (HUD更新用)
     // ---------------------------------------------------------
     const handleStatsUpdate = (e: Event) => {
@@ -86,7 +102,8 @@ export const useGameEvents = () => {
         })));
       }
 
-      if (currentView === 'setup') {
+      if (currentView === 'setup' && !data.roomId) {
+        // ✅ 意図しないタイミングでのroomIdリセットを防ぐ
         useGameStore.setState({ view: 'setup', roomId: undefined });
       }
 
@@ -170,6 +187,24 @@ export const useGameEvents = () => {
       addLog(`⚠️ 指令拒否: ${data.reason}`);
     });
 
+    // 7.5. 🚨 サーバーエラーメッセージの処理
+    socket.on(SERVER_EVENTS.ERROR_MESSAGE, (data: unknown) => {
+      if (typeof data === 'string') {
+        setErrorMessage(data);
+        addLog(`🔴 サーバーエラー: ${data}`);
+      } else if (typeof data === 'object' && data !== null) {
+        const payload = data as { reason?: string; message?: string };
+        if (payload.reason === 'room_destroyed') {
+          setErrorMessage(payload.message || 'ルームが存在しません。タイトルに戻ります。');
+          addLog('🔴 致命的なエラー: ルームが崩壊しました。接続を切断します。');
+          useGameStore.setState({ view: 'setup', roomId: undefined, players: [], lobbyPlayers: [] });
+        } else {
+          setErrorMessage(payload.message || '不明なエラーが発生しました');
+          addLog(`🔴 サーバーエラー: ${payload.message}`);
+        }
+      }
+    });
+
     // 8. 📥 汎用アクション結果 (actionResult)
     socket.on(SERVER_EVENTS.ACTION_RESULT, (data: { success: boolean, message: string }) => {
       if (!data.success) {
@@ -204,10 +239,12 @@ export const useGameEvents = () => {
       socket.off(SERVER_EVENTS.BATTLE_RESULT);
       socket.off(SERVER_EVENTS.TERRITORY_UPDATED);
       socket.off(SERVER_EVENTS.ACTION_REJECTED);
+      socket.off(SERVER_EVENTS.ERROR_MESSAGE);
       socket.off(SERVER_EVENTS.ACTION_RESULT);
       socket.off(SERVER_EVENTS.RECEIVE_CHAT); // クリーンアップを追加
       socket.off(SERVER_EVENTS.GAME_OVER);
       socket.off(SERVER_EVENTS.LOBBY_UPDATED);
+      socket.off('connect', handleConnect);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleStatsUpdate);
     };
   }, [myId, syncServerState, setNpcs, addLog, setStatus, setErrorMessage, setLobbyPlayers, setGameStarted]);

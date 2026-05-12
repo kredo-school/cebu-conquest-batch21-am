@@ -53,27 +53,27 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
 
   // --- 🛠️ 部屋参加の処理 ---
   const handleJoin = () => {
-    if (joinId.length === 6) {
-      try { SoundManager.playSe('click'); } catch {}
-      addLog(`📡 Room[${joinId}] への接続を試行中...`);
+      const sanitizedId = joinId.replace(/[-\s]/g, '').toUpperCase();
+      addLog(`📡 Room[${sanitizedId}] への接続を試行中...`);
 
       const joinPayload = { 
-        roomId: joinId.toUpperCase(),
+        roomId: sanitizedId,
         username: playerName 
       };
 
-      socket.emit(CLIENT_EVENTS.JOIN_ROOM, joinPayload, (response: { success: boolean; maxPlayers?: number }) => {
+      socket.emit(CLIENT_EVENTS.JOIN_ROOM, joinPayload, (response: { success: boolean; maxPlayers?: number; message?: string }) => {
         if (response && response.success) {
+          addLog(`✅ Room[${sanitizedId}] への接続に成功しました`);
           if (response.maxPlayers) {
             setStatus({ maxPlayers: response.maxPlayers });
           }
-          onJoinSuccess(joinId.toUpperCase());
+          onJoinSuccess(sanitizedId);
         } else {
-          addLog("❌ 入室拒否: 該当する作戦コードが見つかりません");
-          alert("指定されたルームが見つからないか、満員です。");
+          const msg = response?.message || "該当する作戦コードが見つかりません";
+          addLog(`❌ 入室拒否: ${msg}`);
+          alert(`入室できませんでした: ${msg}`);
         }
       });
-    }
   };
 
   return (
@@ -187,8 +187,15 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
             <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter font-fix">Join Room</h2>
             <div className="mb-10">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block font-fix text-left">Enter Command Code</label>
-              <input type="text" maxLength={6} value={joinId} onChange={(e) => setJoinId(e.target.value.toUpperCase())}
-                placeholder="0 0 0 0 0 0"
+              <input 
+                type="text" 
+                maxLength={8} 
+                value={joinId} 
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                  setJoinId(val.substring(0, 6));
+                }}
+                placeholder="X X X X X X"
                 className="w-full bg-black/40 border border-slate-800 rounded-lg py-4 px-6 text-3xl font-black tracking-[0.5em] text-cyan-400 text-center focus:outline-none focus:border-cyan-500 transition-all font-mono"
               />
             </div>

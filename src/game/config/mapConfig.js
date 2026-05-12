@@ -1,11 +1,11 @@
 export const MAP_CONFIG = {
     // 'SIMPLE' なら簡易版、 'PRODUCTION' なら本番用を表示
-    USE_MAP: 'PRODUCTION', 
+    USE_MAP: 'SIMPLE', 
 
     MAPS: {
         SIMPLE: {
             key: 'map_simple',
-            path: '/assets/maps/cebu_map_簡易版.tmj',
+            path: '/assets/maps/cebu_map_simple.tmj',
             tilesets: [
                 { name: 'Slates.png', key: 'tiles', path: '/assets/tilesets/Slates.png' },
             ],
@@ -13,7 +13,7 @@ export const MAP_CONFIG = {
         },
         PRODUCTION: {
             key: 'map_production',
-            path: '/assets/maps/cebu_map_本番用.tmj',
+            path: '/assets/maps/cebu_map_production.tmj',
             tilesets: [
                 { name: 'main', key: 'main', path: '/assets/tilesets/[Base]BaseChip_pipo.png' },
                 { name: 'main2', key: 'main2', path: '/assets/tilesets/Slates.png' },
@@ -23,7 +23,13 @@ export const MAP_CONFIG = {
                 { name: '草', key: 'grass', path: '/assets/tilesets/[A]Grass4_pipo.png' },
                 { name: '草長い', key: 'long_grass', path: '/assets/tilesets/[A]LongGrass_pipo.png' },
                 { name: '道A', key: 'dirt_road', path: '/assets/tilesets/[A]Dirt1_pipo.png' },
-                { name: '水(暗い青)', key: 'water_dark', path: '/assets/tilesets/[A]Water1_pipo.png' }
+                { name: '水(暗い青)', key: 'water_dark', path: '/assets/tilesets/[A]Water1_pipo.png' },
+                { name: '水(一番明るい水)', key: 'water_bright', path: '/assets/tilesets/water_bright.png' },
+                { name: '波', key: 'waves', path: '/assets/tilesets/waves.png' },
+                { name: '滝', key: 'waterfall', path: '/assets/tilesets/waterfall.png' },
+                { name: 'Japan', key: 'japan', path: '/assets/tilesets/JapanProps-02.png' },
+                { name: 'heros', key: 'heroes', path: '/assets/tilesets/heros.png' },
+                { name: 'animals', key: 'animals', path: '/assets/tilesets/animals.png' }
             ],
             districtLayer: "spotName",
         }

@@ -56,7 +56,6 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
         else setErrorMsg(data.message || "登録に失敗しました。");
       } else {
         isSuccess = await login(username, password);
-        if (isSuccess) setView('login');
         if (!isSuccess) setErrorMsg("認証プロトコルに失敗しました（IDまたはPasswordの間違い）。");
       }
       const elapsed = Date.now() - startTime;
