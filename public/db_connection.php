@@ -1,10 +1,10 @@
 <?php
 // データベース接続設定
 $host    = '127.0.0.1';
-$port    = '8889';         // MAMP Port
+$port    = '3306';         // XAMPP default port is 3306
 $db      = 'cebu_conquest';
 $user    = 'root';
-$pass    = 'root';
+$pass    = '';             // XAMPP default is empty
 $charset = 'utf8mb4';
 
 // portをDSNに含める書き方

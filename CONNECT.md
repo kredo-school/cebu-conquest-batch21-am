@@ -42,8 +42,9 @@ VITE_SOCKET_URL=http://10.29.219.57:3001
 ### Step 4: Configure the Database
 1. Open XAMPP Control Panel and start **Apache** and **MySQL**.
 2. Go to `http://localhost/phpmyadmin` and import the project's SQL file if not already done.
-3. Verify `public/config/database.php` credentials match your XAMPP setup.
-   - Default XAMPP: host=`localhost`, user=`root`, password=`""`
+3. Verify `config/database.php` and `public/db_connection.php` credentials match your XAMPP setup.
+   - **XAMPP Default:** port=`3306`, user=`root`, password=`""` (I have already updated these in the code).
+   - **MAMP (if switching back):** port=`8889`, user=`root`, password=`root`.
 
 ### Step 5: Start the Node Socket Server
 Open a Command Prompt in:
