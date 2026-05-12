@@ -2,7 +2,7 @@
 
 The team uses **ZeroTier** as a virtual LAN to allow all members to connect to a single host machine running **Windows + XAMPP**, no matter where they physically are.
 
-> **ZeroTier Network IP of the Host:** `10.29.219.245`
+> **ZeroTier Network IP of the Host:** `10.29.219.57`
 
 ---
 
@@ -10,7 +10,7 @@ The team uses **ZeroTier** as a virtual LAN to allow all members to connect to a
 
 ```
 [Team Members]
-  Browser → ZeroTier (10.29.219.245) → [Windows Host Machine]
+  Browser → ZeroTier (10.29.219.57) → [Windows Host Machine]
                                             ├── XAMPP Apache   (port 80)   — PHP APIs & MySQL DB
                                             ├── Node Socket Server (port 3001) — Real-time game
                                             └── Vite Dev Server  (port 5173) — React frontend
@@ -25,7 +25,7 @@ The host machine runs everything: the Apache/PHP backend, MySQL database, Node s
 ### Step 1: Install ZeroTier
 1. Download and install ZeroTier from [https://www.zerotier.com/download/](https://www.zerotier.com/download/)
 2. Join the team's ZeroTier network using the shared **Network ID**.
-3. Confirm your **ZeroTier IP is `10.29.219.245`**. You can verify this by running `ipconfig` in Command Prompt and looking for the ZeroTier adapter.
+3. Confirm your **ZeroTier IP is `10.29.219.57`**. You can verify this by running `ipconfig` in Command Prompt and looking for the ZeroTier adapter.
 
 ### Step 2: Place the Project in XAMPP
 - Put the project folder inside `C:\xampp\htdocs\` so the full path is:
@@ -34,8 +34,8 @@ The host machine runs everything: the Apache/PHP backend, MySQL database, Node s
 ### Step 3: Verify the `.env` File
 The `.env` file in the project root is already configured with the correct ZeroTier IP:
 ```
-VITE_API_BASE_URL=http://10.29.219.245/cebu-conquest-batch21-am/public/api
-VITE_SOCKET_URL=http://10.29.219.245:3001
+VITE_API_BASE_URL=http://10.29.219.57/cebu-conquest-batch21-am/public/api
+VITE_SOCKET_URL=http://10.29.219.57:3001
 ```
 > ⚠️ If the ZeroTier IP ever changes, update both values here and restart `npm run dev`.
 
@@ -69,13 +69,13 @@ npm run dev
 Vite will display something like:
 ```
   Local:   http://localhost:5173/
-  Network: http://10.29.219.245:5173/    ← Share this URL with the team!
+  Network: http://10.29.219.57:5173/    ← Share this URL with the team!
 ```
 
 ### Step 7: Share the URL
 Tell all team members to open their browsers and go to:
 
-**👉 `http://10.29.219.245:5173`**
+**👉 `http://10.29.219.57:5173`**
 
 ---
 
@@ -89,7 +89,7 @@ Tell all team members to open their browsers and go to:
 ### Step 2: Open the Application
 Open your browser (Chrome recommended) and navigate to:
 ```
-http://10.29.219.245:5173
+http://10.29.219.57:5173
 ```
 You will see the Cebu Conquest login screen. Log in, create or join a room, and play!
 
@@ -126,7 +126,7 @@ All required tileset files are located in `public/assets/tilesets/`:
 
 | Problem | Solution |
 |---|---|
-| Cannot reach `http://10.29.219.245:5173` | Make sure ZeroTier is connected and status is **Online** |
+| Cannot reach `http://10.29.219.57:5173` | Make sure ZeroTier is connected and status is **Online** |
 | Login fails / API 404 errors | Host must have XAMPP **Apache** running; check `VITE_API_BASE_URL` in `.env` |
 | Cannot join a room / Socket errors | Host must have `node server.js` running in `socket-server/` |
 | Map tiles missing / black squares | Ensure all tileset PNG files exist in `public/assets/tilesets/` on host |
