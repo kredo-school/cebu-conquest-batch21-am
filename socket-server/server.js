@@ -27,7 +27,7 @@ const TEAM_CONFIG = [
 ];
 
 // ==========================================
-// 🚀 【27地区マスタ】すべての地区のバフと優先度
+// 🚀 【32地区マスタ】すべての地区のバフと優先度
 // ==========================================
 const DISTRICTS_MASTER = {
     // Cebu & Mactan (1000)
@@ -74,7 +74,7 @@ const DISTRICTS_MASTER = {
 // 🚀 【設定】ルーム管理とゲーム状態の初期化
 // ==========================================
 const rooms = new Map();
-const roomDeleteTimers = new Map(); // 💡 追加: 部屋削除の猶予タイマー
+const roomDeleteTimers = new Map();
 
 function sanitizeRoomState(roomState) {
     if (!roomState) return roomState;
@@ -92,7 +92,7 @@ function createInitialGameState(maxPlayers = 4) {
         roomId: null,
         status: 'waiting', 
         turn: 0, 
-        maxTurn: 30,
+        maxTurn: 30, // GDD上は最大10ですが、互換性のため残すか随時調整
         maxPlayers: maxPlayers,
         turnOwnerId: null, 
         firstPlayerId: null,
@@ -202,7 +202,9 @@ function processNpcTurn(roomId) {
             } else {
                 npc.ap -= 5;
                 const defenderId = target.ownerId;
-                const defValue = defenderId ? calculateFinalStats(roomId, defenderId).def : 35;
+                // 💡 修正: 中立の防御力を30に統一
+                const defBase = defenderId ? calculateFinalStats(roomId, defenderId).def : 30;
+                const defValue = defBase * ((defenderId && currentState.players[defenderId]?.isDefending) ? 1.5 : 1);
                 
                 const battleResult = resolveBattle(stats.atk, defValue);
 
@@ -210,9 +212,31 @@ function processNpcTurn(roomId) {
                     currentState.districts[target.id] = npcId;
                     npc.districtId = target.id;
                     io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`⚔️ ${npc.username}: ${target.name} を制圧しました！`);
+
+                    // 💡 修正: GDD必須のバトルエフェクト＆陣地更新イベント
+                    io.to(roomId).emit(SERVER_EVENTS.BATTLE_RESULT, {
+                        winnerId: npcId,
+                        loserId: defenderId || null,
+                        hpDamage: 0,
+                        districtId: target.id
+                    });
+                    
+                    io.to(roomId).emit(SERVER_EVENTS.TERRITORY_UPDATED, {
+                        districtId: target.id,
+                        owner: npcId,
+                        team: npc.teamColor
+                    });
                 } else {
                     npc.hp -= 20;
                     io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`❌ ${npc.username}: ${target.name} への侵攻に失敗しました。`);
+
+                    // 💡 修正: 敗北時のダメージイベント
+                    io.to(roomId).emit(SERVER_EVENTS.BATTLE_RESULT, {
+                        winnerId: defenderId || null,
+                        loserId: npcId,
+                        hpDamage: 20,
+                        districtId: target.id
+                    });
                 }
             }
         }
@@ -236,7 +260,8 @@ function finalizeTurn(roomId, currentId) {
 
     roomState.turnOwnerId = nextId;
 
-    if (nextId === roomState.firstPlayerId) {
+    // 💡 修正: プレイヤー切断による無限ループを防ぐため、インデックス0に戻った時にターン進行
+    if (nextIndex === 0) {
         roomState.turn++;
     }
 
@@ -331,7 +356,6 @@ io.on('connection', (socket) => {
             socket.roomId = roomId;
             console.log(`[RECOVER] Player ${p.username} auto-recovered in room ${roomId} upon reconnect`);
             
-            // 💡 プレイヤーが復帰したため、部屋の削除タイマーをキャンセル
             if (roomDeleteTimers.has(roomId)) {
                 clearTimeout(roomDeleteTimers.get(roomId));
                 roomDeleteTimers.delete(roomId);
@@ -425,7 +449,6 @@ io.on('connection', (socket) => {
             return;
         }
 
-        // 💡 同じユーザー名（Ghost）がいれば削除して入れ替える
         let existingPlayerId = Object.keys(roomState.players).find(
             id => roomState.players[id].username === data.username
         );
@@ -433,7 +456,7 @@ io.on('connection', (socket) => {
             const oldSocket = io.sockets.sockets.get(existingPlayerId);
             if (oldSocket && oldSocket.connected) {
                 console.log(`⚠️ User ${data.username} is already connected. Allowing multiple instances for testing.`);
-                data.username = `${data.username} (2)`; // Modify name to prevent overlap in the same room
+                data.username = `${data.username} (2)`; 
             } else {
                 delete roomState.players[existingPlayerId];
                 console.log(`🧹 Kicked ghost player: ${data.username} from room: ${roomId}`);
@@ -483,7 +506,7 @@ io.on('connection', (socket) => {
             token: socket.authToken,
             godName: godName,
             selectedGodId: null,
-            isHost: playerCount === 0, // 💡 最初のプレイヤーだけがホスト
+            isHost: playerCount === 0, 
             ...baseStats,
             inventory: inventory,
             team: teamInfo.id,
@@ -577,7 +600,7 @@ io.on('connection', (socket) => {
         const roomState = rooms.get(roomId);
         if (!roomState) return;
 
-        roomState.phase = 'selection'; // 💡 状態を明示して他クライアントを遷移させる
+        roomState.phase = 'selection'; 
 
         Object.values(roomState.players).forEach(p => {
             if (!p.isNpc) p.isReady = false;
@@ -623,10 +646,10 @@ io.on('connection', (socket) => {
         if (p) {
             p.selectedGodId = godIdNum;
             
-            const sacredDistrictId = getSacredDistrict(godIdNum); // 3桁 (shared/godSacredLands.js)
-            const spawnSpot = getSpawnSpot(godIdNum);             // 5桁 (shared/godSacredLands.js)
+            const sacredDistrictId = getSacredDistrict(godIdNum); 
+            const spawnSpot = getSpawnSpot(godIdNum);             
             if (sacredDistrictId != null) {
-                const sacredId = String(sacredDistrictId);        // 3桁文字列キー (例: "141")
+                const sacredId = String(sacredDistrictId);        
 
                 roomState.districts[sacredId] = socket.id;
                 p.districtId = sacredId;
@@ -769,6 +792,7 @@ io.on('connection', (socket) => {
                 p.ap -= 5;
                 const defenderId = roomState.districts[targetId];
                 const defender  = defenderId ? roomState.players[defenderId] : null;
+                // 💡 修正: 中立陣地の防御力を30に統一
                 const defBase   = defenderId ? calculateFinalStats(roomId, defenderId).def : 30;
                 const defValue  = defBase * (defender?.isDefending ? 1.5 : 1);
                 const result = resolveBattle(stats.atk, defValue);
@@ -777,6 +801,20 @@ io.on('connection', (socket) => {
                     roomState.districts[targetId] = socket.id;
                     p.districtId = targetId;
                     io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `⚔️ ${p.username}: ${targetId} を制圧！`);
+
+                    // 💡 修正: バトルエフェクトと陣地更新の必須イベントを送信
+                    io.to(roomId).emit(SERVER_EVENTS.BATTLE_RESULT, {
+                        winnerId: socket.id,
+                        loserId: defenderId || null,
+                        hpDamage: 0,
+                        districtId: targetId
+                    });
+                    
+                    io.to(roomId).emit(SERVER_EVENTS.TERRITORY_UPDATED, {
+                        districtId: targetId,
+                        owner: socket.id,
+                        team: p.teamColor
+                    });
 
                     if (!p.isNpc && p.token) {
                         try {
@@ -799,6 +837,14 @@ io.on('connection', (socket) => {
                 } else {
                     p.hp -= 20;
                     io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `❌ ${p.username}: ${targetId} への攻撃に失敗。`);
+
+                    // 💡 修正: 敗北時もバトル結果を送信（HPダメージ反映用）
+                    io.to(roomId).emit(SERVER_EVENTS.BATTLE_RESULT, {
+                        winnerId: defenderId || null,
+                        loserId: socket.id,
+                        hpDamage: 20,
+                        districtId: targetId
+                    });
                 }
             } else if (data.type === 'move') {
                 p.districtId = targetId;
@@ -964,7 +1010,6 @@ io.on('connection', (socket) => {
 
         const remaining = Object.keys(roomState.players);
         if (remaining.length === 0) {
-            // 💡 即座に削除せず、15秒間だけ復帰を待つ (Vite HMR対策)
             console.log(`⚠️ Room ${roomId} is empty. Will delete in 15 seconds if no recovery...`);
             const timer = setTimeout(() => {
                 rooms.delete(roomId);
@@ -1006,7 +1051,6 @@ setInterval(() => {
     });
 }, 5000);
 
-// 💡 外部アクセス許可設定 (0.0.0.0)
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Heavy Tactical Server Running on port ${PORT}`);
 });
