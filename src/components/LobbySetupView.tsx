@@ -192,8 +192,14 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
             <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter font-fix">Join Room</h2>
             <div className="mb-10 text-left">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block font-fix">Enter Command Code</label>
-              {/* 💡 スペースを含めても入力できるように maxLength を 11 に変更 */}
-              <input type="text" maxLength={11} value={joinId} onChange={(e) => setJoinId(e.target.value.toUpperCase())} placeholder="0 0 0 0 0 0"
+              {/* 💡 JSによる最強の入力バリデーション（記号排除＆実質6文字制限） */}
+              <input type="text" value={joinId} placeholder="0 0 0 0 0 0"
+                onChange={(e) => {
+                  let val = e.target.value.toUpperCase();
+                  val = val.replace(/[^A-Z0-9\s]/g, '');
+                  if (val.replace(/\s/g, '').length > 6) return;
+                  setJoinId(val);
+                }}
                 className="w-full bg-black/40 border border-slate-800 rounded-lg py-4 px-6 text-3xl font-black tracking-[0.5em] text-cyan-400 text-center focus:outline-none focus:border-cyan-500 transition-all font-mono"
               />
             </div>

@@ -1,5 +1,4 @@
-// src/components/GodSelectionView.tsx
-
+/// <reference types="vite/client" />
 import React, { useState, memo, useMemo } from 'react';
 import { useGameStore, LobbyPlayer } from '../store';
 import { REACT_TO_PHASER } from '../game/events/PhaserBridge';
@@ -44,7 +43,6 @@ const GOD_SLOTS: GodSlot[] = [
 
 export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({ 
   onComplete, 
-  onBack 
 }) => {
   const players = useGameStore(state => state.players);
   const lobbyPlayers = useGameStore(state => state.lobbyPlayers);
@@ -87,7 +85,6 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
     hideError();
     const godId = pendingSelection.id;
     
-    // 修正ポイント: キャストとプロンプト上の変数名を一致させる[cite: 1]
     const masterData = GOD_SACRED_LANDS as Record<number, GodSacredLand>;
     const godData = masterData[godId];
 
@@ -112,7 +109,6 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
       ),
     });
     
-    // Socket.IO への emit[cite: 1]
     socket.emit(CLIENT_EVENTS.SELECT_GOD, { 
       roomId: useGameStore.getState().roomId,
       playerName: useGameStore.getState().playerName,
@@ -121,7 +117,6 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
       spotId: targetSpotId
     });
     
-    // Phaser への emit[cite: 1]
     window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.SET_AVATAR, { 
       detail: { 
         godKey: pendingSelection.textureKey,
@@ -184,10 +179,11 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
                           : "border-white/5 hover:border-white/20 hover:bg-zinc-800/50 cursor-pointer"
                   }`}
                 >
-                  <div className="relative h-[45%] shrink-0 overflow-hidden bg-black flex items-center justify-center">
+                  {/* 🚀 修正: h-[60%] に広げてズームを自然に落とし、object-top で頭を上に揃える */}
+                  <div className="relative h-[60%] shrink-0 overflow-hidden bg-black flex items-center justify-center">
                     <img 
                       src={god.img} 
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                      className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-110" 
                       alt={god.name} 
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = '/assets/images/gods/fallback.png';
@@ -239,22 +235,8 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
           </div>
         </div>
 
-        <div className="px-8 py-5 border-t border-white/5 bg-black/40 flex items-center justify-between shrink-0 text-left">
-          {selectedGodId === null ? (
-            <button 
-              onClick={onBack}
-              className="flex items-center gap-2 px-6 py-2.5 border border-zinc-800 text-zinc-500 text-[10px] font-black uppercase tracking-widest hover:bg-zinc-800 hover:text-white transition-all font-fix"
-            >
-              <span className="material-symbols-outlined text-sm">arrow_back</span>
-              <span className="text-[10px] font-black uppercase tracking-widest">Abort Selection</span>
-            </button>
-          ) : (
-            <div className="flex items-center gap-2 px-6 py-2.5 text-cyan-500/40 text-[10px] font-black uppercase tracking-widest font-fix">
-              <span className="material-symbols-outlined text-sm">lock</span>
-              Neural Link Finalized
-            </div>
-          )}
-
+        {/* 🚀 修正: 不要な ABORT SELECTION ボタンを完全に消去し、Confirmボタンを右寄せ */}
+        <div className="px-8 py-5 border-t border-white/5 bg-black/40 flex items-center justify-end shrink-0 text-left">
           <div className={`flex flex-col items-end gap-2 transition-all duration-500 ${pendingSelection && !getLockInfo(pendingSelection.id) ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
             <p className="text-zinc-500 text-[9px] uppercase tracking-[0.2em] font-black italic font-fix">
               Initialize synchronization with <span className="text-orange-500 underline underline-offset-4">'{pendingSelection?.name}'</span>?
