@@ -275,7 +275,7 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
                 <>
                   <div className="flex items-center gap-2 text-orange-500 mb-3"><span className="material-symbols-outlined">map</span><h3 className="text-xl font-black uppercase tracking-widest">Cebu Conquest</h3></div>
                   <p className="text-slate-300 text-sm leading-relaxed">
-                    セブ島を舞台にしたリアルタイムタクティカルゲーム。味方と連携し、陣地を拡大してアーキペラゴ（群島）の覇者となれ。
+                    セブ島を舞台にしたリアルタイムタクティカルゲーム。敵と領地を取り合い、陣地を拡大してアーキペラゴ（群島）の覇者となれ。
                   </p>
                 </>
               )}
