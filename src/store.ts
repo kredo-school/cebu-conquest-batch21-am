@@ -62,6 +62,7 @@ export interface Player {
   location?: number | null;
   selectedGodId?: number | null;
   godId?: number | null;
+  godColor?: string | null;   // ★ 追加: CSS用カラー文字列（#rrggbb）
   occupancy?: number;
   baseIsland?: string;
   isNpc?: boolean;
