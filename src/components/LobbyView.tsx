@@ -4,16 +4,13 @@ import socket from '../socket';
 import { useGameStore, Player } from '../store';
 import SoundManager from '../game/SoundManager';
 import { GlobalNavbar } from './layout/GlobalNavbar';
-import { CustomButton } from './common/CustomButton'; // 🚀 追加：統一ボタンコンポーネント
+import { CustomButton } from './common/CustomButton';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../../shared/socketEvents.js';
 
 interface LobbyPlayer extends Player {
   ready?: boolean;
 }
 
-/**
- * 🚀 PlayerCard: 「未割り当て」から「リンク確立」へのドラマチックな演出
- */
 const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: LobbyPlayer; isMe: boolean; isHost: boolean; myAvatar: string | null }) => {
   const isPlayerReady = player.isReady === true || player.ready === true;
   const avatarUrl = isMe ? myAvatar : null;
@@ -36,11 +33,7 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: LobbyPlay
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-slate-900">
             {avatarUrl ? (
-              <img 
-                src={avatarUrl} 
-                alt="avatar" 
-                className="w-full h-full object-cover animate-fadeIn" 
-              />
+              <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover animate-fadeIn" />
             ) : (
               <div className="flex flex-col items-center justify-center animate-fadeIn opacity-40">
                 <span className="material-symbols-outlined text-slate-400 text-5xl">person</span>
@@ -49,7 +42,6 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: LobbyPlay
             )}
           </div>
         )}
-        
         <div className="absolute inset-0 pointer-events-none border border-white/5 m-1"></div>
         {isHost && <div className="absolute top-2 left-2 px-2 py-0.5 bg-[#fa7000] text-[8px] font-black text-black rounded uppercase shadow-lg z-10 font-fix">HOST</div>}
         {isMe && <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-slate-900/90 text-[8px] font-black text-[#fa7000] rounded border border-[#fa7000]/30 uppercase z-10 font-fix">YOU</div>}
@@ -64,15 +56,10 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: LobbyPlay
             {isPlayerReady ? (player.playerName || player.username) : 'DECRYPTING...'}
           </span>
         </div>
-
         <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${
           isPlayerReady ? 'border-[#fa7000] bg-[#fa7000] shadow-[0_0_15px_rgba(250,112,0,0.6)]' : 'border-slate-800'
         }`}>
-          {isPlayerReady ? (
-            <span className="material-symbols-outlined text-black text-[16px] font-bold">check</span>
-          ) : (
-            <div className="w-1.5 h-1.5 bg-slate-700 rounded-full animate-ping"></div>
-          )}
+          {isPlayerReady ? <span className="material-symbols-outlined text-black text-[16px] font-bold">check</span> : <div className="w-1.5 h-1.5 bg-slate-700 rounded-full animate-ping"></div>}
         </div>
       </div>
     </div>
@@ -98,15 +85,12 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   const [copied, setCopied] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { 
-    try { SoundManager.playBgm('lobby'); } catch (_e) {} 
-  }, []);
+  useEffect(() => { try { SoundManager.playBgm('lobby'); } catch (_e) {} }, []);
 
   useEffect(() => {
     const currentCount = players.length;
     const isRoomFull = currentCount > 0 && currentCount === maxPlayers;
     const allReady = currentCount > 0 && players.every((p) => p.isReady === true || p.ready === true);
-
     if (isRoomFull && allReady) {
       addLog("🚀 分隊全員のリンク承認。神託フェーズへ移行します。");
       if (socket) socket.emit(CLIENT_EVENTS.ENTER_GOD_SELECTION, { roomId });
@@ -136,13 +120,27 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
   const handleCopyId = () => {
     if (!roomId) return;
-    navigator.clipboard.writeText(roomId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleAddNPC = () => {
-    socket.emit(CLIENT_EVENTS.ADD_NPC_REQUEST, { roomId });
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(roomId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } else {
+      const textArea = document.createElement("textarea");
+      textArea.value = roomId;
+      textArea.style.position = "absolute";
+      textArea.style.left = "-999999px";
+      document.body.prepend(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (_error) {
+        addLog("❌ ブラウザの制限でコピーできませんでした");
+      } finally {
+        textArea.remove();
+      }
+    }
   };
 
   return (
@@ -203,7 +201,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 <PlayerCard key={p.id || `player-${idx}`} player={p} isMe={p.id === myId} isHost={idx === 0} myAvatar={playerAvatar} />
               ))}
               {Array.from({ length: Math.max(0, maxPlayers - players.length) }).map((_, i) => (
-                <button key={`empty-${i}`} onClick={handleAddNPC} className="glass-panel p-4 rounded-xl border-2 border-dashed border-slate-800 flex flex-col items-center justify-center h-48 w-64 shrink-0 text-slate-600 hover:text-[#fa7000] hover:border-[#fa7000]/50 transition-all group">
+                <button key={`empty-${i}`} onClick={() => socket.emit(CLIENT_EVENTS.ADD_NPC_REQUEST, { roomId })} className="glass-panel p-4 rounded-xl border-2 border-dashed border-slate-800 flex flex-col items-center justify-center h-48 w-64 shrink-0 text-slate-600 hover:text-[#fa7000] hover:border-[#fa7000]/50 transition-all group">
                   <span className="material-symbols-outlined text-4xl mb-2 group-hover:scale-110 transition-transform">person_add</span>
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] font-fix">Deploy NPC</p>
                 </button>
@@ -237,11 +235,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest leading-none font-fix">Mission Sector</p>
                   <h3 className="text-lg font-black text-white uppercase tracking-tight leading-none font-fix italic">Cebu Island</h3>
                   <div className="h-32 w-full rounded-lg overflow-hidden relative border border-white/5 bg-slate-950 shrink-0 shadow-inner">
-                    <img 
-                      alt="Tactical Map" 
-                      className="w-full h-full object-cover opacity-100" 
-                      src="https://images.unsplash.com/photo-1518107616385-ad302215a9a8" 
-                    />
+                    <img alt="Tactical Map" className="w-full h-full object-cover opacity-100" src="https://images.unsplash.com/photo-1518107616385-ad302215a9a8" />
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <div className="w-full h-[1px] bg-[#fa7000]/30 absolute top-1/2"></div>
                       <div className="h-full w-[1px] bg-[#fa7000]/30 absolute left-1/2"></div>
@@ -251,22 +245,24 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 </div>
               </div>
 
-              {/* 🚀 修正：CustomButton に差し替えてデザインを統一 */}
-              <CustomButton 
+              {/* 🚀 修正：丸すぎず角すぎない、高級感のあるタクティカルボタン */}
+              <button 
                 onClick={handleReady}
-                variant={isReady ? "ghost" : "primary"}
-                className="w-full h-[64px] flex flex-col items-center justify-center"
+                className={`w-full h-[64px] flex flex-col items-center justify-center rounded-xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-[2px] shadow-lg
+                ${isReady 
+                  ? 'bg-slate-800 border-slate-950 text-[#fa7000] shadow-orange-950/20' 
+                  : 'bg-gradient-to-r from-orange-600 to-brand-500 border-orange-800 text-black font-black shadow-orange-500/20 hover:brightness-110'}`}
               >
                 <div className="flex items-center gap-3">
                   {isReady && <span className="material-symbols-outlined animate-pulse text-lg">lock</span>}
-                  <span className="text-2xl font-black italic tracking-widest leading-none font-fix">
+                  <span className={`text-2xl font-black italic tracking-widest leading-none font-fix`}>
                     {isReady ? 'LINK LOCKED' : 'ESTABLISH LINK'}
                   </span>
                 </div>
-                <div className={`text-[8px] font-mono tracking-[0.4em] mt-1 opacity-60 font-fix ${isReady ? 'text-[#fa7000]' : 'text-black'}`}>
+                <div className={`text-[9px] font-mono tracking-[0.4em] mt-1 opacity-80 font-fix ${isReady ? 'text-[#fa7000]' : 'text-orange-950'}`}>
                   {isReady ? 'SYNC_ACTIVE_100' : 'UPLINK_PROTOCOL_B21'}
                 </div>
-              </CustomButton>
+              </button>
 
             </div>
           </div>
