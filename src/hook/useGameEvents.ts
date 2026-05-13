@@ -113,10 +113,27 @@ export const useGameEvents = () => {
     };
 
     // 2. 🎮 試合開始通知 (gameStart / commenceOperation)
-    const handleGameBegin = () => {
+    const handleGameBegin = (_data: unknown) => {
       addLog("🎮 サーバーが作戦開始を承認。システム同期中...");
       setGameStarted(true);
       emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, { isFirstTurn: true });
+
+      // Zustand キャッシュのプレイヤー情報を Phaser へプッシュ (断絶B 修正)
+      const state = useGameStore.getState();
+      const rawPlayers = state.players;
+      if (rawPlayers && rawPlayers.length > 0) {
+        const playersMap: Record<string, unknown> = {};
+        rawPlayers.forEach((p) => {
+          const key = (p as { id?: string }).id ?? (p as { playerId?: string }).playerId;
+          if (key) playersMap[key] = p;
+        });
+        emitToPhaser(REACT_TO_PHASER.SYNC_MAP, {
+          players: playersMap,
+          districts: (state as Record<string, unknown>).districts ?? {},
+          turn: (state as Record<string, unknown>).turn ?? 0,
+          status: 'playing',
+        });
+      }
     };
 
     // 3. 🤖 NPC情報の更新受信 (npcUpdate)

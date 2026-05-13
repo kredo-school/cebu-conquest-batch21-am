@@ -3,7 +3,7 @@ import socket from "../../socket";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "../../../shared/socketEvents.js";
 import { PHASER_TO_REACT, REACT_TO_PHASER, emitToReact } from "../events/PhaserBridge";
 import { MAP_CONFIG } from "../config/mapConfig";
-import { ADJACENCY } from "../../../shared/adjacency.js";
+import { ADJACENCY, getNeighbors, SPOT_ADJACENCY, getSpotNeighbors } from "../../../shared/adjacency.js";
 import {
   GOD_SACRED_LANDS,
   getSacredDistrict,
@@ -49,6 +49,7 @@ export default class MainScene extends Phaser.Scene {
   constructor() {
     super({ key: "MainScene" });
     this.districts = {};
+    this.spots = {}; // { [5桁spotId]: { x, y, name, districtId(3桁) } }
     this.otherPlayers = {};
     this.playerStats = { hp: 100, stamina: 100, faith: 1.0, atk: 50, def: 40 };
     this.currentDistrictId = null;
@@ -104,6 +105,7 @@ export default class MainScene extends Phaser.Scene {
     this.zoomManager = new ZoomManager();
     this._setupTilemap();
     this._loadDistrictsFromTMJ();
+    this._buildSpotLookup();
     this._drawDistrictPolygons();
     // A-2: CameraController に置き換え
     this.cameraController = new CameraController(this);
@@ -134,6 +136,40 @@ export default class MainScene extends Phaser.Scene {
     window.__SCENE__ = this;
     this._setupBGMListeners();
     this._setupSEListeners();
+
+    if (import.meta.env.DEV) {
+      // コンソールから scene.debugSpotAdjacency(11101) のように呼べるようにする
+      this.debugSpotAdjacency = (spotId) => {
+        const neighbors = getSpotNeighbors(spotId);
+        const spot = this.districts[spotId];
+        console.group(`[SPOT_ADJACENCY DEBUG] spot ${spotId} (${spot?.name ?? "不明"})`);
+        if (neighbors.length === 0) {
+          console.warn("⚠️ SPOT_ADJACENCYに未定義 → shared/adjacency.js に追記が必要");
+        } else {
+          neighbors.forEach((nId) => {
+            const n = this.districts[nId];
+            console.log(`  → ${nId} (${n?.name ?? "不明"})`);
+          });
+        }
+        console.groupEnd();
+      };
+
+      // 全spotのカバレッジチェック（起動時に一度だけ実行）
+      const allSpotIds = Object.keys(this.districts)
+        .map(Number)
+        .filter((id) => id >= 10000); // 5桁 = spot
+
+      const uncovered = allSpotIds.filter((id) => !SPOT_ADJACENCY[id]);
+      if (uncovered.length > 0) {
+        console.warn(
+          `[SPOT_ADJACENCY] 未定義のspot ${uncovered.length}件:`,
+          uncovered.join(", ")
+        );
+        console.warn("→ shared/adjacency.js の SPOT_ADJACENCY に追記してください");
+      } else {
+        console.log(`[SPOT_ADJACENCY] ✅ 全${allSpotIds.length}spot定義済み`);
+      }
+    }
   }
 
   update() {
@@ -260,6 +296,16 @@ export default class MainScene extends Phaser.Scene {
         },
       },
       {
+        event: REACT_TO_PHASER.SYNC_MAP,
+        handler: (e) => {
+          const { players, districts } = e.detail ?? {};
+          if (districts && players) {
+            this._syncDistricts(districts, players);
+            this._syncPlayers(players);
+          }
+        },
+      },
+      {
         event: REACT_TO_PHASER.SET_AVATAR,
         handler: (e) => {
           const { godKey, godId } = e.detail || {};
@@ -276,19 +322,19 @@ export default class MainScene extends Phaser.Scene {
             // ② 聖地を自陣カラーで先塗り（既存処理）
             this._claimSacredLand(godId);
 
-            // ③ GDD v4.0 §3-1 準拠: 聖地districtをスポーン位置として確定
-            const sacredId = getSacredDistrict(godId);
+            // ③ GDD v4.0 §3-1 準拠: spawnSpotId(5桁)でスポーン、currentDistrictIdは3桁を保持
+            const sacredId = getSacredDistrict(godId);   // 3桁: 移動判定用
+            const spawnSpot = getSpawnSpot(godId);        // 5桁: アバター座標用
             if (sacredId != null) {
               this.isSelectionMode = false;
-              this.currentDistrictId = sacredId;
-              this._placePlayer(sacredId);
-              SoundManager.playSe('move');
+              this.currentDistrictId = sacredId;           // 3桁: ADJACENCY チェック用
+              this._placePlayer(spawnSpot ?? sacredId);    // 5桁優先、なければ3桁フォールバック
+              SoundManager.playSE('se_moving');
 
               if (import.meta.env.DEV) {
-                const spawnSpot = getSpawnSpot(godId);
                 console.log(
                   `[SET_AVATAR] godId=${godId}(${getGodName(godId)})` +
-                  ` → district=${sacredId}, spawnSpot=${spawnSpot}`
+                  ` → district=${sacredId}(3桁), spawnSpot=${spawnSpot}(5桁)`
                 );
               }
             }
@@ -305,6 +351,8 @@ export default class MainScene extends Phaser.Scene {
     this._reactListeners?.forEach(({ event, handler }) =>
       window.removeEventListener(event, handler),
     );
+    Object.values(this._spotMarkers ?? {}).forEach((m) => m.destroy());
+    this._spotMarkers = {};
     SoundManager.clearScene();
     window.removeEventListener(REACT_TO_PHASER.START_GAME_BGM, this._onStartGameBgm);
     if (this._onBattleStart)   this.game.events.off('battle:start',      this._onBattleStart);
@@ -487,6 +535,43 @@ export default class MainScene extends Phaser.Scene {
     }
   }
 
+  _buildSpotLookup() {
+    this.spots = {};
+
+    const spotLayer = this.tiledMap.getObjectLayer('spotName');
+    if (!spotLayer) {
+      if (import.meta.env.DEV) console.warn('[MainScene] spotName レイヤーが見つかりません');
+      return;
+    }
+
+    spotLayer.objects.forEach((obj) => {
+      const propVal = obj.properties?.find(
+        (prop) => prop.name === 'spot_id' || prop.name === 'id'
+      )?.value;
+      const spotId = parseInt(propVal ?? obj.name, 10);
+      if (isNaN(spotId)) return;
+
+      let cx, cy;
+      if (obj.polygon) {
+        const xs = obj.polygon.map((v) => v.x);
+        const ys = obj.polygon.map((v) => v.y);
+        cx = (obj.x + (Math.min(...xs) + Math.max(...xs)) / 2) * MAP_SCALE;
+        cy = (obj.y + (Math.min(...ys) + Math.max(...ys)) / 2) * MAP_SCALE;
+      } else {
+        cx = (obj.x + (obj.width ?? 0) / 2) * MAP_SCALE;
+        cy = (obj.y + (obj.height ?? 0) / 2) * MAP_SCALE;
+      }
+
+      const districtId = Math.floor(spotId / 100); // 14101 → 141
+
+      this.spots[spotId] = { x: cx, y: cy, name: obj.name, districtId };
+    });
+
+    if (import.meta.env.DEV) {
+      console.log('[_buildSpotLookup] spots loaded:', Object.keys(this.spots).length);
+    }
+  }
+
   _drawDistrictPolygons() {
     const w = this.tiledMap.widthInPixels * MAP_SCALE;
     const h = this.tiledMap.heightInPixels * MAP_SCALE;
@@ -566,10 +651,34 @@ export default class MainScene extends Phaser.Scene {
       // ── プレイ中：移動・攻撃フェーズ ──
       if (spotId === this.currentDistrictId) return;
 
-      const neighbors = ADJACENCY[this.currentDistrictId] ?? [];
-      if (!neighbors.includes(spotId)) {
-        this.showLog("⚠️ You cannot move to non-adjacent spots.");
+      // spot単位の隣接チェック（SPOT_ADJACENCYが唯一の正）
+      const spotNeighbors = getSpotNeighbors(this.currentDistrictId);
+
+      if (spotNeighbors.length === 0) {
+        // SPOT_ADJACENCYに未定義のspot（TMJ確認後に追記すること）
+        if (import.meta.env.DEV) {
+          console.warn(
+            `[MainScene] SPOT_ADJACENCY に spot ${this.currentDistrictId} が未定義。` +
+            `Tiledで cebu_map_本番用.tmj の spotName レイヤーを確認して追記してください。`
+          );
+        }
+        this.showLog("⚠️ Cannot determine adjacent spots. Check SPOT_ADJACENCY.");
         return;
+      }
+
+      if (!spotNeighbors.includes(spotId)) {
+        this.showLog("⚠️ You cannot move to non-adjacent spots.");
+        if (import.meta.env.DEV) {
+          console.log(
+            `[移動拒否] from=${this.currentDistrictId} → to=${spotId}` +
+            ` | 隣接spots: [${spotNeighbors.join(", ")}]`
+          );
+        }
+        return;
+      }
+
+      if (import.meta.env.DEV) {
+        console.log(`[移動許可] from=${this.currentDistrictId} → to=${spotId}`);
       }
 
       SoundManager.playSE('se_click_non_button');
@@ -678,9 +787,30 @@ export default class MainScene extends Phaser.Scene {
     d.graphics.lineStyle(2, 0xffffff, 0.4).strokePath();
   }
 
-  _placePlayer(id) {
-    const d = this.districts[normalizeId(id)];
-    if (!d) return;
+  _placePlayer(spotId) {
+    // ① 5桁 spotId で座標を直接引く（最優先）
+    let x, y;
+    const spotData = this.spots?.[Number(spotId)];
+
+    if (spotData) {
+      x = spotData.x;
+      y = spotData.y;
+    } else {
+      // ② フォールバック: 3桁 districtId で地区中心を使う
+      const districtId = Number(spotId) >= 10000
+        ? Math.floor(Number(spotId) / 100)
+        : Number(spotId);
+      const d = this.districts[normalizeId(districtId)];
+      if (!d) {
+        if (import.meta.env.DEV) {
+          console.warn(`[_placePlayer] spotId=${spotId} / districtId=${districtId} が見つかりません`);
+        }
+        return;
+      }
+      x = d.center.x;
+      y = d.center.y;
+    }
+
     if (this.player) this.player.destroy();
 
     // 画像ごとにサイズが異なる場合でも中央正方形をクロップして 48×48 に表示
@@ -690,17 +820,15 @@ export default class MainScene extends Phaser.Scene {
     const cropY = Math.floor((src.height - size) / 2);
 
     this.player = this.add
-      .image(d.center.x, d.center.y, this._avatarKey)
+      .image(x, y, this._avatarKey)
       .setCrop(cropX, cropY, size, size)
       .setDisplaySize(48, 48)
       .setDepth(1000);
 
-    // A-2: pan の代わりに startFollow で滑らかに追従
     if (!this.isSelectionMode) {
       this.cameraController?.follow(this.player);
     } else {
-      // 選択フェーズ中は追従せずに pan のみ（既存挙動維持）
-      this.cameras.main.pan(d.center.x, d.center.y, 600, "Power2");
+      this.cameras.main.pan(x, y, 600, 'Power2');
     }
   }
 
@@ -730,8 +858,35 @@ export default class MainScene extends Phaser.Scene {
       d.owner = team;
       const col =
         team === "red" ? COLOR.TEAM_RED : team === "blue" ? COLOR.TEAM_BLUE : COLOR.NEUTRAL;
-      this._redrawDistrict(d, col, team === "neutral" ? 0 : 0.7);
+      const alpha = team === "neutral" ? 0 : 0.7;
+      this._redrawDistrict(d, col, alpha);
+
+      // 地区内の全 spot にもチームカラーのマーカーを表示
+      if (team !== "neutral" && this.spots) {
+        const normalizedDId = normalizeId(dId);
+        Object.entries(this.spots).forEach(([spotIdStr, spotData]) => {
+          if (spotData.districtId === normalizedDId) {
+            this._markSpot(Number(spotIdStr), col, alpha);
+          }
+        });
+      }
     });
+  }
+
+  _markSpot(spotId, color, alpha = 0.5) {
+    if (!this._spotMarkers) this._spotMarkers = {};
+    if (this._spotMarkers[spotId]) {
+      this._spotMarkers[spotId].destroy();
+      delete this._spotMarkers[spotId];
+    }
+    if (alpha === 0 || color === COLOR.NEUTRAL) return;
+
+    const s = this.spots[spotId];
+    if (!s) return;
+
+    this._spotMarkers[spotId] = this.add
+      .circle(s.x, s.y, 8, color, alpha)
+      .setDepth(50); // district ポリゴンより上、player より下
   }
 
   _syncPlayers(players) {
@@ -742,57 +897,62 @@ export default class MainScene extends Phaser.Scene {
     this.otherPlayers = {};
 
     Object.entries(players).forEach(([playerId, data]) => {
-      const rawId =
-        data.spotId ?? // サーバーが spotId を返す場合
-        data.districtId ?? // 後方互換（旧フィールド名）
-        data.currentDistrict ?? // 後方互換
-        data.pos; // 最終フォールバック
-      const dId = normalizeId(rawId);
-
-      if (!dId) {
-        if (import.meta.env.DEV) {
-          console.warn(
-            `[MainScene] Player ${playerId} (${data.username}) has no valid districtId:`,
-            data,
-          );
-        }
-        return;
-      }
 
       if (playerId === socket.id) {
+        // ── 自プレイヤー ──
         this._myTeam = data.team?.toLowerCase() ?? null;
-        this.currentDistrictId = dId;
-        this._placePlayer(dId);
+
+        // spawnSpotId（5桁）を優先。なければ districtId（3桁）で代用
+        const spawnId = data.spotId ?? data.districtId ?? data.currentDistrict;
+        if (spawnId == null) return;
+
+        // currentDistrictId は移動判定用なので3桁に変換して保存
+        this.currentDistrictId = Number(spawnId) >= 10000
+          ? Math.floor(Number(spawnId) / 100)
+          : normalizeId(spawnId);
+
+        this._placePlayer(spawnId); // 5桁 spotId をそのまま渡す
         this.isSelectionMode = false;
         return;
       }
 
-      const d = this.districts[dId];
-      if (d && d.center) {
-        const isNpc = data.isNpc === true;
-        const dotColor = isNpc ? 0xff00ff : COLOR.ENEMY_DOT;
-
-        const dot = this.add
-          .circle(d.center.x, d.center.y, 16, dotColor)
-          .setDepth(900)
-          .setStrokeStyle(5, 0x000000);
-
-        let label = null;
-        if (isNpc) {
-          label = this.add
-            .text(d.center.x, d.center.y - 24, "🤖", {
-              fontSize: "16px",
-              stroke: "#000",
-              strokeThickness: 2,
-            })
-            .setOrigin(0.5)
-            .setDepth(901);
-        }
-
-        this.otherPlayers[playerId] = { dot, label };
-      } else if (import.meta.env.DEV) {
-        console.warn(`[MainScene] District ${dId} not found for player ${playerId}`);
+      // ── 他プレイヤー / NPC ── (ドット表示は districtId レベル)
+      let rawDistrictId = data.districtId ?? data.currentDistrict ?? data.pos;
+      if (rawDistrictId == null && data.spotId != null) {
+        rawDistrictId = Math.floor(Number(data.spotId) / 100);
       }
+      const dId = normalizeId(rawDistrictId);
+      if (!dId) {
+        if (import.meta.env.DEV) {
+          console.warn(`[_syncPlayers] Player ${playerId} (${data.username}) no valid id:`, data);
+        }
+        return;
+      }
+
+      const d = this.districts[dId];
+      if (!d?.center) {
+        if (import.meta.env.DEV) {
+          console.warn(`[_syncPlayers] district ${dId} not in Phaser for ${playerId}`);
+        }
+        return;
+      }
+
+      const isNpc = data.isNpc === true;
+      const dot = this.add
+        .circle(d.center.x, d.center.y, 16, isNpc ? 0xff00ff : COLOR.ENEMY_DOT)
+        .setDepth(900)
+        .setStrokeStyle(5, 0x000000);
+
+      let label = null;
+      if (isNpc) {
+        label = this.add
+          .text(d.center.x, d.center.y - 24, 'NPC', {
+            fontSize: '14px', fill: '#ff00ff', stroke: '#000', strokeThickness: 2,
+          })
+          .setOrigin(0.5)
+          .setDepth(901);
+      }
+      this.otherPlayers[playerId] = { dot, label };
     });
   }
 
