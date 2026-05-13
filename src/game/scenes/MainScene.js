@@ -568,7 +568,7 @@ export default class MainScene extends Phaser.Scene {
 
       const neighbors = ADJACENCY[this.currentDistrictId] ?? [];
       if (!neighbors.includes(spotId)) {
-        this.showLog("⚠️ 隣接していないスポットには行動できません。");
+        this.showLog("⚠️ You cannot move to non-adjacent spots.");
         return;
       }
 
