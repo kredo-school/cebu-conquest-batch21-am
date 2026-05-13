@@ -4,7 +4,7 @@ import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
-import { getSpawnSpot, getSacredDistrict } from '../shared/godSacredLands.js';
+import { getSpawnSpot, getSacredDistrict, GOD_SACRED_LANDS } from '../shared/godSacredLands.js';
 import { getNeighbors } from '../shared/adjacency.js';
 
 const app = express();
@@ -27,45 +27,47 @@ const TEAM_CONFIG = [
 ];
 
 // ==========================================
-// 🚀 【神の聖地設定】8神体制対応マスタ (K-1対応)
-// ==========================================
-const GOD_SACRED_LANDS = {
-    1: { sacredDistrictId: "11101" }, // Maya Port
-    2: { sacredDistrictId: "11105" }, // Central Cebu
-    3: { sacredDistrictId: "11113" }, // Bogo Hilltop
-    4: { sacredDistrictId: "11119" }, // Marine Giant
-    5: { sacredDistrictId: "13101" }, // IT Park
-    6: { sacredDistrictId: "13204" }, // Basilica
-    7: { sacredDistrictId: "11120" }, // Heritage Gourmet
-    8: { sacredDistrictId: "11117" }, // Sacred Spring
-};
-
-// ==========================================
 // 🚀 【27地区マスタ】すべての地区のバフと優先度
 // ==========================================
 const DISTRICTS_MASTER = {
-    "11101": { name: "Maya Port（マヤ港）", priority: 5, buff: { atk: 8, def: 8 } },
-    "11102": { name: "Sugarcane Field（サトウキビ畑）", priority: 4, buff: { atk: 5, def: 5 } },
-    "11103": { name: "Northern Hills（北の丘）", priority: 5, buff: { atk: 10, def: 5 } },
-    "11104": { name: "Coastal Road（沿岸道路）", priority: 4, buff: { atk: 5, def: 10 } },
-    "11105": { name: "Central Cebu（セブ中央）", priority: 6, buff: { atk: 8, def: 8 } },
-    "11106": { name: "Harbor Gate（港門）", priority: 5, buff: { atk: 10, def: 5 } },
-    "11108": { name: "Farmer House（農家）", priority: 3, buff: { atk: 5, def: 5 } },
-    "11109": { name: "River Crossing（川渡り）", priority: 4, buff: { atk: 5, def: 10 } },
-    "11112": { name: "Bogo Transit Terminal（ボゴバスターミナル）", priority: 7, buff: { atk: 5, def: 15 } },
-    "11113": { name: "Bogo Hilltop Shrine（ボゴ丘の神社）", priority: 8, buff: { atk: 12, def: 12 } },
-    "11115": { name: "Coastal Outpost（沿岸前哨基地）", priority: 5, buff: { atk: 10, def: 5 } },
-    "11116": { name: "Western Ridge（西の尾根）", priority: 5, buff: { atk: 8, def: 8 } },
-    "11117": { name: "Sacred Spring（聖泉）", priority: 6, buff: { atk: 0, def: 20 } },
-    "11118": { name: "Jungle Path（ジャングルの道）", priority: 4, buff: { atk: 10, def: 5 } },
-    "11119": { name: "Marine Giant（海の巨人）", priority: 10, buff: { atk: 25, def: 0 } },
-    "11120": { name: "Heritage Gourmet（ヘリテージグルメ）", priority: 8, buff: { atk: 0, def: 25 } },
-    "11121": { name: "Sunset Cove（夕日の入り江）", priority: 6, buff: { atk: 10, def: 10 } },
-    "13101": { name: "IT Park（ITパーク）", priority: 9, buff: { atk: 15, def: 10 } },
-    "13102": { name: "Waterfront Hotel（ウォーターフロントホテル）", priority: 7, buff: { atk: 10, def: 10 } },
-    "13103": { name: "Ayala Malls Center（アヤラモール）", priority: 8, buff: { atk: 5, def: 15 } },
-    "13201": { name: "Carbon Market（カーボンマーケット）", priority: 6, buff: { atk: 8, def: 8 } },
-    "13204": { name: "Basilica del Santo Nino（サント・ニーニョ大聖堂）", priority: 9, buff: { atk: 0, def: 25 } },
+    // Cebu & Mactan (1000)
+    "111": { name: "Northern Reach (Daanbantayan)", priority: 5, buff: { atk: 8, def: 8 } },
+    "112": { name: "Cane Fields Lagoon (Medellin)", priority: 4, buff: { atk: 5, def: 5 } },
+    "113": { name: "The Transit Crossroad (Bogo City)", priority: 8, buff: { atk: 12, def: 12 } },
+    "121": { name: "The Verdant Escarpment (Carmen)", priority: 5, buff: { atk: 5, def: 10 } },
+    "122": { name: "Ironforge Bay (Danao)", priority: 6, buff: { atk: 8, def: 8 } },
+    "123": { name: "Sentinel's Gate (Compostela)", priority: 7, buff: { atk: 10, def: 5 } },
+    "131": { name: "Neon Citadel (Cebu City North)", priority: 9, buff: { atk: 15, def: 10 } },
+    "132": { name: "Grand Heritage Ruins (Cebu City South)", priority: 9, buff: { atk: 0, def: 25 } },
+    "133": { name: "The Cargo Canal (Mandaue)", priority: 6, buff: { atk: 8, def: 8 } },
+    "134": { name: "Lechon Bastion (Talisay)", priority: 7, buff: { atk: 10, def: 10 } },
+    "141": { name: "Luminous Power Spire (Naga)", priority: 6, buff: { atk: 10, def: 10 } },
+    "142": { name: "Ancient Meat Fortress (Carcar)", priority: 8, buff: { atk: 0, def: 20 } },
+    "143": { name: "The Torta Sanctuary (Argao)", priority: 5, buff: { atk: 5, def: 5 } },
+    "151": { name: "Sardine Storm Reefs (Moalboal)", priority: 7, buff: { atk: 5, def: 15 } },
+    "152": { name: "Peak of the Ancients (Dalaguete)", priority: 8, buff: { atk: 15, def: 5 } },
+    "153": { name: "Whale Shark Abyss (Oslob)", priority: 10, buff: { atk: 25, def: 0 } },
+    "161": { name: "The Chief's Victory Landing (Lapu-Lapu)", priority: 8, buff: { atk: 12, def: 12 } },
+    "162": { name: "Roseate Mangrove Gardens (Cordova)", priority: 5, buff: { atk: 5, def: 10 } },
+
+    // Negros (2000)
+    "211": { name: "Sweetleaf Plains (Victorias)", priority: 5, buff: { atk: 5, def: 5 } },
+    "212": { name: "Cadiz Copper Port (Cadiz)", priority: 6, buff: { atk: 8, def: 8 } },
+    "221": { name: "Heritage Manor (Silay)", priority: 7, buff: { atk: 5, def: 15 } },
+    "222": { name: "Masked Citadel (Bacolod City)", priority: 9, buff: { atk: 15, def: 10 } },
+    "231": { name: "Titan's Rest (Canlaon City)", priority: 8, buff: { atk: 10, def: 15 } },
+    "232": { name: "Mist-Walker Cliffs (San Carlos)", priority: 6, buff: { atk: 8, def: 8 } },
+    "241": { name: "Silliman University", priority: 8, buff: { atk: 10, def: 10 } },
+    "242": { name: "The Gentle Core (Dumaguete)", priority: 7, buff: { atk: 8, def: 8 } },
+    "243": { name: "Witch's Shadow Isle (Siquijor)", priority: 6, buff: { atk: 15, def: 0 } },
+
+    // Bohol (3000)
+    "311": { name: "The Coral Guard (Talibon)", priority: 6, buff: { atk: 5, def: 10 } },
+    "312": { name: "Gale Winds Pier (Tubigon)", priority: 5, buff: { atk: 8, def: 5 } },
+    "321": { name: "Cone Hill Monoliths (Carmen)", priority: 7, buff: { atk: 10, def: 10 } },
+    "322": { name: "Tarsier Forest (Corella)", priority: 6, buff: { atk: 5, def: 5 } },
+    "331": { name: "Ivory Sands Resort (Panglao)", priority: 8, buff: { atk: 10, def: 10 } },
+    "332": { name: "Merchant's Hub (Tagbilaran)", priority: 9, buff: { atk: 10, def: 15 } }
 };
 
 // ==========================================
