@@ -907,22 +907,29 @@ export default class MainScene extends Phaser.Scene {
       const isMyTerritory = targetOwner === this._myTeam;
       const isNeutral = targetOwner === "neutral";
 
+      // 5桁のspotIdから3桁のdistrictIdを算出（算術変換、文字列スライス禁止）
+      const districtId = Math.floor(spotId / 100);
+      // 3桁キーから地区データを取得（spotName レイヤーではなくdistrictNameレイヤーのエントリ）
+      const districtEntry = this.districts[districtId];
+      const districtName = districtEntry?.name ?? String(districtId);
+
       if (import.meta.env.DEV) {
         console.log('[emitToReact 直前] SELECT_DISTRICT payload:', {
-          districtId:   spotId,
-          districtName: d?.name ?? String(spotId),
+          spotId,                       // ← 元の5桁IDも参照用に残す
+          districtId,                   // ← 変換後の3桁ID
+          districtName,
           isMyTerritory,
           isNeutral,
         });
       }
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
-        districtId: spotId,
-        districtName: d?.name ?? String(spotId),
+        districtId,        // ← 3桁の districtId を送信
+        districtName,      // ← 地区名（spot名ではなく地区名）
         isMyTerritory,
         isNeutral,
       });
 
-      this.showLog(isMyTerritory ? `🚚 移動先: ${d?.name}` : `🎯 攻撃対象: ${d?.name}`);
+      this.showLog(isMyTerritory ? `🚚 移動先: ${districtName}` : `🎯 攻撃対象: ${districtName}`);
     }
   }
 
