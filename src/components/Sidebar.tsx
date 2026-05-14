@@ -163,7 +163,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
                     {ap <= 0 ? '⚠ Energy Depleted' : 'Energy'}
                 </span>
                 <span className={`text-[10px] font-black font-mono ${ap <= 0 ? 'text-red-500' : (buffs.ap ? 'text-cyan-400' : 'text-slate-400')}`}>
-                    {displayAp}/{effectiveMaxAp}%
+                    {displayAp}/{effectiveMaxAp}
                 </span>
               </div>
               <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
