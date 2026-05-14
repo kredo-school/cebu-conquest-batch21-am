@@ -3,175 +3,96 @@ require_once __DIR__ . '/api-cors.php';
 require_once __DIR__ . '/../db_connection.php';
 require_once 'jwt-helper.php';
 
-// ★追加：HTTPメソッド制限（POST以外を弾き、405を返す）
+// HTTPメソッド制限
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-  http_response_code(405);
-  echo json_encode([
-    'status' => 'error',
-    'message' => 'Method Not Allowed. This endpoint requires POST.'
-  ]);
-  exit;
+    http_response_code(405);
+    exit(json_encode(['status' => 'error', 'message' => 'Method Not Allowed']));
 }
 
-// --- JWT認証チェック (検問) ---
+// --- JWT認証チェック ---
 $headers = getallheaders();
 $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
-
-if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-  $jwt = $matches[1];
-  $userData = validateJWT($jwt);
-
-  if (!$userData) {
+if (!preg_match('/Bearer\s(\S+)/', $authHeader, $matches) || !($userData = validateJWT($matches[1]))) {
     http_response_code(401);
-    echo json_encode(['status' => 'error', 'message' => '無効なトークンです']);
-    exit;
-  }
-} else {
-  http_response_code(401);
-  echo json_encode(['status' => 'error', 'message' => '認証が必要です']);
-  exit;
+    exit(json_encode(['status' => 'error', 'message' => 'Unauthorized']));
 }
 
-// JWTからユーザーIDを取得（なりすまし防止のため、こちらを優先）
 $userId = (int)$userData['user_id'];
 
 try {
-  $json = file_get_contents('php://input');
-  $data = json_decode($json, true);
+    $json = file_get_contents('php://input');
+    $data = json_decode($json, true);
 
-  // バリデーション
-  if (empty($data['territory_id'])) {
-    echo json_encode(['status' => 'error', 'message' => '陣地IDが不足しています']);
-    exit();
-  }
-
-  $spotId = (int)$data['territory_id'];
-
-  // ここで消費スタミナを一括管理！後からすぐ変更できる
-  $staminaCost = 5;
-
-  // トランザクション開始（スタミナ減少と占領をセットで確実に行う）
-  $pdo->beginTransaction();
-
-  // 1. 狙った陣地の「名前」と「占領コスト」を取得する
-  $stmtSpot = $pdo->prepare("SELECT capture_cost, name FROM spots WHERE id = ?");
-  $stmtSpot->execute([$spotId]);
-  $spot = $stmtSpot->fetch(PDO::FETCH_ASSOC);
-
-  if (!$spot) {
-    $pdo->rollBack();
-    echo json_encode(['status' => 'error', 'message' => '存在しない陣地です']);
-    exit();
-  }
-  // $cost = (int)$territory['capture_cost'];//陣地ごとにコストを変えたくなった時に必要になるコード
-  $spotName = $spot['name'];
-
-  // 2. ユーザーの現在のスタミナを取得
-  $stmtUser = $pdo->prepare("SELECT stamina FROM users WHERE id = ? FOR UPDATE");
-  $stmtUser->execute([$userId]);
-  $user = $stmtUser->fetch(PDO::FETCH_ASSOC);
-
-  if (!$user) {
-    $pdo->rollBack();
-    echo json_encode(['status' => 'error', 'message' => "User not found"]);
-    exit();
-  }
-
-  // 3. スタミナが足りるかチェック！
-  if ($user['stamina'] < $staminaCost) {
-    $pdo->rollBack();
-    echo json_encode([
-      'status'  => 'error',
-      'message' => 'Not enough stamina! (Required: ' . $staminaCost . ' / Current: ' . $user['stamina'] . ')'
-    ]);
-    exit();
-  }
-
-  // 4. 陣地の状態をチェックして奪う
-  $stmtCheck = $pdo->prepare("SELECT user_id FROM occupations WHERE spot_id = ?");
-  $stmtCheck->execute([$spotId]);
-  $existingOcc = $stmtCheck->fetch(PDO::FETCH_ASSOC);
-
-  if ($existingOcc && $existingOcc['user_id'] == $userId) {
-    // 自分の陣地なら、ここで即終了
-    $pdo->rollBack();
-    echo json_encode([
-      'status'  => 'error',
-      'message' => "This is already your territory!"
-    ]);
-    exit();
-  }
-  // 自分の陣地ではない（＝更新が必要）と分かったので、ここで初めて「ロック」をかける
-  // ※ ON DUPLICATE KEY UPDATE や UPDATE 文が走る直前にかけるのが理想的
-  $stmtLock = $pdo->prepare("SELECT spot_id FROM occupations WHERE spot_id = ? FOR UPDATE");
-  $stmtLock->execute([$spotId]);
-
-  // メッセージの出し分けだけしておく
-  if ($existingOcc) {
-    // 敵の陣地を奪った
-    $message = "You captured \"{$spotName}\" from the enemy! (Stamina -{$staminaCost})";
-  } else {
-    // 新しく占領した
-    $message = "You have newly occupied \"{$spotName}\"! (Stamina -{$staminaCost})";
-  }
-
-  // 5. 占領実行
-  $sqlCapture = "INSERT INTO occupations (spot_id, user_id, occupied_at)
-                 VALUES (?, ?, NOW())
-                 ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), occupied_at = NOW()";
-  $stmtCap = $pdo->prepare($sqlCapture);
-  $stmtCap->execute([$spotId, $userId]);
-
-  // 6. スタミナを消費して保存
-  $stmtUpdateUser = $pdo->prepare("UPDATE users SET stamina = stamina - ? WHERE id = ?");
-  $stmtUpdateUser->execute([$staminaCost, $userId]);
-  $newStamina = $user['stamina'] - $staminaCost;
-
-  // 7. アイテムドロップ判定（新機能！）
-  $droppedItemName = null;
-
-  // その陣地に設定されているアイテムを探す
-  $stmtItem = $pdo->prepare("SELECT id, name FROM items WHERE spot_id = ?");
-  $stmtItem->execute([$spotId]);
-  $item = $stmtItem->fetch(PDO::FETCH_ASSOC);
-
-  if ($item) {
-    // ドロップ確率の計算（現在はテスト用で 100% ドロップ）
-    // ※ 本番では rand(1, 100) <= 30 のようにして30%などに調整
-    $dropChance = 100;
-
-    if (rand(1, 100) <= $dropChance) {
-      $itemId = $item['id'];
-      $droppedItemName = $item['name'];
-
-      // カバン（user_items）に入れる。すでに持っていたら個数(quantity)を+1する
-      $sqlDrop = "INSERT INTO user_items (user_id, item_id, quantity)
-                  VALUES (?, ?, 1)
-                  ON DUPLICATE KEY UPDATE quantity = quantity + 1";
-      $stmtDrop = $pdo->prepare($sqlDrop);
-      $stmtDrop->execute([$userId, $itemId]);
+    // バリデーション: マルチプレイ識別のための room_key は必須
+    if (empty($data['territory_id']) || empty($data['room_key'])) {
+        throw new Exception('Missing territory_id or room_key');
     }
-  }
 
-  $pdo->commit();
+    $spotId = (int)$data['territory_id'];
+    $roomKey = $data['room_key'];
+    $staminaCost = 5; // GDD 2-1準拠: 1アクション 5消費
 
-  // 結果の返却
-  $response = [
-    'status'        => 'success',
-    'message'       => "“{$spotName}” has been captured! (Consumed {$staminaCost} Stamina)", // "「{$spotName}」を占領しました！（スタミナを {$cost} 消費）"
-    'new_stamina'   => $newStamina,
-    'spot_id'     => $spotId
-  ];
+    $pdo->beginTransaction();
 
-  // アイテムがドロップしていたら結果に追加する
-  if ($droppedItemName) {
-    $response['dropped_item'] = $droppedItemName;
-    $response['message'] .= "You've also obtained  “{$droppedItemName}”!"; //"\nさらに「{$droppedItemName}」をゲットしました！";
-  }
+    // 1. ユーザーのスタミナ確認と行ロック (不正防止)
+    $stmtUser = $pdo->prepare("SELECT stamina FROM users WHERE id = ? FOR UPDATE");
+    $stmtUser->execute([$userId]);
+    $user = $stmtUser->fetch();
+    if (!$user || (int)$user['stamina'] < $staminaCost) {
+        throw new Exception('Not enough stamina');
+    }
 
-  echo json_encode($response, JSON_UNESCAPED_UNICODE);
+    // 2. ターゲット陣地の存在確認
+    $stmtSpot = $pdo->prepare("SELECT name FROM spots WHERE id = ?");
+    $stmtSpot->execute([$spotId]);
+    $spot = $stmtSpot->fetch();
+    if (!$spot) throw new Exception('Target spot not found');
+
+    // 3. 同じルーム内での自陣チェック
+    $stmtCheck = $pdo->prepare("SELECT user_id FROM occupations WHERE spot_id = ? AND room_key = ?");
+    $stmtCheck->execute([$spotId, $roomKey]);
+    $existing = $stmtCheck->fetch();
+    if ($existing && (int)$existing['user_id'] === $userId) {
+        throw new Exception('Already your territory in this room');
+    }
+
+    // 4. 占領実行 (マルチルーム対応: room_keyを保存)
+    $sqlCapture = "INSERT INTO occupations (spot_id, user_id, room_key, occupied_at)
+                   VALUES (?, ?, ?, NOW())
+                   ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), occupied_at = NOW()";
+    $pdo->prepare($sqlCapture)->execute([$spotId, $userId, $roomKey]);
+
+    // 5. スタミナ減算
+    $pdo->prepare("UPDATE users SET stamina = stamina - ? WHERE id = ?")->execute([$staminaCost, $userId]);
+    $newStamina = (int)$user['stamina'] - $staminaCost;
+
+    // 6. アイテムドロップ判定 (100%固定)
+    $droppedItem = null;
+    $stmtItem = $pdo->prepare("SELECT id, name FROM items WHERE spot_id = ? LIMIT 1");
+    $stmtItem->execute([$spotId]);
+    $item = $stmtItem->fetch();
+
+    if ($item) {
+        // user_itemsテーブルへ永続化
+        $pdo->prepare("INSERT INTO user_items (user_id, item_id, quantity)
+                       VALUES (?, ?, 1)
+                       ON DUPLICATE KEY UPDATE quantity = quantity + 1")
+            ->execute([$userId, $item['id']]);
+        $droppedItem = ['id' => (int)$item['id'], 'name' => $item['name']];
+    }
+
+    $pdo->commit();
+
+    echo json_encode([
+        'status'      => 'success',
+        'message'     => "“{$spot['name']}” captured!",
+        'new_stamina' => $newStamina,
+        'spot_id'     => $spotId,
+        'dropped_item' => $droppedItem
+    ], JSON_UNESCAPED_UNICODE);
+
 } catch (Exception $e) {
-  if ($pdo->inTransaction()) $pdo->rollBack();
-  http_response_code(500);
-  echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+    http_response_code(400);
+    echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
 }
