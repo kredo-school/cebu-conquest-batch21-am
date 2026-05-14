@@ -575,7 +575,7 @@ export default class MainScene extends Phaser.Scene {
             y: poly.reduce((s, v) => s + v.y, 0) / poly.length,
           },
           owner: "neutral",
-          graphics: this.add.graphics().setDepth(2),
+          graphics: this.add.graphics().setDepth(layerName === 'spotName' ? 3 : 2)
         };
         this._redrawDistrict(this.districts[districtId], COLOR.NEUTRAL, 0);
       });
@@ -894,18 +894,21 @@ export default class MainScene extends Phaser.Scene {
   _redrawDistrict(d, color, alpha = 0) {
     if (!d || !d.graphics) return;
     d.graphics.clear();
+
+    // spotName 以外（district / area / island）は塗りもアウトラインも描画しない
+    if (d.type !== 'spotName') return;
+
     if (alpha > 0) d.graphics.fillStyle(color, alpha);
     d.graphics.beginPath();
     d.polygon.forEach((p, i) =>
       i === 0 ? d.graphics.moveTo(p.x, p.y) : d.graphics.lineTo(p.x, p.y),
     );
+
     d.graphics.closePath();
     if (alpha > 0) d.graphics.fillPath();
-    d.graphics.lineStyle(2, 0xffffff, 0.4).strokePath();
 
-    if (d.type === 'spotName') {
-      this._updateSpotOutline(d, false);
-    }
+    d.graphics.lineStyle(2, 0xffffff, 0.7).strokePath();
+
   }
 
   /**
