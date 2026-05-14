@@ -85,14 +85,15 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   const [copied, setCopied] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { try { SoundManager.playBgm('lobby'); } catch (_e) {} }, []);
+  // 🚀 修正: BGM再生の useEffect は AudioController が担当するため削除
 
   useEffect(() => {
     const currentCount = players.length;
     const isRoomFull = currentCount > 0 && currentCount === maxPlayers;
     const allReady = currentCount > 0 && players.every((p) => p.isReady === true || p.ready === true);
     if (isRoomFull && allReady) {
-      addLog("🚀 分隊全員のリンク承認。神託フェーズへ移行します。");
+      // 🚀 英語化対応
+      addLog("🚀 Squad links synchronized. Initiating Oracle Phase.");
       if (socket) socket.emit(CLIENT_EVENTS.ENTER_GOD_SELECTION, { roomId });
       onStart(); 
     }
@@ -136,7 +137,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       } catch (_error) {
-        addLog("❌ ブラウザの制限でコピーできませんでした");
+        // 🚀 英語化対応
+        addLog("❌ Copy failed due to security constraints.");
       } finally {
         textArea.remove();
       }
@@ -245,17 +247,17 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 </div>
               </div>
 
-              {/* 🚀 修正：丸すぎず角すぎない、高級感のあるタクティカルボタン */}
+              {/* 🚀 修正：丸すぎず角すぎない、厚みのある高級なボタン */}
               <button 
                 onClick={handleReady}
-                className={`w-full h-[64px] flex flex-col items-center justify-center rounded-xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-[2px] shadow-lg
+                className={`w-full h-[64px] flex flex-col items-center justify-center rounded-xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-[2px] shadow-lg shrink-0
                 ${isReady 
-                  ? 'bg-slate-800 border-slate-950 text-[#fa7000] shadow-orange-950/20' 
-                  : 'bg-gradient-to-r from-orange-600 to-brand-500 border-orange-800 text-black font-black shadow-orange-500/20 hover:brightness-110'}`}
+                  ? 'bg-slate-800 border-slate-950 text-[#fa7000] shadow-orange-950/20 active:brightness-90' 
+                  : 'bg-gradient-to-r from-orange-600 to-brand-500 border-orange-800 text-black font-black shadow-orange-500/20 hover:brightness-110 active:brightness-90'}`}
               >
                 <div className="flex items-center gap-3">
                   {isReady && <span className="material-symbols-outlined animate-pulse text-lg">lock</span>}
-                  <span className={`text-2xl font-black italic tracking-widest leading-none font-fix`}>
+                  <span className="text-2xl font-black italic tracking-widest leading-none font-fix">
                     {isReady ? 'LINK LOCKED' : 'ESTABLISH LINK'}
                   </span>
                 </div>
