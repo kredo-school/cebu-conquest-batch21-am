@@ -18452,7 +18452,7 @@
         {
          "columns":64,
          "firstgid":4225,
-         "image":"..\/tilesets\/\u6c34(\u4e00\u756a\u660e\u308b\u3044\u6c34).png",
+         "image":"..\/tilesets\/water_bright.png",
          "imageheight":192,
          "imagewidth":2048,
          "margin":0,
@@ -18465,7 +18465,7 @@
         {
          "columns":64,
          "firstgid":4609,
-         "image":"..\/tilesets\/\u6ce2.png",
+         "image":"..\/tilesets\/waves.png",
          "imageheight":192,
          "imagewidth":2048,
          "margin":0,
@@ -18478,7 +18478,7 @@
         {
          "columns":32,
          "firstgid":4993,
-         "image":"..\/tilesets\/\u6edd.png",
+         "image":"..\/tilesets\/waterfall.png",
          "imageheight":192,
          "imagewidth":1024,
          "margin":0,
