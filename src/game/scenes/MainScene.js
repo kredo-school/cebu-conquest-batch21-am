@@ -29,6 +29,10 @@ const COLOR = {
   ENEMY_DOT: 0xffffff,
   TEAM_RED: 0xff4d4d,
   TEAM_BLUE: 0x00ffff,
+  OUTLINE_NEUTRAL:  0xffffff,
+  OUTLINE_MY_TEAM:  0x06b6d4,
+  OUTLINE_ENEMY:    0xff4444,
+  OUTLINE_SELECTED: 0xfa7000,
 };
 
 const normalizeId = (id) => {
@@ -116,6 +120,7 @@ export default class MainScene extends Phaser.Scene {
     this._loadDistrictsFromTMJ();
     this._buildSpotLookup();
     this._drawDistrictPolygons();
+    this._drawSpotOutlines();
     // A-2: CameraController に置き換え
     this.cameraController = new CameraController(this);
     this.cameraController.setup(this.tiledMap, MAP_SCALE);
@@ -652,6 +657,58 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
+  _drawSpotOutlines() {
+    Object.values(this.districts).forEach(d => {
+      if (d.type !== 'spotName') return;
+      const g = this.add.graphics().setDepth(3);
+      d.outlineGraphics = g;
+      this._updateSpotOutline(d);
+    });
+
+    if (import.meta.env.DEV) {
+      const count = Object.values(this.districts).filter(d => d.type === 'spotName').length;
+      console.log(`[SpotOutline] ${count}件のspotアウトラインを描画しました`);
+    }
+  }
+
+  _updateSpotOutline(d, isSelected = false) {
+    if (!d || !d.outlineGraphics || d.type !== 'spotName') return;
+
+    const g = d.outlineGraphics;
+    g.clear();
+
+    let color, lineWidth, alpha;
+
+    if (isSelected) {
+      color     = COLOR.OUTLINE_SELECTED;
+      lineWidth = 2.5;
+      alpha     = 1.0;
+    } else {
+      const owner = (d.owner ?? 'neutral').toLowerCase();
+      if (owner === this._myTeam) {
+        color     = COLOR.OUTLINE_MY_TEAM;
+        lineWidth = 2;
+        alpha     = 0.7;
+      } else if (owner !== 'neutral') {
+        color     = COLOR.OUTLINE_ENEMY;
+        lineWidth = 2;
+        alpha     = 0.7;
+      } else {
+        color     = COLOR.OUTLINE_NEUTRAL;
+        lineWidth = 1.5;
+        alpha     = 0.35;
+      }
+    }
+
+    g.lineStyle(lineWidth, color, alpha);
+    g.beginPath();
+    d.polygon.forEach((p, i) => {
+      i === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y);
+    });
+    g.closePath();
+    g.strokePath();
+  }
+
   // ─── ポインター入力（優先順位: spot > district > area）──────────
 
   _setupPointerInput() {
@@ -684,8 +741,14 @@ export default class MainScene extends Phaser.Scene {
     if (this.isSelectionMode) {
       // ── 初期スポット選択フェーズ ──
       SoundManager.playSE("se_click_non_button");
-      Object.values(this.districts).forEach((dist) => this._redrawDistrict(dist, COLOR.NEUTRAL));
+      Object.values(this.districts)
+        .filter(dist => dist.type === 'spotName')
+        .forEach(dist => {
+          this._redrawDistrict(dist, COLOR.NEUTRAL);
+          this._updateSpotOutline(dist, false);
+        });
       this._redrawDistrict(d, COLOR.HIGHLIGHT, 0.8);
+      this._updateSpotOutline(d, true);
 
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
         districtId: spotId,
@@ -840,6 +903,10 @@ export default class MainScene extends Phaser.Scene {
     d.graphics.closePath();
     if (alpha > 0) d.graphics.fillPath();
     d.graphics.lineStyle(2, 0xffffff, 0.4).strokePath();
+
+    if (d.type === 'spotName') {
+      this._updateSpotOutline(d, false);
+    }
   }
 
   /**
@@ -1048,6 +1115,11 @@ export default class MainScene extends Phaser.Scene {
     const lod = this.zoomManager.getLodType(zoom);
     Object.values(this.districts).forEach((d) => {
       if (d.textLabel) d.textLabel.setVisible(d.type === lod);
+
+      if (d.outlineGraphics) {
+        const showOutline = (lod === 'districtName' || lod === 'spotName');
+        d.outlineGraphics.setVisible(showOutline);
+      }
     });
   }
 
