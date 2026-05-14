@@ -91,6 +91,14 @@ function pointInPolygon(point, polygon) {
   return inside;
 }
 
+// point オブジェクト用: 中心 (cx, cy) に半径 r の正 sides 角形を生成
+function makePointPolygon(cx, cy, r = 20, sides = 8) {
+  return Array.from({ length: sides }, (_, i) => {
+    const angle = (2 * Math.PI * i) / sides;
+    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+  });
+}
+
 export default class MainScene extends Phaser.Scene {
   constructor() {
     super({ key: "MainScene" });
@@ -364,16 +372,36 @@ export default class MainScene extends Phaser.Scene {
         handler: (e) => {
           const { players, districts } = e.detail ?? {};
 
+          // players が配列（新形式）でもオブジェクト（旧形式）でも両対応
+          const playersArray = Array.isArray(players)
+            ? players
+            : Object.entries(players ?? {}).map(([id, data]) => ({ id, ...data }));
+
           // ★ playerMap を構築: { [playerId]: { godId } }
           const playerMap = {};
-          (players ?? []).forEach((p) => {
+          playersArray.forEach((p) => {
             playerMap[p.id] = { godId: p.godId ?? p.selectedGodId ?? null };
           });
 
+          // districts が配列でもオブジェクトでも両対応してルックアップマップを構築
+          const districtOwnerMap = {};
+          if (Array.isArray(districts)) {
+            // 配列形式: [{ district_id: 16201, owner_id: "socketId" }, ...]
+            districts.forEach((dd) => {
+              const id = dd.district_id ?? dd.id;
+              if (id != null) districtOwnerMap[Number(id)] = dd.owner_id ?? dd.owner ?? "neutral";
+            });
+          } else {
+            // オブジェクト形式: { "16201": "socketId", ... }（サーバーの実際の形式）
+            Object.entries(districts ?? {}).forEach(([id, ownerId]) => {
+              districtOwnerMap[Number(id)] = ownerId ?? "neutral";
+            });
+          }
+
           // ★ 全地区を神カラーで再描画
           Object.values(this.districts).forEach((d) => {
-            const ownerInfo = (districts ?? []).find((dd) => dd.district_id === d.id);
-            this._repaintDistrictByOwner(d, ownerInfo?.owner_id ?? "neutral", playerMap);
+            const ownerId = districtOwnerMap[d.id] ?? "neutral";
+            this._repaintDistrictByOwner(d, ownerId, playerMap);
           });
 
           if (players) this._syncPlayers(players);
@@ -609,17 +637,28 @@ export default class MainScene extends Phaser.Scene {
             : normalizeId(obj.properties?.[0]?.name ?? obj.id); // island/area/districtは従来通り
         if (!districtId) return;
 
-        const poly = (obj.polygon || []).map((p) => ({
-          x: (obj.x + p.x) * MAP_SCALE,
-          y: (obj.y + p.y) * MAP_SCALE,
-        }));
-        if (poly.length === 0) return;
+        // polygon あり → そのまま変換
+        // polygon なし（point オブジェクト）→ 仮想ポリゴンを合成
+        let poly;
+        let isPoint = false;
+        if (obj.polygon && obj.polygon.length > 0) {
+          poly = obj.polygon.map((p) => ({
+            x: (obj.x + p.x) * MAP_SCALE,
+            y: (obj.y + p.y) * MAP_SCALE,
+          }));
+        } else {
+          // point オブジェクト: 中心座標に正8角形の仮想ポリゴンを合成
+          poly = makePointPolygon(obj.x * MAP_SCALE, obj.y * MAP_SCALE, 20);
+          isPoint = true;
+        }
+        if (poly.length === 0) return; // 安全装置（通常は通らない）
 
         this.districts[districtId] = {
           id: districtId,
           name: obj.name,
           type: layerName,
           polygon: poly,
+          isPoint,   // ← true なら point オブジェクト由来の仮想ポリゴン
           center: {
             x: poly.reduce((s, v) => s + v.x, 0) / poly.length,
             y: poly.reduce((s, v) => s + v.y, 0) / poly.length,
@@ -766,25 +805,14 @@ export default class MainScene extends Phaser.Scene {
       const worldX = pointer.worldX;
       const worldY = pointer.worldY;
 
-      // 優先1: spotName レイヤーでヒット判定
+      // spot レイヤーでヒット判定（point 仮想ポリゴン対応済み）
       const hitSpot = this._findObjectAt("spotName", worldX, worldY);
       if (hitSpot) {
         this._handleSpotClick(hitSpot);
         return;
       }
-
-      // 優先2: districtName レイヤーでフォールバック判定
-      // spotの隙間をクリックした際、district単位で SELECT_DISTRICT を発火する
-      const hitDistrict = this._findObjectAt("districtName", worldX, worldY);
-      if (hitDistrict) {
-        if (import.meta.env.DEV) {
-          console.log('[_setupPointerInput] districtName フォールバックヒット:', hitDistrict.name);
-        }
-        this._handleDistrictClick(hitDistrict);
-        return;
-      }
-
-      // district / area / island のみのクリックは対象外
+      // spot 以外のクリックは無視（ゲームは spot 単位で完結）
+      // districtName フォールバック削除: 3桁IDの誤送信を防ぐ
     });
   }
 
@@ -1224,15 +1252,34 @@ export default class MainScene extends Phaser.Scene {
         // ── 自プレイヤー ──
         this._myTeam = data.team?.toLowerCase() ?? null;
 
-        // spawnSpotId（5桁）を優先。なければ districtId（3桁）で代用
         const spawnId = data.spotId ?? data.districtId ?? data.currentDistrict;
         if (spawnId == null) return;
 
-        // currentDistrictId は移動判定用なので3桁に変換して保存
-        this.currentDistrictId =
-          Number(spawnId) >= 10000 ? Math.floor(Number(spawnId) / 100) : normalizeId(spawnId);
+        const serverSpotId   = Number(spawnId) >= 10000 ? Number(spawnId) : null;
+        const serverDistrict = Number(spawnId) >= 10000
+          ? Math.floor(Number(spawnId) / 100)
+          : normalizeId(spawnId);
 
-        this._placePlayer(spawnId); // 5桁 spotId をそのまま渡す
+        // ★ SET_AVATAR で既にスポーン済みの場合はサーバーの古いデータで位置を上書きしない
+        // （サーバーが5桁spotIdを返してきた場合のみ位置を更新する）
+        if (this.currentSpotId != null && serverSpotId == null) {
+          // SET_AVATAR 済み + サーバーが spotId を持っていない → 現在位置を維持
+          this.currentDistrictId = serverDistrict ?? this.currentDistrictId;
+          this.isSelectionMode = false;
+          return;
+        }
+
+        // ★ currentSpotId を必ず設定する（from=null 防止）
+        if (serverSpotId != null) {
+          this.currentSpotId     = serverSpotId;
+          this.currentDistrictId = serverDistrict;
+        } else {
+          // サーバーが3桁IDしか持っていない場合は district 情報だけ更新
+          this.currentDistrictId = serverDistrict;
+          // currentSpotId は変更しない（SET_AVATAR の値を維持）
+        }
+
+        this._placePlayer(spawnId);
         this.isSelectionMode = false;
         return;
       }
