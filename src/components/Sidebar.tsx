@@ -24,7 +24,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
   const hp = useGameStore(state => state.hp);
   const maxHp = useGameStore(state => state.maxHp);
   const ap = useGameStore(state => state.ap);
-  const maxAp = useGameStore(state => state.maxAp || 100); // 🚀 最大APを取得
+  const maxAp = useGameStore(state => state.maxAp || 100); 
   const turn = useGameStore(state => state.turn);
   const logs = useGameStore(state => state.logs);
   const atk = useGameStore(state => state.atk);
@@ -37,10 +37,14 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
   const lookupData = useGameStore(state => state.lookupData);
   const selectedGodId = useGameStore(state => state.selectedGodId);
 
-  // 🚀 バフ計算 & 実効最大値の算出
+  // 🚀 1. 実効最大値の算出（バフを反映）
   const buffs = useMemo(() => (selectedGodId ? GOD_BUFFS[selectedGodId] : {}), [selectedGodId]);
   const effectiveMaxHp = useMemo(() => maxHp + (buffs.hp || 0), [maxHp, buffs.hp]);
   const effectiveMaxAp = useMemo(() => maxAp + (buffs.ap || 0), [maxAp, buffs.ap]);
+
+  // 🚀 2. 【バグ修正】現在値が表示上の最大値を超えないように制限（クランプ）
+  const displayHp = useMemo(() => Math.min(hp, effectiveMaxHp), [hp, effectiveMaxHp]);
+  const displayAp = useMemo(() => Math.min(ap, effectiveMaxAp), [ap, effectiveMaxAp]);
 
   const territorySummary = useMemo(() => {
     const myDistricts = Object.entries(districts)
@@ -136,16 +140,19 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
           </div>
 
           <div className="space-y-4">
-            {/* HP ゲージ (最大値拡張反映) */}
+            {/* HP ゲージ (最大値拡張反映 & 100/90バグ回避) */}
             <div className="space-y-2">
               <div className="flex justify-between items-end">
                 <span className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Vitality</span>
                 <span className={`text-[10px] font-black font-mono ${buffs.hp ? 'text-orange-400' : 'text-slate-400'}`}>
-                    {hp}/{effectiveMaxHp}
+                    {displayHp}/{effectiveMaxHp}
                 </span>
               </div>
               <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-                <div className="h-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] transition-all duration-500" style={{ width: `${(hp / effectiveMaxHp) * 100}%` }} />
+                <div 
+                  className="h-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] transition-all duration-500" 
+                  style={{ width: `${(displayHp / effectiveMaxHp) * 100}%` }} 
+                />
               </div>
             </div>
 
@@ -156,12 +163,14 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
                     {ap <= 0 ? '⚠ Energy Depleted' : 'Energy'}
                 </span>
                 <span className={`text-[10px] font-black font-mono ${ap <= 0 ? 'text-red-500' : (buffs.ap ? 'text-cyan-400' : 'text-slate-400')}`}>
-                    {ap}/{effectiveMaxAp}%
+                    {displayAp}/{effectiveMaxAp}%
                 </span>
               </div>
               <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-                <div className={`h-full transition-all duration-500 ${ap <= 0 ? 'bg-red-600' : 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]'}`} 
-                     style={{ width: `${(ap / effectiveMaxAp) * 100}%` }} />
+                <div 
+                  className={`h-full transition-all duration-500 ${ap <= 0 ? 'bg-red-600' : 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]'}`} 
+                  style={{ width: `${(displayAp / effectiveMaxAp) * 100}%` }} 
+                />
               </div>
             </div>
 
