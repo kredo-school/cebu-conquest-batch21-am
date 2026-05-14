@@ -1,5 +1,3 @@
-// src/socket-server/server.js
-
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -326,8 +324,9 @@ async function handleGameOver(roomId, playerIds) {
                     'Authorization': `Bearer ${winner.token}`
                 },
                 body: JSON.stringify({
-                    winner_id: winner.dbUserId || 1,
-                    loser_id: loser?.dbUserId || 2,
+                    room_key: roomId,             // 💡 必須：なおさんのDB検証に必要
+                    winner_id: winner.dbUserId,    // 💡 修正：固定値ではなくDB上のユーザーIDを使用
+                    loser_id: loser?.dbUserId,     // 💡 修正：敗者のDB ID
                     winner_score: scores[winnerId],
                     loser_score: scores[loserId] || 0
                 })
@@ -831,7 +830,10 @@ io.on('connection', (socket) => {
                             const response = await fetch(`${API_BASE_URL}capture.php`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${p.token}` },
-                                body: JSON.stringify({ territory_id: parseInt(targetId) })
+                                body: JSON.stringify({
+                                    room_key: roomId,        // 💡 必須：occupationsテーブルの隔離用
+                                    territory_id: parseInt(targetId)
+                                })
                             });
                             const dbResult = await response.json();
                             console.log(`✅ [Room ${roomId} DB] 陣地 ${targetId} 制圧:`, dbResult.message || dbResult);
