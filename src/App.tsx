@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import socket from './socket';
-import { useGameStore, MasterData, GameState } from './store';
+// 🚀 修正：GameState は使わなくなったのでインポートから削除
+import { useGameStore, MasterData } from './store';
 
 // ✅ コンポーネントのインポート
 import { Sidebar } from './components/Sidebar';
@@ -21,28 +22,28 @@ import { HelpModal } from './components/HelpModal';
 import { InventoryModal } from './components/InventoryModal'; 
 import { TutorialView } from './components/TutorialView'; 
 import { ErrorNotification } from './components/ErrorNotification'; 
-// ✅ AudioController が音響を一括管理
 import { AudioController } from './components/AudioController';
 
 import { useGameEvents } from './hook/useGameEvents';
-import { PHASER_TO_REACT, REACT_TO_PHASER } from './game/events/PhaserBridge';
+// 🚀 修正：PHASER_TO_REACT は useGameEvents でのみ使うため削除
+import { REACT_TO_PHASER } from './game/events/PhaserBridge';
 import { SERVER_EVENTS } from '../shared/socketEvents.js';
 import { stopBGM } from './hook/useBGM';
 
 const App: React.FC = () => {
+  // 🛰️ Phaser信号とサーバーイベントを監視（けいさんの指示内容）
   useGameEvents();
 
   const { 
     addLog, playerName: storePlayerName, token, hasSeenTutorial, 
-    setZoomLevel, isGameOver, roomId, players, setView, view,
-    authenticatedFetch, setLookupData, syncServerState, myId,
-    updateSelectedDistrict, updateStatsFromPhaser
+    isGameOver, roomId, players, setView, view,
+    authenticatedFetch, setLookupData, syncServerState, myId
+    // 🚀 修正：未使用エラーの原因（setZoomLevel, updateSelectedDistrict, updateStatsFromPhaser）を削除
   } = useGameStore(useShallow(state => ({
     addLog: state.addLog,
     playerName: state.playerName,
     token: state.token,
     hasSeenTutorial: state.hasSeenTutorial,
-    setZoomLevel: state.setZoomLevel,
     isGameOver: state.isGameOver,
     roomId: state.roomId,
     players: state.players,
@@ -51,9 +52,7 @@ const App: React.FC = () => {
     authenticatedFetch: state.authenticatedFetch,
     setLookupData: state.setLookupData,
     syncServerState: state.syncServerState,
-    myId: state.myId,
-    updateSelectedDistrict: state.updateSelectedDistrict,
-    updateStatsFromPhaser: state.updateStatsFromPhaser
+    myId: state.myId
   })));
   
   const gameRef = useRef<PhaserGameHandle | null>(null);
@@ -64,7 +63,7 @@ const App: React.FC = () => {
   const [showInventory, setShowInventory] = useState(false); 
   const [playerName, setLocalPlayerName] = useState('');
 
-  // ✅ ゲーム開始時：HTML側の waiting BGM を停止してから Phaser 側に BGM 開始を通知
+  // ゲーム開始時：BGMの切り替え
   useEffect(() => {
     if (view === 'game') {
       stopBGM();
@@ -114,7 +113,7 @@ const App: React.FC = () => {
     }, 2500);
   }, [isDeploying, setView]);
 
-  // サーバー & Phaser 信号の監視
+  // 🚀 修正：Phaser専用のリスナー（STATS_UPDATED等）は useGameEvents に移動したため削除
   useEffect(() => {
     if (!socket) return;
 
@@ -131,33 +130,11 @@ const App: React.FC = () => {
     socket.on(SERVER_EVENTS.COMMENCE_OPERATION, handleCommence);
     socket.on(SERVER_EVENTS.GAME_START, handleCommence); 
 
-    const handleZoomUpdate = (e: Event) => {
-      const ce = e as CustomEvent<{ zoom: number }>;
-      setZoomLevel(ce.detail.zoom ?? 1.0);
-    };
-
-    const handleUpdateStatus = (e: Event) => {
-      const ce = e as CustomEvent<Partial<GameState>>;
-      updateStatsFromPhaser(ce.detail); 
-    };
-
-    const handleSelectDistrict = (e: Event) => {
-      const ce = e as CustomEvent<{ districtId: number; districtName: string; isMyTerritory: boolean; isNeutral: boolean }>;
-      updateSelectedDistrict(ce.detail); 
-    };
-    
-    window.addEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
-    window.addEventListener(PHASER_TO_REACT.ZOOM_UPDATED, handleZoomUpdate);
-    window.addEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleSelectDistrict);
-
     return () => {
       socket.off(SERVER_EVENTS.COMMENCE_OPERATION, handleCommence);
       socket.off(SERVER_EVENTS.GAME_START, handleCommence);
-      window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleUpdateStatus);
-      window.removeEventListener(PHASER_TO_REACT.ZOOM_UPDATED, handleZoomUpdate);
-      window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleSelectDistrict);
     };
-  }, [triggerDeploySequence, setZoomLevel, addLog, syncServerState, myId, updateStatsFromPhaser, updateSelectedDistrict]);
+  }, [triggerDeploySequence, addLog, syncServerState, myId]);
 
   const handleLoginSubmit = async (name: string) => {
     setLocalPlayerName(name);
@@ -221,7 +198,15 @@ const App: React.FC = () => {
             <PhaserGameView ref={gameRef} playerName={playerName || storePlayerName} />
             <HUD />
             <BattleModal />
-            {isGameOver && <ResultView onRestart={() => window.location.reload()} onOpenRanking={handleOpenRanking} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} />}
+            {/* 🚀 HP0敗北時にバグと思わせないよう、Phaser画面の上にリザルトを重ねる */}
+            {isGameOver && (
+              <ResultView 
+                onRestart={() => window.location.reload()} 
+                onOpenRanking={handleOpenRanking} 
+                onOpenSettings={() => setShowSettings(true)} 
+                onOpenHelp={() => setShowHelp(true)} 
+              />
+            )}
           </main>
         </div>
       );
@@ -235,7 +220,7 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-screen h-screen bg-slate-950 text-slate-200 overflow-hidden select-none">
-      {/* 🚀 音響の司令塔：view を監視して自動で BGM を切り替える */}
+      {/* 🚀 音響の司令塔 */}
       <AudioController />
 
       <div className="w-full h-full relative overflow-hidden touch-pan-y custom-scrollbar text-left">
