@@ -1,0 +1,258 @@
+/* ============================================================
+   Cebu Conquest — Custom Reveal.js Theme
+   Based on DESIGN_TOKENS.md (extracted 2026-05-07)
+   Theme: Tactical × Tropical × Cyberpunk
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+
+/* ── CSS Variables (Design Tokens) ── */
+:root {
+  --brand-orange:    #fa7000;
+  --tactical-orange: #ea580c;
+  --orange-hover:    #f97316;
+  --tactical-cyan:   #06b6d4;
+  --neon-cyan:       #22d3ee;
+
+  --bg-base:    #020617;
+  --bg-panel:   #0f172a;
+  --bg-card:    rgba(15, 23, 42, 0.6);
+  --border-dim: #1e293b;
+
+  --text-white:  #f1f5f9;
+  --text-light:  #e2e8f0;
+  --text-muted:  #64748b;
+
+  --green-ok:  #22c55e;
+  --red-err:   #ef4444;
+
+  --glass-bg:      rgba(10, 10, 10, 0.85);
+  --orange-glow-lo: rgba(249, 115, 22, 0.2);
+  --orange-glow-md: rgba(249, 115, 22, 0.3);
+  --orange-glow-hi: rgba(249, 115, 22, 0.8);
+  --cyan-glow:      rgba(34, 211, 238, 0.8);
+}
+
+/* ── Reveal.js Root Overrides ── */
+.reveal-viewport {
+  background: var(--bg-base);
+}
+
+.reveal {
+  font-family: 'Inter', sans-serif;
+  font-size: 36px;
+  font-weight: 400;
+  color: var(--text-white);
+}
+
+.reveal .slides {
+  text-align: left;
+}
+
+.reveal .slides section {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* ── Headings ── */
+.reveal h1, .reveal h2, .reveal h3, .reveal h4 {
+  font-family: 'Inter', sans-serif;
+  color: var(--text-white);
+  text-transform: none;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5em;
+  line-height: 1.1;
+}
+
+.reveal h1 { font-size: 3.75rem; font-weight: 900; }
+.reveal h2 { font-size: 2.25rem; font-weight: 700; }
+.reveal h3 { font-size: 1.5rem;  font-weight: 700; }
+.reveal h4 { font-size: 1.25rem; font-weight: 700; }
+.reveal p  { font-size: 1rem;    font-weight: 400; line-height: 1.6; }
+
+/* ── Links ── */
+.reveal a { color: var(--neon-cyan); text-decoration: none; }
+.reveal a:hover { color: var(--brand-orange); }
+
+/* ── Code ── */
+.reveal code {
+  font-family: 'Courier New', monospace;
+  background: rgba(255,255,255,0.08);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  font-size: 0.85em;
+  color: var(--neon-cyan);
+}
+
+/* ── Progress Bar ── */
+.reveal .progress {
+  background: rgba(255,255,255,0.07);
+  color: var(--brand-orange);
+  height: 4px;
+}
+
+/* ── Slide Number ── */
+.reveal .slide-number {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: transparent;
+  right: 16px;
+  bottom: 16px;
+}
+
+/* ── Controls ── */
+.reveal .controls button { color: var(--brand-orange); }
+.reveal .controls button:hover { color: var(--orange-hover); }
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+
+/* Glitch text — hero heading effect */
+@keyframes glitch-text {
+  0%   { text-shadow: none; }
+  2%   { text-shadow: -2px 0 #ef4444, 2px 0 var(--neon-cyan); }
+  4%   { text-shadow: none; }
+  20%  { text-shadow: none; }
+  22%  { text-shadow: 2px 0 #ef4444, -2px 0 var(--neon-cyan); }
+  24%  { text-shadow: none; }
+  60%  { text-shadow: none; }
+  62%  { text-shadow: -3px 0 #ef4444, 3px 0 var(--neon-cyan); letter-spacing: 0.02em; }
+  64%  { text-shadow: none; letter-spacing: -0.02em; }
+  100% { text-shadow: none; }
+}
+
+/* Holographic flicker — logo glow */
+@keyframes holographic-flicker {
+  0%,100% { text-shadow: 0 0 8px var(--brand-orange), 0 0 20px rgba(250,112,0,0.4); opacity: 1; }
+  30%      { text-shadow: 0 0 4px var(--brand-orange); opacity: 0.9; }
+  50%      { text-shadow: 0 0 20px var(--brand-orange), 0 0 40px rgba(250,112,0,0.6); opacity: 1; }
+  70%      { text-shadow: 0 0 2px var(--brand-orange); opacity: 0.85; }
+}
+
+/* Scanline vertical scroll */
+@keyframes scanline-move {
+  0%   { background-position: 0 0; }
+  100% { background-position: 0 100vh; }
+}
+
+/* Fade in */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Pulse glow */
+@keyframes pulse-glow {
+  0%,100% { box-shadow: 0 0 8px var(--brand-orange); }
+  50%      { box-shadow: 0 0 24px var(--brand-orange), 0 0 40px rgba(250,112,0,0.4); }
+}
+
+/* HP/AP bar fill */
+@keyframes barFill {
+  from { width: 0; }
+  to   { width: var(--bar-width, 100%); }
+}
+
+/* ============================================================
+   UTILITY CLASSES
+   ============================================================ */
+
+/* Colors */
+.text-orange  { color: var(--brand-orange); }
+.text-cyan    { color: var(--neon-cyan); }
+.text-muted   { color: var(--text-muted); }
+.text-green   { color: var(--green-ok); }
+.text-red     { color: var(--red-err); }
+.text-white   { color: var(--text-white); }
+
+/* Neon glow text */
+.glow-orange {
+  text-shadow: 0 0 10px var(--brand-orange), 0 0 20px rgba(250,112,0,0.5);
+}
+.glow-cyan {
+  text-shadow: 0 0 10px var(--neon-cyan), 0 0 20px rgba(34,211,238,0.5);
+}
+
+/* Animated glitch heading */
+.glitch-text {
+  animation: glitch-text 6s infinite;
+  color: var(--text-white);
+}
+
+/* Holographic flicker */
+.holo-flicker {
+  animation: holographic-flicker 4s ease-in-out infinite;
+}
+
+/* Glass panel */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--orange-glow-lo);
+  border-radius: 1rem;
+  padding: 1.5rem;
+}
+
+/* Card */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-dim);
+  border-radius: 1rem;
+  padding: 1.25rem;
+}
+.card:hover,
+.card.active {
+  border-color: var(--orange-hover);
+  box-shadow: 0 0 30px var(--orange-glow-md);
+}
+
+/* Neon badge */
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.badge-orange {
+  background: var(--orange-glow-lo);
+  border: 1px solid var(--brand-orange);
+  color: var(--brand-orange);
+}
+.badge-cyan {
+  background: rgba(6,182,212,0.15);
+  border: 1px solid var(--tactical-cyan);
+  color: var(--neon-cyan);
+}
+
+/* Section title bar */
+.section-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--brand-orange);
+  border-left: 3px solid var(--brand-orange);
+  padding-left: 0.6em;
+  margin-bottom: 0.75em;
+}
+
+/* Divider line */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border-dim);
+  margin: 1rem 0;
+}
+.divider-orange {
+  border-top-color: var(--orange-glow-lo);
+}
+
+/* Fade-in on fragment */
+.reveal .fragment.fade-up {
+  animation: fadeIn 0.5s ease both;
+}

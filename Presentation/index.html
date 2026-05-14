@@ -1,0 +1,2027 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cebu Conquest — Batch 21 AM Presentation</title>
+
+    <!-- Reveal.js (CDN) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" />
+
+    <!-- Google Fonts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Custom theme & slide styles -->
+    <link rel="stylesheet" href="css/theme.css" />
+    <link rel="stylesheet" href="css/slides.css" />
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <!-- ■ OPENING ───────────────────────────────────────── -->
+
+        <!-- Slide 1: Title -->
+        <section>
+          <div class="title-slide">
+            <img
+              src="assets/reference/GI-Project_Logo.png"
+              alt="Cebu Conquest Logo"
+              class="title-logo"
+            />
+            <h1 class="title-main glitch-text text-orange">CEBU CONQUEST</h1>
+            <!-- <h2 style="font-size:1.6rem;font-weight:700;color:var(--text-muted);margin:0;">
+          セブ獲り合戦
+        </h2> -->
+            <p class="title-sub">A Real-Time Territory Battle Game Set in Cebu Island</p>
+            <hr class="divider divider-orange" style="width: 200px; margin: 1.25rem auto" />
+            <p class="title-batch">Batch 21 AM &nbsp;·&nbsp; Kredo IT School &nbsp;·&nbsp; 2026</p>
+          </div>
+        </section>
+
+        <!-- Slide 2: Team Introduction -->
+        <section>
+          <div class="section-label">Team</div>
+          <h2 class="section-title">Meet the Team</h2>
+          <div class="team-grid">
+            <div class="team-member">
+              <div class="photo-placeholder" data-member="Akira">
+                📷<br />Add photo:<br />Akira.jpg
+              </div>
+              <div class="team-name text-orange">Akira</div>
+              <div class="team-role">Phaser.js &amp; Map Design</div>
+            </div>
+
+            <div class="team-member">
+              <div class="photo-placeholder" data-member="Issei">
+                📷<br />Add photo:<br />Issei.jpg
+              </div>
+              <div class="team-name text-orange">Issei</div>
+              <div class="team-role">React + TypeScript</div>
+            </div>
+
+            <div class="team-member">
+              <div class="photo-placeholder" data-member="Kei">📷<br />Add photo:<br />Kei.jpg</div>
+              <div class="team-name text-orange">Kei</div>
+              <div class="team-role">Socket.IO + Node.js</div>
+            </div>
+
+            <div class="team-member">
+              <div class="photo-placeholder" data-member="Nao">📷<br />Add photo:<br />Nao.jpg</div>
+              <div class="team-name text-orange">Nao</div>
+              <div class="team-role">PHP + MySQL</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 3: Game Concept -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Concept</div>
+            <h2>Game Concept</h2>
+            <p
+              style="
+                font-size: 1.5rem;
+                font-weight: 700;
+                color: var(--neon-cyan);
+                margin-bottom: 1.25rem;
+              "
+            >
+              "Conquer Cebu Island —<br />One District at a Time"
+            </p>
+            <!-- Add screenshot: screenshots/game-overview.png -->
+            <div class="screenshot-placeholder" data-screenshot="game-overview">
+              <span class="placeholder-icon">🗺️</span>
+              <span>Game Overview Screenshot</span>
+              <span class="placeholder-hint">Add: assets/screenshots/game-overview.png</span>
+            </div>
+            <div class="keyword-chips" style="margin-top: 1.25rem">
+              <span class="keyword-chip">Strategy</span>
+              <span class="keyword-chip">Real-Time</span>
+              <span class="keyword-chip">Multiplayer</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 4: Why Cebu Island? -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Background</div>
+            <h2>Why Cebu Island?</h2>
+            <div style="display: flex; flex-direction: column; gap: 0.9rem; margin-top: 1rem">
+              <div class="card">
+                <div class="badge badge-orange" style="margin-bottom: 0.5rem">Home Base</div>
+                <p style="margin: 0; font-size: 0.88rem">
+                  We study and live in Cebu, Philippines — this island is our everyday world.
+                  Building a game set here made the project personal and meaningful.
+                </p>
+              </div>
+              <div class="card">
+                <div class="badge badge-cyan" style="margin-bottom: 0.5rem">Local Knowledge</div>
+                <p style="margin: 0; font-size: 0.88rem">
+                  Real districts, real geography — the 5-island, 32-district map mirrors actual
+                  administrative areas of Cebu, grounding gameplay in a real place.
+                </p>
+              </div>
+              <div class="card">
+                <div class="badge badge-orange" style="margin-bottom: 0.5rem">School Spirit</div>
+                <p style="margin: 0; font-size: 0.88rem">
+                  Kredo IT School is located in Cebu. The 8 gods in the game are inspired by our
+                  teachers and mentors — a small tribute from Batch 21 AM.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 5: Project Goals -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Goals</div>
+            <h2>Project Goals</h2>
+            <div class="two-col" style="margin-top: 1rem">
+              <div>
+                <h3 class="text-orange" style="margin-bottom: 0.75rem">MVP Target</h3>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem">
+                  <div class="win-item primary">
+                    <span>🎯</span>
+                    <span>Move → Capture → Battle core cycle fully playable</span>
+                  </div>
+                  <div class="win-item primary">
+                    <span>👥</span>
+                    <span>Real-time 4-player + NPC over LAN</span>
+                  </div>
+                  <div class="win-item primary">
+                    <span>🗺️</span>
+                    <span>Full 8,000 × 9,600 px Cebu map with LOD zoom</span>
+                  </div>
+                  <div class="win-item primary">
+                    <span>⚔️</span>
+                    <span>Battle formula: P = A / (A + D) server-computed</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h3 class="text-cyan" style="margin-bottom: 0.75rem">Tech Integration</h3>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem">
+                  <div class="win-item instant">
+                    <span>🎮</span>
+                    <span>Phaser.js rendering &amp; map engine</span>
+                  </div>
+                  <div class="win-item instant">
+                    <span>⚛️</span>
+                    <span>React + Zustand HUD, fully decoupled</span>
+                  </div>
+                  <div class="win-item instant">
+                    <span>🔌</span>
+                    <span>Socket.IO server as single source of truth</span>
+                  </div>
+                  <div class="win-item instant">
+                    <span>🗄️</span>
+                    <span>PHP + MySQL: auth, persistence, validation</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 6: Development Timeline -->
+        <section>
+          <div class="slide-inner top">
+            <div class="section-label">Timeline</div>
+            <h2>7-Week Sprint</h2>
+            <div class="timeline">
+              <div class="timeline-item done">
+                <span class="timeline-week"
+                  >Week 1<br /><span style="font-size: 0.65rem">3/30–4/5</span></span
+                >
+                <span class="timeline-label">Game Logic Foundation</span>
+                <span class="timeline-status text-green">✅ Done</span>
+              </div>
+              <div class="timeline-item done">
+                <span class="timeline-week"
+                  >Week 2<br /><span style="font-size: 0.65rem">4/6–4/12</span></span
+                >
+                <span class="timeline-label">Effects · UI · DB Integration</span>
+                <span class="timeline-status text-green">✅ Done</span>
+              </div>
+              <div class="timeline-item done">
+                <span class="timeline-week"
+                  >Week 3<br /><span style="font-size: 0.65rem">4/13–4/19</span></span
+                >
+                <span class="timeline-label">Full Integration Test · Production Map</span>
+                <span class="timeline-status text-green">✅ Done</span>
+              </div>
+              <div class="timeline-item done">
+                <span class="timeline-week"
+                  >Week 4<br /><span style="font-size: 0.65rem">4/20–4/26</span></span
+                >
+                <span class="timeline-label">PhaserBridge Unified · 8-God System</span>
+                <span class="timeline-status text-green">✅ Done</span>
+              </div>
+              <div class="timeline-item active">
+                <span class="timeline-week"
+                  >Week 5<br /><span style="font-size: 0.65rem">4/27–5/3</span></span
+                >
+                <span class="timeline-label">Full Map Testing · FPS Optimization</span>
+                <span class="timeline-status text-orange">🟡 Active</span>
+              </div>
+              <div class="timeline-item freeze">
+                <span class="timeline-week"
+                  >Week 6<br /><span style="font-size: 0.65rem">5/4–5/17</span></span
+                >
+                <span class="timeline-label">Code Freeze · Bug Fix Only · Demo Prep</span>
+                <span class="timeline-status text-cyan">🔒 Freeze</span>
+              </div>
+              <div
+                class="timeline-item"
+                style="border-color: var(--brand-orange); background: rgba(250, 112, 0, 0.1)"
+              >
+                <span class="timeline-week"
+                  >🎤<br /><span style="font-size: 0.65rem">May 20</span></span
+                >
+                <span class="timeline-label" style="color: var(--brand-orange); font-weight: 900"
+                  >PRESENTATION DAY</span
+                >
+                <span class="timeline-status text-orange">⭐</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ■ GAME OVERVIEW ──────────────────────────────────── -->
+
+        <!-- Slide 7: How to Play -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Gameplay</div>
+            <h2>How to Play</h2>
+            <div class="three-col" style="margin-top: 1rem">
+              <div class="card" style="text-align: center">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem">🏛️</div>
+                <div class="badge badge-orange" style="margin-bottom: 0.5rem">Step 1</div>
+                <h4 class="text-orange">Choose Your God</h4>
+                <p style="font-size: 0.75rem; margin: 0">
+                  Select 1 of 8 gods. Each grants unique stat bonuses and buffs tied to Cebu
+                  districts.
+                </p>
+              </div>
+              <div class="card" style="text-align: center">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem">📍</div>
+                <div class="badge badge-cyan" style="margin-bottom: 0.5rem">Step 2</div>
+                <h4 class="text-cyan">Deploy &amp; Capture</h4>
+                <p style="font-size: 0.75rem; margin: 0">
+                  Move across adjacent districts. Attack empty spots for free. Fight enemies with P
+                  = A/(A+D).
+                </p>
+              </div>
+              <div class="card" style="text-align: center">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem">🏆</div>
+                <div class="badge badge-orange" style="margin-bottom: 0.5rem">Step 3</div>
+                <h4 class="text-orange">Dominate in 10 Turns</h4>
+                <p style="font-size: 0.75rem; margin: 0">
+                  Hold the most districts after 10 turns — or capture everything for an instant win.
+                </p>
+              </div>
+            </div>
+            <div class="glass-panel" style="margin-top: 1.25rem; text-align: center">
+              <span style="font-size: 1rem; font-weight: 700">Core Loop: &nbsp;</span>
+              <span class="badge badge-cyan">Move (−5 AP)</span>
+              &nbsp;→&nbsp;
+              <span class="badge badge-orange">Attack (−5 AP)</span>
+              &nbsp;→&nbsp;
+              <span class="badge badge-cyan">Stay / Defend / Escape</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 8: Map Structure -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Map</div>
+            <h2>Map Structure</h2>
+            <div class="two-col" style="margin-top: 0.75rem">
+              <div>
+                <div style="display: flex; flex-direction: column; gap: 0.6rem">
+                  <div class="card">
+                    <div class="badge badge-orange" style="margin-bottom: 0.4rem">
+                      5 Islands (4-digit ID)
+                    </div>
+                    <p style="margin: 0; font-size: 0.78rem">
+                      Top-level divisions of the Cebu archipelago
+                    </p>
+                  </div>
+                  <div class="card">
+                    <div class="badge badge-cyan" style="margin-bottom: 0.4rem">
+                      13 Areas (2-digit ID)
+                    </div>
+                    <p style="margin: 0; font-size: 0.78rem">
+                      Sub-island zones that group districts by geography
+                    </p>
+                  </div>
+                  <div class="card">
+                    <div class="badge badge-orange" style="margin-bottom: 0.4rem">
+                      32 Districts (3-digit ID)
+                    </div>
+                    <p style="margin: 0; font-size: 0.78rem">
+                      Buff calculation and visual area unit
+                    </p>
+                  </div>
+                  <div
+                    class="card"
+                    style="
+                      border-color: var(--brand-orange);
+                      box-shadow: 0 0 12px var(--orange-glow-lo);
+                    "
+                  >
+                    <div class="badge badge-orange" style="margin-bottom: 0.4rem">
+                      ★ Spots (5-digit ID)
+                    </div>
+                    <p style="margin: 0; font-size: 0.78rem; color: var(--neon-cyan)">
+                      The primary move / capture / battle unit
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <!-- Add screenshot: screenshots/map-overview.png -->
+                <div
+                  class="screenshot-placeholder"
+                  data-screenshot="map-overview"
+                  style="height: 100%; min-height: 280px"
+                >
+                  <span class="placeholder-icon">🗺️</span>
+                  <span>Cebu Full Map</span>
+                  <span class="placeholder-hint">Add: assets/screenshots/map-overview.png</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 9: The 8 Gods -->
+        <section>
+          <div class="slide-inner top">
+            <div class="section-label">God System</div>
+            <h2>The 8 Gods — Buff Strategies</h2>
+            <div class="gods-grid">
+              <div class="god-card">
+                <img src="assets/reference/god_Neil.png" alt="Neil" class="god-img" />
+                <div class="god-name">Neil</div>
+                <div class="god-bonus">MAX HP +30</div>
+              </div>
+              <div class="god-card">
+                <img src="assets/reference/god_Garry.png" alt="Garry" class="god-img" />
+                <div class="god-name">Garry</div>
+                <div class="god-bonus">ATK +20</div>
+              </div>
+              <div class="god-card">
+                <img src="assets/reference/god_Shem.png" alt="Shem" class="god-img" />
+                <div class="god-name">Shem</div>
+                <div class="god-bonus">MAX AP +15</div>
+              </div>
+              <div class="god-card">
+                <img src="assets/reference/god_Quisie.png" alt="Quisie" class="god-img" />
+                <div class="god-name">Quisie</div>
+                <div class="god-bonus">FAITH 100</div>
+              </div>
+              <div class="god-card">
+                <img src="assets/reference/god_Eduardo.png" alt="Eduardo" class="god-img" />
+                <div class="god-name">Eduardo</div>
+                <div class="god-bonus">DEF +15</div>
+              </div>
+              <div class="god-card">
+                <img src="assets/reference/god_Kurt.png" alt="Kurt" class="god-img" />
+                <div class="god-name">Kurt</div>
+                <div class="god-bonus">STAMINA +30</div>
+              </div>
+              <div class="god-card">
+                <img src="assets/reference/god_Stephen.png" alt="Stephen" class="god-img" />
+                <div class="god-name">Stephen</div>
+                <div class="god-bonus">FAITH REGEN</div>
+              </div>
+              <div class="god-card">
+                <img src="assets/reference/god_Bernardine.png" alt="Bernardine" class="god-img" />
+                <div class="god-name">Bernardine</div>
+                <div class="god-bonus">MAX AP +30</div>
+              </div>
+            </div>
+            <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.6rem">
+              Select at game start · Locked for the entire match · Buffs scale with district
+              ownership
+            </p>
+          </div>
+        </section>
+
+        <!-- Slide 10: 5 Stats System -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Stats</div>
+            <h2>5-Stat System</h2>
+            <div class="stat-bars">
+              <div class="stat-row">
+                <span class="stat-label">ATK</span>
+                <div class="stat-bar-track">
+                  <div
+                    class="stat-bar-fill"
+                    style="--bar-width: 50%; background: var(--brand-orange)"
+                  ></div>
+                </div>
+                <span class="stat-value text-orange">50</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">DEF</span>
+                <div class="stat-bar-track">
+                  <div
+                    class="stat-bar-fill"
+                    style="--bar-width: 40%; background: var(--tactical-cyan)"
+                  ></div>
+                </div>
+                <span class="stat-value text-cyan">40</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">HP</span>
+                <div class="stat-bar-track">
+                  <div
+                    class="stat-bar-fill"
+                    style="--bar-width: 100%; background: var(--green-ok)"
+                  ></div>
+                </div>
+                <span class="stat-value text-green">100</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">AP</span>
+                <div class="stat-bar-track">
+                  <div class="stat-bar-fill" style="--bar-width: 100%; background: #818cf8"></div>
+                </div>
+                <span class="stat-value" style="color: #818cf8">100</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Faith</span>
+                <div class="stat-bar-track">
+                  <div
+                    class="stat-bar-fill"
+                    style="--bar-width: 100%; background: var(--brand-orange); opacity: 0.6"
+                  ></div>
+                </div>
+                <span class="stat-value text-orange">1.0×</span>
+              </div>
+            </div>
+            <div class="two-col" style="margin-top: 1.25rem; gap: 0.75rem">
+              <div class="info-card">
+                <div class="info-card-label">ATK Formula</div>
+                <div
+                  class="info-card-value"
+                  style="
+                    font-family: &quot;Courier New&quot;, monospace;
+                    font-size: 0.82rem;
+                    color: var(--neon-cyan);
+                  "
+                >
+                  (baseATK + buff) × faith
+                </div>
+              </div>
+              <div class="info-card">
+                <div class="info-card-label">Stay Recovery</div>
+                <div class="info-card-value" style="font-size: 0.82rem">
+                  HP +20 &nbsp;/&nbsp; AP +30
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 11: Battle System -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Battle</div>
+            <h2>Battle System</h2>
+            <div class="formula-box" style="margin-bottom: 1.25rem">
+              <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0 0 0.5rem">
+                Win Probability Formula
+              </p>
+              <div class="formula-text">P = A / (A + D)</div>
+              <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0.5rem 0 0">
+                A = Attacker ATK &nbsp;·&nbsp; D = Defender DEF &nbsp;·&nbsp; Computed server-side
+                only
+              </p>
+            </div>
+            <div class="two-col" style="gap: 0.75rem">
+              <div>
+                <!-- Add screenshot: screenshots/battle-scene.png -->
+                <div
+                  class="screenshot-placeholder"
+                  data-screenshot="battle-scene"
+                  style="min-height: 160px"
+                >
+                  <span class="placeholder-icon">⚔️</span>
+                  <span>Battle Scene</span>
+                  <span class="placeholder-hint">Add: assets/screenshots/battle-scene.png</span>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 0.5rem">
+                <div class="win-item primary">
+                  <span>🟢</span><span><strong>Win</strong> — you capture the enemy district</span>
+                </div>
+                <div class="win-item danger">
+                  <span>🔴</span><span><strong>Lose</strong> — you take −20 HP</span>
+                </div>
+                <div class="win-item instant">
+                  <span>💡</span><span>Example: ATK 60 vs DEF 40 → P = 60%</span>
+                </div>
+                <div class="card" style="font-size: 0.75rem">
+                  <span class="text-orange">Anti-cheat:</span> All battle math runs on the server.
+                  Clients are display-only.
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 12: Action Menu -->
+        <section>
+          <div class="slide-inner top">
+            <div class="section-label">Actions</div>
+            <h2>Action Menu</h2>
+            <table class="action-table" style="margin-top: 0.75rem">
+              <thead>
+                <tr>
+                  <th>Action</th>
+                  <th>AP Cost</th>
+                  <th>Effect</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="text-orange font-bold">Attack (empty)</span></td>
+                  <td class="text-orange">−5 AP</td>
+                  <td>Capture with no battle</td>
+                </tr>
+                <tr>
+                  <td><span class="text-red font-bold">Attack (enemy)</span></td>
+                  <td class="text-orange">−5 to −20 AP</td>
+                  <td>P = A/(A+D) · Lose → −20 HP</td>
+                </tr>
+                <tr>
+                  <td><span class="text-green">Stay</span></td>
+                  <td>0 AP</td>
+                  <td>Recover HP +20, AP +30 (max 100)</td>
+                </tr>
+                <tr>
+                  <td><span class="text-cyan">Defend</span></td>
+                  <td>0 AP</td>
+                  <td>Incoming damage halved this turn</td>
+                </tr>
+                <tr>
+                  <td><span class="text-muted">Escape</span></td>
+                  <td>0 AP</td>
+                  <td>Retreat to adjacent own spot · No exit → −50 HP</td>
+                </tr>
+                <tr>
+                  <td><span class="text-cyan">Move</span></td>
+                  <td class="text-orange">−5 AP</td>
+                  <td>Move to adjacent spot (ADJACENCY graph)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Slide 13: Win Conditions -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Victory</div>
+            <h2>Win Conditions &amp; Strategy</h2>
+            <div class="win-list" style="margin-top: 1rem">
+              <div class="win-item primary">
+                <span style="font-size: 1.2rem">🏆</span>
+                <div>
+                  <div style="font-weight: 700">Most Districts at Turn 10</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted)">
+                    Hold more spots than anyone else when the timer expires
+                  </div>
+                </div>
+              </div>
+              <div class="win-item instant">
+                <span style="font-size: 1.2rem">⚡</span>
+                <div>
+                  <div style="font-weight: 700">Full Capture — Instant Win</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted)">
+                    Occupy every district on the map before turn 10
+                  </div>
+                </div>
+              </div>
+              <div class="win-item danger">
+                <span style="font-size: 1.2rem">💀</span>
+                <div>
+                  <div style="font-weight: 700">HP = 0 — Instant Defeat</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted)">
+                    No respawn. Manage HP or you're eliminated immediately. (2-player mode)
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="glass-panel" style="margin-top: 1rem">
+              <span class="text-orange" style="font-weight: 700">Strategy tip:</span>
+              <span style="font-size: 0.82rem">
+                Capture districts to activate local buffs, then use the faith multiplier to snowball
+                into late-game dominance.</span
+              >
+            </div>
+          </div>
+        </section>
+
+        <!-- ■ LIVE DEMO ───────────────────────────────────────── -->
+
+        <!-- Slide 14: Demo Time -->
+        <section>
+          <div class="demo-slide">
+            <div class="demo-title">LIVE DEMO</div>
+            <div class="demo-subtitle">Cebu Conquest — Live Gameplay</div>
+            <div
+              style="
+                margin-top: 2rem;
+                display: flex;
+                gap: 1rem;
+                justify-content: center;
+                opacity: 0.6;
+              "
+            >
+              <img
+                src="assets/reference/god_Neil.png"
+                alt=""
+                style="width: 40px; height: 40px; object-fit: contain"
+              />
+              <img
+                src="assets/reference/god_Garry.png"
+                alt=""
+                style="width: 40px; height: 40px; object-fit: contain"
+              />
+              <img
+                src="assets/reference/god_Shem.png"
+                alt=""
+                style="width: 40px; height: 40px; object-fit: contain"
+              />
+              <img
+                src="assets/reference/god_Quisie.png"
+                alt=""
+                style="width: 40px; height: 40px; object-fit: contain"
+              />
+              <img
+                src="assets/reference/god_Eduardo.png"
+                alt=""
+                style="width: 40px; height: 40px; object-fit: contain"
+              />
+              <img
+                src="assets/reference/god_Kurt.png"
+                alt=""
+                style="width: 40px; height: 40px; object-fit: contain"
+              />
+              <img
+                src="assets/reference/god_Stephen.png"
+                alt=""
+                style="width: 40px; height: 40px; object-fit: contain"
+              />
+              <img
+                src="assets/reference/god_Bernardine.png"
+                alt=""
+                style="width: 40px; height: 40px; object-fit: contain"
+              />
+            </div>
+          </div>
+        </section>
+
+        <!-- ■ TECH STACK ─────────────────────────────────────── -->
+
+        <!-- Slide 15: System Architecture -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Architecture</div>
+            <h2>System Architecture</h2>
+            <div class="arch-diagram" style="margin-top: 0.75rem">
+              <div class="arch-layer phaser">
+                <div>
+                  <div class="arch-layer-name text-orange">Phaser.js</div>
+                  <div class="arch-layer-tech">Map · Camera · Effects · Tiled</div>
+                </div>
+                <div class="arch-layer-desc">Display only — no logic</div>
+              </div>
+              <div class="arch-arrow">⬇ PhaserBridge.ts (CustomEvent)</div>
+              <div class="arch-layer react">
+                <div>
+                  <div class="arch-layer-name text-cyan">React + Zustand</div>
+                  <div class="arch-layer-tech">HUD · God Selection · Status</div>
+                </div>
+                <div class="arch-layer-desc">Display only — no logic</div>
+              </div>
+              <div class="arch-arrow">⬇ Socket.IO (shared/socketEvents.js)</div>
+              <div class="arch-layer socket">
+                <div>
+                  <div class="arch-layer-name text-green">Socket.IO + Node.js</div>
+                  <div class="arch-layer-tech">Battle Calc · NPC · Turn Control · State</div>
+                </div>
+                <div class="arch-layer-desc">Single source of truth</div>
+              </div>
+              <div class="arch-arrow">⬇ REST API (JWT)</div>
+              <div class="arch-layer php">
+                <div>
+                  <div class="arch-layer-name" style="color: #818cf8">PHP + MySQL</div>
+                  <div class="arch-layer-tech">Auth · Persistence · Score Validation</div>
+                </div>
+                <div class="arch-layer-desc">Data only</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 16: Why This Stack? -->
+        <section>
+          <div class="slide-inner top">
+            <div class="section-label">Tech Choices</div>
+            <h2>Why This Stack?</h2>
+            <div class="stack-list" style="margin-top: 0.75rem">
+              <div class="stack-row">
+                <span class="stack-tech">Phaser.js</span>
+                <span class="stack-why"
+                  >Best-in-class 2D game engine for browser. Built-in Tiled map loader, sprite
+                  systems, and camera.</span
+                >
+              </div>
+              <div class="stack-row">
+                <span class="stack-tech">React + TypeScript</span>
+                <span class="stack-why"
+                  >Type-safe HUD components with Zustand state. Clean separation from game
+                  canvas.</span
+                >
+              </div>
+              <div class="stack-row">
+                <span class="stack-tech">Vite</span>
+                <span class="stack-why"
+                  >Instant HMR and fast builds. Works seamlessly with both React and Phaser side by
+                  side.</span
+                >
+              </div>
+              <div class="stack-row">
+                <span class="stack-tech">Socket.IO</span>
+                <span class="stack-why"
+                  >Battle calculation and state on the server — prevents client-side cheating by
+                  design.</span
+                >
+              </div>
+              <div class="stack-row">
+                <span class="stack-tech">Node.js</span>
+                <span class="stack-why"
+                  >Same JS runtime as the client. Shared data types across the whole team via
+                  socketEvents.js.</span
+                >
+              </div>
+              <div class="stack-row">
+                <span class="stack-tech">PHP + MySQL</span>
+                <span class="stack-why"
+                  >Proven REST + MAMP setup familiar to the team. JWT for stateless auth.</span
+                >
+              </div>
+              <div class="stack-row">
+                <span class="stack-tech">ZeroTier VPN</span>
+                <span class="stack-why"
+                  >Simulates LAN across machines. Lets all 4 roles dev simultaneously without a
+                  cloud server.</span
+                >
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 17: Team Collaboration & Git -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Collaboration</div>
+            <h2>Team Collaboration &amp; Git Strategy</h2>
+            <div class="two-col" style="margin-top: 0.75rem">
+              <div>
+                <h3 class="text-orange" style="margin-bottom: 0.75rem">Branch Convention</h3>
+                <div style="display: flex; flex-direction: column; gap: 0.4rem">
+                  <div
+                    class="card"
+                    style="font-family: &quot;Courier New&quot;, monospace; font-size: 0.78rem"
+                  >
+                    <span class="text-orange">feature/phaser-*</span
+                    ><span class="text-muted"> → Akira</span>
+                  </div>
+                  <div
+                    class="card"
+                    style="font-family: &quot;Courier New&quot;, monospace; font-size: 0.78rem"
+                  >
+                    <span class="text-cyan">feature/react-*</span
+                    ><span class="text-muted"> → Issei</span>
+                  </div>
+                  <div
+                    class="card"
+                    style="font-family: &quot;Courier New&quot;, monospace; font-size: 0.78rem"
+                  >
+                    <span class="text-green">feature/socket-*</span
+                    ><span class="text-muted"> → Kei</span>
+                  </div>
+                  <div
+                    class="card"
+                    style="font-family: &quot;Courier New&quot;, monospace; font-size: 0.78rem"
+                  >
+                    <span style="color: #818cf8">feature/api-*</span
+                    ><span class="text-muted"> → Nao</span>
+                  </div>
+                  <div class="card" style="font-size: 0.78rem; border-color: var(--red-err)">
+                    <span class="text-red">Direct push to main — FORBIDDEN</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h3 class="text-cyan" style="margin-bottom: 0.75rem">Parallel Development</h3>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem">
+                  <div class="win-item instant">
+                    <span>🌐</span>
+                    <span><strong>ZeroTier VPN</strong> — 4 machines, one virtual LAN</span>
+                  </div>
+                  <div class="win-item instant">
+                    <span>📝</span>
+                    <span
+                      ><strong>Interface Contracts</strong> — event names defined before
+                      coding</span
+                    >
+                  </div>
+                  <div class="win-item instant">
+                    <span>🔗</span>
+                    <span
+                      ><strong>shared/socketEvents.js</strong> — one file, everyone imports</span
+                    >
+                  </div>
+                  <div class="win-item instant">
+                    <span>🔀</span>
+                    <span>PR → Review → Merge flow enforced</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 18: Event Contract System -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Events</div>
+            <h2>Event Contract System</h2>
+            <div class="event-flow" style="margin-top: 1rem">
+              <div class="event-box phaser">
+                Phaser.js<br /><span style="font-size: 0.65rem; opacity: 0.7">Game Engine</span>
+              </div>
+              <div class="event-arrow">⟵⟶</div>
+              <div class="event-box react">
+                PhaserBridge.ts<br /><span style="font-size: 0.65rem; opacity: 0.7"
+                  >CustomEvent bus</span
+                >
+              </div>
+              <div class="event-arrow">⟵⟶</div>
+              <div class="event-box react">
+                React HUD<br /><span style="font-size: 0.65rem; opacity: 0.7">Zustand store</span>
+              </div>
+              <div class="event-arrow">⟵⟶</div>
+              <div class="event-box socket">
+                Socket.IO<br /><span style="font-size: 0.65rem; opacity: 0.7">Server</span>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1.25rem">
+              <div class="card" style="font-size: 0.8rem">
+                <span class="text-orange" style="font-weight: 700">PHASER_TO_REACT</span> constants
+                → <code>phaser:selectDistrict</code>, <code>statsUpdated</code>,
+                <code>phaser:playerMoved</code>…
+              </div>
+              <div class="card" style="font-size: 0.8rem">
+                <span class="text-cyan" style="font-weight: 700">REACT_TO_PHASER</span> constants →
+                <code>react:commandAttack</code>, <code>react:setAvatar</code>,
+                <code>react:confirmDeployment</code>…
+              </div>
+              <div class="card" style="font-size: 0.8rem">
+                <span class="text-green" style="font-weight: 700">CLIENT / SERVER EVENTS</span> →
+                <code>join_game</code>, <code>ACTION_SUBMIT</code>, <code>syncState</code>,
+                <code>gameOver</code>…
+              </div>
+              <div class="glass-panel" style="margin-top: 0.25rem; padding: 0.75rem 1rem">
+                <span class="text-red" style="font-weight: 700">Rule: </span>
+                <span style="font-size: 0.82rem"
+                  >String literals are forbidden everywhere. All event names must come from
+                  constants.</span
+                >
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ■ AKIRA'S SECTION ────────────────────────────────── -->
+
+        <!-- Slide 19: Akira's Scope -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Phaser.js — Akira</div>
+            <h2>Akira's Scope</h2>
+            <div class="three-col" style="margin-top: 1rem">
+              <div class="card" style="text-align: center">
+                <div style="font-size: 1.75rem; margin-bottom: 0.4rem">🗺️</div>
+                <h4 class="text-orange">Map Rendering</h4>
+                <p style="font-size: 0.72rem; margin: 0">
+                  TMJ map loaded via Phaser. 4-layer system with spotName as game unit.
+                </p>
+              </div>
+              <div class="card" style="text-align: center">
+                <div style="font-size: 1.75rem; margin-bottom: 0.4rem">📷</div>
+                <h4 class="text-orange">Camera &amp; LOD</h4>
+                <p style="font-size: 0.72rem; margin: 0">
+                  ZoomManager + CameraController handle 8,000 × 9,600 px canvas at 60 FPS.
+                </p>
+              </div>
+              <div class="card" style="text-align: center">
+                <div style="font-size: 1.75rem; margin-bottom: 0.4rem">✨</div>
+                <h4 class="text-orange">Battle Effects</h4>
+                <p style="font-size: 0.72rem; margin: 0">
+                  EffectManager renders hit FX, territory capture animations, and color overlays.
+                </p>
+              </div>
+            </div>
+            <div class="three-col" style="margin-top: 0.75rem">
+              <div class="card" style="text-align: center">
+                <div style="font-size: 1.75rem; margin-bottom: 0.4rem">🧩</div>
+                <h4 class="text-cyan">Tiled Creation</h4>
+                <p style="font-size: 0.72rem; margin: 0">
+                  All map data authored in Tiled. Exported as .tmj with embedded tilesets.
+                </p>
+              </div>
+              <div class="card" style="text-align: center">
+                <div style="font-size: 1.75rem; margin-bottom: 0.4rem">🎵</div>
+                <h4 class="text-cyan">Sound Manager</h4>
+                <p style="font-size: 0.72rem; margin: 0">
+                  SoundManager.js handles BGM and SE with volume control and scene lifecycle.
+                </p>
+              </div>
+              <div class="card" style="text-align: center">
+                <div style="font-size: 1.75rem; margin-bottom: 0.4rem">🎨</div>
+                <h4 class="text-cyan">UI/UX Design</h4>
+                <p style="font-size: 0.72rem; margin: 0">
+                  Tactical × cyberpunk design system. Color codes for owned, enemy, neutral spots.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 20: Map Creation with Tiled -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Map Creation</div>
+            <h2>Map Creation with Tiled</h2>
+            <div class="two-col" style="margin-top: 0.75rem">
+              <div>
+                <div style="display: flex; flex-direction: column; gap: 0.55rem">
+                  <div class="info-card">
+                    <div class="info-card-label">Canvas Size</div>
+                    <div class="info-card-value text-orange">8,000 × 9,600 px</div>
+                  </div>
+                  <div class="info-card">
+                    <div class="info-card-label">Tile Size</div>
+                    <div class="info-card-value">32 × 32 px &nbsp;·&nbsp; 250 × 300 tiles</div>
+                  </div>
+                  <div class="info-card">
+                    <div class="info-card-label">Export Format</div>
+                    <div class="info-card-value">.tmj (JSON) — tilesets embedded</div>
+                  </div>
+                </div>
+                <div
+                  style="display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.75rem"
+                >
+                  <div class="badge badge-orange">Layer 1: islandName (4-digit)</div>
+                  <div class="badge badge-cyan">Layer 2: areaName (2-digit)</div>
+                  <div class="badge badge-orange">Layer 3: districtName (3-digit)</div>
+                  <div
+                    class="badge badge-cyan"
+                    style="border-color: var(--brand-orange); color: var(--brand-orange)"
+                  >
+                    ★ Layer 4: spotName (5-digit) ← game unit
+                  </div>
+                </div>
+              </div>
+              <div>
+                <!-- Add screenshot: screenshots/tiled-editor.png -->
+                <div
+                  class="screenshot-placeholder"
+                  data-screenshot="tiled-editor"
+                  style="min-height: 280px"
+                >
+                  <span class="placeholder-icon">🧩</span>
+                  <span>Tiled Editor View</span>
+                  <span class="placeholder-hint">Add: assets/screenshots/tiled-editor.png</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 21: LOD Zoom System -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Performance</div>
+            <h2>LOD Zoom System</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem">
+              ZoomConfig.js defines thresholds · ZoomManager.js switches detail levels ·
+              CameraController.js handles smooth pan/zoom
+            </p>
+            <div class="lod-steps">
+              <div class="lod-step">
+                <span class="lod-zoom">Zoom Out (min)</span>
+                <span class="lod-detail"
+                  >Island view — only islandName layer visible. Minimal tile detail. High FPS.</span
+                >
+              </div>
+              <div class="lod-step">
+                <span class="lod-zoom">Mid Zoom</span>
+                <span class="lod-detail"
+                  >Area + district labels appear. Spot borders drawn but simplified.</span
+                >
+              </div>
+              <div
+                class="lod-step"
+                style="border-color: var(--brand-orange); background: rgba(250, 112, 0, 0.06)"
+              >
+                <span class="lod-zoom text-orange">Zoom In (max)</span>
+                <span class="lod-detail"
+                  >Full spotName layer active. Player avatars, spot names, ownership colors all
+                  rendered.</span
+                >
+              </div>
+            </div>
+            <div class="glass-panel" style="margin-top: 1rem">
+              <p style="margin: 0; font-size: 0.8rem">
+                <span class="text-orange" style="font-weight: 700">Why LOD?</span>
+                The full production map is 8,000 × 9,600 px. Without level-of-detail switching,
+                rendering all 250 × 300 tiles at once would drop FPS below 30 on most hardware.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 22: Battle Effects & UX Design -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Effects &amp; UX</div>
+            <h2>Battle Effects &amp; UX Design</h2>
+            <div class="two-col" style="margin-top: 0.75rem">
+              <div>
+                <!-- Add screenshot: screenshots/battle-effect.png -->
+                <div
+                  class="screenshot-placeholder"
+                  data-screenshot="battle-effect"
+                  style="min-height: 220px"
+                >
+                  <span class="placeholder-icon">✨</span>
+                  <span>Battle Effect Screenshot</span>
+                  <span class="placeholder-hint">Add: assets/screenshots/battle-effect.png</span>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 0.55rem">
+                <h3 class="text-orange">Design Philosophy</h3>
+                <div class="card" style="font-size: 0.8rem">
+                  <span class="text-orange" style="font-weight: 700">Tactical:</span> All map colors
+                  are semantically coded — orange (owned), cyan (neutral), red (enemy).
+                </div>
+                <div class="card" style="font-size: 0.8rem">
+                  <span class="text-cyan" style="font-weight: 700">Cyberpunk:</span> Scanline
+                  overlay, glitch-text on titles, neon glow on active elements.
+                </div>
+                <div class="card" style="font-size: 0.8rem">
+                  <span class="text-green" style="font-weight: 700">Readable:</span> Spot names
+                  never overlap player avatars. God avatars scale with zoom.
+                </div>
+                <div class="card" style="font-size: 0.8rem">
+                  <span style="color: #818cf8; font-weight: 700">Atmospheric:</span> EffectManager
+                  fires territory flash on capture, hit burst on battle.
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ■ ISSEI'S SECTION ────────────────────────────────── -->
+
+        <!-- Slide 23: HUD Architecture & Zustand -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">React + TypeScript — Issei</div>
+            <h2>HUD Architecture &amp; Zustand</h2>
+            <div class="two-col" style="margin-top: 0.75rem">
+              <div>
+                <!-- Add screenshot: screenshots/hud-full.png -->
+                <div
+                  class="screenshot-placeholder"
+                  data-screenshot="hud-full"
+                  style="min-height: 240px"
+                >
+                  <span class="placeholder-icon">🖥️</span>
+                  <span>Full HUD Screenshot</span>
+                  <span class="placeholder-hint">Add: assets/screenshots/hud-full.png</span>
+                </div>
+              </div>
+              <div>
+                <h3 class="text-cyan" style="margin-bottom: 0.6rem">Zustand State Groups</h3>
+                <div class="state-grid">
+                  <div class="state-group">
+                    <div class="state-group-title">Player</div>
+                    <div class="state-key">myId / godKey</div>
+                    <div class="state-key">hp / ap / atk</div>
+                    <div class="state-key">def / faith</div>
+                  </div>
+                  <div class="state-group">
+                    <div class="state-group-title">Game Progress</div>
+                    <div class="state-key">turn / isMyTurn</div>
+                    <div class="state-key">isSubmitted</div>
+                    <div class="state-key">isGameOver</div>
+                  </div>
+                  <div class="state-group">
+                    <div class="state-group-title">Map State</div>
+                    <div class="state-key">districts{}</div>
+                    <div class="state-key">players[]</div>
+                    <div class="state-key">activeBuffs[]</div>
+                  </div>
+                  <div class="state-group">
+                    <div class="state-group-title">UI</div>
+                    <div class="state-key">logs[]</div>
+                    <div class="state-key">selectedDistrict</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 24: PhaserBridge.ts -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Bridge Layer</div>
+            <h2>PhaserBridge.ts — Event Hub</h2>
+            <div class="event-flow" style="margin-bottom: 1rem">
+              <div class="event-box phaser">Phaser<br />Game Loop</div>
+              <div class="event-arrow">→ emitToReact() →</div>
+              <div class="event-box react">React<br />Components</div>
+            </div>
+            <div class="event-flow" style="margin-bottom: 1.25rem">
+              <div class="event-box react">React<br />User Action</div>
+              <div class="event-arrow">→ emitToPhaser() →</div>
+              <div class="event-box phaser">Phaser<br />Scene</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem">
+              <div class="win-item instant">
+                <span>✅</span>
+                <span
+                  ><strong>emitToReact()</strong> wraps <code>window.dispatchEvent</code> — direct
+                  calls forbidden</span
+                >
+              </div>
+              <div class="win-item instant">
+                <span>✅</span>
+                <span
+                  >All event names imported from <code>PHASER_TO_REACT</code> /
+                  <code>REACT_TO_PHASER</code> constants</span
+                >
+              </div>
+              <div class="win-item danger">
+                <span>❌</span>
+                <span
+                  >Raw <code>window.dispatchEvent(new CustomEvent('...'))</code> — string literal —
+                  forbidden</span
+                >
+              </div>
+              <div class="win-item primary">
+                <span>💡</span>
+                <span
+                  >useGameEvents.ts is the single React-side hook that wires all incoming Phaser
+                  events</span
+                >
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 25: God Selection Screen -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">UI Component</div>
+            <h2>God Selection Screen</h2>
+            <div class="two-col" style="margin-top: 0.75rem">
+              <div>
+                <!-- Add screenshot: screenshots/god-selection.png -->
+                <div
+                  class="screenshot-placeholder"
+                  data-screenshot="god-selection"
+                  style="min-height: 260px"
+                >
+                  <span class="placeholder-icon">🏛️</span>
+                  <span>God Selection Screen</span>
+                  <span class="placeholder-hint">Add: assets/screenshots/god-selection.png</span>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 0.55rem">
+                <h3 class="text-orange">GodSelectionView.tsx</h3>
+                <div class="card" style="font-size: 0.8rem">
+                  8 god cards in a grid. Hover → orange glow. Select → send
+                  <code>react:setAvatar</code> to Phaser.
+                </div>
+                <div class="card" style="font-size: 0.8rem">
+                  Selected god is stored in Zustand <code>godKey</code> and persists for the whole
+                  match.
+                </div>
+                <div class="card" style="font-size: 0.8rem">
+                  Once confirmed, emits <code>REACT_TO_PHASER.SET_AVATAR</code> → Phaser updates
+                  avatar sprite.
+                </div>
+                <div class="card" style="font-size: 0.8rem">
+                  Lock-in is enforced at the server: god choice included in the
+                  <code>READY_TO_START</code> payload.
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 26: Phaser ↔ React Sync -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Sync</div>
+            <h2>Phaser ↔ React Bidirectional Sync</h2>
+            <div style="margin-top: 1rem">
+              <h4 class="text-orange" style="margin-bottom: 0.5rem">Phaser → React (examples)</h4>
+              <div style="display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem">
+                <div
+                  class="card"
+                  style="font-size: 0.78rem; display: flex; justify-content: space-between"
+                >
+                  <span class="text-orange">SELECT_DISTRICT</span>
+                  <span class="text-muted">Player taps a spot → React opens action panel</span>
+                </div>
+                <div
+                  class="card"
+                  style="font-size: 0.78rem; display: flex; justify-content: space-between"
+                >
+                  <span class="text-orange">STATS_UPDATED</span>
+                  <span class="text-muted">HP/AP changed → React HUD bars animate</span>
+                </div>
+                <div
+                  class="card"
+                  style="font-size: 0.78rem; display: flex; justify-content: space-between"
+                >
+                  <span class="text-orange">TURN_START</span>
+                  <span class="text-muted">Server turn tick → React shows turn number</span>
+                </div>
+              </div>
+              <h4 class="text-cyan" style="margin-bottom: 0.5rem">React → Phaser (examples)</h4>
+              <div style="display: flex; flex-direction: column; gap: 0.35rem">
+                <div
+                  class="card"
+                  style="font-size: 0.78rem; display: flex; justify-content: space-between"
+                >
+                  <span class="text-cyan">COMMAND_ATTACK</span>
+                  <span class="text-muted">Button press → Phaser sends battleStart to server</span>
+                </div>
+                <div
+                  class="card"
+                  style="font-size: 0.78rem; display: flex; justify-content: space-between"
+                >
+                  <span class="text-cyan">COMMAND_DEPLOY_CONFIRM</span>
+                  <span class="text-muted">Spawn point chosen → Phaser places avatar</span>
+                </div>
+                <div
+                  class="card"
+                  style="font-size: 0.78rem; display: flex; justify-content: space-between"
+                >
+                  <span class="text-cyan">SET_AVATAR</span>
+                  <span class="text-muted">God selected → Phaser swaps sprite sheet</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ■ KEI'S SECTION ──────────────────────────────────── -->
+
+        <!-- Slide 27: Server State = Single Source of Truth -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Socket.IO + Node.js — Kei</div>
+            <h2>Server State = Single Source of Truth</h2>
+            <div class="glass-panel" style="margin: 1rem 0; text-align: center">
+              <p style="font-size: 1.1rem; font-weight: 700; color: var(--neon-cyan); margin: 0">
+                Clients display. The server decides.
+              </p>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.55rem">
+              <div class="win-item instant">
+                <span>🔒</span>
+                <span
+                  ><strong>Anti-cheat by design:</strong> Battle outcomes are computed on the
+                  server, never trusted from clients</span
+                >
+              </div>
+              <div class="win-item instant">
+                <span>🔄</span>
+                <span
+                  ><strong>syncState event:</strong> After every action, server broadcasts the full
+                  canonical game state to all players</span
+                >
+              </div>
+              <div class="win-item instant">
+                <span>📡</span>
+                <span
+                  ><strong>All clients stay in sync:</strong> District ownership, player positions,
+                  HP/AP — all from one source</span
+                >
+              </div>
+              <div class="win-item primary">
+                <span>⚡</span>
+                <span
+                  ><strong>Turn control:</strong> Server drives the turn clock. Clients cannot
+                  advance the turn independently</span
+                >
+              </div>
+              <div class="win-item danger">
+                <span>🚫</span>
+                <span
+                  ><strong>Rejected actions:</strong> Server emits ACTION_REJECTED if a move
+                  violates rules (bad adjacency, no AP, etc.)</span
+                >
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 28: Battle Calculation Logic -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Battle Logic</div>
+            <h2>Battle Calculation — Server Only</h2>
+            <div class="formula-box" style="margin: 0.75rem 0">
+              <div class="formula-text">P = A / (A + D)</div>
+              <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0.4rem 0 0">
+                P = win probability · A = attacker ATK · D = defender DEF
+              </p>
+            </div>
+            <div class="two-col" style="gap: 0.75rem; margin-top: 0.75rem">
+              <div style="display: flex; flex-direction: column; gap: 0.5rem">
+                <div class="card" style="font-size: 0.8rem">
+                  <span class="text-orange" style="font-weight: 700">Step 1:</span> Client sends
+                  <code>ACTION_SUBMIT { type: 'attack', targetId }</code>
+                </div>
+                <div class="card" style="font-size: 0.8rem">
+                  <span class="text-orange" style="font-weight: 700">Step 2:</span> Server validates
+                  adjacency &amp; AP. Rejects if invalid.
+                </div>
+                <div class="card" style="font-size: 0.8rem">
+                  <span class="text-orange" style="font-weight: 700">Step 3:</span>
+                  <code>calcWinRate(atk, def)</code> → compare vs <code>Math.random()</code>
+                </div>
+                <div class="card" style="font-size: 0.8rem">
+                  <span class="text-orange" style="font-weight: 700">Step 4:</span> Broadcast
+                  <code>BATTLE_RESULT</code> + <code>syncState</code> to all clients
+                </div>
+              </div>
+              <div>
+                <div class="card" style="margin-bottom: 0.5rem">
+                  <div class="badge badge-orange" style="margin-bottom: 0.4rem">Win</div>
+                  <p style="font-size: 0.78rem; margin: 0">
+                    Attacker captures district. Owner updated in server state.
+                  </p>
+                </div>
+                <div class="card">
+                  <div
+                    class="badge"
+                    style="
+                      background: rgba(239, 68, 68, 0.1);
+                      border: 1px solid var(--red-err);
+                      color: var(--red-err);
+                    "
+                  >
+                    Lose
+                  </div>
+                  <p style="font-size: 0.78rem; margin-top: 0.4rem; margin-bottom: 0">
+                    Attacker HP −20. District unchanged. No client-side override.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 29: NPC Algorithm -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">NPC</div>
+            <h2>NPC Algorithm</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem">
+              NPCs are fully server-side agents — they act each turn automatically with no client
+              involvement.
+            </p>
+            <div class="npc-steps">
+              <div class="npc-step">
+                <div class="npc-num">1</div>
+                <div>
+                  <div style="font-weight: 700; font-size: 0.85rem">Survey adjacency</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted)">
+                    Check all neighbors in ADJACENT_DISTRICTS for empty, own, and enemy spots
+                  </div>
+                </div>
+              </div>
+              <div class="npc-step">
+                <div class="npc-num">2</div>
+                <div>
+                  <div style="font-weight: 700; font-size: 0.85rem">Prioritize empty spots</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted)">
+                    Free capture with no risk → always attack empty first if available
+                  </div>
+                </div>
+              </div>
+              <div class="npc-step">
+                <div class="npc-num">3</div>
+                <div>
+                  <div style="font-weight: 700; font-size: 0.85rem">Evaluate enemy spots</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted)">
+                    If P = A/(A+D) &gt; threshold (e.g. 0.6), attempt attack on enemy district
+                  </div>
+                </div>
+              </div>
+              <div class="npc-step">
+                <div class="npc-num">4</div>
+                <div>
+                  <div style="font-weight: 700; font-size: 0.85rem">Fallback: Stay</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted)">
+                    If no favorable move, recover HP +20 / AP +30 to prepare next turn
+                  </div>
+                </div>
+              </div>
+              <div class="npc-step">
+                <div class="npc-num">5</div>
+                <div>
+                  <div style="font-weight: 700; font-size: 0.85rem">Broadcast result</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted)">
+                    Server emits npcUpdate → all clients render NPC movement/battle
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 30: Real-Time Sync Challenges -->
+        <section>
+          <div class="slide-inner top">
+            <div class="section-label">Gotchas</div>
+            <h2>Real-Time Sync Challenges</h2>
+            <div class="gotcha-list">
+              <div class="gotcha-item">
+                <div class="gotcha-title">territoryUpdated — missing 'd'</div>
+                <div class="gotcha-code">
+                  ❌ "territoryUpdate" &nbsp;→&nbsp; ✅ SERVER_EVENTS.TERRITORY_UPDATED
+                </div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem">
+                  Client never received the event. 30 minutes of debugging a 1-character typo.
+                </div>
+              </div>
+              <div class="gotcha-item">
+                <div class="gotcha-title">CORS: string vs array</div>
+                <div class="gotcha-code">
+                  ❌ cors: &#123; origin: ["*"] &#125; &nbsp;→&nbsp; ✅ cors: &#123; origin: "*"
+                  &#125;
+                </div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem">
+                  Socket.IO rejects wildcard in array form. Must be a plain string.
+                </div>
+              </div>
+              <div class="gotcha-item">
+                <div class="gotcha-title">fromDistrictId save timing</div>
+                <div class="gotcha-code">
+                  const fromId = this.currentDistrictId; &nbsp;// must be BEFORE movePlayer()
+                </div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem">
+                  movePlayer() overwrites currentDistrictId. Capturing fromId after the call loses
+                  the origin.
+                </div>
+              </div>
+              <div class="gotcha-item">
+                <div class="gotcha-title">Number vs String ID mismatch</div>
+                <div class="gotcha-code">
+                  ADJACENCY[11101] ✅ &nbsp;vs&nbsp; ADJACENCY["11101"] ❌ (server uses strings,
+                  client uses numbers)
+                </div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem">
+                  normalizeId() helper enforces Number on client. Server normalizes to String on
+                  receive.
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ■ NAO'S SECTION ──────────────────────────────────── -->
+
+        <!-- Slide 31: DB Schema Design -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">PHP + MySQL — Nao</div>
+            <h2>DB Schema &amp; ID System</h2>
+            <div class="two-col" style="margin-top: 0.75rem">
+              <div>
+                <h3 class="text-orange" style="margin-bottom: 0.6rem">5-Level ID Hierarchy</h3>
+                <div style="display: flex; flex-direction: column; gap: 0.4rem">
+                  <div
+                    class="card"
+                    style="
+                      font-size: 0.8rem;
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: center;
+                    "
+                  >
+                    <span>Island</span><span class="badge badge-orange">4-digit · e.g. 1000</span>
+                  </div>
+                  <div
+                    class="card"
+                    style="
+                      font-size: 0.8rem;
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: center;
+                    "
+                  >
+                    <span>Area</span><span class="badge badge-cyan">2-digit · e.g. 11</span>
+                  </div>
+                  <div
+                    class="card"
+                    style="
+                      font-size: 0.8rem;
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: center;
+                    "
+                  >
+                    <span>District</span><span class="badge badge-orange">3-digit · e.g. 111</span>
+                  </div>
+                  <div
+                    class="card"
+                    style="
+                      font-size: 0.8rem;
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: center;
+                      border-color: var(--brand-orange);
+                    "
+                  >
+                    <span class="text-orange">★ Spot</span
+                    ><span class="badge badge-orange">5-digit · e.g. 11101</span>
+                  </div>
+                  <div
+                    class="card"
+                    style="
+                      font-size: 0.8rem;
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: center;
+                    "
+                  >
+                    <span>Item</span><span class="badge badge-cyan">6-digit · e.g. 111011</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="er-placeholder" style="min-height: 240px">
+                  <span style="font-size: 1.5rem">📊</span>
+                  <span>ER Diagram</span>
+                  <span style="font-size: 0.65rem; color: var(--tactical-cyan)"
+                    >Add ER diagram image here</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 32: JWT Authentication Flow -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Auth</div>
+            <h2>JWT Authentication Flow</h2>
+            <div class="jwt-flow" style="margin-top: 0.75rem">
+              <div class="jwt-step">Client<br />POST /api/login</div>
+              <div class="event-arrow">→</div>
+              <div class="jwt-step">PHP validates<br />username+password</div>
+              <div class="event-arrow">→</div>
+              <div class="jwt-step">JWT issued<br />(exp: 24h)</div>
+              <div class="event-arrow">→</div>
+              <div class="jwt-step">Token stored<br />client-side</div>
+            </div>
+            <div class="jwt-flow" style="margin-top: 0.75rem">
+              <div class="jwt-step">API request<br />+ Bearer token</div>
+              <div class="event-arrow">→</div>
+              <div class="jwt-step">jwt-helper.php<br />verifies signature</div>
+              <div class="event-arrow">→</div>
+              <div class="jwt-step">user_id extracted<br />from payload</div>
+              <div class="event-arrow">→</div>
+              <div class="jwt-step">Response<br />returned</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.4rem; margin-top: 1rem">
+              <div class="win-item danger">
+                <span>🚫</span>
+                <span
+                  >Client-provided <code>user_id</code> is ignored — always use
+                  <code>$userData['user_id']</code> from JWT</span
+                >
+              </div>
+              <div class="win-item instant">
+                <span>✅</span>
+                <span
+                  >Stateless: no session storage. Every request is self-contained with the
+                  token.</span
+                >
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 33: REST API Design -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">API</div>
+            <h2>REST API Design</h2>
+            <table class="api-table">
+              <thead>
+                <tr>
+                  <th>Method</th>
+                  <th>Endpoint</th>
+                  <th>Purpose</th>
+                  <th>Auth</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="method-post">POST</td>
+                  <td><code>/api/login.php</code></td>
+                  <td>Issue JWT on credential check</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td class="method-get">GET</td>
+                  <td><code>/api/master-data.php</code></td>
+                  <td>Map, items, gods reference data</td>
+                  <td>JWT</td>
+                </tr>
+                <tr>
+                  <td class="method-post">POST</td>
+                  <td><code>/api/capture.php</code></td>
+                  <td>Record district capture (spotId)</td>
+                  <td>JWT</td>
+                </tr>
+                <tr>
+                  <td class="method-post">POST</td>
+                  <td><code>/api/escape.php</code></td>
+                  <td>Log escape action outcome</td>
+                  <td>JWT</td>
+                </tr>
+                <tr>
+                  <td class="method-post">POST</td>
+                  <td><code>/api/result.php</code></td>
+                  <td>Save final scores + validate</td>
+                  <td>JWT</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="glass-panel" style="margin-top: 1rem">
+              <p style="margin: 0; font-size: 0.8rem">
+                <span class="text-orange" style="font-weight: 700">Body key:</span>
+                All endpoints receive <code>territory_id</code> (= spotId as int). Never
+                <code>user_id</code> from the client.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 34: Score Validation & Security -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Security</div>
+            <h2>Score Validation &amp; Security</h2>
+            <div class="two-col" style="margin-top: 0.75rem">
+              <div>
+                <h3 class="text-orange" style="margin-bottom: 0.6rem">SQL Injection Prevention</h3>
+                <div style="display: flex; flex-direction: column; gap: 0.4rem">
+                  <div class="win-item instant">
+                    <span>✅</span>
+                    <span
+                      >All integer IDs cast: <code>$spotId = (int)$data['territory_id']</code></span
+                    >
+                  </div>
+                  <div class="win-item instant">
+                    <span>✅</span>
+                    <span>Prepared statements for all DB queries</span>
+                  </div>
+                  <div class="win-item danger">
+                    <span>❌</span>
+                    <span>String interpolation in SQL — never used</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h3 class="text-cyan" style="margin-bottom: 0.6rem">Score Validation</h3>
+                <div style="display: flex; flex-direction: column; gap: 0.4rem">
+                  <div class="win-item instant">
+                    <span>✅</span>
+                    <span>Final score cross-checked against server state before writing to DB</span>
+                  </div>
+                  <div class="win-item instant">
+                    <span>✅</span>
+                    <span>JWT payload provides authoritative user_id — no spoofing</span>
+                  </div>
+                  <div class="win-item instant">
+                    <span>✅</span>
+                    <span
+                      >XSS: React escapes output by default. PHP uses
+                      <code>htmlspecialchars()</code></span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="glass-panel" style="margin-top: 1rem">
+              <p style="margin: 0; font-size: 0.8rem">
+                <span class="text-orange" style="font-weight: 700">Defense in depth:</span>
+                Server computes battle results → PHP validates final scores → JWT prevents identity
+                spoofing. Three independent layers protect game integrity.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ■ LESSONS LEARNED ────────────────────────────────── -->
+
+        <!-- Slide 35: Top 5 Bugs -->
+        <section>
+          <div class="slide-inner top">
+            <div class="section-label">Post-Mortem</div>
+            <h2>Top 5 Bugs We Fought</h2>
+            <div class="bug-list">
+              <div class="bug-item">
+                <span class="bug-icon">🐛</span>
+                <div>
+                  <div class="bug-text"><strong>React StrictMode → Phaser double init</strong></div>
+                  <div class="bug-fix">
+                    Fix: Remove &lt;StrictMode&gt; from main.jsx. StrictMode intentionally
+                    double-invokes effects.
+                  </div>
+                </div>
+              </div>
+              <div class="bug-item">
+                <span class="bug-icon">🐛</span>
+                <div>
+                  <div class="bug-text">
+                    <strong>TMJ layer name mismatch</strong> — <code>districtName</code> renamed in
+                    Tiled editor
+                  </div>
+                  <div class="bug-fix">
+                    Fix: Always verify Tiled layer names after export. Changing "districtName" makes
+                    all districts disappear.
+                  </div>
+                </div>
+              </div>
+              <div class="bug-item">
+                <span class="bug-icon">🐛</span>
+                <div>
+                  <div class="bug-text">
+                    <strong>territoryUpdated typo</strong> — missing trailing 'd'
+                  </div>
+                  <div class="bug-fix">
+                    Fix: Use SERVER_EVENTS.TERRITORY_UPDATED constant. Never write event names as
+                    strings.
+                  </div>
+                </div>
+              </div>
+              <div class="bug-item">
+                <span class="bug-icon">🐛</span>
+                <div>
+                  <div class="bug-text">
+                    <strong>Socket.IO CORS: <code>origin: ["*"]</code> fails silently</strong>
+                  </div>
+                  <div class="bug-fix">
+                    Fix: Use <code>origin: "*"</code> (string). Wildcard in array form is rejected
+                    by Socket.IO.
+                  </div>
+                </div>
+              </div>
+              <div class="bug-item">
+                <span class="bug-icon">🐛</span>
+                <div>
+                  <div class="bug-text">
+                    <strong>fromDistrictId captured after movePlayer()</strong>
+                  </div>
+                  <div class="bug-fix">
+                    Fix: <code>const fromId = this.currentDistrictId</code> must be saved before
+                    calling movePlayer().
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 36: What We Learned as a Team -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Lessons</div>
+            <h2>What We Learned as a Team</h2>
+            <div class="lesson-list">
+              <div class="lesson-item">
+                <span class="lesson-icon">💡</span>
+                <div>
+                  <div style="font-weight: 700; margin-bottom: 0.2rem">
+                    Event name constants eliminate a whole class of bugs
+                  </div>
+                  <div style="font-size: 0.78rem; color: var(--text-muted)">
+                    Before constants: typo bugs took hours to find. After: the compiler or linter
+                    catches them instantly.
+                  </div>
+                </div>
+              </div>
+              <div class="lesson-item">
+                <span class="lesson-icon">💡</span>
+                <div>
+                  <div style="font-weight: 700; margin-bottom: 0.2rem">
+                    Interface contracts enable true parallel development
+                  </div>
+                  <div style="font-size: 0.78rem; color: var(--text-muted)">
+                    Defining event payloads before writing code let all 4 roles build independently
+                    and integrate cleanly.
+                  </div>
+                </div>
+              </div>
+              <div class="lesson-item">
+                <span class="lesson-icon">💡</span>
+                <div>
+                  <div style="font-weight: 700; margin-bottom: 0.2rem">
+                    Server as single source of truth solves synchronization
+                  </div>
+                  <div style="font-size: 0.78rem; color: var(--text-muted)">
+                    Once we stopped trusting client state and always re-synced from the server, race
+                    conditions disappeared.
+                  </div>
+                </div>
+              </div>
+              <div class="lesson-item">
+                <span class="lesson-icon">💡</span>
+                <div>
+                  <div style="font-weight: 700; margin-bottom: 0.2rem">
+                    CLAUDE.md as living team contract
+                  </div>
+                  <div style="font-size: 0.78rem; color: var(--text-muted)">
+                    Keeping all rules, IDs, event names, and gotchas in one doc reduced "who changed
+                    what?" friction across 4 branches.
+                  </div>
+                </div>
+              </div>
+              <div class="lesson-item">
+                <span class="lesson-icon">💡</span>
+                <div>
+                  <div style="font-weight: 700; margin-bottom: 0.2rem">
+                    Build the plumbing before the features
+                  </div>
+                  <div style="font-size: 0.78rem; color: var(--text-muted)">
+                    The weeks spent on ID normalization, event constants, and ADJACENCY graphs paid
+                    dividends in every sprint after.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ■ CLOSING ─────────────────────────────────────────── -->
+
+        <!-- Slide 37: What We Achieved -->
+        <section>
+          <div class="slide-inner">
+            <div class="section-label">Results</div>
+            <h2>What We Achieved</h2>
+            <div class="achieve-list" style="margin-top: 0.75rem">
+              <div class="achieve-item">
+                <span class="achieve-icon">✅</span>
+                <span
+                  ><strong>MVP Complete</strong> — Move → Capture → Battle cycle fully
+                  playable</span
+                >
+              </div>
+              <div class="achieve-item">
+                <span class="achieve-icon">✅</span>
+                <span
+                  ><strong>Real-Time 4-Player + NPC</strong> — synchronized over ZeroTier LAN</span
+                >
+              </div>
+              <div class="achieve-item">
+                <span class="achieve-icon">✅</span>
+                <span
+                  ><strong>Full Stack Integration</strong> — Phaser → React → Socket.IO →
+                  PHP/MySQL</span
+                >
+              </div>
+              <div class="achieve-item">
+                <span class="achieve-icon">✅</span>
+                <span
+                  ><strong>8-God System</strong> — unique buffs, god selection screen, faith
+                  multiplier</span
+                >
+              </div>
+              <div class="achieve-item">
+                <span class="achieve-icon">✅</span>
+                <span
+                  ><strong>Production Cebu Map</strong> — 8,000 × 9,600 px, 5 islands, 32 districts
+                  with LOD zoom</span
+                >
+              </div>
+              <div class="achieve-item">
+                <span class="achieve-icon">✅</span>
+                <span
+                  ><strong>Anti-Cheat Architecture</strong> — server-only battle math, JWT auth,
+                  score validation</span
+                >
+              </div>
+            </div>
+            <div class="glass-panel" style="margin-top: 1rem">
+              <span class="text-orange" style="font-weight: 700">Future roadmap: </span>
+              <span style="font-size: 0.82rem"
+                >Ranking system · Replay feature · Mobile support · More districts</span
+              >
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 38: Thank You -->
+        <section>
+          <div class="thankyou-slide">
+            <div>
+              <img
+                src="assets/reference/GI-Project_Logo.png"
+                alt="Logo"
+                class="title-logo"
+                style="width: 70px; height: 70px"
+              />
+              <h1 class="holo-flicker" style="font-size: 2.2rem; margin: 0.5rem 0 0.25rem">
+                Thank You for Watching
+              </h1>
+              <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0">
+                Cebu Conquest / セブ獲り合戦 · Batch 21 AM · Kredo IT School · 2026
+              </p>
+            </div>
+            <div class="gods-deco">
+              <img src="assets/reference/god_Neil.png" alt="Neil" />
+              <img src="assets/reference/god_Garry.png" alt="Garry" />
+              <img src="assets/reference/god_Shem.png" alt="Shem" />
+              <img src="assets/reference/god_Quisie.png" alt="Quisie" />
+              <img src="assets/reference/god_Eduardo.png" alt="Eduardo" />
+              <img src="assets/reference/god_Kurt.png" alt="Kurt" />
+              <img src="assets/reference/god_Stephen.png" alt="Stephen" />
+              <img src="assets/reference/god_Bernardine.png" alt="Bernardine" />
+            </div>
+            <div class="qa-text">Q &amp; A</div>
+            <p style="font-size: 0.75rem; color: var(--text-muted)">
+              GitHub: kredo-school / cebu-conquest-batch21-am
+            </p>
+          </div>
+        </section>
+      </div>
+      <!-- /.slides -->
+    </div>
+    <!-- /.reveal -->
+
+    <!-- Reveal.js (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+    <script>
+      Reveal.initialize({
+        hash: true,
+        slideNumber: "c/t",
+        progress: true,
+        controls: true,
+        center: false,
+        transition: "fade",
+        transitionSpeed: "fast",
+        backgroundTransition: "fade",
+        width: 1280,
+        height: 720,
+        margin: 0.04,
+        minScale: 0.2,
+        maxScale: 2.0,
+        // Keyboard shortcuts reminder — arrow keys, F for fullscreen, S for speaker view
+      });
+    </script>
+  </body>
+</html>

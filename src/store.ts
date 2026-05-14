@@ -444,16 +444,16 @@ export const useGameStore = create<GameState>()(
       },
       updateSelectedDistrict: (data) => {
         set({
-          selectedDistrictId: data.districtId,
+          selectedDistrictId: data.spotId ?? data.districtId, // FIX-D: 5桁優先
           currentDistrictName: data.districtName,
           targetDistrictInfo: {
-            id: data.districtId,
+            id: data.spotId ?? data.districtId, // FIX-D: 5桁優先
             name: data.districtName,
-            enemyDef: 40, 
+            enemyDef: 40,
             isMyTerritory: data.isMyTerritory,
             isNeutral: data.isNeutral
           },
-          predictionModalOpen: true 
+          predictionModalOpen: true
         });
       },
       updateStatsFromPhaser: (stats) => {
