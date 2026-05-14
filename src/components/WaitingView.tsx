@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useGameStore, Player, LobbyPlayer } from '../store';
 import socket from '../socket';
 import SoundManager from '../game/SoundManager';
-import { useBGM } from '../hook/useBGM';
+// 🚀 修正：useBGM は AudioController が担当するため不要
 import { GlobalNavbar } from './layout/GlobalNavbar';
 import { CustomButton } from './common/CustomButton';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../../shared/socketEvents.js';
@@ -115,9 +115,9 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
   const [chatInput, setChatInput] = useState('');
   const [isLocked, setIsLocked] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const { playBGM, stopBGM } = useBGM();
 
-  useEffect(() => { playBGM('waiting'); return () => stopBGM(); }, [playBGM, stopBGM]);
+  // 🚀 修正：BGM再生の useEffect は AudioController が担当するため削除
+
   useEffect(() => { if (roomId) socket.emit(CLIENT_EVENTS.READY_TO_START, { roomId, ready: false }); }, [roomId]);
   useEffect(() => { if (selectedGodId) socket.emit(CLIENT_EVENTS.SELECT_GOD, { roomId, godId: selectedGodId }); }, [selectedGodId, roomId]);
 
@@ -140,7 +140,6 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
     setChatInput(''); try { SoundManager.playSe('click'); } catch {}
   };
 
-  // 🚀 修正：トグル（ON/OFF）できるように変更
   const handleReadyClick = () => {
     const nextLockedState = !isLocked;
     setIsLocked(nextLockedState);
@@ -275,7 +274,6 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                   </div>
               </div>
               
-              {/* 🚀 修正：disabled={isLocked} を削除し、ロック中でもクリック可能に */}
               <button 
                 onClick={handleReadyClick}
                 className={`w-full h-[64px] flex flex-col items-center justify-center rounded-xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-[2px] shadow-lg shrink-0
@@ -284,7 +282,6 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                   : 'bg-gradient-to-r from-orange-600 to-brand-500 border-orange-800 text-black font-black shadow-orange-500/20 hover:brightness-110 active:brightness-90'}`}
               >
                 <div className="flex items-center gap-3">
-                  {/* 🚀 修正：ロック時はアイコンを解除マークにし、テキストを CANCEL READY に変更 */}
                   {isLocked ? (
                     <>
                       <span className="material-symbols-outlined text-lg">lock_open</span>
@@ -294,7 +291,6 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                     <span className="text-2xl font-black italic tracking-widest leading-none font-fix">DEPLOY SQUAD</span>
                   )}
                 </div>
-                {/* 🚀 修正：ロック時は下の小さいテキストを消してスッキリさせる */}
                 {!isLocked && (
                   <div className={`text-[9px] font-mono tracking-[0.4em] mt-1 opacity-80 font-fix text-orange-950`}>
                     UPLINK_PROTOCOL_B21

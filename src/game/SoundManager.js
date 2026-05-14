@@ -2,35 +2,28 @@
  * SoundManager — BGM・SE を一元管理するシングルトン
  *
  * 【配置するファイル】
- *   public/assets/audio/bgm/
- *     bgm_title.mp3   … タイトル画面
- *     bgm_lobby.mp3   … ログイン・ロビー画面
- *     bgm_map.mp3     … マップゲーム中（通常）
- *     bgm_battle.mp3  … 攻撃アクション時
- *
- *   public/assets/audio/se/
- *     se_click.mp3    … 地区タップ・キー操作
- *     se_move.mp3     … 初期配置確定
- *     se_capture.mp3  … 陣地獲得
- *
- * 【使い方】
- *   import SoundManager from '../game/SoundManager';
- *   SoundManager.playBgm('map');      // BGM 切り替え（フェード付き）
- *   SoundManager.playSe('capture');   // SE 単発再生
- *   SoundManager.setMuted(true);      // ミュート切り替え
+ * public/assets/audio/bgm/
+ * login-joinroom.mp3 … ログイン・ロビー画面
+ * waiting.mp3        … 待機・神選択画面
+ * maingame.mp3       … マップゲーム中
+ * battle.mp3         … 攻撃アクション時
+ * winner.mp3         … 勝利時
+ * loser.mp3          … 敗北時
  */
 
 const BGM_FILES = {
-  title:  '/assets/audio/bgm/login-joinroom.ogg',
-  lobby:  '/assets/audio/bgm/login-joinroom.ogg',
-  map:    '/assets/audio/bgm/maingame.mp3',
-  battle: '/assets/audio/bgm/battle.mp3',
+  login:   '/assets/audio/bgm/login-joinroom.mp3',
+  waiting: '/assets/audio/bgm/waiting.mp3',
+  map:     '/assets/audio/bgm/maingame.mp3',
+  battle:  '/assets/audio/bgm/battle.mp3',
+  winner:  '/assets/audio/bgm/winner.mp3',
+  loser:   '/assets/audio/bgm/loser.mp3',
 };
 
 const SE_FILES = {
-  click:   '/assets/audio/se/se_click.mp3',
-  move:    '/assets/audio/se/se_move.mp3',
-  capture: '/assets/audio/se/se_capture.mp3',
+  click:   '/assets/audio/se/click_non_button.mp3',
+  move:    '/assets/audio/se/moving.mp3',
+  capture: '/assets/audio/se/territory_control.mp3',
 };
 
 const FADE_MS    = 800;
@@ -42,14 +35,10 @@ class SoundManager {
   // アセットロード（preload()から呼ぶ）
   // ──────────────────────────────────────
   preloadAssets(scene) {
-    scene.load.audio('bgm_maingame', [
-      'assets/audio/bgm/maingame.ogg',
-      'assets/audio/bgm/maingame.mp3',
-    ]);
-    scene.load.audio('bgm_battle_music', [
-      'assets/audio/bgm/battle.ogg',
-      'assets/audio/bgm/battle.mp3',
-    ]);
+    scene.load.audio('bgm_maingame', 'assets/audio/bgm/maingame.mp3');
+    scene.load.audio('bgm_battle_music', 'assets/audio/bgm/battle.mp3');
+    scene.load.audio('bgm_waiting', 'assets/audio/bgm/waiting.mp3');
+
     const seKeys = [
       'click_non_button',
       'healing',
@@ -114,7 +103,7 @@ class SoundManager {
 
   /**
    * BGMを切り替える。同じキーは無視。フェードアウト→フェードインで遷移。
-   * @param {string} key - 'title' | 'lobby' | 'map' | 'battle'
+   * @param {string} key - 'login' | 'waiting' | 'map' | 'battle' | 'winner' | 'loser'
    */
   playBgm(key) {
     if (!BGM_FILES[key]) return;
@@ -200,7 +189,7 @@ class SoundManager {
   }
 
   _startPhaser(key) {
-    const phaserKey = `bgm_${key}`;
+    const phaserKey = `bgm_${key === 'map' ? 'maingame' : key === 'battle' ? 'battle_music' : key}`;
     if (!this._scene?.cache.audio.has(phaserKey)) return;
     const bgm = this._scene.sound.add(phaserKey, { loop: true, volume: 0 });
     this._phaserBgm = bgm;
@@ -218,9 +207,6 @@ class SoundManager {
 
   /**
    * Phaserキーを直接指定してBGMを再生する。
-   * setScene() 後に使用する。AudioContext suspended を自動 resume する。
-   * @param {string} phaserKey - Phaser にロード済みの audio キー
-   * @param {object} config    - { loop, volume } (省略時は loop:true, volume:0.4)
    */
   playBGM(phaserKey, config = {}) {
     if (!this._scene) return;
@@ -282,7 +268,7 @@ class SoundManager {
       if (import.meta.env.DEV) console.warn(`[SE] キャッシュに存在しない: ${key}`);
       return;
     }
-    this._scene.sound.play(key, { volume: this._muted ? 0 : SE_VOLUME });
+    this.playSe(key); // 共通の playSe ロジックへ
   }
 
   playSEChain(keys, delayMs = 1500) {

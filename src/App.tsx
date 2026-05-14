@@ -64,9 +64,7 @@ const App: React.FC = () => {
   const [showInventory, setShowInventory] = useState(false); 
   const [playerName, setLocalPlayerName] = useState('');
 
-  // ✅ 修正：App.tsx 側の BGM 初期化ロジック（旧77行目）は AudioController へ移行し削除
-
-  // ✅ ゲーム開始時：waiting BGM を停止してから Phaser 側に maingame BGM 開始を通知
+  // ✅ ゲーム開始時：HTML側の waiting BGM を停止してから Phaser 側に BGM 開始を通知
   useEffect(() => {
     if (view === 'game') {
       stopBGM();
@@ -81,7 +79,7 @@ const App: React.FC = () => {
     }
   }, [setView]);
 
-  // 🚀 1. マスターデータ同期
+  // マスターデータ同期
   useEffect(() => {
     if (token) {
       const init = async () => {
@@ -91,14 +89,14 @@ const App: React.FC = () => {
             setLookupData(res.data); 
           }
         } catch (_e) { 
-          addLog("❌ データ同期失敗"); 
+          addLog("❌ Data synchronization failed"); 
         }
       };
       init();
     }
   }, [token, authenticatedFetch, setLookupData, addLog]);
 
-  // 🚀 2. 出撃演出
+  // 出撃演出
   const triggerDeploySequence = useCallback(() => {
     if (isDeploying) return;
     setIsDeploying(true); 
@@ -116,7 +114,7 @@ const App: React.FC = () => {
     }, 2500);
   }, [isDeploying, setView]);
 
-  // 🚀 3. サーバー & Phaser 信号の監視
+  // サーバー & Phaser 信号の監視
   useEffect(() => {
     if (!socket) return;
 
@@ -125,7 +123,7 @@ const App: React.FC = () => {
       const allowedViews = ['lobby', 'selection', 'waiting'];
       if (allowedViews.includes(currentView)) {
         if (data) syncServerState(data, myId);
-        addLog("🚀 全員のリンク承認を確認。出撃します。");
+        addLog("🚀 All links locked. Deploying to mission sector!");
         triggerDeploySequence();
       }
     };
@@ -237,7 +235,7 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-screen h-screen bg-slate-950 text-slate-200 overflow-hidden select-none">
-      {/* 🚀 音響の司令塔 */}
+      {/* 🚀 音響の司令塔：view を監視して自動で BGM を切り替える */}
       <AudioController />
 
       <div className="w-full h-full relative overflow-hidden touch-pan-y custom-scrollbar text-left">
