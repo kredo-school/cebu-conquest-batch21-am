@@ -92,7 +92,7 @@ function createInitialGameState(maxPlayers = 4) {
         roomId: null,
         status: 'waiting', 
         turn: 0, 
-        maxTurn: 30, // GDD上は最大10ですが、互換性のため残すか随時調整
+        maxTurn: 10, // GDD上は最大10ですが、互換性のため残すか随時調整
         maxPlayers: maxPlayers,
         turnOwnerId: null, 
         firstPlayerId: null,
@@ -116,6 +116,14 @@ function broadcastLobbyUpdate(roomId, roomState) {
         isReady: p.isReady || false
     }));
     io.to(roomId).emit("lobbyUpdated", { players: playersArr });
+}
+
+// 💡 追加: 全島制覇チェック
+function checkAllConquered(roomState) {
+    const allDistricts = Object.keys(DISTRICTS_MASTER);
+    const firstOwner = roomState.districts[allDistricts[0]];
+    if (!firstOwner) return false;
+    return allDistricts.every(dId => roomState.districts[dId] === firstOwner);
 }
 
 // ==========================================
@@ -227,7 +235,7 @@ function processNpcTurn(roomId) {
                         team: npc.teamColor
                     });
                 } else {
-                    npc.hp -= 20;
+                    npc.hp = Math.max(0, npc.hp - 20); // 💡修正: HP0以下を防ぐ
                     io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`❌ ${npc.username}: ${target.name} への侵攻に失敗しました。`);
 
                     // 💡 修正: 敗北時のダメージイベント
@@ -253,8 +261,12 @@ function finalizeTurn(roomId, currentId) {
     if (!roomState) return;
 
     const playerIds = Object.keys(roomState.players);
-    const currentIndex = playerIds.indexOf(currentId);
     
+    // 💡 追加: 全島制覇判定とHP0の即時敗北判定
+    const isAllConquered = checkAllConquered(roomState);
+    const isSomeoneDead = Object.values(roomState.players).some(p => p.hp <= 0);
+
+    const currentIndex = playerIds.indexOf(currentId);
     const nextIndex = (currentIndex + 1) % playerIds.length;
     const nextId = playerIds[nextIndex];
 
@@ -265,7 +277,7 @@ function finalizeTurn(roomId, currentId) {
         roomState.turn++;
     }
 
-    if (roomState.turn > roomState.maxTurn) {
+    if (roomState.turn > roomState.maxTurn || isAllConquered || isSomeoneDead) {
         handleGameOver(roomId, playerIds);
         return; 
     }
@@ -768,7 +780,6 @@ io.on('connection', (socket) => {
             return;
         }
         roomState.isProcessingAction = true;
-        let doFinalize = true;
 
         try {
             const p = roomState.players[socket.id];
@@ -784,7 +795,6 @@ io.on('connection', (socket) => {
                 !neighbors.includes(targetId)
             ) {
                 socket.emit(SERVER_EVENTS.ERROR_MESSAGE, "隣接していない地区には移動・攻撃できません。");
-                doFinalize = false;
                 return;
             }
 
@@ -835,7 +845,7 @@ io.on('connection', (socket) => {
                         }
                     }
                 } else {
-                    p.hp -= 20;
+                    p.hp = Math.max(0, p.hp - 20); // 💡 修正: HP0以下にならないように
                     io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `❌ ${p.username}: ${targetId} への攻撃に失敗。`);
 
                     // 💡 修正: 敗北時もバトル結果を送信（HPダメージ反映用）
@@ -856,8 +866,17 @@ io.on('connection', (socket) => {
             }
         } finally {
             roomState.isProcessingAction = false;
-            if (doFinalize) finalizeTurn(roomId, socket.id);
+            // 💡 修正: GDDフローに沿い、ACTION_SUBMIT内でのターン自動進行(finalizeTurn)を廃止
+            io.to(roomId).emit(SERVER_EVENTS.ACTION_RESULT, { state: sanitizeRoomState(roomState) });
+            io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
         }
+    });
+
+    // 💡 追加: ターン終了処理のハンドラ（フロントエンドからの通知でターン進行）
+    socket.on(CLIENT_EVENTS.TURN_END_SUBMIT, () => {
+        const roomId = socket.roomId;
+        if (!roomId) return;
+        finalizeTurn(roomId, socket.id);
     });
 
     socket.on(CLIENT_EVENTS.ACTION_DEFEND, () => {
@@ -870,7 +889,9 @@ io.on('connection', (socket) => {
         p.isDefending = true;
         p.ap = Math.max(0, p.ap - 5);
         io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🛡️ ${p.username}: 守りを固めました（次の攻撃への防御力1.5倍）。`);
-        finalizeTurn(roomId, socket.id);
+        // 💡 修正: ターン自動進行を廃止し結果のみ送信
+        io.to(roomId).emit(SERVER_EVENTS.ACTION_RESULT, { state: sanitizeRoomState(roomState) });
+        io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
     });
 
     socket.on(CLIENT_EVENTS.ACTION_ESCAPE, () => {
@@ -893,7 +914,9 @@ io.on('connection', (socket) => {
             p.hp = Math.max(0, p.hp - 50);
             io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `💥 ${p.username}: 逃げ場がなくダメージを受けた！`);
         }
-        finalizeTurn(roomId, socket.id);
+        // 💡 修正: ターン自動進行を廃止し結果のみ送信
+        io.to(roomId).emit(SERVER_EVENTS.ACTION_RESULT, { state: sanitizeRoomState(roomState) });
+        io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
     });
 
     socket.on(CLIENT_EVENTS.ACTION_USE_ITEM, async ({ itemId }) => {
