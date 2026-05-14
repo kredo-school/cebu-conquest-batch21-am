@@ -9,6 +9,18 @@ import SoundManager from './game/SoundManager';
 
 const MAP_REPAINT_EVENT = 'react:mapRepaint';
 
+// 🚀 神のバフデータを Store 側に集約
+export const GOD_BUFF_MAP: Record<number, { hp?: number; atk?: number; def?: number; ap?: number }> = {
+  1: { hp: 40 },      // Neil: MAX_HP +30, HP +10
+  2: { atk: 20 },     // Garry: ATK +20
+  3: { hp: 10, ap: 15 }, // Shem: HP +10, MAX_AP +15
+  4: { hp: -20 },     // Quisie: HP -20
+  5: { def: 15 },     // Eduardo: DEF +15
+  6: { hp: -10 },     // Kurt: HP -10
+  7: {},              // Stephen: FAITH_REGEN (Passive)
+  8: { ap: 30 },      // Bernardine: MAX_AP +30
+};
+
 export interface ChatMessage {
   sender: string;
   message: string;
@@ -62,7 +74,7 @@ export interface Player {
   location?: number | null;
   selectedGodId?: number | null;
   godId?: number | null;
-  godColor?: string | null;   // ★ 追加: CSS用カラー文字列（#rrggbb）
+  godColor?: string | null;
   occupancy?: number;
   baseIsland?: string;
   isNpc?: boolean;
@@ -79,7 +91,6 @@ export interface Item {
 }
 
 export interface LookupData {
-  // ✅ 修正箇所: image_63927e.png の構文エラーを修正
   islands: Map<number, { name: string; id: number }>;
   areas: Map<number, { name: string; id: number; parentIslandId: number }>;
   districts: Map<number, { name: string; id: number; parentAreaId: number }>;
@@ -226,7 +237,7 @@ export const useGameStore = create<GameState>()(
       errorMessage: null, isServerOnline: socket.connected, zoomLevel: 1.0, 
       hp: 100, maxHp: 100, ap: 100, maxAp: 100, blessing: 1.0, atk: 50, def: 40,
       turn: 0, maxTurn: 10, logs: [], chatLogs: [], roomId: '', players: [], maxPlayers: 2,
-      districts: {}, currentDistrictName: "地点未選択", selectedDistrictId: null,
+      districts: {}, currentDistrictName: "No Sector Selected", selectedDistrictId: null,
       playerName: "",
       myId: "", myTeam: "Explorer", isMyTurn: true, turnOwner: "YOU",
       isGameOver: false, winnerId: null, isSubmitted: false,
@@ -249,7 +260,7 @@ export const useGameStore = create<GameState>()(
       setCameraSensitivity: (val) => set({ cameraSensitivity: val }),
       autoBattle: true,
       setAutoBattle: (status) => set({ autoBattle: status }),
-      language: 'ja',
+      language: 'en',
       setLanguage: (lang) => set({ language: lang }),
       playerAvatar: null,
       setPlayerAvatar: (avatar) => set({ playerAvatar: avatar }),
@@ -261,7 +272,6 @@ export const useGameStore = create<GameState>()(
       rankingData: [], setRanking: (data) => set({ rankingData: data }),
       inventory: [], setInventory: (items) => set({ inventory: items }),
       
-      // 🚀 修正箇所: .env から読み込む（設定がなければハードコードのIPを使う）
       getApiUrl: (endpoint) => {
         const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://10.29.219.57/Cebu_Conquest/cebu-conquest-batch21-am/public/api';
         return `${baseUrl.replace(/\/$/, '')}/${endpoint}`;
@@ -356,9 +366,8 @@ export const useGameStore = create<GameState>()(
         });
       },
       closePrediction: () => set({ predictionModalOpen: false, targetDistrictInfo: null }),
-      updateBuffs: () => { /* 実装略 */ },
+      updateBuffs: () => { /* Implement if needed */ },
 
-      // 🚀 バックエンド担当の指示に従い、roomId を安全にマージするように修正！
       syncServerState: (data, myId) => {
         if (!data) return;
         const rawPlayers = (data.players as Record<string, Player>) ?? {};
@@ -392,7 +401,6 @@ export const useGameStore = create<GameState>()(
             nextView = 'selection';
           }
           
-          // 🚨 【重要】サーバーからの roomId が無い場合は、現在の state.roomId を維持する
           const safeRoomId = (data.roomId && data.roomId !== "") 
                              ? (data.roomId as string) 
                              : state.roomId;
@@ -400,7 +408,7 @@ export const useGameStore = create<GameState>()(
           return {
             ...state,
             myId,
-            roomId: safeRoomId, // 👈 安全なマージ処理を適用！
+            roomId: safeRoomId,
             hp: myPlayerData?.hp ?? state.hp,
             maxHp: myPlayerData?.maxHp ?? state.maxHp,
             ap: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.ap,
@@ -465,8 +473,23 @@ export const useGameStore = create<GameState>()(
           });
         } catch (e) { console.error(e); }
       },
-      attack: (id) => socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'attack', targetId: id }),
-      move: (id) => socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'move', targetId: id }),
+
+      // 🚀 修正：スタミナ制限のガードロジックを追加
+      attack: (id) => {
+        if (get().ap <= 0) {
+          get().addLog("⚠️ Insufficient energy! Attack maneuver locked.");
+          return;
+        }
+        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'attack', targetId: id });
+      },
+      move: (id) => {
+        if (get().ap <= 0) {
+          get().addLog("⚠️ Critical energy depletion! Movement impossible.");
+          return;
+        }
+        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'move', targetId: id });
+      },
+
       stay: () => {
         socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'stay' });
         window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_STAY));
@@ -499,7 +522,6 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: 'cebu-conquest-storage',
-      // ✅ 修正: ログイン情報は保存せず、設定値のみ永続化
       partialize: (state) => ({
         hasSeenTutorial: state.hasSeenTutorial,
         masterVolume: state.masterVolume,

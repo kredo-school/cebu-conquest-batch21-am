@@ -8,10 +8,23 @@ interface SidebarProps {
   onOpenInventory: () => void;
 }
 
+// 🚀 神のバフデータを定義
+const GOD_BUFFS: Record<number, { hp?: number; atk?: number; def?: number; ap?: number }> = {
+  1: { hp: 40 },      // Neil: MAX_HP +30, HP +10
+  2: { atk: 20 },     // Garry: ATK +20
+  3: { hp: 10, ap: 15 }, // Shem: HP +10, MAX_AP +15
+  4: { hp: -20 },     // Quisie: HP -20
+  5: { def: 15 },     // Eduardo: DEF +15
+  6: { hp: -10 },     // Kurt: HP -10
+  7: {},              // Stephen: FAITH_REGEN (Passive)
+  8: { ap: 30 },      // Bernardine: MAX_AP +30
+};
+
 export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHelp, onOpenInventory }) => {
   const hp = useGameStore(state => state.hp);
   const maxHp = useGameStore(state => state.maxHp);
   const ap = useGameStore(state => state.ap);
+  const maxAp = useGameStore(state => state.maxAp || 100); // 🚀 最大APを取得
   const turn = useGameStore(state => state.turn);
   const logs = useGameStore(state => state.logs);
   const atk = useGameStore(state => state.atk);
@@ -22,6 +35,12 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
   const myId = useGameStore(state => state.myId);
   const playerName = useGameStore(state => state.playerName);
   const lookupData = useGameStore(state => state.lookupData);
+  const selectedGodId = useGameStore(state => state.selectedGodId);
+
+  // 🚀 バフ計算 & 実効最大値の算出
+  const buffs = useMemo(() => (selectedGodId ? GOD_BUFFS[selectedGodId] : {}), [selectedGodId]);
+  const effectiveMaxHp = useMemo(() => maxHp + (buffs.hp || 0), [maxHp, buffs.hp]);
+  const effectiveMaxAp = useMemo(() => maxAp + (buffs.ap || 0), [maxAp, buffs.ap]);
 
   const territorySummary = useMemo(() => {
     const myDistricts = Object.entries(districts)
@@ -77,13 +96,12 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
             70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); border-color: rgba(239, 68, 68, 1); }
             100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); border-color: rgba(239, 68, 68, 0.5); }
         }
-        @keyframes pulse-orange {
-            0% { box-shadow: 0 0 15px rgba(250, 112, 0, 0.4); border-color: rgba(250, 112, 0, 0.5); }
-            50% { box-shadow: 0 0 30px rgba(250, 112, 0, 0.7); border-color: rgba(250, 112, 0, 1); }
-            100% { box-shadow: 0 0 15px rgba(250, 112, 0, 0.4); border-color: rgba(250, 112, 0, 0.5); }
+        @keyframes energy-critical {
+            0%, 100% { background-color: rgba(239, 68, 68, 0); border-color: rgba(239, 68, 68, 0.3); }
+            50% { background-color: rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 1); }
         }
         .animate-pulse-red { animation: pulse-red 2s infinite; }
-        .animate-pulse-orange { animation: pulse-orange 2.5s infinite ease-in-out; }
+        .animate-energy-critical { animation: energy-critical 0.8s infinite ease-in-out; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #ea580c; border-radius: 10px; }
         .font-fix { line-height: 1.2; }
@@ -105,7 +123,6 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
               <div className="text-2xl font-black text-orange-500 italic font-fix">{turn}</div>
             </div>
             
-            {/* ✅ 修正：ターンの表示テキストとスタイルを復元 */}
             <div className={`inline-flex items-center justify-center px-6 py-3 rounded-full border shadow-2xl transition-all ${
               isUnderAttack ? 'bg-red-950/40 border-red-500 animate-pulse-red' : 
               (isMyTurn ? 'bg-orange-600/20 border-[#fa7000] animate-pulse-orange shadow-[0_0_20px_rgba(250,112,0,0.3)]' : 'bg-slate-900/50 border-slate-800 opacity-50')
@@ -119,29 +136,47 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
           </div>
 
           <div className="space-y-4">
-            {/* HP / AP ゲージ */}
+            {/* HP ゲージ (最大値拡張反映) */}
             <div className="space-y-2">
-              <span className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Vitality {hp}/{maxHp}</span>
+              <div className="flex justify-between items-end">
+                <span className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Vitality</span>
+                <span className={`text-[10px] font-black font-mono ${buffs.hp ? 'text-orange-400' : 'text-slate-400'}`}>
+                    {hp}/{effectiveMaxHp}
+                </span>
+              </div>
               <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-                <div className="h-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] transition-all duration-500" style={{ width: `${(hp/(maxHp || 100))*100}%` }} />
+                <div className="h-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] transition-all duration-500" style={{ width: `${(hp / effectiveMaxHp) * 100}%` }} />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <span className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Energy {ap}%</span>
+            {/* AP ゲージ (最大値拡張 ＆ 点滅演出追加) */}
+            <div className={`space-y-2 p-2 -m-2 rounded-lg transition-all border border-transparent ${ap <= 0 ? 'animate-energy-critical' : ''}`}>
+              <div className="flex justify-between items-end">
+                <span className={`text-[10px] font-black uppercase tracking-tighter ${ap <= 0 ? 'text-red-500' : 'text-slate-500'}`}>
+                    {ap <= 0 ? '⚠ Energy Depleted' : 'Energy'}
+                </span>
+                <span className={`text-[10px] font-black font-mono ${ap <= 0 ? 'text-red-500' : (buffs.ap ? 'text-cyan-400' : 'text-slate-400')}`}>
+                    {ap}/{effectiveMaxAp}%
+                </span>
+              </div>
               <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-                <div className="h-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)] transition-all duration-500" style={{ width: `${ap}%` }} />
+                <div className={`h-full transition-all duration-500 ${ap <= 0 ? 'bg-red-600' : 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]'}`} 
+                     style={{ width: `${(ap / effectiveMaxAp) * 100}%` }} />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-slate-900/50 p-2 rounded border border-slate-800 flex flex-col items-center">
-                <span className="text-[8px] text-slate-600 font-bold uppercase mb-1">Combat ATK</span>
-                <div className="text-lg font-black text-slate-100 italic font-fix">{atk}</div>
+              <div className={`p-2 rounded border transition-colors flex flex-col items-center ${buffs.atk ? 'bg-orange-950/20 border-orange-500/50 shadow-[0_0_10px_rgba(250,112,0,0.1)]' : 'bg-slate-900/50 border-slate-800'}`}>
+                <span className={`text-[8px] font-bold uppercase mb-1 ${buffs.atk ? 'text-orange-500' : 'text-slate-600'}`}>Combat ATK</span>
+                <div className={`text-lg font-black italic font-fix ${buffs.atk ? 'text-orange-400' : 'text-slate-100'}`}>
+                    {atk + (buffs.atk || 0)}
+                </div>
               </div>
-              <div className="bg-slate-900/50 p-2 rounded border border-slate-800 flex flex-col items-center">
-                <span className="text-[8px] text-slate-600 font-bold uppercase mb-1">Armor DEF</span>
-                <div className="text-lg font-black text-slate-100 italic font-fix">{def}</div>
+              <div className={`p-2 rounded border transition-colors flex flex-col items-center ${buffs.def ? 'bg-orange-950/20 border-orange-500/50 shadow-[0_0_10px_rgba(250,112,0,0.1)]' : 'bg-slate-900/50 border-slate-800'}`}>
+                <span className={`text-[8px] font-bold uppercase mb-1 ${buffs.def ? 'text-orange-500' : 'text-slate-600'}`}>Armor DEF</span>
+                <div className={`text-lg font-black italic font-fix ${buffs.def ? 'text-orange-400' : 'text-slate-100'}`}>
+                    {def + (buffs.def || 0)}
+                </div>
               </div>
             </div>
           </div>

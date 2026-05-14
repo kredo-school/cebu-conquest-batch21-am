@@ -5,7 +5,6 @@ import SoundManager from "../game/SoundManager";
 
 /**
  * 🛰️ ActionPanel: プレイヤーの戦術アクションを管理する UI コンポーネント
- * 仕様: 拠点選択が完了するまで「START MISSION」画面を維持する
  */
 export const ActionPanel: React.FC = memo(() => {
   const turn = useGameStore((state) => state.turn);
@@ -15,7 +14,7 @@ export const ActionPanel: React.FC = memo(() => {
   const attack = useGameStore((state) => state.attack);
   const stay = useGameStore((state) => state.stay);
   const endTurn = useGameStore((state) => state.endTurn);
-  const setErrorMessage = useGameStore((state) => state.setErrorMessage);
+  const addLog = useGameStore((state) => state.addLog); // 🚀 エラー表示用
 
   // ✅ GDD v3.1: ルックアップ辞書を取得
   const lookupData = useGameStore((state) => state.lookupData);
@@ -27,12 +26,11 @@ export const ActionPanel: React.FC = memo(() => {
   const players = useGameStore((state) => state.players);
   const me = players.find((p) => p.id === myId);
 
-  // 自分の districtId が有効な数値（11101等）でない場合は「出撃前」と判定
+  // 自分の districtId が有効な数値でない場合は「出撃前」と判定
   const isDeployed = !!(me && me.districtId && me.districtId > 0);
 
   /**
    * ✅ GDD v3.1: lookupData を使って安全にターゲット情報を取得
-   * ts(2345) 回避のため、IDの存在チェックを厳密化
    */
   const targetInfo = useMemo(() => {
     if (!selectedDistrictId || !lookupData) return null;
@@ -40,14 +38,10 @@ export const ActionPanel: React.FC = memo(() => {
     const district = lookupData.districts.get(selectedDistrictId);
     if (!district) return null;
 
-    // area の取得
     const areaId = district.parentAreaId;
     const area = areaId !== undefined && areaId !== null ? lookupData.areas.get(areaId) : undefined;
-
-    // island の取得 (ここが ts(2345) の原因箇所)
     const islandId = area?.parentIslandId;
-    const island =
-      islandId !== undefined && islandId !== null ? lookupData.islands.get(islandId) : undefined;
+    const island = islandId !== undefined && islandId !== null ? lookupData.islands.get(islandId) : undefined;
 
     return {
       island: island?.name?.toUpperCase() || area?.name?.toUpperCase() || "UNKNOWN SECTOR",
@@ -57,19 +51,33 @@ export const ActionPanel: React.FC = memo(() => {
   }, [selectedDistrictId, lookupData]);
 
   /**
-   * 🚀 拠点選択（デプロイ）確定処理
+   * 🚀 拠点選択確定処理
    */
   const handleDeploy = () => {
     if (typeof selectedDistrictId !== "number") return;
-
     emitToPhaser(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, {
-      startSpotId: selectedDistrictId, // ★ 旧: startDistrictId → 新: startSpotId
+      startSpotId: selectedDistrictId,
     });
     useGameStore.getState().nextTurn();
   };
 
   /**
-   * 1. 【出撃フェーズ】 ターン 0、または自分の位置が未確定の場合
+   * 🚀 攻撃実行（APチェック）
+   */
+  const handleAttack = () => {
+    if (typeof selectedDistrictId === "number") {
+      if (ap >= 5) {
+        try { SoundManager.playSe("click"); } catch {}
+        attack(selectedDistrictId);
+      } else {
+        // 🚀 英語化対応
+        addLog("⚠️ Insufficient Energy! Command execution failed.");
+      }
+    }
+  };
+
+  /**
+   * 1. 【出撃フェーズ】
    */
   if (turn === 0 || !isDeployed) {
     return (
@@ -109,7 +117,7 @@ export const ActionPanel: React.FC = memo(() => {
   }
 
   /**
-   * 2. 【待機フェーズ】 相手のターン中
+   * 2. 【待機フェーズ】
    */
   if (!isMyTurn) {
     return (
@@ -125,26 +133,14 @@ export const ActionPanel: React.FC = memo(() => {
   }
 
   /**
-   * 3. 【行動フェーズ】 自分のターン：メインアクション
+   * 3. 【行動フェーズ】
    */
-  const handleAttack = () => {
-    if (typeof selectedDistrictId === "number") {
-      if (ap >= 5) {
-        try {
-          SoundManager.playSe("click");
-        } catch {}
-        attack(selectedDistrictId);
-      } else {
-        setErrorMessage("AP（スタミナ）が不足しています。");
-      }
-    }
-  };
-
   return (
     <div className="absolute bottom-12 left-80 right-12 flex items-end justify-between pointer-events-none z-50 text-left">
       <div className="flex-1"></div>
       <div className="flex gap-3 items-end pointer-events-auto">
-        {/* ⚔️ Engagement (攻撃) - AP 5 消費 */}
+        
+        {/* ⚔️ Engagement (攻撃) - AP 5 未満でロック ＆ 視覚的フィードバック */}
         <button
           onClick={handleAttack}
           disabled={typeof selectedDistrictId !== "number" || ap < 5}
@@ -152,27 +148,27 @@ export const ActionPanel: React.FC = memo(() => {
             ${
               typeof selectedDistrictId === "number" && ap >= 5
                 ? "bg-orange-600 text-white shadow-[0_10px_40px_rgba(234,88,12,0.4)] hover:bg-orange-500 hover:scale-105 active:scale-95 border-b-4 border-orange-800"
-                : "bg-slate-900/95 text-slate-600 border border-white/5 cursor-not-allowed backdrop-blur-md shadow-inner opacity-50"
+                : "bg-slate-900/95 text-slate-700 border border-red-500/20 cursor-not-allowed backdrop-blur-md shadow-inner opacity-40 grayscale"
             }`}
         >
           <span
-            className="material-symbols-outlined text-4xl group-enabled:group-hover:scale-110 transition-transform"
+            className={`material-symbols-outlined text-4xl transition-transform ${ap < 5 ? 'text-red-500' : 'group-enabled:group-hover:scale-110'}`}
             style={{ fontVariationSettings: '"FILL" 1' }}
           >
-            swords
+            {ap < 5 ? 'battery_critical' : 'swords'}
           </span>
-          <span className="font-fix uppercase tracking-tighter text-[10px]">Engagement</span>
-          <div className="absolute top-0 right-0 p-1 opacity-20 text-[8px] font-mono uppercase">
+          <span className="font-fix uppercase tracking-tighter text-[10px]">
+            {ap < 5 ? 'LOW ENERGY' : 'Engagement'}
+          </span>
+          <div className={`absolute top-0 right-0 p-1 text-[8px] font-mono uppercase ${ap < 5 ? 'text-red-500 animate-pulse' : 'opacity-20'}`}>
             Cost: 5 AP
           </div>
         </button>
 
-        {/* 🧘 Neural Recover (回復) - Stay アクション */}
+        {/* 🧘 Recover (待機/回復) - 🚀 詰み回避のため常に選択可能 */}
         <button
           onClick={() => {
-            try {
-              SoundManager.playSe("click");
-            } catch {}
+            try { SoundManager.playSe("click"); } catch {}
             stay();
           }}
           className="group bg-slate-900/90 backdrop-blur-xl border border-white/10 text-slate-400 rounded-2xl font-black hover:bg-slate-800 hover:text-white transition-all active:scale-95 flex flex-col items-center justify-center gap-1 w-32 h-28 text-sm shadow-2xl"
@@ -183,12 +179,10 @@ export const ActionPanel: React.FC = memo(() => {
           <span className="font-fix uppercase tracking-widest text-[9px]">Recover</span>
         </button>
 
-        {/* 🚀 Turn End (ターン終了承認) */}
+        {/* 🚀 Turn End (ターン終了) - 🚀 常に選択可能 */}
         <button
           onClick={() => {
-            try {
-              SoundManager.playSe("click");
-            } catch {}
+            try { SoundManager.playSe("click"); } catch {}
             endTurn();
           }}
           className="group bg-blue-950/40 border-2 border-blue-500/30 text-blue-400 rounded-2xl font-black hover:bg-blue-600 hover:text-white hover:border-blue-400 transition-all active:scale-95 flex flex-col items-center justify-center gap-1 w-32 h-28 text-sm shadow-[0_0_20px_rgba(59,130,246,0.2)]"
@@ -208,3 +202,5 @@ export const ActionPanel: React.FC = memo(() => {
     </div>
   );
 });
+
+export default ActionPanel;
