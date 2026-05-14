@@ -29,9 +29,9 @@ const COLOR = {
   ENEMY_DOT: 0xffffff,
   TEAM_RED: 0xff4d4d,
   TEAM_BLUE: 0x00ffff,
-  OUTLINE_NEUTRAL:  0xffffff,
-  OUTLINE_MY_TEAM:  0x06b6d4,
-  OUTLINE_ENEMY:    0xff4444,
+  OUTLINE_NEUTRAL: 0xffffff,
+  OUTLINE_MY_TEAM: 0x06b6d4,
+  OUTLINE_ENEMY: 0xff4444,
   OUTLINE_SELECTED: 0xfa7000,
 };
 
@@ -40,6 +40,18 @@ const normalizeId = (id) => {
   const n = Number(id);
   return isNaN(n) ? null : n;
 };
+function extractSpotId(obj) {
+  // 方式A: プロパティ名が5桁数値
+  const byPropName = normalizeId(obj.properties?.[0]?.name);
+  if (byPropName != null && byPropName >= 10000) return byPropName;
+
+  // 方式B: "spot_id" or "id" というプロパティ名の値
+  const byValue = obj.properties?.find((p) => p.name === "spot_id" || p.name === "id")?.value;
+  if (byValue != null) return normalizeId(byValue);
+
+  // フォールバック: obj.name が数値文字列の場合
+  return normalizeId(obj.name);
+}
 
 function pointInPolygon(point, polygon) {
   let inside = false;
@@ -62,15 +74,15 @@ export default class MainScene extends Phaser.Scene {
     this.spots = {}; // { [5桁spotId]: { x, y, name, districtId(3桁) } }
     this.otherPlayers = {};
     this.playerStats = { hp: 100, stamina: 100, faith: 1.0, atk: 50, def: 40 };
-    this.currentSpotId     = null;   // ★ 5桁spot ID
+    this.currentSpotId = null; // ★ 5桁spot ID
     this.currentDistrictId = null;
     this._dragMoved = false;
     this.isSelectionMode = true;
     this._reactListeners = [];
     this._myTeam = null;
     this._pendingTargetId = null;
-    this._myGodId    = null;       // ★ 追加: 自分が選択した godId
-    this._myGodColor = 0x95a5a6;   // ★ 追加: 神カラー（暫定: 中立グレー）
+    this._myGodId = null; // ★ 追加: 自分が選択した godId
+    this._myGodColor = 0x95a5a6; // ★ 追加: 神カラー（暫定: 中立グレー）
     this._avatarKey = null; // SET_AVATARが来るまではnull（フォールバックで丸を表示）
   }
 
@@ -99,13 +111,13 @@ export default class MainScene extends Phaser.Scene {
 
     // GodSelectionView.tsx の GOD_SLOTS.textureKey と完全一致させる
     const GOD_IMAGES = [
-      { key: "god-neil",       path: "/assets/images/gods/Neil.png" },
-      { key: "god-garry",      path: "/assets/images/gods/Garry.png" },
-      { key: "god-shem",       path: "/assets/images/gods/Shem.png" },
-      { key: "god-quisie",     path: "/assets/images/gods/Quisie.png" },
-      { key: "god-eduardo",    path: "/assets/images/gods/Eduardo.png" },
-      { key: "god-kurt",       path: "/assets/images/gods/Kurt.png" },
-      { key: "god-stephen",    path: "/assets/images/gods/Stephen.png" },
+      { key: "god-neil", path: "/assets/images/gods/Neil.png" },
+      { key: "god-garry", path: "/assets/images/gods/Garry.png" },
+      { key: "god-shem", path: "/assets/images/gods/Shem.png" },
+      { key: "god-quisie", path: "/assets/images/gods/Quisie.png" },
+      { key: "god-eduardo", path: "/assets/images/gods/Eduardo.png" },
+      { key: "god-kurt", path: "/assets/images/gods/Kurt.png" },
+      { key: "god-stephen", path: "/assets/images/gods/Stephen.png" },
       { key: "god-bernardine", path: "/assets/images/gods/Bernardine.png" },
     ];
     GOD_IMAGES.forEach(({ key, path }) => this.load.image(key, path));
@@ -184,7 +196,14 @@ export default class MainScene extends Phaser.Scene {
   }
 
   update() {
-    this.zoomManager.tick(this.cameras.main.zoom, this.districts);
+    const zoom = this.cameras.main.zoom;
+
+    // ズームが変化した時だけ tick を呼ぶ（毎フレーム呼ばない）
+    if (Math.abs(zoom - (this._lastZoom ?? 0)) > 0.01) {
+      this._lastZoom = zoom;
+      if (this.districts) this.zoomManager?.tick(zoom, this.districts);
+    }
+
     this.cameraController?.update();
   }
 
@@ -198,7 +217,7 @@ export default class MainScene extends Phaser.Scene {
    */
   _claimSacredLand(godId) {
     const sacredDistrictId = getSacredDistrict(godId);
-    const spawnSpotId      = getSpawnSpot(godId);
+    const spawnSpotId = getSpawnSpot(godId);
 
     if (sacredDistrictId == null) {
       console.warn(`[MainScene] godId=${godId} に対応する聖地が見つかりません`);
@@ -211,7 +230,7 @@ export default class MainScene extends Phaser.Scene {
 
     // ★ district配下の全spotを塗る（districtポリゴン自体は塗らない）
     const spots = this._getSpotsInDistrict(sacredDistrictId);
-    spots.forEach(spot => {
+    spots.forEach((spot) => {
       spot.owner = "me";
       this._redrawDistrict(spot, godColor, 0.65);
     });
@@ -330,7 +349,7 @@ export default class MainScene extends Phaser.Scene {
           // ★ 全地区を神カラーで再描画
           Object.values(this.districts).forEach((d) => {
             const ownerInfo = (districts ?? []).find((dd) => dd.district_id === d.id);
-            this._repaintDistrictByOwner(d, ownerInfo?.owner_id ?? 'neutral', playerMap);
+            this._repaintDistrictByOwner(d, ownerInfo?.owner_id ?? "neutral", playerMap);
           });
 
           if (players) this._syncPlayers(players);
@@ -346,18 +365,23 @@ export default class MainScene extends Phaser.Scene {
             this._avatarKey = godKey;
             // _placePlayer が直後に呼ばれるため setTexture は不要だが、
             // Image オブジェクトの場合のみ念のため更新する
-            if (this.player && this.textures.exists(godKey) &&
-                typeof this.player.setTexture === "function") {
+            if (
+              this.player &&
+              this.textures.exists(godKey) &&
+              typeof this.player.setTexture === "function"
+            ) {
               this.player.setTexture(godKey);
             }
           }
 
           if (godId != null) {
             // ★ 神カラーを確定
-            this._myGodId    = Number(godId);
+            this._myGodId = Number(godId);
             this._myGodColor = getGodColor(this._myGodId);
             if (import.meta.env.DEV)
-              console.log(`[MainScene] 神カラー確定: godId=${godId}, color=0x${this._myGodColor.toString(16)}`);
+              console.log(
+                `[MainScene] 神カラー確定: godId=${godId}, color=0x${this._myGodColor.toString(16)}`,
+              );
 
             // ② 聖地を神カラーで先塗り（既存処理）
             this._claimSacredLand(godId);
@@ -366,8 +390,8 @@ export default class MainScene extends Phaser.Scene {
             const sacredId = getSacredDistrict(godId); // 3桁: 移動判定用
             const spawnSpot = getSpawnSpot(godId); // 5桁: アバター座標用
             if (sacredId != null) {
-              this.isSelectionMode   = false;
-              this.currentSpotId     = spawnSpot ?? sacredId; // ★ 5桁を保持
+              this.isSelectionMode = false;
+              this.currentSpotId = spawnSpot ?? sacredId; // ★ 5桁を保持
               this.currentDistrictId = sacredId; // 3桁: ADJACENCY チェック用
               this._placePlayer(spawnSpot ?? sacredId); // 5桁優先、なければ3桁フォールバック
               SoundManager.playSE("se_moving");
@@ -395,7 +419,7 @@ export default class MainScene extends Phaser.Scene {
             playerMap[p.id] = { godId: p.godId ?? p.selectedGodId ?? null };
           });
 
-          this._repaintDistrictByOwner(d, owner ?? 'neutral', playerMap);
+          this._repaintDistrictByOwner(d, owner ?? "neutral", playerMap);
         },
       },
     ];
@@ -555,8 +579,10 @@ export default class MainScene extends Phaser.Scene {
       const objectLayer = this.tiledMap.getObjectLayer(layerName);
       if (!objectLayer) return;
       objectLayer.objects.forEach((obj) => {
-        const rawId = obj.properties?.[0]?.name ?? obj.id;
-        const districtId = normalizeId(rawId);
+        const districtId =
+          layerName === "spotName"
+            ? extractSpotId(obj) // spot専用の抽出関数
+            : normalizeId(obj.properties?.[0]?.name ?? obj.id); // island/area/districtは従来通り
         if (!districtId) return;
 
         const poly = (obj.polygon || []).map((p) => ({
@@ -575,7 +601,7 @@ export default class MainScene extends Phaser.Scene {
             y: poly.reduce((s, v) => s + v.y, 0) / poly.length,
           },
           owner: "neutral",
-          graphics: this.add.graphics().setDepth(layerName === 'spotName' ? 3 : 2)
+          graphics: this.add.graphics().setDepth(layerName === "spotName" ? 3 : 2),
         };
         this._redrawDistrict(this.districts[districtId], COLOR.NEUTRAL, 0);
       });
@@ -657,21 +683,21 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _drawSpotOutlines() {
-    Object.values(this.districts).forEach(d => {
-      if (d.type !== 'spotName') return;
+    Object.values(this.districts).forEach((d) => {
+      if (d.type !== "spotName") return;
       const g = this.add.graphics().setDepth(3);
       d.outlineGraphics = g;
       this._updateSpotOutline(d);
     });
 
     if (import.meta.env.DEV) {
-      const count = Object.values(this.districts).filter(d => d.type === 'spotName').length;
+      const count = Object.values(this.districts).filter((d) => d.type === "spotName").length;
       console.log(`[SpotOutline] ${count}件のspotアウトラインを描画しました`);
     }
   }
 
   _updateSpotOutline(d, isSelected = false) {
-    if (!d || !d.outlineGraphics || d.type !== 'spotName') return;
+    if (!d || !d.outlineGraphics || d.type !== "spotName") return;
 
     const g = d.outlineGraphics;
     g.clear();
@@ -679,23 +705,23 @@ export default class MainScene extends Phaser.Scene {
     let color, lineWidth, alpha;
 
     if (isSelected) {
-      color     = COLOR.OUTLINE_SELECTED;
+      color = COLOR.OUTLINE_SELECTED;
       lineWidth = 2.5;
-      alpha     = 1.0;
+      alpha = 1.0;
     } else {
-      const owner = (d.owner ?? 'neutral').toLowerCase();
+      const owner = (d.owner ?? "neutral").toLowerCase();
       if (owner === this._myTeam) {
-        color     = COLOR.OUTLINE_MY_TEAM;
+        color = COLOR.OUTLINE_MY_TEAM;
         lineWidth = 2;
-        alpha     = 0.7;
-      } else if (owner !== 'neutral') {
-        color     = COLOR.OUTLINE_ENEMY;
+        alpha = 0.7;
+      } else if (owner !== "neutral") {
+        color = COLOR.OUTLINE_ENEMY;
         lineWidth = 2;
-        alpha     = 0.7;
+        alpha = 0.7;
       } else {
-        color     = COLOR.OUTLINE_NEUTRAL;
+        color = COLOR.OUTLINE_NEUTRAL;
         lineWidth = 1.5;
-        alpha     = 0.35;
+        alpha = 0.35;
       }
     }
 
@@ -718,21 +744,45 @@ export default class MainScene extends Phaser.Scene {
       const worldX = pointer.worldX;
       const worldY = pointer.worldY;
 
-      // 優先順位: spot > district > area > island
+      // 優先1: spotName レイヤーでヒット判定
       const hitSpot = this._findObjectAt("spotName", worldX, worldY);
       if (hitSpot) {
         this._handleSpotClick(hitSpot);
         return;
       }
 
-      // district / area / island はクリック対象外
+      // 優先2: districtName レイヤーでフォールバック判定
+      // spotの隙間をクリックした際、district単位で SELECT_DISTRICT を発火する
+      const hitDistrict = this._findObjectAt("districtName", worldX, worldY);
+      if (hitDistrict) {
+        if (import.meta.env.DEV) {
+          console.log('[_setupPointerInput] districtName フォールバックヒット:', hitDistrict.name);
+        }
+        this._handleDistrictClick(hitDistrict);
+        return;
+      }
+
+      // district / area / island のみのクリックは対象外
     });
   }
 
   _handleSpotClick(spotObj) {
+    if (import.meta.env.DEV) {
+      console.log('[_handleSpotClick] 呼ばれた:', {
+        name:       spotObj.name,
+        properties: spotObj.properties,
+        id:         spotObj.id,
+      });
+    }
+
     // TMJ properties[0].name がスポットID（文字列 → Number に正規化）
-    const spotId = normalizeId(spotObj.properties?.[0]?.name ?? spotObj.id);
-    if (spotId == null) return;
+    const spotId = extractSpotId(spotObj); // ← ヘルパー関数に統一
+    if (spotId == null) {
+      if (import.meta.env.DEV) {
+        console.error('[_handleSpotClick] normalizeId が null を返した。properties を確認:', spotObj.properties);
+      }
+      return;
+    }
 
     const d = this.districts[spotId];
     if (import.meta.env.DEV) console.log("[hit] spot:", spotId, spotObj.name);
@@ -741,14 +791,22 @@ export default class MainScene extends Phaser.Scene {
       // ── 初期スポット選択フェーズ ──
       SoundManager.playSE("se_click_non_button");
       Object.values(this.districts)
-        .filter(dist => dist.type === 'spotName')
-        .forEach(dist => {
+        .filter((dist) => dist.type === "spotName")
+        .forEach((dist) => {
           this._redrawDistrict(dist, COLOR.NEUTRAL);
           this._updateSpotOutline(dist, false);
         });
       this._redrawDistrict(d, COLOR.HIGHLIGHT, 0.8);
       this._updateSpotOutline(d, true);
 
+      if (import.meta.env.DEV) {
+        console.log('[emitToReact 直前] SELECT_DISTRICT payload:', {
+          districtId:   spotId,
+          districtName: d?.name ?? String(spotId),
+          isMyTerritory: undefined,
+          isNeutral:     undefined,
+        });
+      }
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
         districtId: spotId,
         districtName: d?.name ?? String(spotId),
@@ -759,7 +817,7 @@ export default class MainScene extends Phaser.Scene {
 
       // ★ SPOT_ADJACENCY (5桁キー) を優先して隣接チェック
       const spotNeighbors =
-        (typeof SPOT_ADJACENCY !== 'undefined' && SPOT_ADJACENCY !== null)
+        typeof SPOT_ADJACENCY !== "undefined" && SPOT_ADJACENCY !== null
           ? (SPOT_ADJACENCY[this.currentSpotId] ?? null)
           : null;
 
@@ -769,7 +827,7 @@ export default class MainScene extends Phaser.Scene {
         canMove = spotNeighbors.includes(spotId);
       } else {
         // フォールバック: district ADJACENCY (3桁 vs 3桁) で判定
-        const distNeighbors  = ADJACENCY?.[this.currentDistrictId] ?? [];
+        const distNeighbors = ADJACENCY?.[this.currentDistrictId] ?? [];
         const targetDistrict = spotId >= 10000 ? Math.floor(spotId / 100) : spotId;
         canMove = Array.isArray(distNeighbors) && distNeighbors.includes(targetDistrict);
 
@@ -795,12 +853,20 @@ export default class MainScene extends Phaser.Scene {
       SoundManager.playSE("se_click_non_button");
       this._pendingTargetId = spotId;
 
-      const targetOwner   = (d?.owner ?? "neutral").toLowerCase();
+      const targetOwner = (d?.owner ?? "neutral").toLowerCase();
       const isMyTerritory = targetOwner === this._myTeam;
-      const isNeutral     = targetOwner === "neutral";
+      const isNeutral = targetOwner === "neutral";
 
+      if (import.meta.env.DEV) {
+        console.log('[emitToReact 直前] SELECT_DISTRICT payload:', {
+          districtId:   spotId,
+          districtName: d?.name ?? String(spotId),
+          isMyTerritory,
+          isNeutral,
+        });
+      }
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
-        districtId:   spotId,
+        districtId: spotId,
         districtName: d?.name ?? String(spotId),
         isMyTerritory,
         isNeutral,
@@ -812,7 +878,7 @@ export default class MainScene extends Phaser.Scene {
 
   _getSpotsInDistrict(districtId) {
     return Object.values(this.districts).filter(
-      d => d.type === 'spotName' && Math.floor(d.id / 100) === districtId
+      (d) => d.type === "spotName" && Math.floor(d.id / 100) === districtId,
     );
   }
 
@@ -896,7 +962,7 @@ export default class MainScene extends Phaser.Scene {
     d.graphics.clear();
 
     // spotName 以外（district / area / island）は塗りもアウトラインも描画しない
-    if (d.type !== 'spotName') return;
+    if (d.type !== "spotName") return;
 
     if (alpha > 0) d.graphics.fillStyle(color, alpha);
     d.graphics.beginPath();
@@ -908,7 +974,6 @@ export default class MainScene extends Phaser.Scene {
     if (alpha > 0) d.graphics.fillPath();
 
     d.graphics.lineStyle(2, 0xffffff, 0.7).strokePath();
-
   }
 
   /**
@@ -922,7 +987,7 @@ export default class MainScene extends Phaser.Scene {
 
     let color, alpha;
 
-    if (!ownerId || ownerId === 'neutral') {
+    if (!ownerId || ownerId === "neutral") {
       color = COLOR.NEUTRAL;
       alpha = 0;
     } else {
@@ -994,14 +1059,9 @@ export default class MainScene extends Phaser.Scene {
     } else {
       // ── フォールバック: オレンジの丸 ─────────────────────
       if (import.meta.env.DEV) {
-        console.warn(
-          `[_placePlayer] texture "${this._avatarKey}" not found → circle fallback`,
-        );
+        console.warn(`[_placePlayer] texture "${this._avatarKey}" not found → circle fallback`);
       }
-      this.player = this.add
-        .circle(x, y, 24, 0xfa7000)
-        .setDepth(1000)
-        .setStrokeStyle(3, 0xffffff);
+      this.player = this.add.circle(x, y, 24, 0xfa7000).setDepth(1000).setStrokeStyle(3, 0xffffff);
       this._playerFrame = null;
     }
 
@@ -1066,16 +1126,21 @@ export default class MainScene extends Phaser.Scene {
       ownerMap[Number(id)] = team;
     });
 
-    // ★ spotのみを塗り替える（type !== 'spotName' はスキップ）
-    Object.values(this.districts).forEach(d => {
-      if (d.type !== 'spotName') return;
+    // ★ 変化のあった spot のみ再描画（全件無条件更新を防ぐ）
+    let repaintCount = 0;
 
-      const spotId     = d.id;
+    Object.values(this.districts).forEach((d) => {
+      if (d.type !== "spotName") return;
+
+      const spotId = d.id;
       const districtId = Math.floor(spotId / 100);
 
       // spot単位でマッチ → なければdistrict単位で判定
-      const owner      = ownerMap[spotId] ?? ownerMap[districtId] ?? "neutral";
+      const owner = ownerMap[spotId] ?? ownerMap[districtId] ?? "neutral";
       const ownerLower = String(owner).toLowerCase();
+
+      // ★ 前回と owner が同じなら再描画をスキップ（FPS最適化）
+      if (d.owner === ownerLower) return;
 
       if (
         !this.isSelectionMode &&
@@ -1088,6 +1153,7 @@ export default class MainScene extends Phaser.Scene {
       }
 
       d.owner = ownerLower;
+      repaintCount++;
 
       if (ownerLower === "neutral") {
         this._redrawDistrict(d, COLOR.NEUTRAL, 0);
@@ -1096,9 +1162,16 @@ export default class MainScene extends Phaser.Scene {
       } else {
         this._redrawDistrict(d, COLOR.TEAM_RED, 0.5);
       }
+
+      // アウトラインも更新
+      this._updateSpotOutline(d, false);
     });
 
-    if (serverPlayers && typeof this._syncPlayerDots === 'function') {
+    if (import.meta.env.DEV && repaintCount > 0) {
+      console.log(`[_syncDistricts] 再描画: ${repaintCount} spots`);
+    }
+
+    if (serverPlayers && typeof this._syncPlayerDots === "function") {
       this._syncPlayerDots(serverPlayers);
     }
   }
@@ -1229,7 +1302,7 @@ export default class MainScene extends Phaser.Scene {
       if (d.textLabel) d.textLabel.setVisible(d.type === lod);
 
       if (d.outlineGraphics) {
-        const showOutline = (lod === 'districtName' || lod === 'spotName');
+        const showOutline = lod === "districtName" || lod === "spotName";
         d.outlineGraphics.setVisible(showOutline);
       }
     });

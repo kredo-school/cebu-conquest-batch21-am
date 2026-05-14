@@ -38,9 +38,13 @@ export default class ZoomManager {
     const hoveredId = this._hoveredId;
     Object.values(districts).forEach((d) => {
       if (!d.textLabel) return;
+
+      if (d.type !== "spotName") {
+        d.textLabel.setVisible(false);
+        return;
+      }
       const isHovered = d.id === hoveredId;
       d.textLabel.setVisible(d.type === lod || isHovered);
-      d.textLabel.setScale(isHovered ? 1.2 : 1.0);
     });
   }
 }
