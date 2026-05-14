@@ -155,6 +155,13 @@ CREATE TABLE
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
     ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
+-- occupationsテーブルにroom_keyを追加
+ALTER TABLE occupations
+ADD COLUMN room_key VARCHAR(10) NOT NULL AFTER user_id;
+
+-- インデックスを貼って高速化（ランキング取得用）
+CREATE INDEX idx_room_key ON occupations (room_key);
+
 -- 3. マスタデータの投入
 INSERT INTO
     islands (id, name)

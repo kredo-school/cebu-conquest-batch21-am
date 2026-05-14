@@ -1,57 +1,48 @@
+// api/ranking.php
 <?php
 require_once __DIR__ . '/api-cors.php';
 require_once __DIR__ . '/../db_connection.php';
 require_once 'jwt-helper.php';
 
-// HTTPメソッド制限（GET以外を405で弾く）
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
-    echo json_encode([
-        'status' => 'error',
-        'message' => 'Method Not Allowed. This endpoint requires GET.'
-    ]);
+    echo json_encode(['status' => 'error', 'message' => 'GET method required']);
     exit;
 }
 
-// JWT検問
-$headers = getallheaders();
-$authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
-
-if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-    $jwt = $matches[1];
-    if (!validateJWT($jwt)) {
-        http_response_code(401);
-        echo json_encode(['status' => 'error', 'message' => 'Invalid token']);
-        exit;
-    }
-} else {
-    http_response_code(401);
-    echo json_encode(['status' => 'error', 'message' => 'Authorization required']);
-    exit;
-}
+// 1. ルーム特定のたの room_key を取得 (クエリパラメータから)
+$roomKey = $_GET['room_key'] ?? null;
 
 try {
-    // 占領数順にランキングを取得
-    $sqlCurrent = "SELECT 
+    // --- ルーム内ランキング (現在の占領状況) ---
+    // occupations テーブルに room_key が存在することを前提にします
+    $currentRanking = [];
+    if ($roomKey) {
+        $sqlCurrent = "SELECT 
                         u.username, 
                         u.player_color, 
                         COUNT(o.spot_id) AS score,
                         RANK() OVER (ORDER BY COUNT(o.spot_id) DESC) AS ranking
                    FROM users u
-                   LEFT JOIN occupations o ON u.id = o.user_id
+                   JOIN room_players rp ON u.id = rp.user_id
+                   JOIN rooms r ON rp.room_id = r.id
+                   LEFT JOIN occupations o ON u.id = o.user_id AND o.room_key = r.room_key
+                   WHERE r.room_key = ?
                    GROUP BY u.id
                    ORDER BY ranking ASC";
 
-    $stmtC = $pdo->query($sqlCurrent);
-    $currentRanking = $stmtC->fetchAll(PDO::FETCH_ASSOC);
+        $stmtC = $pdo->prepare($sqlCurrent);
+        $stmtC->execute([$roomKey]);
+        $currentRanking = $stmtC->fetchAll(PDO::FETCH_ASSOC);
 
-    // 数値をキャスト
-    foreach ($currentRanking as &$row) {
-        $row['score'] = (int)$row['score'];
-        $row['ranking'] = (int)$row['ranking'];
+        foreach ($currentRanking as &$row) {
+            $row['score'] = (int)$row['score'];
+            $row['ranking'] = (int)$row['ranking'];
+        }
     }
 
-    // 2. 累計スコアランキング（match_resultsテーブルから集計）
+    // --- 累計スコアランキング (全試合の統計) ---
+    // ここは room_key に依存せず、ユーザー全員の歴史的実績を出します
     $sqlTotal = "SELECT 
                     u.username, 
                     u.player_color,
@@ -74,10 +65,12 @@ try {
     echo json_encode([
         'status' => 'success',
         'data'   => [
-            'current_match' => $currentRanking,
-            'all_time'      => $totalRanking
+            'room_key'      => $roomKey,
+            'current_match' => $currentRanking, // 指定した部屋の今の順位
+            'all_time'      => $totalRanking    // 全体ランキング
         ]
     ], JSON_UNESCAPED_UNICODE);
+
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
