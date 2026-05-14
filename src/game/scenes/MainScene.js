@@ -642,12 +642,24 @@ export default class MainScene extends Phaser.Scene {
         let poly;
         let isPoint = false;
         if (obj.polygon && obj.polygon.length > 0) {
+          // ─── ポリゴンオブジェクト（既存処理・変更なし）───
           poly = obj.polygon.map((p) => ({
             x: (obj.x + p.x) * MAP_SCALE,
             y: (obj.y + p.y) * MAP_SCALE,
           }));
+        } else if (obj.width > 0 && obj.height > 0) {
+          // ─── 四角オブジェクト → 4頂点ポリゴンに変換 ───
+          // Tiled の rectangle は x,y が左上角、width/height で大きさを表す
+          // TMJ に "polygon" フィールドが存在しないため別分岐で処理する
+          poly = [
+            { x: obj.x * MAP_SCALE,               y: obj.y * MAP_SCALE               },
+            { x: (obj.x + obj.width) * MAP_SCALE, y: obj.y * MAP_SCALE               },
+            { x: (obj.x + obj.width) * MAP_SCALE, y: (obj.y + obj.height) * MAP_SCALE },
+            { x: obj.x * MAP_SCALE,               y: (obj.y + obj.height) * MAP_SCALE },
+          ];
+          // isPoint は false のまま（正しい形状のポリゴンとして扱う）
         } else {
-          // point オブジェクト: 中心座標に正8角形の仮想ポリゴンを合成
+          // ─── ポイントオブジェクト（幅・高さなし）: 仮想正8角形 ───
           poly = makePointPolygon(obj.x * MAP_SCALE, obj.y * MAP_SCALE, 20);
           isPoint = true;
         }
@@ -877,15 +889,30 @@ export default class MainScene extends Phaser.Scene {
         canMove = spotNeighbors.includes(spotId);
       } else {
         // フォールバック: district ADJACENCY (3桁 vs 3桁) で判定
-        const distNeighbors = ADJACENCY?.[this.currentDistrictId] ?? [];
+        const currentDistrict = this.currentDistrictId;
         const targetDistrict = spotId >= 10000 ? Math.floor(spotId / 100) : spotId;
-        canMove = Array.isArray(distNeighbors) && distNeighbors.includes(targetDistrict);
 
-        if (import.meta.env.DEV) {
-          console.warn(
-            `[MainScene] SPOT_ADJACENCY[${this.currentSpotId}] 未定義のため` +
-              ` district ADJACENCY で代替判定 (${this.currentDistrictId} → ${targetDistrict})`,
-          );
+        if (targetDistrict === currentDistrict) {
+          // 同一district内のspot間移動はSPOT_ADJACENCY未定義時も許可する
+          canMove = true;
+          if (import.meta.env.DEV) {
+            console.log(
+              `[MainScene] 同一district内移動を許可: spot ${this.currentSpotId} → ${spotId}` +
+                ` (district ${currentDistrict})`,
+            );
+          }
+        } else {
+          // 異なるdistrictへの移動: ADJACENCY グラフで判定
+          const distNeighbors = ADJACENCY?.[currentDistrict] ?? [];
+          canMove = Array.isArray(distNeighbors) && distNeighbors.includes(targetDistrict);
+
+          if (import.meta.env.DEV) {
+            console.warn(
+              `[MainScene] SPOT_ADJACENCY[${this.currentSpotId}] 未定義のため` +
+                ` district ADJACENCY で代替判定 (${currentDistrict} → ${targetDistrict})` +
+                ` | canMove: ${canMove}`,
+            );
+          }
         }
       }
 
