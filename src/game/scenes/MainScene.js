@@ -555,12 +555,22 @@ export default class MainScene extends Phaser.Scene {
     socket.connect();
     socket.on(SERVER_EVENTS.SYNC_STATE, (s) => {
       if (!s) return;
+      const playerMap = {};
+      Object.entries(s.players ?? {}).forEach(([id, p]) => {
+        playerMap[id] = { godId: p.godId ?? p.selectedGodId ?? null };
+      });
+      this._playerMap = playerMap; // ★ _syncDistricts から参照できるよう保存
       this._syncDistricts(s.districts, s.players);
       this._syncPlayers(s.players);
     });
     socket.on(SERVER_EVENTS.GAME_START, (s) => {
       if (!s) return;
       if (s.districts && s.players) {
+        const playerMap = {};
+        Object.entries(s.players ?? {}).forEach(([id, p]) => {
+          playerMap[id] = { godId: p.godId ?? p.selectedGodId ?? null };
+        });
+        this._playerMap = playerMap; // ★ 追加
         this._syncDistricts(s.districts, s.players);
         this._syncPlayers(s.players);
       }
@@ -782,13 +792,14 @@ export default class MainScene extends Phaser.Scene {
       lineWidth = 2.5;
       alpha = 1.0;
     } else {
-      const owner = (d.owner ?? "neutral").toLowerCase();
-      if (owner === this._myTeam) {
+      const owner = d.owner ?? "neutral";
+      if (owner === socket.id) {
         color = COLOR.OUTLINE_MY_TEAM;
         lineWidth = 2;
         alpha = 0.7;
       } else if (owner !== "neutral") {
-        color = COLOR.OUTLINE_ENEMY;
+        // Kurt など暗色神のアウトラインは白固定で視認性確保（選択肢B）
+        color = d._darkOwner ? 0xffffff : COLOR.OUTLINE_ENEMY;
         lineWidth = 2;
         alpha = 0.7;
       } else {
@@ -957,6 +968,16 @@ export default class MainScene extends Phaser.Scene {
       });
 
       this.showLog(isMyTerritory ? `🚚 移動先: ${districtName}` : `🎯 攻撃対象: ${districtName}`);
+
+      // BUG-B: 自陣spot → Phaserローカル移動を即座に実行（サーバー承認後に_syncDistrictsで正式反映）
+      if (isMyTerritory) {
+        if (import.meta.env.DEV) {
+          console.log(`[自陣移動] ${this.currentSpotId} → ${spotId} (district ${districtId})`);
+        }
+        this.currentSpotId = spotId;
+        this.currentDistrictId = districtId;
+        this._placePlayer(spotId);
+      }
     }
   }
 
@@ -1145,23 +1166,27 @@ export default class MainScene extends Phaser.Scene {
       if (import.meta.env.DEV) {
         console.warn(`[_placePlayer] texture "${this._avatarKey}" not found → circle fallback`);
       }
-      this.player = this.add.circle(x, y, 24, 0xfa7000).setDepth(1000).setStrokeStyle(3, 0xffffff);
+      const PLAYER_RADIUS = 14;
+      this.player = this.add
+        .circle(x, y, PLAYER_RADIUS, 0xff6600)
+        .setDepth(20)
+        .setAlpha(0.85)
+        .setStrokeStyle(2, 0xffffff);
       this._playerFrame = null;
     }
 
     // ── プレイヤー名ラベル ────────────────────────────────────
     const displayName = this.registry.get("playerName") || "YOU";
     this._playerLabel = this.add
-      .text(x, y - 36, displayName, {
-        fontSize: "11px",
-        fontFamily: "monospace",
+      .text(x, y - 20, displayName, {
+        fontSize: "10px",
+        fontFamily: "Arial",
         color: "#ffffff",
         stroke: "#000000",
         strokeThickness: 3,
-        align: "center",
       })
       .setOrigin(0.5, 1)
-      .setDepth(1002);
+      .setDepth(21);
 
     // ── カメラ追従 ────────────────────────────────────────────
     if (!this.isSelectionMode) {
@@ -1202,13 +1227,20 @@ export default class MainScene extends Phaser.Scene {
   _syncDistricts(serverDistricts, serverPlayers) {
     if (!serverDistricts) return;
 
-    // ownerMap: Number(id) → team ("red" | "blue" | "neutral")
-    const ownerMap = {};
+    // ownerIdMap: Number(spotId) → ownerId (socket.id | "neutral")
+    const ownerIdMap = {};
     Object.entries(serverDistricts).forEach(([id, ownerId]) => {
-      const playerData = ownerId ? serverPlayers?.[ownerId] : null;
-      const team = playerData?.team?.toLowerCase() ?? "neutral";
-      ownerMap[Number(id)] = team;
+      ownerIdMap[Number(id)] = ownerId || "neutral";
     });
+
+    // playerMap: { [ownerId]: { godId } } — this._playerMap がなければ今回分で構築
+    const playerMap = this._playerMap ?? (() => {
+      const m = {};
+      Object.entries(serverPlayers ?? {}).forEach(([id, p]) => {
+        m[id] = { godId: p.godId ?? p.selectedGodId ?? null };
+      });
+      return m;
+    })();
 
     // ★ 変化のあった spot のみ再描画（全件無条件更新を防ぐ）
     let repaintCount = 0;
@@ -1220,31 +1252,38 @@ export default class MainScene extends Phaser.Scene {
       const districtId = Math.floor(spotId / 100);
 
       // spot単位でマッチ → なければdistrict単位で判定
-      const owner = ownerMap[spotId] ?? ownerMap[districtId] ?? "neutral";
-      const ownerLower = String(owner).toLowerCase();
+      const ownerId = ownerIdMap[spotId] ?? ownerIdMap[districtId] ?? "neutral";
 
       // ★ 前回と owner が同じなら再描画をスキップ（FPS最適化）
-      if (d.owner === ownerLower) return;
+      if (d.owner === ownerId) return;
 
       if (
         !this.isSelectionMode &&
-        this._myTeam &&
-        ownerLower === this._myTeam &&
-        d.owner !== this._myTeam
+        ownerId === socket.id &&
+        d.owner !== socket.id
       ) {
         SoundManager.playSE("se_territory_control");
         this.effectManager?.playCapturePopup(d.center.x, d.center.y);
       }
 
-      d.owner = ownerLower;
+      d.owner = ownerId;
       repaintCount++;
 
-      if (ownerLower === "neutral") {
+      if (ownerId === "neutral") {
         this._redrawDistrict(d, COLOR.NEUTRAL, 0);
-      } else if (ownerLower === this._myTeam) {
-        this._redrawDistrict(d, COLOR.TEAM_BLUE, 0.5);
       } else {
-        this._redrawDistrict(d, COLOR.TEAM_RED, 0.5);
+        // ★ 所有者の godId → godColor で塗り分け
+        const godId = playerMap[ownerId]?.godId ?? null;
+        const color = godId ? getGodColor(godId) : 0xaaaaaa;
+        // Kurt など暗色神はアウトラインを白固定で視認性確保
+        const DARK_THRESHOLD = 0x404040;
+        if (d.outlineGraphics && color < DARK_THRESHOLD) {
+          d._darkOwner = true;
+        } else {
+          d._darkOwner = false;
+        }
+        const alpha = ownerId === socket.id ? 0.65 : 0.5;
+        this._redrawDistrict(d, color, alpha);
       }
 
       // アウトラインも更新
