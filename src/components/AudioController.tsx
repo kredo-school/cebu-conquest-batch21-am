@@ -1,23 +1,27 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useGameStore } from '../store';
 
-// BGMの設定マップ（画面名：ファイル名）
+// 🚀 BGMの設定マップ
 const BGM_MAP: Record<string, string> = {
   login: '/assets/audio/bgm/login-joinroom.mp3',
   setup: '/assets/audio/bgm/login-joinroom.mp3',
-  lobby: '/assets/audio/bgm/login-joinroom.mp3',
+  // 🚀 いっせいの指示：ロビーから waiting.mp3 を流してメイン開始まで繋ぐ
+  lobby: '/assets/audio/bgm/waiting.mp3',
   waiting: '/assets/audio/bgm/waiting.mp3',
   selection: '/assets/audio/bgm/waiting.mp3',
-  // game: Phaser側で流すのでここには含めない
+  settings: '/assets/audio/bgm/setting.mp3', // 🚀 設定専用BGMを追加
 };
 
-export const AudioController = (): null => {
+interface AudioControllerProps {
+  isSettingsOpen: boolean; // 🚀 App.tsx からの状態を受け取る
+}
+
+export const AudioController = ({ isSettingsOpen }: AudioControllerProps): null => {
   const bgmRef = useRef<HTMLAudioElement | null>(null);
   const view = useGameStore((state) => state.view);
   const bgmVolume = useGameStore((state) => state.bgmVolume);
 
-  // 🚀 1. フェードアウト関数を先に定義（エラー回避のため）
-  // useCallbackを使うことで、他のuseEffectの中でも安全に使えるようになるよ
+  // 🚀 1. フェードアウト関数
   const fadeOutAndStop = useCallback(() => {
     if (!bgmRef.current) return;
     const currentBgm = bgmRef.current;
@@ -35,11 +39,11 @@ export const AudioController = (): null => {
 
   // 2️⃣ BGMの初期化 & 自動切り替え
   useEffect(() => {
-    // 現在のviewに対応する曲のパスを取得
-    const targetPath = BGM_MAP[view];
+    // 🚀 指示反映：設定画面が開いているなら設定BGM、そうでなければViewに応じたBGM
+    const targetPath = isSettingsOpen ? BGM_MAP['settings'] : BGM_MAP[view];
 
-    // Phaserゲーム中（view === 'game'）はHTML BGMを停止（フェードアウト）
-    if (view === 'game') {
+    // Phaserゲーム中（view === 'game'）で、かつ設定画面も開いていない場合は停止
+    if (view === 'game' && !isSettingsOpen) {
       fadeOutAndStop();
       return;
     }
@@ -50,18 +54,16 @@ export const AudioController = (): null => {
     if (!bgmRef.current || bgmRef.current.dataset.currentSrc !== targetPath) {
       const isFirstTime = !bgmRef.current;
       
-      // 既存の曲があれば止める
       if (bgmRef.current) {
         bgmRef.current.pause();
       }
 
       const audio = new Audio(targetPath);
       audio.loop = true;
-      audio.volume = bgmVolume; // storeの音量を反映
-      audio.dataset.currentSrc = targetPath; // 今何の曲か記憶
+      audio.volume = bgmVolume;
+      audio.dataset.currentSrc = targetPath;
       bgmRef.current = audio;
 
-      // 初回はユーザー操作を待つ、2回目以降（画面遷移）は即再生
       if (isFirstTime) {
         const handleInteraction = (): void => {
           audio.play().catch(() => {});
@@ -72,7 +74,7 @@ export const AudioController = (): null => {
         audio.play().catch(err => console.warn("Audio play blocked:", err));
       }
     }
-  }, [view, fadeOutAndStop, bgmVolume]); // bgmVolumeも追加して音量変更を即座に反映
+  }, [view, isSettingsOpen, fadeOutAndStop, bgmVolume]); // 🚀 isSettingsOpen を監視対象に追加
 
   // 3️⃣ 音量のリアルタイム同期
   useEffect(() => {
@@ -109,7 +111,7 @@ export const AudioController = (): null => {
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('click', handleClick);
+      document.addEventListener('click', handleClick);
     };
   }, []);
 

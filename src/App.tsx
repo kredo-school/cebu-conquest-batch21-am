@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import socket from './socket';
-// 🚀 修正：GameState は使わなくなったのでインポートから削除
+// 🚀 修正：未使用の GameState をインポートから削除
 import { useGameStore, MasterData } from './store';
 
 // ✅ コンポーネントのインポート
@@ -25,20 +25,19 @@ import { ErrorNotification } from './components/ErrorNotification';
 import { AudioController } from './components/AudioController';
 
 import { useGameEvents } from './hook/useGameEvents';
-// 🚀 修正：PHASER_TO_REACT は useGameEvents でのみ使うため削除
 import { REACT_TO_PHASER } from './game/events/PhaserBridge';
 import { SERVER_EVENTS } from '../shared/socketEvents.js';
 import { stopBGM } from './hook/useBGM';
 
 const App: React.FC = () => {
-  // 🛰️ Phaser信号とサーバーイベントを監視（けいさんの指示内容）
+  // 🛰️ Phaser信号とサーバーイベント（gameOver等）をここで一括管理
   useGameEvents();
 
   const { 
     addLog, playerName: storePlayerName, token, hasSeenTutorial, 
     isGameOver, roomId, players, setView, view,
     authenticatedFetch, setLookupData, syncServerState, myId
-    // 🚀 修正：未使用エラーの原因（setZoomLevel, updateSelectedDistrict, updateStatsFromPhaser）を削除
+    // 🚀 修正：未使用変数エラーの原因（setZoomLevel, updateSelectedDistrict, updateStatsFromPhaser）を削除
   } = useGameStore(useShallow(state => ({
     addLog: state.addLog,
     playerName: state.playerName,
@@ -63,7 +62,7 @@ const App: React.FC = () => {
   const [showInventory, setShowInventory] = useState(false); 
   const [playerName, setLocalPlayerName] = useState('');
 
-  // ゲーム開始時：BGMの切り替え
+  // ゲーム開始時：HTML側の曲を止めてPhaser側の戦闘BGMへ切り替え
   useEffect(() => {
     if (view === 'game') {
       stopBGM();
@@ -113,7 +112,7 @@ const App: React.FC = () => {
     }, 2500);
   }, [isDeploying, setView]);
 
-  // 🚀 修正：Phaser専用のリスナー（STATS_UPDATED等）は useGameEvents に移動したため削除
+  // 信号の監視（通信復旧・開始通知）
   useEffect(() => {
     if (!socket) return;
 
@@ -198,7 +197,8 @@ const App: React.FC = () => {
             <PhaserGameView ref={gameRef} playerName={playerName || storePlayerName} />
             <HUD />
             <BattleModal />
-            {/* 🚀 HP0敗北時にバグと思わせないよう、Phaser画面の上にリザルトを重ねる */}
+            
+            {/* 🚀 HP0敗北時などに Phaser の上にリザルトを重ねる演出 */}
             {isGameOver && (
               <ResultView 
                 onRestart={() => window.location.reload()} 
@@ -219,11 +219,11 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="relative w-screen h-screen bg-slate-950 text-slate-200 overflow-hidden select-none">
-      {/* 🚀 音響の司令塔 */}
-      <AudioController />
+    <div className="relative w-screen h-screen bg-slate-950 text-slate-200 overflow-hidden select-none text-left">
+      {/* 🚀 修正：AudioController に設定画面の開閉状態（showSettings）を渡す */}
+      <AudioController isSettingsOpen={showSettings} />
 
-      <div className="w-full h-full relative overflow-hidden touch-pan-y custom-scrollbar text-left">
+      <div className="w-full h-full relative overflow-hidden touch-pan-y custom-scrollbar">
           {mainContent}
       </div>
       
