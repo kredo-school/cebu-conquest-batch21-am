@@ -113,6 +113,8 @@ export default class MainScene extends Phaser.Scene {
     this._reactListeners = [];
     this._myTeam = null;
     this._pendingTargetId = null;
+    this._prevSpotId = null;     // FIX-C: ロールバック用
+    this._prevDistrictId = null; // FIX-C: ロールバック用
     this._myGodId = null; // ★ 追加: 自分が選択した godId
     this._myGodColor = 0x95a5a6; // ★ 追加: 神カラー（暫定: 中立グレー）
     this._avatarKey = null; // SET_AVATARが来るまではnull（フォールバックで丸を表示）
@@ -555,6 +557,16 @@ export default class MainScene extends Phaser.Scene {
     socket.connect();
     socket.on(SERVER_EVENTS.SYNC_STATE, (s) => {
       if (!s) return;
+      // FIX-B: _myTeam を syncState から設定（未設定のときのみ上書き）
+      if (!this._myTeam && s?.players) {
+        const playersArr = Array.isArray(s.players)
+          ? s.players
+          : Object.entries(s.players).map(([id, p]) => ({ id, ...p }));
+        const me = playersArr.find((p) => p.id === socket.id);
+        if (me?.team) {
+          this._myTeam = me.team;
+        }
+      }
       const playerMap = {};
       Object.entries(s.players ?? {}).forEach(([id, p]) => {
         playerMap[id] = { godId: p.godId ?? p.selectedGodId ?? null };
@@ -585,30 +597,64 @@ export default class MainScene extends Phaser.Scene {
     });
     socket.on(SERVER_EVENTS.ACTION_RESULT, (data) => {
       if (!data) return;
+
       if (data.stats) {
         Object.assign(this.playerStats, data.stats);
         this.updateStatusToReact();
       }
       if (data.message) this.showLog(data.message);
-      if (this._pendingTargetId !== null) {
-        const attacker = this.districts[this.currentDistrictId];
-        const target = this.districts[this._pendingTargetId];
-        if (attacker) this.effectManager.playSlashEffect(attacker.center.x, attacker.center.y);
-        if (target) this.effectManager.playExplosionEffect(target.center.x, target.center.y);
-        this._pendingTargetId = null;
-      }
-      // アクション種別に応じた SE
-      if (data.action === "move") {
-        this.game.events.emit("se:moving");
-      } else if (data.action === "move_airport") {
-        this.game.events.emit("se:airport");
+
+      // FIX-C: move / attack（空き地）成功時にプレイヤー位置を即時更新する
+      const isMoveAction = data.action === "move" || data.action === "move_airport";
+      const isCapture    = data.action === "attack" && data.success === true && !data.battleOccurred;
+
+      if ((isMoveAction || isCapture) && data.success !== false) {
+        const newSpotId =
+          data.spotId ?? data.newSpotId ?? data.targetId ?? this._pendingTargetId ?? null;
+
+        if (newSpotId != null) {
+          this._prevSpotId     = this.currentSpotId;
+          this._prevDistrictId = this.currentDistrictId;
+          this.currentSpotId     = Number(newSpotId);
+          this.currentDistrictId = Math.floor(Number(newSpotId) / 100);
+          this._placePlayer(newSpotId);
+        }
+
+        if (isMoveAction) {
+          this.game.events.emit("se:moving");
+        } else if (data.action === "move_airport") {
+          this.game.events.emit("se:airport");
+        }
       } else if (data.action === "stay") {
         this.game.events.emit("se:healing");
         this.game.events.emit("battle:end");
       }
-      if (data.hpDelta > 0 || data.apDelta > 0 || data.faithDelta > 0) {
-        if (data.action !== "stay") this.game.events.emit("se:healing");
+
+      // エフェクト
+      if (this._pendingTargetId !== null) {
+        const attacker = this.districts[this.currentDistrictId];
+        const target   = this.districts[this._pendingTargetId];
+        if (attacker) this.effectManager.playSlashEffect(attacker.center.x, attacker.center.y);
+        if (target)   this.effectManager.playExplosionEffect(target.center.x, target.center.y);
+        this._pendingTargetId = null;
       }
+
+      if ((data.hpDelta > 0 || data.apDelta > 0) && data.action !== "stay") {
+        this.game.events.emit("se:healing");
+      }
+    });
+    socket.on(SERVER_EVENTS.ACTION_REJECTED, (data) => {
+      if (!data) return;
+      this.showLog(`⚠️ ${data.reason ?? "Action rejected."}`);
+      // FIX-C: ローカル先行移動をロールバック
+      if (this._prevSpotId != null) {
+        this.currentSpotId     = this._prevSpotId;
+        this.currentDistrictId = this._prevDistrictId;
+        this._placePlayer(this._prevSpotId);
+        this._prevSpotId     = null;
+        this._prevDistrictId = null;
+      }
+      emitToReact(PHASER_TO_REACT.GAME_LOG, data.reason ?? "Action rejected.");
     });
     socket.on(SERVER_EVENTS.BATTLE_RESULT, (data) => {
       // 防御側もバトルBGMを受け取れるよう emit（攻撃側は COMMAND_ATTACK で既に開始済みのため無視される）
@@ -888,10 +934,16 @@ export default class MainScene extends Phaser.Scene {
       // ── プレイ中：移動・攻撃フェーズ ──
       if (spotId === this.currentSpotId) return; // ★ currentSpotId (5桁) と比較
 
+      // FIX-A: currentSpotId が null のときは district レベルのフォールバックへ確実に進む
+      const effectiveSpotId = this.currentSpotId;
+      const effectiveDistrictId = this.currentDistrictId;
+
       // ★ SPOT_ADJACENCY (5桁キー) を優先して隣接チェック
       const spotNeighbors =
-        typeof SPOT_ADJACENCY !== "undefined" && SPOT_ADJACENCY !== null
-          ? (SPOT_ADJACENCY[this.currentSpotId] ?? null)
+        typeof SPOT_ADJACENCY !== "undefined" &&
+        SPOT_ADJACENCY !== null &&
+        effectiveSpotId != null
+          ? (SPOT_ADJACENCY[effectiveSpotId] ?? null)
           : null;
 
       let canMove = false;
@@ -900,10 +952,13 @@ export default class MainScene extends Phaser.Scene {
         canMove = spotNeighbors.includes(spotId);
       } else {
         // フォールバック: district ADJACENCY (3桁 vs 3桁) で判定
-        const currentDistrict = this.currentDistrictId;
+        const currentDistrict = effectiveDistrictId; // FIX-A: effectiveDistrictId を使う
         const targetDistrict = spotId >= 10000 ? Math.floor(spotId / 100) : spotId;
 
-        if (targetDistrict === currentDistrict) {
+        if (currentDistrict == null) {
+          // FIX-A: 現在地が不明なら同一island内はすべて許可（デプロイ直後の安全弁）
+          canMove = true;
+        } else if (targetDistrict === currentDistrict) {
           // 同一district内のspot間移動はSPOT_ADJACENCY未定義時も許可する
           canMove = true;
           if (import.meta.env.DEV) {
@@ -961,8 +1016,9 @@ export default class MainScene extends Phaser.Scene {
         });
       }
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
-        districtId,        // ← 3桁の districtId を送信
-        districtName,      // ← 地区名（spot名ではなく地区名）
+        districtId,        // 3桁（表示・区別用）
+        spotId,            // FIX-D: 5桁のspot IDも追加で送る
+        districtName,
         isMyTerritory,
         isNeutral,
       });
