@@ -196,7 +196,14 @@ export default class MainScene extends Phaser.Scene {
   }
 
   update() {
-    this.zoomManager.tick(this.cameras.main.zoom, this.districts);
+    const zoom = this.cameras.main.zoom;
+
+    // ズームが変化した時だけ tick を呼ぶ（毎フレーム呼ばない）
+    if (Math.abs(zoom - (this._lastZoom ?? 0)) > 0.01) {
+      this._lastZoom = zoom;
+      if (this.districts) this.zoomManager?.tick(zoom, this.districts);
+    }
+
     this.cameraController?.update();
   }
 
@@ -737,21 +744,45 @@ export default class MainScene extends Phaser.Scene {
       const worldX = pointer.worldX;
       const worldY = pointer.worldY;
 
-      // 優先順位: spot > district > area > island
+      // 優先1: spotName レイヤーでヒット判定
       const hitSpot = this._findObjectAt("spotName", worldX, worldY);
       if (hitSpot) {
         this._handleSpotClick(hitSpot);
         return;
       }
 
-      // district / area / island はクリック対象外
+      // 優先2: districtName レイヤーでフォールバック判定
+      // spotの隙間をクリックした際、district単位で SELECT_DISTRICT を発火する
+      const hitDistrict = this._findObjectAt("districtName", worldX, worldY);
+      if (hitDistrict) {
+        if (import.meta.env.DEV) {
+          console.log('[_setupPointerInput] districtName フォールバックヒット:', hitDistrict.name);
+        }
+        this._handleDistrictClick(hitDistrict);
+        return;
+      }
+
+      // district / area / island のみのクリックは対象外
     });
   }
 
   _handleSpotClick(spotObj) {
+    if (import.meta.env.DEV) {
+      console.log('[_handleSpotClick] 呼ばれた:', {
+        name:       spotObj.name,
+        properties: spotObj.properties,
+        id:         spotObj.id,
+      });
+    }
+
     // TMJ properties[0].name がスポットID（文字列 → Number に正規化）
     const spotId = extractSpotId(spotObj); // ← ヘルパー関数に統一
-    if (spotId == null) return;
+    if (spotId == null) {
+      if (import.meta.env.DEV) {
+        console.error('[_handleSpotClick] normalizeId が null を返した。properties を確認:', spotObj.properties);
+      }
+      return;
+    }
 
     const d = this.districts[spotId];
     if (import.meta.env.DEV) console.log("[hit] spot:", spotId, spotObj.name);
@@ -768,6 +799,14 @@ export default class MainScene extends Phaser.Scene {
       this._redrawDistrict(d, COLOR.HIGHLIGHT, 0.8);
       this._updateSpotOutline(d, true);
 
+      if (import.meta.env.DEV) {
+        console.log('[emitToReact 直前] SELECT_DISTRICT payload:', {
+          districtId:   spotId,
+          districtName: d?.name ?? String(spotId),
+          isMyTerritory: undefined,
+          isNeutral:     undefined,
+        });
+      }
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
         districtId: spotId,
         districtName: d?.name ?? String(spotId),
@@ -818,6 +857,14 @@ export default class MainScene extends Phaser.Scene {
       const isMyTerritory = targetOwner === this._myTeam;
       const isNeutral = targetOwner === "neutral";
 
+      if (import.meta.env.DEV) {
+        console.log('[emitToReact 直前] SELECT_DISTRICT payload:', {
+          districtId:   spotId,
+          districtName: d?.name ?? String(spotId),
+          isMyTerritory,
+          isNeutral,
+        });
+      }
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
         districtId: spotId,
         districtName: d?.name ?? String(spotId),
@@ -1079,7 +1126,9 @@ export default class MainScene extends Phaser.Scene {
       ownerMap[Number(id)] = team;
     });
 
-    // ★ spotのみを塗り替える（type !== 'spotName' はスキップ）
+    // ★ 変化のあった spot のみ再描画（全件無条件更新を防ぐ）
+    let repaintCount = 0;
+
     Object.values(this.districts).forEach((d) => {
       if (d.type !== "spotName") return;
 
@@ -1089,6 +1138,9 @@ export default class MainScene extends Phaser.Scene {
       // spot単位でマッチ → なければdistrict単位で判定
       const owner = ownerMap[spotId] ?? ownerMap[districtId] ?? "neutral";
       const ownerLower = String(owner).toLowerCase();
+
+      // ★ 前回と owner が同じなら再描画をスキップ（FPS最適化）
+      if (d.owner === ownerLower) return;
 
       if (
         !this.isSelectionMode &&
@@ -1101,6 +1153,7 @@ export default class MainScene extends Phaser.Scene {
       }
 
       d.owner = ownerLower;
+      repaintCount++;
 
       if (ownerLower === "neutral") {
         this._redrawDistrict(d, COLOR.NEUTRAL, 0);
@@ -1109,7 +1162,14 @@ export default class MainScene extends Phaser.Scene {
       } else {
         this._redrawDistrict(d, COLOR.TEAM_RED, 0.5);
       }
+
+      // アウトラインも更新
+      this._updateSpotOutline(d, false);
     });
+
+    if (import.meta.env.DEV && repaintCount > 0) {
+      console.log(`[_syncDistricts] 再描画: ${repaintCount} spots`);
+    }
 
     if (serverPlayers && typeof this._syncPlayerDots === "function") {
       this._syncPlayerDots(serverPlayers);
