@@ -14,7 +14,7 @@ import {
   getSacredDistrict,
   getSpawnSpot,
   getGodName,
-  getGodColor,     // ★ 追加
+  getGodColor,
 } from "../../../shared/godSacredLands.js";
 import ZoomManager from "./ZoomManager";
 import SoundManager from "../SoundManager";
@@ -71,7 +71,7 @@ export default class MainScene extends Phaser.Scene {
     this._pendingTargetId = null;
     this._myGodId    = null;       // ★ 追加: 自分が選択した godId
     this._myGodColor = 0x95a5a6;   // ★ 追加: 神カラー（暫定: 中立グレー）
-    this._avatarKey = "god-john";
+    this._avatarKey = null; // SET_AVATARが来るまではnull（フォールバックで丸を表示）
   }
 
   preload() {
@@ -97,15 +97,16 @@ export default class MainScene extends Phaser.Scene {
       this.load.on("loaderror", (file) => console.error("[BGM] ロード失敗:", file.key, file.src));
     }
 
+    // GodSelectionView.tsx の GOD_SLOTS.textureKey と完全一致させる
     const GOD_IMAGES = [
-      { key: "god-john", path: "/assets/images/gods/John.png" },
-      { key: "god-garry", path: "/assets/images/gods/Garry.png" },
-      { key: "god-quesie", path: "/assets/images/gods/Quesie.png" },
-      { key: "god-neil", path: "/assets/images/gods/Neil.png" },
-      { key: "god-edo", path: "/assets/images/gods/Edo.png" },
-      { key: "god-shem", path: "/assets/images/gods/Shem.png" },
-      { key: "god-kurt", path: "/assets/images/gods/Kurt.png" },
-      { key: "god-secret", path: "/assets/images/gods/Secret_Rare.png" },
+      { key: "god-neil",       path: "/assets/images/gods/Neil.png" },
+      { key: "god-garry",      path: "/assets/images/gods/Garry.png" },
+      { key: "god-shem",       path: "/assets/images/gods/Shem.png" },
+      { key: "god-quisie",     path: "/assets/images/gods/Quisie.png" },
+      { key: "god-eduardo",    path: "/assets/images/gods/Eduardo.png" },
+      { key: "god-kurt",       path: "/assets/images/gods/Kurt.png" },
+      { key: "god-stephen",    path: "/assets/images/gods/Stephen.png" },
+      { key: "god-bernardine", path: "/assets/images/gods/Bernardine.png" },
     ];
     GOD_IMAGES.forEach(({ key, path }) => this.load.image(key, path));
 
@@ -121,7 +122,6 @@ export default class MainScene extends Phaser.Scene {
     this._buildSpotLookup();
     this._drawDistrictPolygons();
     this._drawSpotOutlines();
-    // A-2: CameraController に置き換え
     this.cameraController = new CameraController(this);
     this.cameraController.setup(this.tiledMap, MAP_SCALE);
     this.cameraController.onZoomChanged((zoom) => {
@@ -185,18 +185,15 @@ export default class MainScene extends Phaser.Scene {
 
   update() {
     this.zoomManager.tick(this.cameras.main.zoom, this.districts);
-    // A-2: _handleCameraKeyboard を CameraController.update に置き換え
     this.cameraController?.update();
   }
 
-  // 🚀 リスナー統合版（重複を削除してクリーンアップ）
   // ═══════════════════════════════════════════════
   // 神聖地占領処理
   // ═══════════════════════════════════════════════
 
   /**
-   * 神選択時に聖地districtを自陣カラーで占領表示する
-   * GDD v3.1 §3-1 に基づき、神ごとの聖地を自動占領
+   * 神選択時に聖地district内のspotを自陣カラーで占領表示する
    * @param {number} godId - 1〜8（GOD_SACRED_LANDS のキー）
    */
   _claimSacredLand(godId) {
@@ -219,7 +216,7 @@ export default class MainScene extends Phaser.Scene {
       this._redrawDistrict(spot, godColor, 0.65);
     });
 
-    // フォールバック: spotが1件も見つからない場合はspawnSpotのみ塗る
+    // spotが1件も見つからない場合はspawnSpotのみ塗る
     if (spots.length === 0 && spawnSpotId != null) {
       const fallbackSpot = this.districts[spawnSpotId];
       if (fallbackSpot) {
@@ -257,7 +254,6 @@ export default class MainScene extends Phaser.Scene {
             console.error("[MainScene] startSpotId が不正です", e.detail);
             return;
           }
-          // ★ 5桁のspot IDをそのまま保持（3桁に丸めない）
           const spotId = rawId;
           const districtId = rawId >= 10000 ? Math.floor(rawId / 100) : rawId;
           this.currentSpotId = spotId;
@@ -348,7 +344,10 @@ export default class MainScene extends Phaser.Scene {
           // ① アバター画像キーの更新（既存処理）
           if (godKey) {
             this._avatarKey = godKey;
-            if (this.player && this.textures.exists(godKey)) {
+            // _placePlayer が直後に呼ばれるため setTexture は不要だが、
+            // Image オブジェクトの場合のみ念のため更新する
+            if (this.player && this.textures.exists(godKey) &&
+                typeof this.player.setTexture === "function") {
               this.player.setTexture(godKey);
             }
           }
@@ -934,7 +933,7 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _placePlayer(spotId) {
-    // ① 5桁 spotId で座標を直接引く（最優先）
+    // ── 座標解決 ───────────────────────────────────────────────
     let x, y;
     const spotData = this.spots?.[Number(spotId)];
 
@@ -942,7 +941,7 @@ export default class MainScene extends Phaser.Scene {
       x = spotData.x;
       y = spotData.y;
     } else {
-      // ② フォールバック: 3桁 districtId で地区中心を使う
+      // フォールバック: 3桁 districtId で地区中心を使う
       const districtId =
         Number(spotId) >= 10000 ? Math.floor(Number(spotId) / 100) : Number(spotId);
       const d = this.districts[normalizeId(districtId)];
@@ -958,24 +957,98 @@ export default class MainScene extends Phaser.Scene {
       y = d.center.y;
     }
 
+    // ── 既存アバターを破棄 ─────────────────────────────────────
     if (this.player) this.player.destroy();
+    if (this._playerLabel) this._playerLabel.destroy();
+    if (this._playerFrame) this._playerFrame.destroy();
 
-    // 画像ごとにサイズが異なる場合でも中央正方形をクロップして 48×48 に表示
-    const src = this.textures.get(this._avatarKey).getSourceImage();
-    const size = Math.min(src.width, src.height);
-    const cropX = Math.floor((src.width - size) / 2);
-    const cropY = Math.floor((src.height - size) / 2);
+    // ── テクスチャ存在チェック ────────────────────────────────
+    const hasTexture = this._avatarKey && this.textures.exists(this._avatarKey);
 
-    this.player = this.add
-      .image(x, y, this._avatarKey)
-      .setCrop(cropX, cropY, size, size)
-      .setDisplaySize(48, 48)
-      .setDepth(1000);
+    if (hasTexture) {
+      // ── 神アバター画像で表示 ──────────────────────────────
+      const AVATAR_SIZE = 48;
+      const src = this.textures.get(this._avatarKey).getSourceImage();
+      const size = Math.min(src.width, src.height);
+      const cropX = Math.floor((src.width - size) / 2);
+      const cropY = Math.floor((src.height - size) / 2);
 
+      this.player = this.add
+        .image(x, y, this._avatarKey)
+        .setCrop(cropX, cropY, size, size)
+        .setDisplaySize(AVATAR_SIZE, AVATAR_SIZE)
+        .setDepth(1000);
+
+      // 白い枠線（Graphicsで描画）
+      this._playerFrame = this.add.graphics().setDepth(1001);
+      this._playerFrame.lineStyle(2, 0xffffff, 0.9);
+      this._playerFrame.strokeRect(
+        x - AVATAR_SIZE / 2,
+        y - AVATAR_SIZE / 2,
+        AVATAR_SIZE,
+        AVATAR_SIZE,
+      );
+    } else {
+      // ── フォールバック: オレンジの丸 ─────────────────────
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[_placePlayer] texture "${this._avatarKey}" not found → circle fallback`,
+        );
+      }
+      this.player = this.add
+        .circle(x, y, 24, 0xfa7000)
+        .setDepth(1000)
+        .setStrokeStyle(3, 0xffffff);
+      this._playerFrame = null;
+    }
+
+    // ── プレイヤー名ラベル ────────────────────────────────────
+    const displayName = this.registry.get("playerName") || "YOU";
+    this._playerLabel = this.add
+      .text(x, y - 36, displayName, {
+        fontSize: "11px",
+        fontFamily: "monospace",
+        color: "#ffffff",
+        stroke: "#000000",
+        strokeThickness: 3,
+        align: "center",
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(1002);
+
+    // ── カメラ追従 ────────────────────────────────────────────
     if (!this.isSelectionMode) {
       this.cameraController?.follow(this.player);
     } else {
       this.cameras.main.pan(x, y, 600, "Power2");
+    }
+  }
+
+  /**
+   * アバター・フレーム・ラベルをまとめて指定座標へ移動する。
+   * Tween の onUpdate コールバック内でも呼ぶこと。
+   */
+  _movePlayerTo(x, y) {
+    if (this.player) {
+      if (typeof this.player.setPosition === "function") {
+        this.player.setPosition(x, y);
+      }
+    }
+
+    if (this._playerFrame) {
+      const AVATAR_SIZE = 48;
+      this._playerFrame.clear();
+      this._playerFrame.lineStyle(2, 0xffffff, 0.9);
+      this._playerFrame.strokeRect(
+        x - AVATAR_SIZE / 2,
+        y - AVATAR_SIZE / 2,
+        AVATAR_SIZE,
+        AVATAR_SIZE,
+      );
+    }
+
+    if (this._playerLabel) {
+      this._playerLabel.setPosition(x, y - 36);
     }
   }
 
@@ -1088,23 +1161,59 @@ export default class MainScene extends Phaser.Scene {
       }
 
       const isNpc = data.isNpc === true;
-      const dot = this.add
-        .circle(d.center.x, d.center.y, 16, isNpc ? 0xff00ff : COLOR.ENEMY_DOT)
-        .setDepth(900)
-        .setStrokeStyle(5, 0x000000);
+      const ENEMY_SIZE = 40;
 
-      let label = null;
+      // 実装C: godId → textureKey 変換テーブル（GodSelectionView.tsxのGOD_SLOTSと一致）
+      const GOD_KEY_MAP = {
+        1: "god-neil",
+        2: "god-garry",
+        3: "god-shem",
+        4: "god-quisie",
+        5: "god-eduardo",
+        6: "god-kurt",
+        7: "god-stephen",
+        8: "god-bernardine",
+      };
+      const enemyGodKey = data.godKey ?? GOD_KEY_MAP[data.selectedGodId ?? data.godId] ?? null;
+      const hasEnemyTexture = !isNpc && enemyGodKey && this.textures.exists(enemyGodKey);
+
+      let dot;
       if (isNpc) {
-        label = this.add
-          .text(d.center.x, d.center.y - 24, "NPC", {
-            fontSize: "14px",
-            fill: "#ff00ff",
-            stroke: "#000",
-            strokeThickness: 2,
-          })
-          .setOrigin(0.5)
-          .setDepth(901);
+        dot = this.add
+          .circle(d.center.x, d.center.y, 16, 0xff00ff)
+          .setDepth(900)
+          .setStrokeStyle(3, 0x000000);
+      } else if (hasEnemyTexture) {
+        const src = this.textures.get(enemyGodKey).getSourceImage();
+        const size = Math.min(src.width, src.height);
+        const cropX = Math.floor((src.width - size) / 2);
+        const cropY = Math.floor((src.height - size) / 2);
+
+        dot = this.add
+          .image(d.center.x, d.center.y, enemyGodKey)
+          .setCrop(cropX, cropY, size, size)
+          .setDisplaySize(ENEMY_SIZE, ENEMY_SIZE)
+          .setDepth(900);
+      } else {
+        dot = this.add
+          .circle(d.center.x, d.center.y, 16, COLOR.ENEMY_DOT)
+          .setDepth(900)
+          .setStrokeStyle(3, 0x000000);
       }
+
+      const enemyName = data.username || data.playerName || (isNpc ? "NPC" : "???");
+      const label = this.add
+        .text(d.center.x, d.center.y - (isNpc ? 24 : 30), isNpc ? "NPC" : enemyName, {
+          fontSize: "10px",
+          fontFamily: "monospace",
+          fill: isNpc ? "#ff00ff" : "#cccccc",
+          stroke: "#000",
+          strokeThickness: 3,
+          align: "center",
+        })
+        .setOrigin(0.5)
+        .setDepth(901);
+
       this.otherPlayers[playerId] = { dot, label };
     });
   }
