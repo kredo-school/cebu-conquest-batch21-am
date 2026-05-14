@@ -41,16 +41,40 @@ const normalizeId = (id) => {
   return isNaN(n) ? null : n;
 };
 function extractSpotId(obj) {
-  // 方式A: プロパティ名が5桁数値
+  // 方式A: properties[0].name が 5桁以上の数値（例: "16201"）
   const byPropName = normalizeId(obj.properties?.[0]?.name);
   if (byPropName != null && byPropName >= 10000) return byPropName;
 
-  // 方式B: "spot_id" or "id" というプロパティ名の値
-  const byValue = obj.properties?.find((p) => p.name === "spot_id" || p.name === "id")?.value;
-  if (byValue != null) return normalizeId(byValue);
+  // 方式B: "spot_id" または "id" という名前のプロパティの value
+  const byNamedProp = obj.properties?.find(
+    (p) => p.name === "spot_id" || p.name === "id"
+  )?.value;
+  if (byNamedProp != null) {
+    const v = normalizeId(byNamedProp);
+    if (v != null && v >= 10000) return v;
+  }
 
-  // フォールバック: obj.name が数値文字列の場合
-  return normalizeId(obj.name);
+  // 方式C: properties のいずれかの value が 5桁数値
+  if (Array.isArray(obj.properties)) {
+    for (const p of obj.properties) {
+      const v = normalizeId(p.value);
+      if (v != null && v >= 10000) return v;
+    }
+  }
+
+  // 方式D: obj.name が 5桁数値文字列（例: "16201"）
+  const byName = normalizeId(obj.name);
+  if (byName != null && byName >= 10000) return byName;
+
+  // 未対応パターン → DEVログで報告
+  if (import.meta.env.DEV) {
+    console.warn('[extractSpotId] IDを特定できませんでした:', {
+      tiled_id: obj.id,
+      name: obj.name,
+      properties: obj.properties,
+    });
+  }
+  return null;
 }
 
 function pointInPolygon(point, polygon) {
@@ -620,19 +644,17 @@ export default class MainScene extends Phaser.Scene {
 
   _buildSpotLookup() {
     this.spots = {};
-
     const spotLayer = this.tiledMap.getObjectLayer("spotName");
     if (!spotLayer) {
       if (import.meta.env.DEV) console.warn("[MainScene] spotName レイヤーが見つかりません");
       return;
     }
 
+    let skipped = 0;
     spotLayer.objects.forEach((obj) => {
-      const propVal = obj.properties?.find(
-        (prop) => prop.name === "spot_id" || prop.name === "id",
-      )?.value;
-      const spotId = parseInt(propVal ?? obj.name, 10);
-      if (isNaN(spotId)) return;
+      // extractSpotId に統一（_loadDistrictsFromTMJ と同じロジック）
+      const spotId = extractSpotId(obj);
+      if (spotId == null || isNaN(spotId)) { skipped++; return; }
 
       let cx, cy;
       if (obj.polygon) {
@@ -645,13 +667,13 @@ export default class MainScene extends Phaser.Scene {
         cy = (obj.y + (obj.height ?? 0) / 2) * MAP_SCALE;
       }
 
-      const districtId = Math.floor(spotId / 100); // 14101 → 141
-
+      const districtId = Math.floor(spotId / 100);
       this.spots[spotId] = { x: cx, y: cy, name: obj.name, districtId };
     });
 
     if (import.meta.env.DEV) {
-      console.log("[_buildSpotLookup] spots loaded:", Object.keys(this.spots).length);
+      console.log(`[_buildSpotLookup] ロード完了: ${Object.keys(this.spots).length}件 / スキップ: ${skipped}件`);
+      if (skipped > 0) console.warn('[_buildSpotLookup] スキップされたspotはTMJのプロパティ構造を確認すること');
     }
   }
 
@@ -1295,22 +1317,43 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _updateLabelVisibility() {
-    // ZoomManager に LOD 判定を委譲（ロジック重複を排除）
     const zoom = this.cameras.main.zoom;
     const lod = this.zoomManager.getLodType(zoom);
-    Object.values(this.districts).forEach((d) => {
-      if (d.textLabel) d.textLabel.setVisible(d.type === lod);
+    const hoveredId = this.zoomManager._hoveredId;
 
+    Object.values(this.districts).forEach((d) => {
+      // ── テキストラベル ──────────────────────────────
+      if (d.textLabel) {
+        const isHovered = d.id === hoveredId;
+        // spot以外のラベルは非表示（LOD・ホバー問わず）
+        if (d.type !== 'spotName') {
+          d.textLabel.setVisible(false);
+        } else {
+          // spot: LODがspotNameのとき、またはホバー時に表示
+          d.textLabel.setVisible(d.type === lod || isHovered);
+          d.textLabel.setScale(isHovered ? 1.2 : 1.0);
+        }
+      }
+
+      // ── アウトライングラフィックス ──────────────────
       if (d.outlineGraphics) {
-        const showOutline = lod === "districtName" || lod === "spotName";
+        // spotName のみ表示。LOD が districtName 以上（ズーム十分）であれば表示
+        const showOutline = d.type === 'spotName' &&
+          (lod === 'districtName' || lod === 'spotName');
         d.outlineGraphics.setVisible(showOutline);
       }
     });
   }
 
   _updateHoverText(hoveredId) {
-    // ラベル更新は ZoomManager に一本化（二重更新を排除）
-    if (this.zoomManager) this.zoomManager.setHover(hoveredId, this.districts);
+    // hoveredId が district/area/island の場合は spot への書き換えを試みる
+    let spotHoveredId = hoveredId;
+    if (hoveredId != null) {
+      const d = this.districts[hoveredId];
+      // spot 以外が来た場合は null にして表示しない
+      if (d && d.type !== 'spotName') spotHoveredId = null;
+    }
+    if (this.zoomManager) this.zoomManager.setHover(spotHoveredId, this.districts);
   }
 
   showLog(message) {

@@ -39,12 +39,16 @@ export default class ZoomManager {
     Object.values(districts).forEach((d) => {
       if (!d.textLabel) return;
 
-      if (d.type !== "spotName") {
+      // spot 以外のラベルは常に非表示
+      if (d.type !== 'spotName') {
         d.textLabel.setVisible(false);
         return;
       }
+
+      // spot: LOD が spotName のとき、またはホバー時に表示
       const isHovered = d.id === hoveredId;
       d.textLabel.setVisible(d.type === lod || isHovered);
+      d.textLabel.setScale(isHovered ? 1.2 : 1.0);
     });
   }
 }
