@@ -3,7 +3,6 @@ import { useGameStore } from '../store';
 
 type HUDProps = object;
 
-// 🚀 修正: anyを排除するため、ストアのBuff型にvalueとiconを追加した型を定義
 type ExtendedBuff = {
   id: number;
   name: string;
@@ -12,9 +11,6 @@ type ExtendedBuff = {
   icon?: string;
 };
 
-/**
- * ✅ 修正: 再代入しないので const に変更。
- */
 const globalPhaseTracker = {
   lastTurn: -1,
   played: false
@@ -44,9 +40,6 @@ export const HUD: React.FC<HUDProps> = memo(() => {
   const isPhaseAnimationEnabled = useMemo(() => zoomLevel >= 0.6, [zoomLevel]);
   const [showPhase, setShowPhase] = useState(false);
 
-  /**
-   * ✅ GDD 4-1 準拠: Final ATK = (base ATK + buff値) × Faith乗数
-   */
   const finalAtk = useMemo(() => {
     const buffValue = activeBuffs.reduce((acc, b) => acc + ((b as ExtendedBuff).value || 0), 0);
     return Math.floor((atk + buffValue) * blessing);
@@ -57,23 +50,13 @@ export const HUD: React.FC<HUDProps> = memo(() => {
   }, [isMyTurn, isSubmitted, ap, selectedDistrictId]);
 
   const targetInfo = useMemo(() => {
-    /**
-     * ✅ 修正: image_19787e.png のタイポエラー (isislands) を解消
-     */
     if (selectedDistrictId === null || typeof selectedDistrictId === 'undefined' || !lookupData?.districts) return null;
-    
     const district = lookupData.districts.get(selectedDistrictId);
     if (!district) return null;
-    
-    // Areaの取得ガード
     const areaId = district.parentAreaId;
     const area = (typeof areaId === 'number') ? lookupData.areas?.get(areaId) : null;
-    
-    // Islandの取得ガード
     const islandId = area?.parentIslandId;
-    // 🚀 修正ポイント: lookupData.islands (sひとつ) を参照
     const island = (typeof islandId === 'number') ? lookupData.islands?.get(islandId) : null;
-    
     return {
       islandName: island?.name || area?.name || "UNKNOWN SECTOR",
       unit: selectedDistrictId,
@@ -85,18 +68,16 @@ export const HUD: React.FC<HUDProps> = memo(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  // 🚀 YOUR TURN アニメーション制御
+  // 🚀 TURNアニメーション制御：setStateエラー回避版
   useEffect(() => {
     if (globalPhaseTracker.lastTurn !== turn) {
       globalPhaseTracker.lastTurn = turn;
       globalPhaseTracker.played = false;
     }
-    
     if (isMyTurn && !isSubmitted && turn > 0 && !globalPhaseTracker.played) {
       globalPhaseTracker.played = true; 
-
       if (isPhaseAnimationEnabled) {
-        const startTimer = setTimeout(() => setShowPhase(true), 0);
+        const startTimer = setTimeout(() => setShowPhase(true), 50);
         const endTimer = setTimeout(() => setShowPhase(false), 3500);
         return () => {
           clearTimeout(startTimer);
@@ -107,16 +88,16 @@ export const HUD: React.FC<HUDProps> = memo(() => {
   }, [isMyTurn, isSubmitted, turn, isPhaseAnimationEnabled]);
 
   const teamStats = useMemo(() => {
-    const totalDistricts = Object.keys(districts).length || 1;
+    const totalMapSize = lookupData?.districts?.size || 18; 
     return (players || []).map(player => {
       const ownedCount = Object.values(districts).filter(ownerId => ownerId === player.id).length;
       return {
         id: player.id,
         color: player.color || '#f97316',
-        percent: (ownedCount / totalDistricts) * 100
+        percent: (ownedCount / totalMapSize) * 100
       };
     });
-  }, [districts, players]);
+  }, [districts, players, lookupData]);
 
   const lodClasses = isStrategicMode 
     ? "opacity-30 scale-95 hover:opacity-100 hover:scale-100 pointer-events-auto" 
@@ -129,16 +110,57 @@ export const HUD: React.FC<HUDProps> = memo(() => {
   };
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-30 font-body select-none flex flex-col transition-all duration-700">
+    <div className="absolute inset-0 pointer-events-none z-30 font-mono select-none flex flex-col transition-all duration-700">
       
-      {/* 勢力分布バー */}
-      <div className={`p-8 flex justify-center items-start transition-all duration-700 ${lodClasses}`}>
-        <div className="flex h-10 w-[400px] bg-slate-950/40 backdrop-blur-md rounded-xl border border-white/10 overflow-hidden shadow-2xl relative">
-          {teamStats.map((team) => (
-            <div key={team.id} className="h-full flex items-center justify-center transition-all duration-1000 border-r border-white/5 last:border-r-0" style={{ width: `${team.percent}%`, background: `linear-gradient(180deg, ${team.color}88 0%, ${team.color}44 100%)` }}>
-              <span className="text-xs font-black text-white italic px-2 font-fix drop-shadow-md">{team.percent.toFixed(0)}%</span>
+      {/* 📊 勢力分布：タクティカル・スラッシュ・バー */}
+      <div className={`p-6 flex flex-col items-center gap-2 transition-all duration-700 ${lodClasses}`}>
+        <div className="relative w-[600px] h-4 bg-slate-900/80 border-b border-white/10 overflow-hidden pointer-events-auto shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+          
+          {/* 背景：グリッドスキャンライン */}
+          <div className="absolute inset-0 opacity-20 bg-[linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:20px_100%]" />
+
+          <div className="flex w-full h-full relative">
+            {teamStats.map((team, i) => (
+              <div 
+                key={team.id} 
+                className="h-full relative transition-all duration-1000 ease-out flex items-center" 
+                style={{ 
+                  width: `${team.percent}%`, 
+                  backgroundColor: team.color,
+                  // 🚀 境界線を斜めにカット（スラッシュデザイン）
+                  clipPath: i === 0 
+                    ? 'polygon(0 0, 100% 0, 96% 100%, 0 100%)' 
+                    : 'polygon(4% 0, 100% 0, 100% 100%, 0 100%)',
+                  marginLeft: i > 0 ? '-1%' : '0',
+                  zIndex: 10 - i
+                }}
+              >
+                {/* 内部の走査線ノイズ */}
+                <div className="absolute inset-0 opacity-20 bg-[repeating-linear-gradient(0deg,rgba(0,0,0,0.1),rgba(0,0,0,0.1)_1px,transparent_1px,transparent_2px)]" />
+                
+                {/* 数値：バーの端に配置 */}
+                <div className={`absolute flex items-center px-2 ${i === 0 ? 'left-0' : 'right-0'}`}>
+                  <span className="text-[12px] font-black italic tracking-tighter text-white drop-shadow-md">
+                    {team.percent.toFixed(1)}<span className="text-[8px] ml-0.5 opacity-70">%</span>
+                  </span>
+                </div>
+              </div>
+            ))}
+
+            {/* 未占領：スキャン中の空き領域 */}
+            <div className="flex-1 h-full bg-transparent relative">
+              <div className="absolute inset-0 bg-white/5 animate-pulse" />
             </div>
-          ))}
+          </div>
+
+          {/* センター垂直ガイド線 */}
+          <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/20 z-20" />
+        </div>
+
+        {/* 🚀 セクターラベル */}
+        <div className="flex gap-20 text-[9px] font-black uppercase tracking-[0.4em] text-slate-500 font-fix">
+          <div className={teamStats[0]?.percent > teamStats[1]?.percent ? 'text-white' : ''}>Sector Alpha</div>
+          <div className={teamStats[1]?.percent > teamStats[0]?.percent ? 'text-white' : ''}>Sector Beta</div>
         </div>
       </div>
 
@@ -146,10 +168,7 @@ export const HUD: React.FC<HUDProps> = memo(() => {
       <div className="flex-grow flex items-center justify-center">
         {showPhase && (
           <div className="phase-animation-container flex flex-col items-center relative p-16">
-            <div className="flex items-center gap-4 mb-2">
-              <span className="text-[10px] font-black text-orange-400 uppercase tracking-[0.5em] font-fix">Neural Link Active</span>
-            </div>
-            <h1 className="holographic-text text-8xl md:text-9xl font-black italic tracking-tighter uppercase flex flex-col items-center font-fix text-center">
+            <h1 className="holographic-text text-8xl md:text-9xl font-black italic tracking-tighter uppercase flex flex-col items-center font-fix text-center leading-none">
               <span className="text-white block">YOUR</span>
               <span className="text-orange-500 -mt-4 block">TURN</span>
             </h1>
@@ -186,7 +205,7 @@ export const HUD: React.FC<HUDProps> = memo(() => {
           </div>
         </div>
 
-        {/* 右側：ターゲット ＆ アクション */}
+        {/* 右側：アクションパネル */}
         <div className="flex flex-col items-end gap-4 pointer-events-auto">
           <div className={`flex flex-col items-end transition-all duration-500 ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
             <div className="flex items-center gap-2 mb-1">
@@ -211,7 +230,7 @@ export const HUD: React.FC<HUDProps> = memo(() => {
               <div className="absolute top-1 right-2 text-[7px] font-black text-cyan-400">5 AP</div>
             </button>
 
-            <button onClick={stay} disabled={!isMyTurn || isSubmitted} className={`bg-slate-900/90 backdrop-blur-xl border text-slate-100 rounded-lg font-bold transition-all active:scale-95 flex flex-col items-center justify-center gap-1 w-36 h-20 text-lg shadow-lg ${isMyTurn ? 'border-slate-700 hover:border-orange-500/50' : 'border-transparent opacity-50'}`}>
+            <button onClick={stay} disabled={!isMyTurn || isSubmitted} className={`bg-slate-900/90 backdrop-blur-xl border border-slate-700 text-slate-100 rounded-lg font-bold transition-all active:scale-95 flex flex-col items-center justify-center gap-1 w-36 h-20 text-lg shadow-lg`}>
               <span className="material-symbols-outlined text-green-400 text-xl">vitals</span>
               <span className="font-fix text-base">STAY (回復)</span>
               <span className="text-[7px] text-slate-500 uppercase tracking-widest font-fix">HP+20 / AP+30</span>

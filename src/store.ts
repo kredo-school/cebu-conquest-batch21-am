@@ -1,4 +1,4 @@
-// src/store.ts
+/// <reference types="vite/client" />
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import socket from './socket';
@@ -9,7 +9,6 @@ import SoundManager from './game/SoundManager';
 
 const MAP_REPAINT_EVENT = 'react:mapRepaint';
 
-// 🚀 神のバフデータを Store 側に集約
 export const GOD_BUFF_MAP: Record<number, { hp?: number; atk?: number; def?: number; ap?: number }> = {
   1: { hp: 40 },      // Neil: MAX_HP +30, HP +10
   2: { atk: 20 },     // Garry: ATK +20
@@ -474,7 +473,6 @@ export const useGameStore = create<GameState>()(
         } catch (e) { console.error(e); }
       },
 
-      // 🚀 修正：スタミナ制限のガードロジックを追加
       attack: (id) => {
         if (get().ap <= 0) {
           get().addLog("⚠️ Insufficient energy! Attack maneuver locked.");
@@ -494,10 +492,26 @@ export const useGameStore = create<GameState>()(
         socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'stay' });
         window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_STAY));
       },
-      defend: () => socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'defend' }),
-      escape: () => socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'escape' }),
+
+      // 🚀 I-2 修正: defend の送信フォーマット統一
+      defend: () => {
+        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'defend' });
+      },
+
+      // 🚀 I-2 修正: escape の送信フォーマット統一
+      escape: () => {
+        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'escape' });
+      },
+
       useItem: (id) => socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId: id }),
-      endTurn: () => { socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'turn_end' }); set({ isMyTurn: false, isSubmitted: true }); },
+
+      // 🚀 I-1 修正: endTurn の送信イベントを TURN_END_SUBMIT に変更
+      endTurn: () => {
+        socket.emit(CLIENT_EVENTS.TURN_END_SUBMIT); 
+        set({ isSubmitted: true }); 
+        // ※ isMyTurn はサーバーからの syncState を待つため手動変更は廃止
+      },
+
       setStatus: (status) => set((state) => ({ ...state, ...status })),
       addLog: (log) => set((state) => {
         if (typeof log === 'string') {

@@ -25,10 +25,8 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
   const [customQuestion, setCustomQuestion] = useState(''); 
   const [securityAnswer, setSecurityAnswer] = useState(''); 
 
-  // カテゴリー表示用のState（これがボタンを押した時に変わる）
   const [activeCategory, setActiveCategory] = useState<'laravel' | 'gods' | 'about' | null>(null);
 
-  // 🚀 スキャン演出の最低継続時間（3秒）
   const SCAN_CYCLE = 3000; 
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -40,7 +38,6 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
     const startTime = Date.now();
     addLog(isRegisterMode ? "📡 Initiating registration protocol..." : "🔑 Authenticating credentials...");
 
-    // 内部的に結果を保持し、演出終了後に反映させる
     let isSuccess = false;
     let localError: string | null = null;
 
@@ -70,12 +67,10 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
         }
       }
 
-      // 🚀 演出同期：APIの応答が早くても SCAN_CYCLE 分は待機する
       const elapsed = Date.now() - startTime;
       const waitTime = Math.max(SCAN_CYCLE - elapsed, 0);
       await new Promise(resolve => setTimeout(resolve, waitTime));
 
-      // 演出完了後にステートを更新
       if (isSuccess) {
         if (isRegisterMode) {
           addLog(`✅ Registration Success: Commander ${username} is ready.`);
@@ -91,14 +86,12 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
       }
 
     } catch (_error: unknown) {
-      // エラー時も最低待機時間を守る
       const elapsed = Date.now() - startTime;
       await new Promise(resolve => setTimeout(resolve, Math.max(SCAN_CYCLE - elapsed, 0)));
-      
       setErrorMsg("SERVER ERROR: 本部との通信に失敗。CORS設定等を確認せよ。");
       setErrorMessage?.("通信エラー：APIサーバーの応答がありません。");
     } finally {
-      setIsLoading(false); // ✅ ここで SYNCING 演出が終わる
+      setIsLoading(false);
     }
   };
 
@@ -154,7 +147,19 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
           <p className="text-slate-400 text-sm font-medium tracking-wide">Enter the battlefield.</p>
         </div>
 
-        <div className={`w-full max-w-sm bg-slate-900/80 backdrop-blur-xl p-6 rounded-2xl border transition-all duration-500 ${isRegisterMode ? 'border-cyan-800/50 shadow-cyan-900/20' : 'border-slate-800 shadow-2xl'} relative overflow-hidden text-left shrink-0`}>
+        {/* 🚀 メインカードにグラデーションを適用 */}
+        <div 
+          className={`w-full max-w-sm backdrop-blur-xl p-6 rounded-2xl border transition-all duration-500 ${isRegisterMode ? 'border-cyan-800/50 shadow-cyan-900/20' : 'border-slate-800 shadow-2xl'} relative overflow-hidden text-left shrink-0`}
+          style={{
+            background: isRegisterMode
+              ? `radial-gradient(circle at top right, rgba(6, 182, 212, 0.15), transparent 60%), 
+                 radial-gradient(circle at bottom left, rgba(6, 182, 212, 0.05), transparent 60%), 
+                 rgba(15, 23, 42, 0.95)`
+              : `radial-gradient(circle at top right, rgba(234, 88, 12, 0.15), transparent 60%), 
+                 radial-gradient(circle at bottom left, rgba(234, 88, 12, 0.05), transparent 60%), 
+                 rgba(15, 23, 42, 0.95)`
+          }}
+        >
           {isLoading && <div key="active-scan-line" className={`absolute inset-0 z-30 pointer-events-none scanning-line ${isRegisterMode ? 'bg-cyan-500 shadow-cyan-500' : 'bg-orange-500 shadow-orange-500'}`} />}
           
           {mode === 'recovery_user' ? (
@@ -185,7 +190,7 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
                 <label className={`block text-[9px] font-black tracking-widest uppercase ml-1 transition-colors duration-500 ${isRegisterMode ? 'text-cyan-500' : 'text-slate-400'}`}>USER ID</label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className={`material-symbols-outlined transition-colors duration-500 ${isRegisterMode ? 'text-cyan-500' : 'text-slate-500'} text-lg`}>person</span>
+                    <span className={`material-symbols-outlined transition-colors duration-500 ${isRegisterMode ? 'text-cyan-600' : 'text-slate-500'} text-lg`}>person</span>
                   </div>
                   <input className={`w-full bg-slate-950/50 border ${isRegisterMode ? 'border-cyan-800/50 focus:ring-cyan-500' : 'border-slate-700 focus:ring-orange-500'} text-white pl-10 pr-4 py-2.5 rounded-lg focus:ring-1 focus:border-transparent transition-all outline-none text-sm disabled:opacity-50 font-fix`} placeholder="Operator ID" type="text" disabled={isLoading} value={username} onChange={(e) => setUsername(e.target.value)}/>
                 </div>
@@ -195,7 +200,7 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
                 <label className={`block text-[9px] font-black tracking-widest uppercase ml-1 transition-colors duration-500 ${isRegisterMode ? 'text-cyan-500' : 'text-slate-400'}`}>PASSWORD</label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className={`material-symbols-outlined transition-colors duration-500 ${isRegisterMode ? 'text-cyan-500' : 'text-slate-500'} text-lg`}>lock</span>
+                    <span className={`material-symbols-outlined transition-colors duration-500 ${isRegisterMode ? 'text-cyan-600' : 'text-slate-500'} text-lg`}>lock</span>
                   </div>
                   <input className={`w-full bg-slate-950/50 border ${isRegisterMode ? 'border-cyan-800/50 focus:ring-cyan-500' : 'border-slate-700 focus:ring-orange-500'} text-white pl-10 pr-10 py-2.5 rounded-lg focus:ring-1 focus:border-transparent transition-all outline-none text-sm disabled:opacity-50 font-fix`} placeholder="••••••••" type={showPassword ? "text" : "password"} disabled={isLoading} value={password} onChange={(e) => setPassword(e.target.value)}/>
                   <button type="button" disabled={isLoading} onClick={() => setShowPassword(!showPassword)} className={`absolute inset-y-0 right-0 pr-3 flex items-center transition-colors pointer-events-auto ${isRegisterMode ? 'text-cyan-600 hover:text-cyan-400' : 'text-slate-500 hover:text-orange-400'}`}>
@@ -241,20 +246,13 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
           </div>
         )}
 
-        {/* 🚀 ここから追加：消えていたモーダル部分を復活！ */}
         {activeCategory && (
           <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-fadeIn">
             <div className="bg-slate-900 border border-orange-500/30 rounded-2xl p-6 max-w-sm w-full shadow-[0_0_40px_rgba(249,115,22,0.15)] relative text-left">
-              
-              {/* 閉じるボタン */}
-              <button 
-                onClick={() => setActiveCategory(null)}
-                className="absolute top-4 right-4 text-slate-500 hover:text-orange-400 transition-colors"
-              >
+              <button onClick={() => setActiveCategory(null)} className="absolute top-4 right-4 text-slate-500 hover:text-orange-400 transition-colors">
                 <span className="material-symbols-outlined">close</span>
               </button>
 
-              {/* 中身のテキスト（後で好きに変えてね） */}
               {activeCategory === 'laravel' && (
                 <>
                   <div className="flex items-center gap-2 text-orange-500 mb-3"><span className="material-symbols-outlined">groups</span><h3 className="text-xl font-black uppercase tracking-widest">No Laravel</h3></div>
@@ -282,8 +280,6 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
             </div>
           </div>
         )}
-        {/* 🚀 追加ここまで */}
-
       </main>
 
       <footer className="relative z-20 bg-slate-950/80 backdrop-blur-md flex flex-col md:flex-row justify-center items-center w-full py-3 border-t border-slate-800 shrink-0">
@@ -308,7 +304,19 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
 });
 
 const BentoCard = ({ icon, title, sub, onClick, isActive }: { icon: string, title: React.ReactNode, sub: React.ReactNode, onClick?: () => void, isActive?: boolean }) => (
-  <div onClick={onClick} className={`bg-slate-900/40 backdrop-blur-sm p-3 rounded-xl border flex items-center gap-3 group transition-all cursor-pointer text-left ${isActive ? 'bg-slate-800 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.2)]' : 'border-slate-800/50 hover:bg-slate-800'}`}>
+  <div 
+    onClick={onClick} 
+    className={`p-3 rounded-xl border flex items-center gap-3 group transition-all cursor-pointer text-left ${isActive ? 'bg-slate-800 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.2)]' : 'border-slate-800/50 hover:bg-slate-800'}`}
+    style={{
+      // 🚀 BentoCardにもグラデーションを適用
+      background: isActive
+        ? `radial-gradient(circle at top right, rgba(234, 88, 12, 0.2), transparent 70%), 
+           radial-gradient(circle at bottom left, rgba(234, 88, 12, 0.1), transparent 70%), 
+           rgba(30, 41, 59, 0.9)`
+        : `radial-gradient(circle at top right, rgba(234, 88, 12, 0.08), transparent 60%), 
+           rgba(15, 23, 42, 0.4)`
+    }}
+  >
     <div className={`p-1.5 rounded-lg transition-colors shrink-0 text-left flex items-center justify-center ${isActive ? 'bg-orange-500 text-white' : 'bg-orange-500/20 group-hover:bg-orange-500/40 text-orange-400'}`}>
       <span className="material-symbols-outlined text-lg">{icon}</span>
     </div>
