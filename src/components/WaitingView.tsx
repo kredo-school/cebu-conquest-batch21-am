@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useGameStore, Player, LobbyPlayer } from '../store';
 import socket from '../socket';
 import SoundManager from '../game/SoundManager';
-// 🚀 修正：useBGM は AudioController が担当するため不要
 import { GlobalNavbar } from './layout/GlobalNavbar';
 import { CustomButton } from './common/CustomButton';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../../shared/socketEvents.js';
@@ -31,15 +30,22 @@ type UnifiedPlayer = {
   ready?: boolean;
 };
 
-const GOD_TRAITS: Record<number, { name: string; img: string; icon: string }> = {
-  1: { name: "Neil",       img: "/assets/images/gods/Neil.png",       icon: "https://api.dicebear.com/7.x/identicon/svg?seed=1" },
-  2: { name: "Garry",      img: "/assets/images/gods/Garry.png",      icon: "https://api.dicebear.com/7.x/identicon/svg?seed=2" },
-  3: { name: "Shem",       img: "/assets/images/gods/Shem.png",       icon: "https://api.dicebear.com/7.x/identicon/svg?seed=3" },
-  4: { name: "Quisie",     img: "/assets/images/gods/Quisie.png",     icon: "https://api.dicebear.com/7.x/identicon/svg?seed=4" },
-  5: { name: "Eduardo",    img: "/assets/images/gods/Eduardo.png",    icon: "https://api.dicebear.com/7.x/identicon/svg?seed=5" },
-  6: { name: "Kurt",       img: "/assets/images/gods/Kurt.png",       icon: "https://api.dicebear.com/7.x/identicon/svg?seed=6" },
-  7: { name: "Stephen",    img: "/assets/images/gods/Stephen.png",    icon: "https://api.dicebear.com/7.x/identicon/svg?seed=7" },
-  8: { name: "Bernardine", img: "/assets/images/gods/Bernardine.png", icon: "https://api.dicebear.com/7.x/identicon/svg?seed=8" },
+// 🚀 修正1：チャットメッセージの型を明示的に定義（any 回避）
+interface ChatData {
+  sender: string;
+  message: string;
+  timestamp?: string | number;
+}
+
+const GOD_TRAITS: Record<number, { name: string; img: string; icon: string; role: string; desc: string }> = {
+  1: { name: "Neil",       img: "/assets/images/gods/Neil.png",       icon: "https://api.dicebear.com/7.x/identicon/svg?seed=1", role: "High Commander", desc: "初期HPを大幅に強化し、盤面の維持能力を高める。" },
+  2: { name: "Garry",      img: "/assets/images/gods/Garry.png",      icon: "https://api.dicebear.com/7.x/identicon/svg?seed=2", role: "War Lord", desc: "圧倒的な攻撃力を付与し、敵陣地への侵攻を容易にする。" },
+  3: { name: "Shem",       img: "/assets/images/gods/Shem.png",       icon: "https://api.dicebear.com/7.x/identicon/svg?seed=3", role: "Tactical Mind", desc: "HPとAPのバランスを整え、手数を増やす戦術に長ける。" },
+  4: { name: "Quisie",     img: "/assets/images/gods/Quisie.png",     icon: "https://api.dicebear.com/7.x/identicon/svg?seed=4", role: "Berserker", desc: "HPを犠牲に、極限の火力を引き出すハイリスク・ハイリターン型。" },
+  5: { name: "Eduardo",    img: "/assets/images/gods/Eduardo.png",    icon: "https://api.dicebear.com/7.x/identicon/svg?seed=5", role: "Iron Shield", desc: "防御力を極限まで高め、敵の反撃を無力化する守備の要。" },
+  6: { name: "Kurt",       img: "/assets/images/gods/Kurt.png",       icon: "https://api.dicebear.com/7.x/identicon/svg?seed=6", role: "Assassin", desc: "低HPながら隠密性に優れ、隙を突いた一撃を得意とする。" },
+  7: { name: "Stephen",    img: "/assets/images/gods/Stephen.png",    icon: "https://api.dicebear.com/7.x/identicon/svg?seed=7", role: "Oracle", desc: "信仰心の回復を促進し、神の加護を常に受け続けるパッシブを持つ。" },
+  8: { name: "Bernardine", img: "/assets/images/gods/Bernardine.png", icon: "https://api.dicebear.com/7.x/identicon/svg?seed=8", role: "Energy Core", desc: "最大APを大幅に底上げし、1ターン内での連続行動を可能にする。" },
 };
 
 const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedPlayer; isMe: boolean; isHost: boolean; myAvatar: string | null }) => {
@@ -47,30 +53,47 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
   const god = godId ? GOD_TRAITS[godId] : null;
   const isPlayerReady = player.isReady === true || player.ready === true;
   const avatarUrl = isMe ? myAvatar : null;
+  const [isHovered, setIsHovered] = useState(false);
+  const isNpc = player.id?.includes('npc') || (!player.username && !isMe);
 
   return (
-    <div className={`glass-panel p-4 rounded-xl border-l-4 flex flex-col gap-3 group transition-all duration-500 h-48 w-full shrink-0 ${
-      isPlayerReady ? 'border-l-[#fa7000] bg-orange-950/10 shadow-[0_0_20px_rgba(250,112,0,0.1)]' : 'border-l-slate-800 bg-slate-900/40 opacity-90'
-    }`}>
+    <div 
+      className={`glass-panel p-4 rounded-xl border-l-4 flex flex-col gap-3 group transition-all duration-500 h-48 w-full shrink-0 relative overflow-visible ${
+        isPlayerReady ? 'border-l-[#fa7000] bg-orange-950/10 shadow-[0_0_20px_rgba(250,112,0,0.1)]' : 'border-l-slate-800 bg-slate-900/40 opacity-90'
+      }`}
+      style={{
+        background: `radial-gradient(circle at top right, ${isPlayerReady ? 'rgba(250, 112, 0, 0.15)' : 'rgba(255, 255, 255, 0.05)'}, transparent 70%), rgba(15, 23, 42, 0.8)`
+      }}
+    >
       <div className="relative h-24 w-full shrink-0 overflow-hidden rounded-lg bg-slate-950 flex items-center justify-center border border-white/5">
         {!god ? (
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/80">
-            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-            <div className="w-full h-[2px] bg-[#fa7000]/20 absolute top-0 animate-scanline"></div>
             <span className="material-symbols-outlined text-3xl text-slate-700 mb-1 animate-pulse">fingerprint</span>
             <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.3em] font-fix">Syncing God...</p>
           </div>
         ) : (
           <img 
-            className={`w-full h-full object-cover object-top transition-all duration-700 ${!isPlayerReady ? 'opacity-40 grayscale blur-[1px]' : 'opacity-100 grayscale-0 blur-0'}`} 
+            className={`w-full h-full object-cover object-top transition-all duration-700 cursor-help ${!isPlayerReady ? 'opacity-40 grayscale blur-[1px]' : 'opacity-100 grayscale-0 blur-0'}`} 
             src={god.img} 
-            alt="God Portrait" 
-            onError={(e) => { (e.target as HTMLImageElement).src = '/assets/images/gods/fallback.png'; }}
+            alt="God Portrait"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            style={{ filter: isPlayerReady ? 'none' : undefined }}
           />
         )}
         {isHost && <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-[#fa7000] text-[7px] font-black text-black rounded uppercase shadow-lg z-10 font-fix">HOST</div>}
         {isMe && <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-slate-900/90 text-[7px] font-black text-[#fa7000] rounded border border-[#fa7000]/30 uppercase z-10 font-fix">YOU</div>}
       </div>
+
+      {isHovered && god && (
+        <div className="absolute top-0 left-full ml-4 z-[100] w-64 bg-slate-950 border border-orange-500/50 p-4 rounded-xl backdrop-blur-2xl shadow-[0_0_40px_rgba(0,0,0,0.8)] animate-fadeIn pointer-events-none text-left">
+          <div className="border-l-4 border-orange-600 pl-3 py-0.5 mb-2">
+            <p className="text-[9px] font-black text-orange-500 uppercase tracking-widest">{god.role}</p>
+            <h3 className="text-lg font-black italic text-white leading-none uppercase">{god.name}</h3>
+          </div>
+          <p className="text-[11px] text-slate-300 leading-relaxed font-fix">{god.desc}</p>
+        </div>
+      )}
 
       <div className="flex justify-between items-center shrink-0">
         <div className="flex flex-col text-left">
@@ -88,7 +111,13 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
         <div className={`flex items-center gap-2 transition-all duration-700 ${isPlayerReady ? 'opacity-100 translate-y-0' : 'opacity-20 translate-y-1'}`}>
           {isPlayerReady ? (
              <div className="relative">
-                <img className="w-6 h-6 rounded-full border border-[#fa7000]/50 object-cover" src={god?.icon} alt="" />
+                {isNpc ? (
+                  <div className="w-6 h-6 rounded-full border border-slate-700 bg-slate-900 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[14px] text-cyan-500">smart_toy</span>
+                  </div>
+                ) : (
+                  <img className="w-6 h-6 rounded-full border border-[#fa7000]/50 object-cover" src={god?.icon} alt="" />
+                )}
                 {isMe && (
                   <div className="w-3 h-3 rounded-full border border-white absolute -bottom-0.5 -right-0.5 z-20 overflow-hidden bg-slate-800 flex items-center justify-center shadow-md">
                     {avatarUrl ? <img src={avatarUrl} alt="Me" className="w-full h-full object-cover" /> : <span className="material-symbols-outlined text-slate-400" style={{ fontSize: '8px' }}>person</span>}
@@ -111,12 +140,21 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
 export const WaitingView: React.FC<WaitingViewProps> = ({
   onStart, onOpenSettings, onOpenHelp, onOpenRanking, onAbort
 }) => {
-  const { players, lobbyPlayers, myId, chatLogs, roomId, playerName, maxPlayers, selectedGodId, addLog, playerAvatar } = useGameStore();
+  const { players, lobbyPlayers, myId, chatLogs, roomId, playerName, maxPlayers, selectedGodId, addChatLog, playerAvatar } = useGameStore();
   const [chatInput, setChatInput] = useState('');
   const [isLocked, setIsLocked] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // 🚀 修正：BGM再生の useEffect は AudioController が担当するため削除
+  // 🚀 修正2：ChatData 型を使用し、any 警告を解消
+  useEffect(() => {
+    const handleReceiveMessage = (data: ChatData) => {
+      addChatLog(data); 
+    };
+    socket.on(SERVER_EVENTS.CHAT_MESSAGE, handleReceiveMessage);
+    return () => {
+      socket.off(SERVER_EVENTS.CHAT_MESSAGE, handleReceiveMessage);
+    };
+  }, [addChatLog]);
 
   useEffect(() => { if (roomId) socket.emit(CLIENT_EVENTS.READY_TO_START, { roomId, ready: false }); }, [roomId]);
   useEffect(() => { if (selectedGodId) socket.emit(CLIENT_EVENTS.SELECT_GOD, { roomId, godId: selectedGodId }); }, [selectedGodId, roomId]);
@@ -124,20 +162,19 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
   useEffect(() => {
     const handleGameStart = () => { onStart(); };
     socket.on(SERVER_EVENTS.GAME_START, handleGameStart);
-    socket.on('GAME_START', handleGameStart); 
-    return () => { 
-      socket.off(SERVER_EVENTS.GAME_START, handleGameStart); 
-      socket.off('GAME_START', handleGameStart);
-    };
+    return () => { socket.off(SERVER_EVENTS.GAME_START, handleGameStart); };
   }, [onStart]);
 
   const handleSendMessage = () => {
     if (!chatInput.trim()) return;
     const me = players.find(p => p.id === myId || p.playerName === playerName);
     const senderName = me?.username || me?.playerName || playerName || 'Operator';
+    
+    // 🚀 チャット2重送信防止のため emit のみ行う
     socket.emit(CLIENT_EVENTS.SEND_CHAT, { roomId, message: chatInput, sender: senderName });
-    addLog({ sender: senderName, message: chatInput, timestamp: Date.now() });
-    setChatInput(''); try { SoundManager.playSe('click'); } catch {}
+    
+    setChatInput(''); 
+    try { SoundManager.playSe('click'); } catch {}
   };
 
   const handleReadyClick = () => {
@@ -145,12 +182,6 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
     setIsLocked(nextLockedState);
     socket.emit(CLIENT_EVENTS.READY_TO_START, { roomId, ready: nextLockedState }); 
     try { SoundManager.playSe('click'); } catch {}
-    
-    if (nextLockedState) {
-      addLog("🚀 降下準備完了。味方の承認を待機しています...");
-    } else {
-      addLog("🔄 準備解除。待機状態に戻ります。");
-    }
   };
 
   const totalSlots = maxPlayers || 2;
@@ -166,40 +197,19 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
 
   const readyCount = useMemo(() => activeLobby.filter(p => p.isReady === true).length, [activeLobby]);
 
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (isLocked && readyCount < totalSlots) {
-      interval = setInterval(() => {
-        socket.emit(CLIENT_EVENTS.READY_TO_START, { roomId, ready: true });
-      }, 2000);
-    }
-    return () => clearInterval(interval);
-  }, [isLocked, readyCount, totalSlots, roomId]);
-
-  useEffect(() => {
-    if (isLocked && readyCount > 0 && readyCount >= totalSlots) {
-      addLog("🚀 全員の最終承認を確認。作戦領域へ降下します！");
-      const timer = setTimeout(() => { onStart(); }, 1500); 
-      return () => clearTimeout(timer);
-    }
-  }, [readyCount, totalSlots, onStart, addLog, isLocked]);
-
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatLogs]);
 
   return (
     <div className="font-body antialiased overflow-hidden h-screen flex flex-col bg-[#020617] text-[#f8fafc] relative select-none">
       <style>{`
         .glass-panel { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
-        .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #334155 transparent; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-        @keyframes scanline { 0% { top: 0%; opacity: 0; } 50% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
-        .animate-scanline { animation: scanline 3s linear infinite; }
-        .animate-fadeIn { animation: fadeIn 0.5s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; filter: blur(10px); } to { opacity: 1; filter: blur(0); } }
         .font-fix { line-height: 1; }
         .tropical-flare { background: radial-gradient(circle at center, rgba(249, 115, 22, 0.35) 0%, rgba(249, 115, 22, 0) 70%); }
         .island-silhouette { background-image: linear-gradient(to top, #020617 10%, transparent 100%), url(https://images.unsplash.com/photo-1506466010722-395aa2bef877); background-size: cover; background-position: center bottom; }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
       
       <div className="fixed inset-0 -z-10 island-silhouette opacity-40 pointer-events-none" />
@@ -209,17 +219,17 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
 
       <main className="flex-1 mt-16 flex flex-col relative overflow-hidden min-h-0">
         <section className="flex-1 flex flex-col py-4 px-6 md:px-8 z-10 max-w-7xl mx-auto w-full min-h-0 gap-4">
+          
           <div className="flex justify-between items-end shrink-0 text-left">
             <div>
-              <h1 className="text-3xl lg:text-4xl font-black text-white mb-1 tracking-tighter italic uppercase font-fix">Waiting for Link...</h1>
+              <h1 className="text-3xl lg:text-4xl font-black text-white mb-1 tracking-tighter italic uppercase font-fix">Ready for Uplink</h1>
               <div className="flex items-center gap-2 text-[#fa7000] font-black uppercase tracking-widest text-[10px] lg:text-[11px] font-fix">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#fa7000] animate-pulse shadow-[0_0_10px_#fa7000]"></div>
                 Squad Synchronization active
               </div>
             </div>
             <div className="flex items-baseline gap-4 lg:gap-10 text-right leading-none">
-              <p className="hidden sm:block text-slate-400 text-[10px] uppercase tracking-widest font-bold font-fix whitespace-nowrap">Link Status</p>
-              <p className="text-2xl lg:text-3xl font-black text-white font-fix min-w-[120px]">
+              <p className="text-2xl lg:text-3xl font-black text-white font-fix">
                 {readyCount} <span className="text-[#fa7000] ml-1 lg:ml-2">/ {totalSlots} READY</span>
               </p>
             </div>
@@ -233,69 +243,60 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                 return <PlayerCard key={lp.playerId} player={playerData} isMe={lp.playerId === myId} isHost={index === 0} myAvatar={playerAvatar} />;
               }
               return (
-                <div key={`empty-${index}`} className="glass-panel rounded-xl border border-slate-800 flex flex-col items-center justify-center gap-2 h-48 w-full opacity-40">
+                <div key={`empty-${index}`} className="glass-panel rounded-xl border border-slate-800 flex flex-col items-center justify-center gap-2 h-48 w-full opacity-30">
                   <span className="material-symbols-outlined text-4xl text-slate-700">person_add</span>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-fix">Awaiting Signal</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-fix">Awaiting Operator</span>
                 </div>
               );
             })}
           </div>
 
-          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6 pb-2 text-left">
-            <div className="lg:col-span-2 glass-panel rounded-xl overflow-hidden flex flex-col h-full border-slate-800 shadow-2xl">
-              <div className="flex-1 p-4 space-y-3 overflow-y-auto text-sm custom-scrollbar text-left font-mono bg-slate-950/20">
-                {chatLogs.map((log, i) => (
-                  <div key={`chat-${i}`} className="flex gap-2 leading-tight animate-fadeIn">
-                    <span className={`${log.sender === (playerName || 'Operator') ? 'text-cyan-400' : 'text-[#fa7000]'} font-bold shrink-0`}>{log.sender}:</span>
-                    <span className="text-slate-300 break-words font-fix">{log.message}</span>
-                  </div>
-                ))}
-                <div ref={chatEndRef} />
-              </div>
-              <div className="p-3 bg-slate-950/50 border-t border-slate-800 shrink-0">
-                <div className="relative flex items-center">
-                  <input className="w-full bg-slate-900 border-slate-800 rounded-lg py-2 px-4 text-sm focus:ring-[#fa7000] focus:border-[#fa7000] text-slate-200 outline-none font-mono" placeholder="Transmit tactical data..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}/>
-                  <button onClick={handleSendMessage} className="absolute right-2 text-[#fa7000] hover:text-orange-400 transition-colors"><span className="material-symbols-outlined">send</span></button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4 h-full">
-              <div className="glass-panel rounded-xl flex flex-col border-slate-800 shadow-2xl flex-1 min-h-0 p-4">
-                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest leading-none font-fix mb-2">Mission Sector</p>
-                  <h3 className="text-lg font-black text-white uppercase tracking-tight leading-none font-fix mb-3 italic">Cebu Island</h3>
-                  <div className="flex-1 min-h-[80px] w-full rounded-lg overflow-hidden relative border border-white/5 bg-slate-950">
-                    <img alt="Map" className="w-full h-full object-cover opacity-100" src="https://images.unsplash.com/photo-1518107616385-ad302215a9a8" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-full h-[1px] bg-[#fa7000]/30 absolute top-1/2"></div>
-                      <div className="h-full w-[1px] bg-[#fa7000]/30 absolute left-1/2"></div>
-                      <span className="text-[9px] font-mono text-[#fa7000] font-black uppercase drop-shadow-lg bg-black/40 px-2 py-0.5 rounded">Tactical Link Established</span>
+          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-6 pb-2 text-left">
+            <div className="lg:col-span-8 flex flex-col gap-4 h-full">
+               <div className="glass-panel rounded-xl flex flex-col border-slate-800 shadow-2xl flex-1 min-h-0 p-4">
+                  <SectionHeader title="Mission Sector" sub="Deployment Area Details" />
+                  <div className="flex-1 min-h-[100px] w-full rounded-lg overflow-hidden relative border border-white/5 bg-slate-950">
+                    <img alt="Map" className="w-full h-full object-cover opacity-60" src="https://images.unsplash.com/photo-1518107616385-ad302215a9a8" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                       <span className="text-[10px] font-mono text-[#fa7000] font-black uppercase bg-black/60 px-4 py-1 rounded border border-[#fa7000]/30 shadow-xl">Tactical Map Alpha-21</span>
                     </div>
                   </div>
+               </div>
+            </div>
+
+            <div className="lg:col-span-4 flex flex-col gap-4">
+              <div className="glass-panel rounded-xl overflow-hidden flex flex-col h-full border-slate-800 shadow-2xl">
+                <div className="p-3 border-b border-white/5 bg-slate-950/50 text-left flex justify-between items-center">
+                  <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest">Tactical Comms</span>
+                </div>
+                <div className="flex-1 p-4 space-y-3 overflow-y-auto text-xs custom-scrollbar font-mono bg-slate-950/20 text-left">
+                  {chatLogs.map((log, i) => (
+                    <div key={`chat-${i}`} className="flex flex-col gap-1 animate-fadeIn">
+                      <span className={`${log.sender === (playerName || 'Operator') ? 'text-cyan-400' : 'text-[#fa7000]'} font-black text-[10px]`}>{log.sender}:</span>
+                      <span className="text-slate-300 break-words leading-relaxed pl-1">{log.message}</span>
+                    </div>
+                  ))}
+                  <div ref={chatEndRef} />
+                </div>
+                <div className="p-3 bg-slate-950/50 border-t border-white/5">
+                  <div className="relative flex items-center">
+                    <input className="w-full bg-slate-900 border-slate-800 rounded-lg py-2 px-4 text-xs focus:ring-[#fa7000] text-slate-200 outline-none font-mono" placeholder="Send signal..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}/>
+                    <button onClick={handleSendMessage} className="absolute right-2 text-[#fa7000] hover:text-orange-400 transition-colors"><span className="material-symbols-outlined text-sm">send</span></button>
+                  </div>
+                </div>
               </div>
               
               <button 
                 onClick={handleReadyClick}
-                className={`w-full h-[64px] flex flex-col items-center justify-center rounded-xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-[2px] shadow-lg shrink-0
+                className={`w-full h-[70px] flex flex-col items-center justify-center rounded-xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-[2px] shadow-lg shrink-0
                 ${isLocked 
-                  ? 'bg-slate-800 border-slate-950 text-[#fa7000] shadow-orange-950/20 opacity-80 active:brightness-90' 
-                  : 'bg-gradient-to-r from-orange-600 to-brand-500 border-orange-800 text-black font-black shadow-orange-500/20 hover:brightness-110 active:brightness-90'}`}
+                  ? 'bg-slate-800 border-slate-950 text-[#fa7000] opacity-80' 
+                  : 'bg-gradient-to-r from-orange-600 to-orange-500 border-orange-800 text-black font-black hover:brightness-110'}`}
               >
                 <div className="flex items-center gap-3">
-                  {isLocked ? (
-                    <>
-                      <span className="material-symbols-outlined text-lg">lock_open</span>
-                      <span className="text-xl font-black italic tracking-widest leading-none font-fix">CANCEL READY</span>
-                    </>
-                  ) : (
-                    <span className="text-2xl font-black italic tracking-widest leading-none font-fix">DEPLOY SQUAD</span>
-                  )}
+                  <span className="material-symbols-outlined text-xl">{isLocked ? 'lock_open' : 'bolt'}</span>
+                  <span className="text-2xl font-black italic tracking-tighter uppercase font-fix">{isLocked ? 'CANCEL READY' : 'DEPLOY SQUAD'}</span>
                 </div>
-                {!isLocked && (
-                  <div className={`text-[9px] font-mono tracking-[0.4em] mt-1 opacity-80 font-fix text-orange-950`}>
-                    UPLINK_PROTOCOL_B21
-                  </div>
-                )}
               </button>
             </div>
           </div>
@@ -304,5 +305,12 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
     </div>
   );
 };
+
+const SectionHeader = ({ title, sub }: { title: string, sub: string }) => (
+  <div className="mb-3 text-left">
+    <h3 className="text-lg font-black text-white uppercase italic leading-none">{title}</h3>
+    <p className="text-[#fa7000] text-[8px] font-bold uppercase tracking-widest mt-1 opacity-70">{sub}</p>
+  </div>
+);
 
 export default WaitingView;

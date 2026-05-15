@@ -1,14 +1,5 @@
 /**
  * SoundManager — BGM・SE を一元管理するシングルトン
- *
- * 【配置するファイル】
- * public/assets/audio/bgm/
- * login-joinroom.mp3 … ログイン・ロビー画面
- * waiting.mp3        … 待機・神選択画面
- * maingame.mp3       … マップゲーム中
- * battle.mp3         … 攻撃アクション時
- * winner.mp3         … 勝利時
- * loser.mp3          … 敗北時
  */
 
 const BGM_FILES = {
@@ -26,14 +17,23 @@ const SE_FILES = {
   capture: '/assets/audio/se/territory_control.mp3',
 };
 
-const FADE_MS    = 800;
-const BGM_VOLUME = 0.5;
+const FADE_MS    = 1000; // 🚀 1秒かけて滑らかにフェード
+const DEFAULT_BGM_VOLUME = 0.5;
 const SE_VOLUME  = 0.8;
 
 class SoundManager {
-  // ──────────────────────────────────────
-  // アセットロード（preload()から呼ぶ）
-  // ──────────────────────────────────────
+  constructor() {
+    this._bgmKey    = null;   // 現在再生中のBGMキー
+    this._scene     = null;   // Phaser.Scene
+    this._phaserBgm = null;   // Phaser.Sound.BaseSound
+    this._htmlBgm   = null;   // HTMLAudioElement
+    this._muted     = false;
+    this.bgmVolume  = DEFAULT_BGM_VOLUME; // 🚀 ユーザー設定から上書きされる値
+    this._isFading  = false;  // フェード中フラグ
+    this._pendingBgmKey = null; 
+  }
+
+  // ─── アセットロード ───────────────────
   preloadAssets(scene) {
     scene.load.audio('bgm_maingame', 'assets/audio/bgm/maingame.mp3');
     scene.load.audio('bgm_battle_music', 'assets/audio/bgm/battle.mp3');
@@ -54,42 +54,27 @@ class SoundManager {
     }
   }
 
-  constructor() {
-    this._bgmKey    = null;   // 現在再生中のBGMキー
-    this._scene     = null;   // Phaser.Scene（game中のみ非null）
-    this._phaserBgm = null;   // Phaser.Sound.BaseSound
-    this._htmlBgm   = null;   // HTMLAudioElement
-    this._muted     = false;
-    this.bgmVolume  = BGM_VOLUME;
-    this._isFading  = false;  // フェードアウト中フラグ（二重再生防止）
-    this._pendingBgmKey = null; // フェード中に割り込んだキーを保持
-  }
-
   // ─── Phaserシーン登録・解除 ───────────────────
-
-  /**
-   * MainScene.create() から呼ぶ。
-   * HTML BGMが流れていた場合は停止してPhaserに引き継ぐ。
-   */
   setScene(scene) {
     this._scene = scene;
 
     if (this._htmlBgm) {
-      this._htmlBgm.pause();
+      // 🚀 HTML BGMを滑らかにフェードアウトさせてから停止
+      const audio = this._htmlBgm;
       this._htmlBgm = null;
+      this._fadeHtml(audio, audio.volume, 0, () => {
+        audio.pause();
+        audio.currentTime = 0;
+      });
     }
 
-    // 既に再生中だったキーをPhaser側で再開
     if (this._bgmKey) {
       const key = this._bgmKey;
-      this._bgmKey = null; // 強制再起動のためリセット
+      this._bgmKey = null; 
       this.playBgm(key);
     }
   }
 
-  /**
-   * MainScene.shutdown() から呼ぶ。
-   */
   clearScene() {
     if (this._phaserBgm) {
       this._phaserBgm.stop();
@@ -101,21 +86,18 @@ class SoundManager {
 
   // ─── BGM ────────────────────────────────────────
 
-  /**
-   * BGMを切り替える。同じキーは無視。フェードアウト→フェードインで遷移。
-   * @param {string} key - 'login' | 'waiting' | 'map' | 'battle' | 'winner' | 'loser'
-   */
   playBgm(key) {
     if (!BGM_FILES[key]) return;
     if (key === this._bgmKey) return;
+
+    if (this._isFading) {
+      this._pendingBgmKey = key;
+      return;
+    }
+
     this._bgmKey = key;
 
     if (this._scene) {
-      if (this._isFading) {
-        // フェードアウト中の割り込みは完了後に再適用
-        this._pendingBgmKey = key;
-        return;
-      }
       this._fadeOutPhaser(() => this._startPhaser(key));
     } else {
       this._fadeOutHtml(() => this._startHtml(key));
@@ -123,11 +105,6 @@ class SoundManager {
   }
 
   // ─── SE ─────────────────────────────────────────
-
-  /**
-   * SEを単発再生する。ファイルがなければ無音で素通りする。
-   * @param {string} key - 'click' | 'move' | 'capture'
-   */
   playSe(key) {
     if (this._muted || !SE_FILES[key]) return;
 
@@ -137,36 +114,35 @@ class SoundManager {
       return;
     }
 
-    // Phaserなし／ロード前のフォールバック
     const audio = new Audio(SE_FILES[key]);
     audio.volume = SE_VOLUME;
     audio.play().catch(() => {});
   }
 
-  // ─── ミュート ────────────────────────────────────
+  // ─── 設定反映 ────────────────────────────────────
 
   setBgmVolume(volume) {
     this.bgmVolume = volume;
-    if (this._phaserBgm) this._phaserBgm.setVolume(volume);
-    if (this._htmlBgm)   this._htmlBgm.volume = volume;
+    const targetVol = this._muted ? 0 : volume;
+    if (this._phaserBgm) this._phaserBgm.setVolume(targetVol);
+    if (this._htmlBgm)   this._htmlBgm.volume = targetVol;
   }
 
   setMuted(muted) {
     this._muted = muted;
-    const vol = muted ? 0 : this.bgmVolume;
-    if (this._phaserBgm) this._phaserBgm.setVolume(vol);
-    if (this._htmlBgm)   this._htmlBgm.volume = vol;
+    this.setBgmVolume(this.bgmVolume);
   }
 
   get isMuted() { return this._muted; }
 
-  // ─── Phaser内部 ──────────────────────────────────
+  // ─── Phaser内部処理 ──────────────────────────────────
 
   _fadeOutPhaser(onComplete) {
     if (!this._phaserBgm) { onComplete(); return; }
     const bgm = this._phaserBgm;
     this._phaserBgm = null;
     this._isFading = true;
+    
     this._scene.tweens.add({
       targets: bgm,
       volume: 0,
@@ -175,12 +151,10 @@ class SoundManager {
         bgm.stop();
         bgm.destroy();
         this._isFading = false;
-        // フェード中に割り込みがあれば最新キーを再生
         if (this._pendingBgmKey) {
           const next = this._pendingBgmKey;
           this._pendingBgmKey = null;
-          this._bgmKey = next;
-          this._startPhaser(next);
+          this.playBgm(next);
         } else {
           onComplete();
         }
@@ -191,84 +165,87 @@ class SoundManager {
   _startPhaser(key) {
     const phaserKey = `bgm_${key === 'map' ? 'maingame' : key === 'battle' ? 'battle_music' : key}`;
     if (!this._scene?.cache.audio.has(phaserKey)) return;
+
     const bgm = this._scene.sound.add(phaserKey, { loop: true, volume: 0 });
     this._phaserBgm = bgm;
-    const ctx = this._scene.sound.context;
-    const startPlay = () => {
-      bgm.play();
-      this._scene.tweens.add({ targets: bgm, volume: BGM_VOLUME, duration: FADE_MS });
-    };
-    if (ctx?.state === 'suspended') {
-      ctx.resume().then(startPlay);
-    } else {
-      startPlay();
-    }
+    bgm.play();
+
+    // 🚀 BGM_VOLUME ではなく、ユーザー設定の this.bgmVolume へフェード
+    this._scene.tweens.add({
+      targets: bgm,
+      volume: this._muted ? 0 : this.bgmVolume,
+      duration: FADE_MS
+    });
   }
 
-  /**
-   * Phaserキーを直接指定してBGMを再生する。
-   */
-  playBGM(phaserKey, config = {}) {
-    if (!this._scene) return;
-    if (this._phaserBgm?.isPlaying && this._bgmKey === phaserKey) return;
-
-    if (this._phaserBgm) {
-      this._phaserBgm.stop();
-      this._phaserBgm.destroy();
-      this._phaserBgm = null;
-    }
-
-    if (!this._scene.cache.audio.has(phaserKey)) {
-      if (import.meta.env.DEV) console.warn('[SoundManager] audio not loaded:', phaserKey);
-      return;
-    }
-
-    const { loop = true, volume = BGM_VOLUME } = config;
-    const bgm = this._scene.sound.add(phaserKey, { loop, volume: 0 });
-    this._phaserBgm = bgm;
-    this._bgmKey = phaserKey;
-
-    const ctx = this._scene.sound.context;
-    const startPlay = () => {
-      bgm.play();
-      this._scene.tweens.add({ targets: bgm, volume, duration: FADE_MS });
-    };
-    if (ctx?.state === 'suspended') {
-      ctx.resume().then(startPlay);
-    } else {
-      startPlay();
-    }
-  }
-
-  // ─── HTML Audio内部 ──────────────────────────────
+  // ─── HTML Audio内部処理 ──────────────────────────────
 
   _fadeOutHtml(onComplete) {
     if (!this._htmlBgm) { onComplete(); return; }
     const audio = this._htmlBgm;
     this._htmlBgm = null;
-    this._fadeHtml(audio, audio.volume, 0, () => { audio.pause(); onComplete(); });
+    this._isFading = true;
+
+    this._fadeHtml(audio, audio.volume, 0, () => {
+      audio.pause();
+      audio.currentTime = 0;
+      this._isFading = false;
+      if (this._pendingBgmKey) {
+        const next = this._pendingBgmKey;
+        this._pendingBgmKey = null;
+        this.playBgm(next);
+      } else {
+        onComplete();
+      }
+    });
   }
 
   _startHtml(key) {
     const audio = new Audio(BGM_FILES[key]);
     audio.loop = true;
     audio.volume = 0;
-    audio.play().catch(() => {});
-    this._fadeHtml(audio, 0, BGM_VOLUME, null);
     this._htmlBgm = audio;
+
+    audio.play().then(() => {
+      // 🚀 ユーザー設定の音量へフェードイン
+      this._fadeHtml(audio, 0, this._muted ? 0 : this.bgmVolume, null);
+    }).catch((e) => {
+      if (import.meta.env.DEV) console.warn(`[SoundManager] HTML再生失敗: ${key}`, e);
+    });
   }
 
-  // ──────────────────────────────────────
-  // SE（キーを直接指定する版）
-  // ──────────────────────────────────────
+  _fadeHtml(audio, from, to, onComplete) {
+    const interval = 50;
+    const steps = FADE_MS / interval;
+    const stepValue = (to - from) / steps;
+    let current = from;
+
+    const timer = setInterval(() => {
+      current += stepValue;
+      const done = stepValue >= 0 ? current >= to : current <= to;
+      
+      if (done) {
+        audio.volume = Math.max(0, Math.min(1, to));
+        clearInterval(timer);
+        onComplete?.();
+      } else {
+        audio.volume = Math.max(0, Math.min(1, current));
+      }
+    }, interval);
+  }
+
+  /**
+   * Phaserキーを直接指定してBGMを再生する。
+   */
+  playBGM(phaserKey) { // 🚀 修正：未使用の引数 config を削除
+    if (!this._scene) return;
+    // 名前を正規化して playBgm に飛ばす
+    const key = phaserKey.replace('bgm_', '').replace('_music', '');
+    this.playBgm(key);
+  }
 
   playSE(key) {
-    if (!this._scene) return;
-    if (!this._scene.cache.audio.has(key)) {
-      if (import.meta.env.DEV) console.warn(`[SE] キャッシュに存在しない: ${key}`);
-      return;
-    }
-    this.playSe(key); // 共通の playSe ロジックへ
+    this.playSe(key.replace('se_', ''));
   }
 
   playSEChain(keys, delayMs = 1500) {
@@ -279,25 +256,6 @@ class SoundManager {
         this.playSE(keys[i]);
       });
     }
-  }
-
-  _fadeHtml(audio, from, to, onComplete) {
-    const steps  = FADE_MS / 50;
-    const step   = (to - from) / steps;
-    let   current = from;
-    audio.volume  = Math.max(0, Math.min(1, from));
-
-    const timer = setInterval(() => {
-      current += step;
-      const done = step >= 0 ? current >= to : current <= to;
-      if (done) {
-        audio.volume = Math.max(0, Math.min(1, to));
-        clearInterval(timer);
-        onComplete?.();
-      } else {
-        audio.volume = Math.max(0, Math.min(1, current));
-      }
-    }, 50);
   }
 }
 
