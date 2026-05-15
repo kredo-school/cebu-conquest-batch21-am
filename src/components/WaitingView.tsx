@@ -4,7 +4,6 @@ import { useGameStore, Player, LobbyPlayer } from '../store';
 import socket from '../socket';
 import SoundManager from '../game/SoundManager';
 import { GlobalNavbar } from './layout/GlobalNavbar';
-import { CustomButton } from './common/CustomButton';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../../shared/socketEvents.js';
 
 interface WaitingViewProps {
@@ -30,7 +29,7 @@ type UnifiedPlayer = {
   ready?: boolean;
 };
 
-// 🚀 修正1：チャットメッセージの型を明示的に定義（any 回避）
+// 🚀 チャットメッセージの型を明示的に定義
 interface ChatData {
   sender: string;
   message: string;
@@ -57,19 +56,23 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
   const isNpc = player.id?.includes('npc') || (!player.username && !isMe);
 
   return (
+    // 🎨 LobbyViewと完全一致: h-64 w-72 p-5 rounded-2xl
     <div 
-      className={`glass-panel p-4 rounded-xl border-l-4 flex flex-col gap-3 group transition-all duration-500 h-48 w-full shrink-0 relative overflow-visible ${
-        isPlayerReady ? 'border-l-[#fa7000] bg-orange-950/10 shadow-[0_0_20px_rgba(250,112,0,0.1)]' : 'border-l-slate-800 bg-slate-900/40 opacity-90'
+      className={`glass-panel p-5 rounded-2xl border-l-4 flex flex-col gap-4 group transition-all duration-500 h-64 w-72 shrink-0 relative overflow-visible ${
+        isPlayerReady ? 'border-l-[#fa7000] bg-orange-950/10 shadow-[0_0_30px_rgba(250,112,0,0.2)]' : 'border-l-slate-800 bg-slate-900/40 opacity-90'
       }`}
       style={{
         background: `radial-gradient(circle at top right, ${isPlayerReady ? 'rgba(250, 112, 0, 0.15)' : 'rgba(255, 255, 255, 0.05)'}, transparent 70%), rgba(15, 23, 42, 0.8)`
       }}
     >
-      <div className="relative h-24 w-full shrink-0 overflow-hidden rounded-lg bg-slate-950 flex items-center justify-center border border-white/5">
+      {/* 🎨 LobbyViewと完全一致: アバター高さ h-40 */}
+      <div className="relative h-40 w-full shrink-0 overflow-hidden rounded-xl bg-slate-950 flex items-center justify-center border border-white/5">
         {!god ? (
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/80">
-            <span className="material-symbols-outlined text-3xl text-slate-700 mb-1 animate-pulse">fingerprint</span>
-            <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.3em] font-fix">Syncing God...</p>
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+            <div className="w-full h-[2px] bg-[#fa7000]/20 absolute top-0 animate-scanline"></div>
+            <span className="material-symbols-outlined text-4xl text-slate-700 mb-2 animate-pulse">fingerprint</span>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] font-fix">Syncing God...</p>
           </div>
         ) : (
           <img 
@@ -81,8 +84,9 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
             style={{ filter: isPlayerReady ? 'none' : undefined }}
           />
         )}
-        {isHost && <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-[#fa7000] text-[7px] font-black text-black rounded uppercase shadow-lg z-10 font-fix">HOST</div>}
-        {isMe && <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-slate-900/90 text-[7px] font-black text-[#fa7000] rounded border border-[#fa7000]/30 uppercase z-10 font-fix">YOU</div>}
+        <div className="absolute inset-0 pointer-events-none border border-white/5 m-1 rounded-lg"></div>
+        {isHost && <div className="absolute top-2 left-2 px-2 py-0.5 bg-[#fa7000] text-[9px] font-black text-black rounded uppercase shadow-lg z-10 font-fix">HOST</div>}
+        {isMe && <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-slate-900/90 text-[9px] font-black text-[#fa7000] rounded border border-[#fa7000]/30 uppercase z-10 font-fix">YOU</div>}
       </div>
 
       {isHovered && god && (
@@ -95,41 +99,44 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
         </div>
       )}
 
+      {/* プレイヤー情報 */}
       <div className="flex justify-between items-center shrink-0">
         <div className="flex flex-col text-left">
-          <p className="text-[7px] text-slate-500 font-bold uppercase tracking-widest leading-none mb-1 font-fix">{isPlayerReady ? 'Link Confirmed' : 'Decrypting Signal'}</p>
-          <span className={`font-bold uppercase text-xs truncate max-w-[120px] leading-none font-fix ${isPlayerReady ? 'text-white' : 'text-slate-600'}`}>
+          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-none mb-1 font-fix">{isPlayerReady ? 'Link Confirmed' : 'Decrypting Signal'}</p>
+          <span className={`font-black uppercase text-lg truncate max-w-[150px] leading-none font-fix ${isPlayerReady ? 'text-white' : 'text-slate-600'}`}>
             {isPlayerReady ? (player.username || player.playerName) : 'ANALYZING...'}
           </span>
         </div>
-        <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${isPlayerReady ? 'border-[#fa7000] bg-[#fa7000]' : 'border-slate-800'}`}>
-          {isPlayerReady && <span className="material-symbols-outlined text-black text-[12px] font-bold">check</span>}
+        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isPlayerReady ? 'border-[#fa7000] bg-[#fa7000] shadow-[0_0_10px_rgba(250,112,0,0.5)]' : 'border-slate-800'}`}>
+          {isPlayerReady && <span className="material-symbols-outlined text-black text-[16px] font-bold">check</span>}
         </div>
       </div>
 
+      {/* 神情報 */}
       <div className="relative god-area mt-auto pt-2 border-t border-slate-800/50 shrink-0 text-left">
         <div className={`flex items-center gap-2 transition-all duration-700 ${isPlayerReady ? 'opacity-100 translate-y-0' : 'opacity-20 translate-y-1'}`}>
           {isPlayerReady ? (
              <div className="relative">
                 {isNpc ? (
-                  <div className="w-6 h-6 rounded-full border border-slate-700 bg-slate-900 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[14px] text-cyan-500">smart_toy</span>
+                  <div className="w-7 h-7 rounded-full border border-slate-700 bg-slate-900 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[16px] text-cyan-500">smart_toy</span>
                   </div>
                 ) : (
-                  <img className="w-6 h-6 rounded-full border border-[#fa7000]/50 object-cover" src={god?.icon} alt="" />
+                  <img className="w-7 h-7 rounded-full border border-[#fa7000]/50 object-cover" src={god?.icon} alt="" />
                 )}
+                {/* 🚀 修正: avatarUrl を使用するバッジを復活 */}
                 {isMe && (
-                  <div className="w-3 h-3 rounded-full border border-white absolute -bottom-0.5 -right-0.5 z-20 overflow-hidden bg-slate-800 flex items-center justify-center shadow-md">
-                    {avatarUrl ? <img src={avatarUrl} alt="Me" className="w-full h-full object-cover" /> : <span className="material-symbols-outlined text-slate-400" style={{ fontSize: '8px' }}>person</span>}
+                  <div className="w-4 h-4 rounded-full border border-white absolute -bottom-1 -right-1 z-20 overflow-hidden bg-slate-800 flex items-center justify-center shadow-md">
+                    {avatarUrl ? <img src={avatarUrl} alt="Me" className="w-full h-full object-cover" /> : <span className="material-symbols-outlined text-slate-400" style={{ fontSize: '10px' }}>person</span>}
                   </div>
                 )}
              </div>
           ) : (
-            <div className="w-6 h-6 rounded-full border border-slate-700 bg-black flex items-center justify-center text-[8px] text-slate-600">?</div>
+            <div className="w-7 h-7 rounded-full border border-slate-700 bg-black flex items-center justify-center text-[10px] text-slate-600">?</div>
           )}
           <div className="leading-tight">
-            <p className="text-[7px] text-[#fa7000]/70 font-bold uppercase tracking-widest mb-0.5 font-fix">Guardian God</p>
-            <p className="text-[10px] font-black text-white uppercase font-fix">{isPlayerReady && god ? god.name : "Waiting..."}</p>
+            <p className="text-[8px] text-[#fa7000]/70 font-bold uppercase tracking-widest mb-0.5 font-fix">Guardian God</p>
+            <p className="text-[11px] font-black text-white uppercase font-fix">{isPlayerReady && god ? god.name : "Waiting..."}</p>
           </div>
         </div>
       </div>
@@ -145,15 +152,10 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
   const [isLocked, setIsLocked] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // 🚀 修正2：ChatData 型を使用し、any 警告を解消
   useEffect(() => {
-    const handleReceiveMessage = (data: ChatData) => {
-      addChatLog(data); 
-    };
+    const handleReceiveMessage = (data: ChatData) => { addChatLog(data); };
     socket.on(SERVER_EVENTS.CHAT_MESSAGE, handleReceiveMessage);
-    return () => {
-      socket.off(SERVER_EVENTS.CHAT_MESSAGE, handleReceiveMessage);
-    };
+    return () => { socket.off(SERVER_EVENTS.CHAT_MESSAGE, handleReceiveMessage); };
   }, [addChatLog]);
 
   useEffect(() => { if (roomId) socket.emit(CLIENT_EVENTS.READY_TO_START, { roomId, ready: false }); }, [roomId]);
@@ -169,10 +171,7 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
     if (!chatInput.trim()) return;
     const me = players.find(p => p.id === myId || p.playerName === playerName);
     const senderName = me?.username || me?.playerName || playerName || 'Operator';
-    
-    // 🚀 チャット2重送信防止のため emit のみ行う
     socket.emit(CLIENT_EVENTS.SEND_CHAT, { roomId, message: chatInput, sender: senderName });
-    
     setChatInput(''); 
     try { SoundManager.playSe('click'); } catch {}
   };
@@ -210,6 +209,8 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
         .island-silhouette { background-image: linear-gradient(to top, #020617 10%, transparent 100%), url(https://images.unsplash.com/photo-1506466010722-395aa2bef877); background-size: cover; background-position: center bottom; }
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes scanline { 0% { top: 0%; opacity: 0; } 50% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+        .animate-scanline { animation: scanline 3s linear infinite; }
       `}</style>
       
       <div className="fixed inset-0 -z-10 island-silhouette opacity-40 pointer-events-none" />
@@ -218,99 +219,87 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
       <GlobalNavbar onOpenSettings={onOpenSettings} onOpenHelp={onOpenHelp} onOpenRanking={onOpenRanking} onAbort={onAbort} />
 
       <main className="flex-1 mt-16 flex flex-col relative overflow-hidden min-h-0">
-        <section className="flex-1 flex flex-col py-4 px-6 md:px-8 z-10 max-w-7xl mx-auto w-full min-h-0 gap-4">
+        <section className="flex-1 flex flex-col p-8 z-10 max-w-7xl mx-auto w-full min-h-0 justify-between">
           
-          <div className="flex justify-between items-end shrink-0 text-left">
+          <div className="flex justify-between items-end mb-6 shrink-0 text-left">
             <div>
-              <h1 className="text-3xl lg:text-4xl font-black text-white mb-1 tracking-tighter italic uppercase font-fix">Ready for Uplink</h1>
-              <div className="flex items-center gap-2 text-[#fa7000] font-black uppercase tracking-widest text-[10px] lg:text-[11px] font-fix">
+              <h1 className="text-4xl font-black text-white mb-2 tracking-tighter italic uppercase font-fix">READY FOR UPLINK</h1>
+              <div className="flex items-center gap-2 text-[#fa7000] font-black uppercase tracking-widest text-[11px] font-fix">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#fa7000] animate-pulse shadow-[0_0_10px_#fa7000]"></div>
-                Squad Synchronization active
+                SQUAD SYNCHRONIZATION ACTIVE
               </div>
             </div>
-            <div className="flex items-baseline gap-4 lg:gap-10 text-right leading-none">
-              <p className="text-2xl lg:text-3xl font-black text-white font-fix">
-                {readyCount} <span className="text-[#fa7000] ml-1 lg:ml-2">/ {totalSlots} READY</span>
+            <div className="flex items-baseline gap-10 text-right leading-none">
+              <p className="text-slate-400 text-[10px] uppercase tracking-widest font-bold font-fix whitespace-nowrap">SQUAD CAPACITY</p>
+              <p className="text-3xl font-black text-white font-fix min-w-[80px]">
+                {readyCount} <span className="text-[#fa7000] ml-2">/ {totalSlots} READY</span>
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0 px-2">
-            {Array.from({ length: totalSlots }).map((_, index) => {
-              const lp = activeLobby[index];
-              if (lp && lp.playerId) {
-                const playerData: ExtendedPlayer = { id: lp.playerId, username: lp.username || 'Unknown', playerName: lp.playerName || 'Unknown', selectedGodId: lp.godId, godId: lp.godId, isReady: lp.isReady };
-                return <PlayerCard key={lp.playerId} player={playerData} isMe={lp.playerId === myId} isHost={index === 0} myAvatar={playerAvatar} />;
-              }
-              return (
-                <div key={`empty-${index}`} className="glass-panel rounded-xl border border-slate-800 flex flex-col items-center justify-center gap-2 h-48 w-full opacity-30">
-                  <span className="material-symbols-outlined text-4xl text-slate-700">person_add</span>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-fix">Awaiting Operator</span>
-                </div>
-              );
-            })}
+          <div className="flex-1 flex items-center justify-center min-h-0 mb-8 overflow-y-auto custom-scrollbar px-4 w-full">
+            <div className="flex flex-wrap justify-center gap-8 w-full max-w-6xl mx-auto content-center p-2">
+              {Array.from({ length: totalSlots }).map((_, index) => {
+                const lp = activeLobby[index];
+                if (lp && lp.playerId) {
+                  const playerData: ExtendedPlayer = { id: lp.playerId, username: lp.username || 'Unknown', playerName: lp.playerName || 'Unknown', selectedGodId: lp.godId, godId: lp.godId, isReady: lp.isReady };
+                  return <PlayerCard key={lp.playerId} player={playerData} isMe={lp.playerId === myId} isHost={index === 0} myAvatar={playerAvatar} />;
+                }
+                return (
+                  <div key={`empty-${index}`} className="glass-panel p-5 rounded-2xl border-2 border-dashed border-slate-800 flex flex-col items-center justify-center gap-3 h-64 w-72 shrink-0 text-slate-600">
+                    <span className="material-symbols-outlined text-5xl">person_add</span>
+                    <span className="text-[11px] font-black uppercase tracking-[0.2em] font-fix text-center">AWAITING OPERATOR</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-6 pb-2 text-left">
-            <div className="lg:col-span-8 flex flex-col gap-4 h-full">
-               <div className="glass-panel rounded-xl flex flex-col border-slate-800 shadow-2xl flex-1 min-h-0 p-4">
-                  <SectionHeader title="Mission Sector" sub="Deployment Area Details" />
-                  <div className="flex-1 min-h-[100px] w-full rounded-lg overflow-hidden relative border border-white/5 bg-slate-950">
-                    <img alt="Map" className="w-full h-full object-cover opacity-60" src="https://images.unsplash.com/photo-1518107616385-ad302215a9a8" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                       <span className="text-[10px] font-mono text-[#fa7000] font-black uppercase bg-black/60 px-4 py-1 rounded border border-[#fa7000]/30 shadow-xl">Tactical Map Alpha-21</span>
-                    </div>
+          <div className="flex flex-col lg:flex-row gap-8 shrink-0 mb-4 items-end justify-center w-full max-w-6xl mx-auto px-4">
+            
+            <div className="flex-1 glass-panel rounded-xl overflow-hidden flex flex-col h-36 border-slate-800 shadow-2xl w-full">
+              <div className="flex-1 p-4 space-y-3 overflow-y-auto text-sm custom-scrollbar font-mono bg-slate-950/20 text-left">
+                {chatLogs.map((log, i) => (
+                  <div key={`chat-${i}`} className="flex gap-2 animate-fadeIn text-left">
+                    <span className={`${log.sender === (playerName || 'Operator') ? 'text-cyan-400' : 'text-[#fa7000]'} font-bold shrink-0`}>{log.sender}:</span>
+                    <span className="text-slate-300 break-words font-fix">{log.message}</span>
                   </div>
-               </div>
-            </div>
-
-            <div className="lg:col-span-4 flex flex-col gap-4">
-              <div className="glass-panel rounded-xl overflow-hidden flex flex-col h-full border-slate-800 shadow-2xl">
-                <div className="p-3 border-b border-white/5 bg-slate-950/50 text-left flex justify-between items-center">
-                  <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest">Tactical Comms</span>
-                </div>
-                <div className="flex-1 p-4 space-y-3 overflow-y-auto text-xs custom-scrollbar font-mono bg-slate-950/20 text-left">
-                  {chatLogs.map((log, i) => (
-                    <div key={`chat-${i}`} className="flex flex-col gap-1 animate-fadeIn">
-                      <span className={`${log.sender === (playerName || 'Operator') ? 'text-cyan-400' : 'text-[#fa7000]'} font-black text-[10px]`}>{log.sender}:</span>
-                      <span className="text-slate-300 break-words leading-relaxed pl-1">{log.message}</span>
-                    </div>
-                  ))}
-                  <div ref={chatEndRef} />
-                </div>
-                <div className="p-3 bg-slate-950/50 border-t border-white/5">
-                  <div className="relative flex items-center">
-                    <input className="w-full bg-slate-900 border-slate-800 rounded-lg py-2 px-4 text-xs focus:ring-[#fa7000] text-slate-200 outline-none font-mono" placeholder="Send signal..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}/>
-                    <button onClick={handleSendMessage} className="absolute right-2 text-[#fa7000] hover:text-orange-400 transition-colors"><span className="material-symbols-outlined text-sm">send</span></button>
-                  </div>
+                ))}
+                <div ref={chatEndRef} />
+              </div>
+              <div className="p-3 bg-slate-950/50 border-t border-slate-800 shrink-0">
+                <div className="relative flex items-center">
+                  <input className="w-full bg-slate-900 border-slate-800 rounded-lg py-2 px-4 text-xs focus:ring-[#fa7000] focus:border-[#fa7000] text-slate-200 outline-none font-mono" placeholder="TRANSMIT TACTICAL DATA..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}/>
+                  <button onClick={handleSendMessage} className="absolute right-2 text-[#fa7000] hover:text-orange-400 transition-colors"><span className="material-symbols-outlined text-sm">send</span></button>
                 </div>
               </div>
-              
+            </div>
+
+            <div className="w-full lg:w-[400px] shrink-0">
               <button 
                 onClick={handleReadyClick}
-                className={`w-full h-[70px] flex flex-col items-center justify-center rounded-xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-[2px] shadow-lg shrink-0
+                className={`w-full h-[96px] flex flex-col items-center justify-center rounded-2xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-[2px] shadow-lg shrink-0
                 ${isLocked 
-                  ? 'bg-slate-800 border-slate-950 text-[#fa7000] opacity-80' 
-                  : 'bg-gradient-to-r from-orange-600 to-orange-500 border-orange-800 text-black font-black hover:brightness-110'}`}
+                  ? 'bg-slate-800 border-slate-950 text-[#fa7000] shadow-orange-950/20 active:brightness-90' 
+                  : 'bg-gradient-to-r from-orange-600 to-orange-500 border-orange-800 text-black font-black shadow-orange-500/20 hover:brightness-110 active:brightness-90'}`}
               >
                 <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-xl">{isLocked ? 'lock_open' : 'bolt'}</span>
-                  <span className="text-2xl font-black italic tracking-tighter uppercase font-fix">{isLocked ? 'CANCEL READY' : 'DEPLOY SQUAD'}</span>
+                  <span className={`material-symbols-outlined text-2xl ${isLocked ? 'animate-pulse' : ''}`}>{isLocked ? 'lock' : 'bolt'}</span>
+                  <span className="text-2xl font-black italic tracking-widest leading-none font-fix whitespace-nowrap">
+                    {isLocked ? 'CANCEL READY' : 'DEPLOY SQUAD'}
+                  </span>
+                </div>
+                <div className={`text-[11px] font-mono tracking-[0.4em] mt-2 opacity-80 font-fix ${isLocked ? 'text-[#fa7000]' : 'text-orange-950'}`}>
+                  {isLocked ? 'SYNC_ACTIVE_100_AUTHORIZED' : 'UPLINK_PROTOCOL_B21_INITIATED'}
                 </div>
               </button>
             </div>
+
           </div>
         </section>
       </main>
     </div>
   );
 };
-
-const SectionHeader = ({ title, sub }: { title: string, sub: string }) => (
-  <div className="mb-3 text-left">
-    <h3 className="text-lg font-black text-white uppercase italic leading-none">{title}</h3>
-    <p className="text-[#fa7000] text-[8px] font-bold uppercase tracking-widest mt-1 opacity-70">{sub}</p>
-  </div>
-);
 
 export default WaitingView;
