@@ -26,38 +26,41 @@ const TEAM_CONFIG = [
     { id: 'yellow', name: 'イエロー', color: '#f1c40f' }
 ];
 
+// socket-server/server.js
+
 // ==========================================
 // 🚀 【32地区マスタ】すべての地区のバフと優先度
+// ※ ID管理シート（最新版）完全準拠
 // ==========================================
 const DISTRICTS_MASTER = {
     // Cebu & Mactan (1000)
-    "111": { name: "Northern Reach (Daanbantayan)", priority: 5, buff: { atk: 8, def: 8 } },
+    "111": { name: "Northern Reach: The Apex (Daanbantayan)", priority: 5, buff: { atk: 8, def: 8 } },
     "112": { name: "Cane Fields Lagoon (Medellin)", priority: 4, buff: { atk: 5, def: 5 } },
     "113": { name: "The Transit Crossroad (Bogo City)", priority: 8, buff: { atk: 12, def: 12 } },
-    "121": { name: "The Verdant Escarpment (Carmen)", priority: 5, buff: { atk: 5, def: 10 } },
-    "122": { name: "Ironforge Bay (Danao)", priority: 6, buff: { atk: 8, def: 8 } },
+    "121": { name: "The Verdant Escarpment (Carmen / Catmon)", priority: 5, buff: { atk: 5, def: 10 } },
+    "122": { name: "Ironforge Bay (Danao City)", priority: 6, buff: { atk: 8, def: 8 } },
     "123": { name: "Sentinel's Gate (Compostela)", priority: 7, buff: { atk: 10, def: 5 } },
     "131": { name: "Neon Citadel (Cebu City North)", priority: 9, buff: { atk: 15, def: 10 } },
     "132": { name: "Grand Heritage Ruins (Cebu City South)", priority: 9, buff: { atk: 0, def: 25 } },
-    "133": { name: "The Cargo Canal (Mandaue)", priority: 6, buff: { atk: 8, def: 8 } },
-    "134": { name: "Lechon Bastion (Talisay)", priority: 7, buff: { atk: 10, def: 10 } },
-    "141": { name: "Luminous Power Spire (Naga)", priority: 6, buff: { atk: 10, def: 10 } },
-    "142": { name: "Ancient Meat Fortress (Carcar)", priority: 8, buff: { atk: 0, def: 20 } },
+    "133": { name: "The Cargo Canal (Mandaue City)", priority: 6, buff: { atk: 8, def: 8 } },
+    "134": { name: "Lechon Bastion (Talisay City)", priority: 7, buff: { atk: 10, def: 10 } },
+    "141": { name: "Luminous Power Spire (Naga / San Fernando)", priority: 6, buff: { atk: 10, def: 10 } },
+    "142": { name: "Ancient Meat Fortress (Carcar City)", priority: 8, buff: { atk: 0, def: 20 } },
     "143": { name: "The Torta Sanctuary (Argao)", priority: 5, buff: { atk: 5, def: 5 } },
-    "151": { name: "Sardine Storm Reefs (Moalboal)", priority: 7, buff: { atk: 5, def: 15 } },
+    "151": { name: "Sardine Storm Reefs (Moalboal / Badian)", priority: 7, buff: { atk: 5, def: 15 } },
     "152": { name: "Peak of the Ancients (Dalaguete)", priority: 8, buff: { atk: 15, def: 5 } },
     "153": { name: "Whale Shark Abyss (Oslob)", priority: 10, buff: { atk: 25, def: 0 } },
     "161": { name: "The Chief's Victory Landing (Lapu-Lapu)", priority: 8, buff: { atk: 12, def: 12 } },
     "162": { name: "Roseate Mangrove Gardens (Cordova)", priority: 5, buff: { atk: 5, def: 10 } },
 
     // Negros (2000)
-    "211": { name: "Sweetleaf Plains (Victorias)", priority: 5, buff: { atk: 5, def: 5 } },
+    "211": { name: "Sweetleaf Plains (Victorias / Sagay)", priority: 5, buff: { atk: 5, def: 5 } },
     "212": { name: "Cadiz Copper Port (Cadiz)", priority: 6, buff: { atk: 8, def: 8 } },
     "221": { name: "Heritage Manor (Silay)", priority: 7, buff: { atk: 5, def: 15 } },
     "222": { name: "Masked Citadel (Bacolod City)", priority: 9, buff: { atk: 15, def: 10 } },
     "231": { name: "Titan's Rest (Canlaon City)", priority: 8, buff: { atk: 10, def: 15 } },
     "232": { name: "Mist-Walker Cliffs (San Carlos)", priority: 6, buff: { atk: 8, def: 8 } },
-    "241": { name: "Silliman University", priority: 8, buff: { atk: 10, def: 10 } },
+    "241": { name: "Silliman University (Silliman University)", priority: 8, buff: { atk: 10, def: 10 } },
     "242": { name: "The Gentle Core (Dumaguete)", priority: 7, buff: { atk: 8, def: 8 } },
     "243": { name: "Witch's Shadow Isle (Siquijor)", priority: 6, buff: { atk: 15, def: 0 } },
 
