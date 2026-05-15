@@ -10,6 +10,8 @@ $pass = ''; // MACはここにpassを追加。
 // JWT生成用の秘密鍵
 $jwt_secret = 'CEBU_CONQUEST_TEAM_SECRET_2026';
 
+$dsn = "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4";
+
 try {
     // PDOインスタンスを作成して返す
     $pdo = new PDO("mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4", $user, $pass, [
