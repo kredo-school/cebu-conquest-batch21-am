@@ -23,19 +23,18 @@ interface GodSlot {
   desc: string;
 }
 
-// 修正: shared/godSacredLands.js の実態に合わせたインターフェース定義
 interface GodSacredLand {
   name: string;
-  sacredDistrictId: number; // districtId ではなくこちら
-  spawnSpotId: number;     // spotId ではなくこちら
+  sacredDistrictId: number; 
+  spawnSpotId: number;     
 }
 
 const GOD_SLOTS: GodSlot[] = [
-  { id: 1, textureKey: 'god-neil',   name: "Neil", role: "WAR",        bonus: "MAX_HP +30, STAMINA -25, HP +10", img: "/assets/images/gods/Neil.png", desc: "高い耐久力を誇る戦士向けのステータス補正。" },
+  { id: 1, textureKey: 'god-neil',   name: "Neil", role: "WAR",         bonus: "MAX_HP +30, STAMINA -25, HP +10", img: "/assets/images/gods/Neil.png", desc: "高い耐久力を誇る戦士向けのステータス補正。" },
   { id: 2, textureKey: 'god-garry',  name: "Garry", role: "STRATEGIST", bonus: "ATK +20",    img: "/assets/images/gods/Garry.png", desc: "攻撃性能を純粋に強化するアタッカー仕様。" },
-  { id: 3, textureKey: 'god-shem',   name: "Shem", role: "BURN",       bonus: "MAX_AP +15, HP +10, AP +10", img: "/assets/images/gods/Shem.png", desc: "行動回数と継戦能力のバランスを重視。" },
+  { id: 3, textureKey: 'god-shem',   name: "Shem", role: "BURN",        bonus: "MAX_AP +15, HP +10, AP +10", img: "/assets/images/gods/Shem.png", desc: "行動回数と継戦能力のバランスを重視。" },
   { id: 4, textureKey: 'god-quisie', name: "Quisie", role: "STEALTH",    bonus: "HP -20, FAITH 100", img: "/assets/images/gods/Quisie.png", desc: "FAITHが初回から100でスタートする特殊構成。" },
-  { id: 5, textureKey: 'god-eduardo', name: "Eduardo", role: "HEAVY",      bonus: "DEF +15",    img: "/assets/images/gods/Eduardo.png", desc: "防御力を高め、敵の反撃ダメージを抑える構成。" },
+  { id: 5, textureKey: 'god-eduardo', name: "Eduardo", role: "HEAVY",       bonus: "DEF +15",    img: "/assets/images/gods/Eduardo.png", desc: "防御力を高め、敵の反撃ダメージを抑える構成。" },
   { id: 6, textureKey: 'god-kurt',   name: "Kurt", role: "SUPPORT",    bonus: "STAMINA +30, HP -10", img: "/assets/images/gods/Kurt.png", desc: "スタミナ上限を大きく伸ばし、機動力を確保。" },
   { id: 7, textureKey: 'god-stephen', name: "Stephen", role: "SHADOW",     bonus: "FAITH_REGEN (5)", img: "/assets/images/gods/Stephen.png", desc: "毎ターン信仰心が5回復する、長期戦特化型。" },
   { id: 8, textureKey: 'god-bernardine', name: "Bernardine", role: "RECON",      bonus: "MAX_AP +30, AP +30", img: "/assets/images/gods/Bernardine.png", desc: "圧倒的なリソース量を活かした立ち回りが可能。" },
@@ -171,40 +170,42 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
                   onClick={() => !lock && selectedGodId === null && setPendingSelection(god)} 
                   className={`group relative flex flex-col bg-zinc-900/40 border-2 transition-all duration-300 rounded-xl overflow-hidden ${
                     isSelected 
-                      ? "border-orange-500 shadow-[0_0_30px_rgba(249,115,22,0.3)] scale-[1.02] z-10" 
+                      ? "border-orange-500 z-10 scale-[1.02]" // 🚀 修正: カード全体のシャドーを撤廃
                       : lock 
-                        ? "border-transparent opacity-30 grayscale cursor-not-allowed" 
+                        ? "border-orange-500/20 opacity-80 grayscale-[0.3] cursor-not-allowed" // 🚀 修正: 選択済みでも内容が見えるよう明るく調整
                         : selectedGodId !== null
-                          ? "border-white/5 opacity-50 cursor-default"
-                          : "border-white/5 hover:border-white/20 hover:bg-zinc-800/50 cursor-pointer"
+                          ? "border-orange-500/10 opacity-50 cursor-default"
+                          : "border-orange-500/20 hover:border-orange-500/50 hover:bg-zinc-800/50 cursor-pointer" // 🚀 修正: 外枠に薄くオレンジラインを追加
                   }`}
                 >
-                  {/* 🚀 修正: h-[60%] に広げてズームを自然に落とし、object-top で頭を上に揃える */}
                   <div className="relative h-[60%] shrink-0 overflow-hidden bg-black flex items-center justify-center">
                     <img 
                       src={god.img} 
-                      className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-110" 
+                      className={`w-full h-full object-cover object-top transition-all duration-700 group-hover:scale-110 
+                        ${isSelected ? 'drop-shadow-[0_10px_20px_rgba(249,115,22,0.4)]' : 'drop-shadow-[0_5px_15px_rgba(0,0,0,0.6)]'} // 🚀 修正: 写真だけに薄い影を適用
+                      `} 
                       alt={god.name} 
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = '/assets/images/gods/fallback.png';
                       }}
                     />
                     {isSelected && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-orange-600/30 backdrop-blur-sm">
+                      <div className="absolute inset-0 flex items-center justify-center bg-orange-600/20 backdrop-blur-[2px]">
                         <div className="bg-orange-500 text-black text-[10px] font-black px-4 py-1 skew-x-[-15deg] border-r-4 border-black font-fix text-left">
                           LINK ESTABLISHED
                         </div>
                       </div>
                     )}
                     {lock && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
-                         <div className="w-10 h-10 rounded-full border-2 border-zinc-600 bg-zinc-800 mb-2 overflow-hidden flex items-center justify-center">
-                            <span className="material-symbols-outlined text-zinc-500">person</span>
+                      /* 🚀 修正: 背景を bg-slate-950/40 にして内容を見えやすく */
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/40 backdrop-blur-[1px]">
+                         <div className="w-10 h-10 rounded-full border-2 border-orange-500/30 bg-slate-900/90 mb-2 overflow-hidden flex items-center justify-center shadow-xl">
+                            <span className="material-symbols-outlined text-orange-500/70">person</span>
                          </div>
-                         <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-700 px-3 py-1 font-fix mb-1 bg-black/50 text-center">
-                           Player Locked
+                         <div className="text-[9px] font-black text-white uppercase tracking-widest border border-orange-500/50 px-3 py-1 font-fix mb-1 bg-slate-900/90 shadow-lg text-center">
+                           Occupied
                          </div>
-                         <div className="text-[8px] text-orange-500 uppercase font-black font-fix animate-pulse text-center">
+                         <div className="text-[8px] text-orange-500 uppercase font-black font-fix animate-pulse text-center bg-black/60 px-2 py-0.5 rounded">
                            {lock.name}
                          </div>
                       </div>
@@ -216,15 +217,15 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
 
                   <div className="p-4 flex flex-col flex-1 gap-2 text-left justify-between">
                     <div>
-                      <h3 className={`text-base lg:text-lg font-black tracking-tight font-fix italic ${lock ? 'text-zinc-600' : 'text-white'}`}>
+                      <h3 className={`text-base lg:text-lg font-black tracking-tight font-fix italic ${lock ? 'text-zinc-400' : 'text-white'}`}>
                         {god.name}
                       </h3>
                       <div className="h-px w-8 bg-orange-500/50 my-1.5"></div>
-                      <p className={`text-[10px] leading-snug line-clamp-3 font-fix ${lock ? 'text-zinc-700' : 'text-zinc-400'}`}>
+                      <p className={`text-[10px] leading-snug line-clamp-3 font-fix ${lock ? 'text-zinc-500' : 'text-zinc-400'}`}>
                         {god.desc}
                       </p>
                     </div>
-                    <div className={`pt-2 flex items-center justify-between text-[9px] font-black font-fix ${lock ? 'text-zinc-700' : 'text-orange-500/80'}`}>
+                    <div className={`pt-2 flex items-center justify-between text-[9px] font-black font-fix ${lock ? 'text-orange-950' : 'text-orange-500/80'}`}>
                        <span>BONUS: {god.bonus}</span>
                        <span className="material-symbols-outlined text-sm">bolt</span>
                     </div>
@@ -235,7 +236,6 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
           </div>
         </div>
 
-        {/* 🚀 修正: 不要な ABORT SELECTION ボタンを完全に消去し、Confirmボタンを右寄せ */}
         <div className="px-8 py-5 border-t border-white/5 bg-black/40 flex items-center justify-end shrink-0 text-left">
           <div className={`flex flex-col items-end gap-2 transition-all duration-500 ${pendingSelection && !getLockInfo(pendingSelection.id) ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
             <p className="text-zinc-500 text-[9px] uppercase tracking-[0.2em] font-black italic font-fix">

@@ -15,6 +15,9 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: LobbyPlay
   const isPlayerReady = player.isReady === true || player.ready === true;
   const avatarUrl = isMe ? myAvatar : null;
 
+  // 🚀 修正: NPC判定ロジックを追加
+  const isNpc = player.id?.includes('npc') || (!player.username && !isMe);
+
   return (
     <div className={`glass-panel p-4 rounded-xl border-l-4 flex flex-col gap-3 group transition-all duration-500 h-48 w-64 shrink-0 ${
       isPlayerReady 
@@ -32,8 +35,14 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: LobbyPlay
           </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-slate-900">
-            {avatarUrl ? (
+            {/* 🚀 修正: アバター表示の分岐ロジック */}
+            {isMe && avatarUrl ? (
               <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover animate-fadeIn" />
+            ) : isNpc ? (
+              <div className="flex flex-col items-center justify-center animate-fadeIn">
+                <span className="material-symbols-outlined text-cyan-500 text-5xl">smart_toy</span>
+                <p className="text-[8px] font-black text-cyan-500 uppercase tracking-widest mt-1">AI UNIT</p>
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center animate-fadeIn opacity-40">
                 <span className="material-symbols-outlined text-slate-400 text-5xl">person</span>
@@ -52,7 +61,7 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: LobbyPlay
           <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest leading-none mb-1 font-fix">
             {isPlayerReady ? 'Authentication Confirmed' : 'Signal Detected'}
           </p>
-          <span className={`font-bold uppercase text-sm truncate max-w-[140px] leading-none font-fix ${isPlayerReady ? 'text-white' : 'text-slate-600'}`}>
+          <span className={`font-bold uppercase text-sm truncate max-w-[120px] leading-none font-fix ${isPlayerReady ? 'text-white' : 'text-slate-600'}`}>
             {isPlayerReady ? (player.playerName || player.username) : 'DECRYPTING...'}
           </span>
         </div>
@@ -85,14 +94,11 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   const [copied, setCopied] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 🚀 修正: BGM再生の useEffect は AudioController が担当するため削除
-
   useEffect(() => {
     const currentCount = players.length;
     const isRoomFull = currentCount > 0 && currentCount === maxPlayers;
     const allReady = currentCount > 0 && players.every((p) => p.isReady === true || p.ready === true);
     if (isRoomFull && allReady) {
-      // 🚀 英語化対応
       addLog("🚀 Squad links synchronized. Initiating Oracle Phase.");
       if (socket) socket.emit(CLIENT_EVENTS.ENTER_GOD_SELECTION, { roomId });
       onStart(); 
@@ -137,7 +143,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       } catch (_error) {
-        // 🚀 英語化対応
         addLog("❌ Copy failed due to security constraints.");
       } finally {
         textArea.remove();
@@ -197,7 +202,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             </div>
           </div>
 
-          <div className="flex-1 flex items-center justify-center min-h-0 mb-6 overflow-x-auto custom-scrollbar px-4">
+          <div className="flex-1 flex items-center justify-center min-h-0 mb-6 overflow-x-auto custom-scrollbar px-4 text-left">
             <div className="flex lg:grid lg:grid-cols-4 gap-8 w-fit mx-auto content-center p-2 shrink-0">
               {players.map((p, idx) => (
                 <PlayerCard key={p.id || `player-${idx}`} player={p} isMe={p.id === myId} isHost={idx === 0} myAvatar={playerAvatar} />
@@ -205,19 +210,19 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               {Array.from({ length: Math.max(0, maxPlayers - players.length) }).map((_, i) => (
                 <button key={`empty-${i}`} onClick={() => socket.emit(CLIENT_EVENTS.ADD_NPC_REQUEST, { roomId })} className="glass-panel p-4 rounded-xl border-2 border-dashed border-slate-800 flex flex-col items-center justify-center h-48 w-64 shrink-0 text-slate-600 hover:text-[#fa7000] hover:border-[#fa7000]/50 transition-all group">
                   <span className="material-symbols-outlined text-4xl mb-2 group-hover:scale-110 transition-transform">person_add</span>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] font-fix">Deploy NPC</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] font-fix text-center">Deploy NPC</p>
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0 mb-2 items-end">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0 mb-2 items-end text-left">
             <div className="lg:col-span-2 glass-panel rounded-xl overflow-hidden flex flex-col h-64 border-slate-800 shadow-2xl">
               <div ref={scrollRef} className="flex-1 p-4 space-y-3 overflow-y-auto text-sm custom-scrollbar text-left font-mono bg-slate-950/20">
                 {chatLogs.map((log, i) => (
-                  <div key={`chat-${i}`} className="flex gap-2 animate-fadeIn">
-                    <span className={`${log.sender === (playerName || 'Operator') ? 'text-cyan-400' : 'text-[#fa7000]'} font-bold`}>{log.sender}:</span>
-                    <span className="text-slate-300">{log.message}</span>
+                  <div key={`chat-${i}`} className="flex gap-2 animate-fadeIn text-left">
+                    <span className={`${log.sender === (playerName || 'Operator') ? 'text-cyan-400' : 'text-[#fa7000]'} font-bold shrink-0`}>{log.sender}:</span>
+                    <span className="text-slate-300 break-words font-fix">{log.message}</span>
                   </div>
                 ))}
               </div>
@@ -247,7 +252,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 </div>
               </div>
 
-              {/* 🚀 修正：丸すぎず角すぎない、厚みのある高級なボタン */}
               <button 
                 onClick={handleReady}
                 className={`w-full h-[64px] flex flex-col items-center justify-center rounded-xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-[2px] shadow-lg shrink-0
