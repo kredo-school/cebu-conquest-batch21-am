@@ -4,7 +4,6 @@ import socket from '../socket';
 import { useGameStore, Player } from '../store';
 import SoundManager from '../game/SoundManager';
 import { GlobalNavbar } from './layout/GlobalNavbar';
-import { CustomButton } from './common/CustomButton';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../../shared/socketEvents.js';
 
 interface LobbyPlayer extends Player {
@@ -14,61 +13,58 @@ interface LobbyPlayer extends Player {
 const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: LobbyPlayer; isMe: boolean; isHost: boolean; myAvatar: string | null }) => {
   const isPlayerReady = player.isReady === true || player.ready === true;
   const avatarUrl = isMe ? myAvatar : null;
-
-  // 🚀 修正: NPC判定ロジックを追加
   const isNpc = player.id?.includes('npc') || (!player.username && !isMe);
 
   return (
-    <div className={`glass-panel p-4 rounded-xl border-l-4 flex flex-col gap-3 group transition-all duration-500 h-48 w-64 shrink-0 ${
+    <div className={`glass-panel p-5 rounded-2xl border-l-4 flex flex-col gap-4 group transition-all duration-500 h-64 w-72 shrink-0 ${
       isPlayerReady 
-        ? 'border-l-[#fa7000] bg-orange-950/20 shadow-[0_0_25px_rgba(250,112,0,0.15)]' 
+        ? 'border-l-[#fa7000] bg-orange-950/20 shadow-[0_0_30px_rgba(250,112,0,0.2)]' 
         : 'border-l-slate-800 bg-slate-900/40 opacity-80'
     }`}>
       
-      <div className="relative h-32 w-full shrink-0 overflow-hidden rounded-lg bg-slate-950 flex items-center justify-center border border-white/5">
+      <div className="relative h-40 w-full shrink-0 overflow-hidden rounded-xl bg-slate-950 flex items-center justify-center border border-white/5">
         {!isPlayerReady ? (
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/80">
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
             <div className="w-full h-[2px] bg-[#fa7000]/20 absolute top-0 animate-scanline"></div>
-            <span className="material-symbols-outlined text-4xl text-slate-700 mb-1 animate-pulse">fingerprint</span>
-            <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] font-fix">Awaiting Link</p>
+            <span className="material-symbols-outlined text-5xl text-slate-700 mb-2 animate-pulse">fingerprint</span>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] font-fix">Awaiting Link</p>
           </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-slate-900">
-            {/* 🚀 修正: アバター表示の分岐ロジック */}
             {isMe && avatarUrl ? (
               <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover animate-fadeIn" />
             ) : isNpc ? (
               <div className="flex flex-col items-center justify-center animate-fadeIn">
-                <span className="material-symbols-outlined text-cyan-500 text-5xl">smart_toy</span>
-                <p className="text-[8px] font-black text-cyan-500 uppercase tracking-widest mt-1">AI UNIT</p>
+                <span className="material-symbols-outlined text-cyan-500 text-6xl">smart_toy</span>
+                <p className="text-[10px] font-black text-cyan-500 uppercase tracking-widest mt-2">AI UNIT</p>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center animate-fadeIn opacity-40">
-                <span className="material-symbols-outlined text-slate-400 text-5xl">person</span>
-                <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">No Image</p>
+                <span className="material-symbols-outlined text-slate-400 text-6xl">person</span>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2">NO IMAGE</p>
               </div>
             )}
           </div>
         )}
-        <div className="absolute inset-0 pointer-events-none border border-white/5 m-1"></div>
-        {isHost && <div className="absolute top-2 left-2 px-2 py-0.5 bg-[#fa7000] text-[8px] font-black text-black rounded uppercase shadow-lg z-10 font-fix">HOST</div>}
-        {isMe && <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-slate-900/90 text-[8px] font-black text-[#fa7000] rounded border border-[#fa7000]/30 uppercase z-10 font-fix">YOU</div>}
+        <div className="absolute inset-0 pointer-events-none border border-white/5 m-1 rounded-lg"></div>
+        {isHost && <div className="absolute top-2 left-2 px-2 py-0.5 bg-[#fa7000] text-[9px] font-black text-black rounded uppercase shadow-lg z-10 font-fix">HOST</div>}
+        {isMe && <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-slate-900/90 text-[9px] font-black text-[#fa7000] rounded border border-[#fa7000]/30 uppercase z-10 font-fix">YOU</div>}
       </div>
 
       <div className="flex justify-between items-center mt-auto">
         <div className="flex flex-col text-left">
-          <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest leading-none mb-1 font-fix">
+          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-none mb-1 font-fix">
             {isPlayerReady ? 'Authentication Confirmed' : 'Signal Detected'}
           </p>
-          <span className={`font-bold uppercase text-sm truncate max-w-[120px] leading-none font-fix ${isPlayerReady ? 'text-white' : 'text-slate-600'}`}>
+          <span className={`font-black uppercase text-lg truncate max-w-[150px] leading-none font-fix ${isPlayerReady ? 'text-white' : 'text-slate-600'}`}>
             {isPlayerReady ? (player.playerName || player.username) : 'DECRYPTING...'}
           </span>
         </div>
-        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${
+        <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${
           isPlayerReady ? 'border-[#fa7000] bg-[#fa7000] shadow-[0_0_15px_rgba(250,112,0,0.6)]' : 'border-slate-800'
         }`}>
-          {isPlayerReady ? <span className="material-symbols-outlined text-black text-[16px] font-bold">check</span> : <div className="w-1.5 h-1.5 bg-slate-700 rounded-full animate-ping"></div>}
+          {isPlayerReady ? <span className="material-symbols-outlined text-black text-[20px] font-bold">check</span> : <div className="w-2 h-2 bg-slate-700 rounded-full animate-ping"></div>}
         </div>
       </div>
     </div>
@@ -175,18 +171,19 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
       <main className="flex-1 mt-16 flex relative overflow-hidden min-h-0">
         <section className="flex-1 flex flex-col p-8 z-10 max-w-7xl mx-auto w-full min-h-0 justify-between">
+          
           <div className="flex justify-between items-end mb-6 shrink-0 text-left">
             <div className="text-left">
               <h1 className="text-4xl font-black text-white mb-2 tracking-tighter uppercase italic leading-none font-fix">SQUAD WAITING...</h1>
               <div className="flex items-center gap-2 text-[#fa7000] font-black uppercase tracking-widest text-[11px] font-fix">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#fa7000] animate-pulse"></div>
-                Tactical link synchronization active
+                TACTICAL LINK SYNCHRONIZATION ACTIVE
               </div>
             </div>
             
             <div className="flex gap-12 items-end">
               <div className="text-right leading-none border-r border-white/10 pr-10 cursor-pointer group" onClick={handleCopyId}>
-                <p className="text-slate-400 text-[10px] uppercase tracking-widest font-bold mb-1 font-fix">Network Room ID</p>
+                <p className="text-slate-400 text-[10px] uppercase tracking-widest font-bold mb-1 font-fix">NETWORK ROOM ID</p>
                 <div className="flex items-center gap-2 justify-end">
                   <p className="text-3xl font-black text-[#f8fafc] tracking-wider uppercase font-mono">{roomId}</p>
                   <span className={`material-symbols-outlined text-sm ${copied ? 'text-green-500' : 'text-slate-500 group-hover:text-[#fa7000]'}`}>{copied ? 'check' : 'content_copy'}</span>
@@ -194,7 +191,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               </div>
               
               <div className="flex items-baseline gap-10 text-right leading-none">
-                <p className="text-slate-400 text-[10px] uppercase tracking-widest font-bold font-fix whitespace-nowrap">Squad Capacity</p>
+                <p className="text-slate-400 text-[10px] uppercase tracking-widest font-bold font-fix whitespace-nowrap">SQUAD CAPACITY</p>
                 <p className="text-3xl font-black text-white font-fix min-w-[80px]">
                   {players.length} <span className="text-[#fa7000] ml-2">/ {maxPlayers}</span>
                 </p>
@@ -202,22 +199,26 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             </div>
           </div>
 
-          <div className="flex-1 flex items-center justify-center min-h-0 mb-6 overflow-x-auto custom-scrollbar px-4 text-left">
-            <div className="flex lg:grid lg:grid-cols-4 gap-8 w-fit mx-auto content-center p-2 shrink-0">
+          {/* 🚀 修正点1: グリッドをやめ、フレックスボックスで常に中央配置 */}
+          <div className="flex-1 flex items-center justify-center min-h-0 mb-8 overflow-y-auto custom-scrollbar px-4 w-full">
+            <div className="flex flex-wrap justify-center gap-8 w-full max-w-6xl mx-auto content-center p-2">
               {players.map((p, idx) => (
                 <PlayerCard key={p.id || `player-${idx}`} player={p} isMe={p.id === myId} isHost={idx === 0} myAvatar={playerAvatar} />
               ))}
               {Array.from({ length: Math.max(0, maxPlayers - players.length) }).map((_, i) => (
-                <button key={`empty-${i}`} onClick={() => socket.emit(CLIENT_EVENTS.ADD_NPC_REQUEST, { roomId })} className="glass-panel p-4 rounded-xl border-2 border-dashed border-slate-800 flex flex-col items-center justify-center h-48 w-64 shrink-0 text-slate-600 hover:text-[#fa7000] hover:border-[#fa7000]/50 transition-all group">
-                  <span className="material-symbols-outlined text-4xl mb-2 group-hover:scale-110 transition-transform">person_add</span>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] font-fix text-center">Deploy NPC</p>
+                <button key={`empty-${i}`} onClick={() => socket.emit(CLIENT_EVENTS.ADD_NPC_REQUEST, { roomId })} className="glass-panel p-4 rounded-2xl border-2 border-dashed border-slate-800 flex flex-col items-center justify-center h-64 w-72 shrink-0 text-slate-600 hover:text-[#fa7000] hover:border-[#fa7000]/50 transition-all group">
+                  <span className="material-symbols-outlined text-5xl mb-3 group-hover:scale-110 transition-transform">person_add</span>
+                  <p className="text-[11px] font-black uppercase tracking-[0.2em] font-fix text-center">DEPLOY AI UNIT</p>
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0 mb-2 items-end text-left">
-            <div className="lg:col-span-2 glass-panel rounded-xl overflow-hidden flex flex-col h-64 border-slate-800 shadow-2xl">
+          {/* 🚀 修正点2: チャットとボタンのバランスを調整 */}
+          <div className="flex flex-col lg:flex-row gap-8 shrink-0 mb-4 items-end justify-center w-full max-w-6xl mx-auto">
+            
+            {/* 💬 チャット (高さを抑えつつ、フレックスで幅を柔軟に取る) */}
+            <div className="flex-1 glass-panel rounded-xl overflow-hidden flex flex-col h-36 border-slate-800 shadow-2xl w-full">
               <div ref={scrollRef} className="flex-1 p-4 space-y-3 overflow-y-auto text-sm custom-scrollbar text-left font-mono bg-slate-950/20">
                 {chatLogs.map((log, i) => (
                   <div key={`chat-${i}`} className="flex gap-2 animate-fadeIn text-left">
@@ -226,9 +227,9 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   </div>
                 ))}
               </div>
-              <div className="p-4 bg-slate-950/50 border-t border-slate-800 shrink-0">
+              <div className="p-3 bg-slate-950/50 border-t border-slate-800 shrink-0">
                 <div className="relative flex items-center">
-                  <input className="w-full bg-slate-900 border-slate-800 rounded-lg py-2 px-4 text-sm focus:ring-[#fa7000] focus:border-[#fa7000] text-slate-200 outline-none font-mono" placeholder="Transmit tactical data..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}/>
+                  <input className="w-full bg-slate-900 border-slate-800 rounded-lg py-2 px-4 text-xs focus:ring-[#fa7000] focus:border-[#fa7000] text-slate-200 outline-none font-mono" placeholder="TRANSMIT TACTICAL DATA..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}/>
                   <button onClick={handleSendMessage} className="absolute right-2 text-[#fa7000] hover:text-orange-400 transition-colors">
                     <span className="material-symbols-outlined">send</span>
                   </button>
@@ -236,41 +237,28 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               </div>
             </div>
 
-            <div className="flex flex-col gap-4">
-              <div className="glass-panel rounded-xl overflow-hidden flex flex-col border-slate-800 shadow-2xl shrink-0">
-                <div className="p-4 flex flex-col gap-3 text-left">
-                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest leading-none font-fix">Mission Sector</p>
-                  <h3 className="text-lg font-black text-white uppercase tracking-tight leading-none font-fix italic">Cebu Island</h3>
-                  <div className="h-32 w-full rounded-lg overflow-hidden relative border border-white/5 bg-slate-950 shrink-0 shadow-inner">
-                    <img alt="Tactical Map" className="w-full h-full object-cover opacity-100" src="https://images.unsplash.com/photo-1518107616385-ad302215a9a8" />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-full h-[1px] bg-[#fa7000]/30 absolute top-1/2"></div>
-                      <div className="h-full w-[1px] bg-[#fa7000]/30 absolute left-1/2"></div>
-                      <span className="text-[10px] font-mono text-[#fa7000] font-black uppercase drop-shadow-lg bg-black/40 px-2 py-0.5 rounded">Link Active</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
+            {/* ⚡ 準備完了ボタン (幅を固定・改行を防止して引き締める) */}
+            <div className="w-full lg:w-[400px] shrink-0">
               <button 
                 onClick={handleReady}
-                className={`w-full h-[64px] flex flex-col items-center justify-center rounded-xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-[2px] shadow-lg shrink-0
+                className={`w-full h-[96px] flex flex-col items-center justify-center rounded-2xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-[2px] shadow-lg shrink-0
                 ${isReady 
                   ? 'bg-slate-800 border-slate-950 text-[#fa7000] shadow-orange-950/20 active:brightness-90' 
                   : 'bg-gradient-to-r from-orange-600 to-brand-500 border-orange-800 text-black font-black shadow-orange-500/20 hover:brightness-110 active:brightness-90'}`}
               >
                 <div className="flex items-center gap-3">
-                  {isReady && <span className="material-symbols-outlined animate-pulse text-lg">lock</span>}
-                  <span className="text-2xl font-black italic tracking-widest leading-none font-fix">
+                  {isReady && <span className="material-symbols-outlined animate-pulse text-2xl">lock</span>}
+                  {/* whitespace-nowrap で改行を防ぎ、文字サイズを調整 */}
+                  <span className="text-2xl font-black italic tracking-widest leading-none font-fix whitespace-nowrap">
                     {isReady ? 'LINK LOCKED' : 'ESTABLISH LINK'}
                   </span>
                 </div>
-                <div className={`text-[9px] font-mono tracking-[0.4em] mt-1 opacity-80 font-fix ${isReady ? 'text-[#fa7000]' : 'text-orange-950'}`}>
-                  {isReady ? 'SYNC_ACTIVE_100' : 'UPLINK_PROTOCOL_B21'}
+                <div className={`text-[11px] font-mono tracking-[0.4em] mt-2 opacity-80 font-fix ${isReady ? 'text-[#fa7000]' : 'text-orange-950'}`}>
+                  {isReady ? 'SYNC_ACTIVE_100_AUTHORIZED' : 'UPLINK_PROTOCOL_B21'}
                 </div>
               </button>
-
             </div>
+
           </div>
         </section>
       </main>
