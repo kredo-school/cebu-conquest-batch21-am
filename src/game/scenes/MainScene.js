@@ -467,9 +467,9 @@ export default class MainScene extends Phaser.Scene {
           const d = this.districts[normalizeId(districtId)];
           if (!d) return;
 
-          // ★ players が届く場合はそのまま使用
+          // ✅ 修正E-1: players は Object { socketId: playerData } の場合があるため Object.values() で配列化
           const playerMap = {};
-          (players ?? []).forEach((p) => {
+          Object.values(players || {}).forEach((p) => {
             playerMap[p.id] = { godId: p.godId ?? p.selectedGodId ?? null };
           });
 
@@ -803,6 +803,11 @@ export default class MainScene extends Phaser.Scene {
       spotName: "10px",
     };
     Object.values(this.districts).forEach((d) => {
+      // spotNameのみ領土塗り用Graphicsを生成（他のtypeには不要）
+      if (d.type === "spotName") {
+        d.graphics = this.add.graphics();
+        d.graphics.setDepth(2); // タイル上・テキストラベル(10)の下
+      }
       d.textLabel = this.add
         .text(d.center.x, d.center.y, d.name, {
           fontSize: sizeByType[d.type] ?? "16px",
@@ -812,7 +817,7 @@ export default class MainScene extends Phaser.Scene {
           fontStyle: "bold",
         })
         .setOrigin(0.5)
-        .setDepth(3)
+        .setDepth(10)
         .setVisible(false);
     });
   }
@@ -1128,8 +1133,7 @@ export default class MainScene extends Phaser.Scene {
   _redrawDistrict(d, color, alpha = 0) {
     if (!d || !d.graphics) return;
     d.graphics.clear();
-
-    d.graphics.setDepth(5);
+    if (d.graphics.depth !== 2) d.graphics.setDepth(2); // 初回のみ設定
 
     // spotName 以外（district / area / island）は塗りもアウトラインも描画しない
     if (d.type !== "spotName") return;
