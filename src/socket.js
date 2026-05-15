@@ -8,19 +8,20 @@ import { SERVER_EVENTS } from "../shared/socketEvents.js";
  * 設定変更なしで接続可能になります。
  */
 const host = window.location.hostname;
-const SOCKET_URL = `http://${host}:3001`;
+// const SOCKET_URL = `http://${host}:3001`;
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
 
 /**
  * 🛰️ Socket.IO インスタンスの生成
  * autoConnect: false に設定し、LoginView での認証成功後に明示的に connect() します。
  */
 const socket = io(SOCKET_URL, {
-  autoConnect: false, 
+  autoConnect: false,
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
   // BUG-008: websocket優先だがFW環境のフォールバックとして polling も許可
-  transports: ['websocket', 'polling'],
+  transports: ["websocket", "polling"],
 });
 
 /**
@@ -43,9 +44,11 @@ if (import.meta.env.DEV) {
  */
 // BUG-001: SERVER_EVENTS.syncState（undefined）→ SERVER_EVENTS.SYNC_STATE が正しいキー
 socket.on(SERVER_EVENTS.SYNC_STATE, (gameState) => {
-  window.dispatchEvent(new CustomEvent(SERVER_EVENTS.SYNC_STATE, {
-    detail: gameState
-  }));
+  window.dispatchEvent(
+    new CustomEvent(SERVER_EVENTS.SYNC_STATE, {
+      detail: gameState,
+    }),
+  );
 });
 
 export default socket;
