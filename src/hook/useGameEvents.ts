@@ -1,5 +1,4 @@
-// src/hooks/useGameEvents.ts
-
+/// <reference types="vite/client" />
 import { useEffect } from 'react';
 import socket from '../socket';
 import { SERVER_EVENTS } from '../../shared/socketEvents.js'; 
@@ -18,7 +17,7 @@ interface ServerPlayerPayload {
   [key: string]: unknown;
 }
 
-// 🚀 サーバーから受信する全体同期データの構造定義（anyの代わり）
+// 🚀 サーバーから受信する全体同期データの構造定義
 interface SyncStatePayload {
   roomId?: string;
   players?: Record<string, ServerPlayerPayload> | ServerPlayerPayload[];
@@ -87,9 +86,10 @@ export const useGameEvents = () => {
       const currentView = useGameStore.getState().view;
       const payload = data as SyncStatePayload; 
 
-      // 🚀 重要: syncServerState には payload(全体) を渡す。これで「0/2」問題が解決する。
+      // Reactのストア更新（内部で配列変換などを行う）
       syncServerState(payload as unknown as Record<string, unknown>, myId);
 
+      // LobbyUI用の更新
       if (payload.players) {
         const rawPlayers = payload.players;
         const playersArray = Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers);
@@ -107,7 +107,14 @@ export const useGameEvents = () => {
         useGameStore.setState({ view: 'setup', roomId: undefined });
       }
 
-      emitToPhaser(REACT_TO_PHASER.SYNC_MAP, payload as unknown as Record<string, unknown>);
+      // 🚀 修正ポイント: Phaser側へ通知 (playersをObjectのまま渡すことを明示)
+      // payload.players が Object であることを前提にそのまま PhaserBridge へ流す
+      emitToPhaser(REACT_TO_PHASER.SYNC_MAP, {
+        players: payload.players, // サーバーから届いた Object/Map 形式を維持
+        districts: payload.districts,
+        turn: payload.turn,
+        status: payload.status || 'playing'
+      });
     };
 
     // 2. 🎮 試合開始
@@ -117,7 +124,7 @@ export const useGameEvents = () => {
       emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, { isFirstTurn: true });
 
       const state = useGameStore.getState();
-      const rawPlayers = state.players;
+      const rawPlayers = state.players; // Zustand内はArrayになっている可能性があるため
       if (rawPlayers && rawPlayers.length > 0) {
         const playersMap: Record<string, Player> = {};
         rawPlayers.forEach((p) => {
@@ -125,8 +132,9 @@ export const useGameEvents = () => {
           if (key) playersMap[key] = p;
         });
         
+        // Phaserへ通知
         emitToPhaser(REACT_TO_PHASER.SYNC_MAP, {
-          players: playersMap,
+          players: playersMap, // Phaserが処理しやすいMap形式
           districts: state.districts,
           turn: state.turn,
           status: 'playing',
@@ -206,3 +214,5 @@ export const useGameEvents = () => {
     };
   }, [myId, syncServerState, setNpcs, addLog, setStatus, setErrorMessage, setLobbyPlayers, setGameStarted, updateSelectedDistrict]);
 };
+
+export default useGameEvents;
