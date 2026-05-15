@@ -219,7 +219,14 @@ export interface GameState {
   resetGame: () => void;
   setBgmVolume: (vol: number) => void;
   setSeVolume: (vol: number) => void;
-  updateSelectedDistrict: (data: { districtId: number; districtName: string; isMyTerritory: boolean; isNeutral: boolean }) => void;
+  // 🚀 修正ポイント: spotId を追加
+  updateSelectedDistrict: (data: { 
+    districtId: number; 
+    districtName: string; 
+    isMyTerritory: boolean; 
+    isNeutral: boolean;
+    spotId?: number; 
+  }) => void;
   updateStatsFromPhaser: (stats: Partial<GameState>) => void;
 }
 
@@ -443,10 +450,11 @@ export const useGameStore = create<GameState>()(
       },
       updateSelectedDistrict: (data) => {
         set({
-          selectedDistrictId: data.spotId ?? data.districtId, // FIX-D: 5桁優先
+          // 🚀 修正ポイント: 定義した spotId を使用（なければ districtId）
+          selectedDistrictId: data.spotId ?? data.districtId, 
           currentDistrictName: data.districtName,
           targetDistrictInfo: {
-            id: data.spotId ?? data.districtId, // FIX-D: 5桁優先
+            id: data.spotId ?? data.districtId,
             name: data.districtName,
             enemyDef: 40,
             isMyTerritory: data.isMyTerritory,
@@ -493,23 +501,19 @@ export const useGameStore = create<GameState>()(
         window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_STAY));
       },
 
-      // 🚀 I-2 修正: defend の送信フォーマット統一
       defend: () => {
         socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'defend' });
       },
 
-      // 🚀 I-2 修正: escape の送信フォーマット統一
       escape: () => {
         socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'escape' });
       },
 
       useItem: (id) => socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId: id }),
 
-      // 🚀 I-1 修正: endTurn の送信イベントを TURN_END_SUBMIT に変更
       endTurn: () => {
         socket.emit(CLIENT_EVENTS.TURN_END_SUBMIT); 
         set({ isSubmitted: true }); 
-        // ※ isMyTurn はサーバーからの syncState を待つため手動変更は廃止
       },
 
       setStatus: (status) => set((state) => ({ ...state, ...status })),
