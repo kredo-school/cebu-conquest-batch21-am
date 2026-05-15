@@ -46,9 +46,7 @@ function extractSpotId(obj) {
   if (byPropName != null && byPropName >= 10000) return byPropName;
 
   // 方式B: "spot_id" または "id" という名前のプロパティの value
-  const byNamedProp = obj.properties?.find(
-    (p) => p.name === "spot_id" || p.name === "id"
-  )?.value;
+  const byNamedProp = obj.properties?.find((p) => p.name === "spot_id" || p.name === "id")?.value;
   if (byNamedProp != null) {
     const v = normalizeId(byNamedProp);
     if (v != null && v >= 10000) return v;
@@ -68,7 +66,7 @@ function extractSpotId(obj) {
 
   // 未対応パターン → DEVログで報告
   if (import.meta.env.DEV) {
-    console.warn('[extractSpotId] IDを特定できませんでした:', {
+    console.warn("[extractSpotId] IDを特定できませんでした:", {
       tiled_id: obj.id,
       name: obj.name,
       properties: obj.properties,
@@ -113,7 +111,7 @@ export default class MainScene extends Phaser.Scene {
     this._reactListeners = [];
     this._myTeam = null;
     this._pendingTargetId = null;
-    this._prevSpotId = null;     // FIX-C: ロールバック用
+    this._prevSpotId = null; // FIX-C: ロールバック用
     this._prevDistrictId = null; // FIX-C: ロールバック用
     this._myGodId = null; // ★ 追加: 自分が選択した godId
     this._myGodColor = 0x95a5a6; // ★ 追加: 神カラー（暫定: 中立グレー）
@@ -168,6 +166,8 @@ export default class MainScene extends Phaser.Scene {
     this._buildSpotLookup();
     this._drawDistrictPolygons();
     this._drawSpotOutlines();
+    this.territoryOverlay = this.add.graphics();
+    this.territoryOverlay.setDepth(5); // タイル(0) < オーバーレイ(5) < ラベル(10) < プレイヤー(20)
     this.cameraController = new CameraController(this);
     this.cameraController.setup(this.tiledMap, MAP_SCALE);
     this.cameraController.onZoomChanged((zoom) => {
@@ -606,16 +606,16 @@ export default class MainScene extends Phaser.Scene {
 
       // FIX-C: move / attack（空き地）成功時にプレイヤー位置を即時更新する
       const isMoveAction = data.action === "move" || data.action === "move_airport";
-      const isCapture    = data.action === "attack" && data.success === true && !data.battleOccurred;
+      const isCapture = data.action === "attack" && data.success === true && !data.battleOccurred;
 
       if ((isMoveAction || isCapture) && data.success !== false) {
         const newSpotId =
           data.spotId ?? data.newSpotId ?? data.targetId ?? this._pendingTargetId ?? null;
 
         if (newSpotId != null) {
-          this._prevSpotId     = this.currentSpotId;
+          this._prevSpotId = this.currentSpotId;
           this._prevDistrictId = this.currentDistrictId;
-          this.currentSpotId     = Number(newSpotId);
+          this.currentSpotId = Number(newSpotId);
           this.currentDistrictId = Math.floor(Number(newSpotId) / 100);
           this._placePlayer(newSpotId);
         }
@@ -633,9 +633,9 @@ export default class MainScene extends Phaser.Scene {
       // エフェクト
       if (this._pendingTargetId !== null) {
         const attacker = this.districts[this.currentDistrictId];
-        const target   = this.districts[this._pendingTargetId];
+        const target = this.districts[this._pendingTargetId];
         if (attacker) this.effectManager.playSlashEffect(attacker.center.x, attacker.center.y);
-        if (target)   this.effectManager.playExplosionEffect(target.center.x, target.center.y);
+        if (target) this.effectManager.playExplosionEffect(target.center.x, target.center.y);
         this._pendingTargetId = null;
       }
 
@@ -648,10 +648,10 @@ export default class MainScene extends Phaser.Scene {
       this.showLog(`⚠️ ${data.reason ?? "Action rejected."}`);
       // FIX-C: ローカル先行移動をロールバック
       if (this._prevSpotId != null) {
-        this.currentSpotId     = this._prevSpotId;
+        this.currentSpotId = this._prevSpotId;
         this.currentDistrictId = this._prevDistrictId;
         this._placePlayer(this._prevSpotId);
-        this._prevSpotId     = null;
+        this._prevSpotId = null;
         this._prevDistrictId = null;
       }
       emitToReact(PHASER_TO_REACT.GAME_LOG, data.reason ?? "Action rejected.");
@@ -708,10 +708,10 @@ export default class MainScene extends Phaser.Scene {
           // Tiled の rectangle は x,y が左上角、width/height で大きさを表す
           // TMJ に "polygon" フィールドが存在しないため別分岐で処理する
           poly = [
-            { x: obj.x * MAP_SCALE,               y: obj.y * MAP_SCALE               },
-            { x: (obj.x + obj.width) * MAP_SCALE, y: obj.y * MAP_SCALE               },
+            { x: obj.x * MAP_SCALE, y: obj.y * MAP_SCALE },
+            { x: (obj.x + obj.width) * MAP_SCALE, y: obj.y * MAP_SCALE },
             { x: (obj.x + obj.width) * MAP_SCALE, y: (obj.y + obj.height) * MAP_SCALE },
-            { x: obj.x * MAP_SCALE,               y: (obj.y + obj.height) * MAP_SCALE },
+            { x: obj.x * MAP_SCALE, y: (obj.y + obj.height) * MAP_SCALE },
           ];
           // isPoint は false のまま（正しい形状のポリゴンとして扱う）
         } else {
@@ -726,7 +726,7 @@ export default class MainScene extends Phaser.Scene {
           name: obj.name,
           type: layerName,
           polygon: poly,
-          isPoint,   // ← true なら point オブジェクト由来の仮想ポリゴン
+          isPoint, // ← true なら point オブジェクト由来の仮想ポリゴン
           center: {
             x: poly.reduce((s, v) => s + v.x, 0) / poly.length,
             y: poly.reduce((s, v) => s + v.y, 0) / poly.length,
@@ -761,7 +761,10 @@ export default class MainScene extends Phaser.Scene {
     spotLayer.objects.forEach((obj) => {
       // extractSpotId に統一（_loadDistrictsFromTMJ と同じロジック）
       const spotId = extractSpotId(obj);
-      if (spotId == null || isNaN(spotId)) { skipped++; return; }
+      if (spotId == null || isNaN(spotId)) {
+        skipped++;
+        return;
+      }
 
       let cx, cy;
       if (obj.polygon) {
@@ -779,8 +782,11 @@ export default class MainScene extends Phaser.Scene {
     });
 
     if (import.meta.env.DEV) {
-      console.log(`[_buildSpotLookup] ロード完了: ${Object.keys(this.spots).length}件 / スキップ: ${skipped}件`);
-      if (skipped > 0) console.warn('[_buildSpotLookup] スキップされたspotはTMJのプロパティ構造を確認すること');
+      console.log(
+        `[_buildSpotLookup] ロード完了: ${Object.keys(this.spots).length}件 / スキップ: ${skipped}件`,
+      );
+      if (skipped > 0)
+        console.warn("[_buildSpotLookup] スキップされたspotはTMJのプロパティ構造を確認すること");
     }
   }
 
@@ -887,10 +893,10 @@ export default class MainScene extends Phaser.Scene {
 
   _handleSpotClick(spotObj) {
     if (import.meta.env.DEV) {
-      console.log('[_handleSpotClick] 呼ばれた:', {
-        name:       spotObj.name,
+      console.log("[_handleSpotClick] 呼ばれた:", {
+        name: spotObj.name,
         properties: spotObj.properties,
-        id:         spotObj.id,
+        id: spotObj.id,
       });
     }
 
@@ -898,7 +904,10 @@ export default class MainScene extends Phaser.Scene {
     const spotId = extractSpotId(spotObj); // ← ヘルパー関数に統一
     if (spotId == null) {
       if (import.meta.env.DEV) {
-        console.error('[_handleSpotClick] normalizeId が null を返した。properties を確認:', spotObj.properties);
+        console.error(
+          "[_handleSpotClick] normalizeId が null を返した。properties を確認:",
+          spotObj.properties,
+        );
       }
       return;
     }
@@ -919,11 +928,11 @@ export default class MainScene extends Phaser.Scene {
       this._updateSpotOutline(d, true);
 
       if (import.meta.env.DEV) {
-        console.log('[emitToReact 直前] SELECT_DISTRICT payload:', {
-          districtId:   spotId,
+        console.log("[emitToReact 直前] SELECT_DISTRICT payload:", {
+          districtId: spotId,
           districtName: d?.name ?? String(spotId),
           isMyTerritory: undefined,
-          isNeutral:     undefined,
+          isNeutral: undefined,
         });
       }
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
@@ -940,9 +949,7 @@ export default class MainScene extends Phaser.Scene {
 
       // ★ SPOT_ADJACENCY (5桁キー) を優先して隣接チェック
       const spotNeighbors =
-        typeof SPOT_ADJACENCY !== "undefined" &&
-        SPOT_ADJACENCY !== null &&
-        effectiveSpotId != null
+        typeof SPOT_ADJACENCY !== "undefined" && SPOT_ADJACENCY !== null && effectiveSpotId != null
           ? (SPOT_ADJACENCY[effectiveSpotId] ?? null)
           : null;
 
@@ -1007,17 +1014,17 @@ export default class MainScene extends Phaser.Scene {
       const districtName = districtEntry?.name ?? String(districtId);
 
       if (import.meta.env.DEV) {
-        console.log('[emitToReact 直前] SELECT_DISTRICT payload:', {
-          spotId,                       // ← 元の5桁IDも参照用に残す
-          districtId,                   // ← 変換後の3桁ID
+        console.log("[emitToReact 直前] SELECT_DISTRICT payload:", {
+          spotId, // ← 元の5桁IDも参照用に残す
+          districtId, // ← 変換後の3桁ID
           districtName,
           isMyTerritory,
           isNeutral,
         });
       }
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
-        districtId,        // 3桁（表示・区別用）
-        spotId,            // FIX-D: 5桁のspot IDも追加で送る
+        districtId, // 3桁（表示・区別用）
+        spotId, // FIX-D: 5桁のspot IDも追加で送る
         districtName,
         isMyTerritory,
         isNeutral,
@@ -1121,6 +1128,8 @@ export default class MainScene extends Phaser.Scene {
   _redrawDistrict(d, color, alpha = 0) {
     if (!d || !d.graphics) return;
     d.graphics.clear();
+
+    d.graphics.setDepth(5);
 
     // spotName 以外（district / area / island）は塗りもアウトラインも描画しない
     if (d.type !== "spotName") return;
@@ -1290,13 +1299,15 @@ export default class MainScene extends Phaser.Scene {
     });
 
     // playerMap: { [ownerId]: { godId } } — this._playerMap がなければ今回分で構築
-    const playerMap = this._playerMap ?? (() => {
-      const m = {};
-      Object.entries(serverPlayers ?? {}).forEach(([id, p]) => {
-        m[id] = { godId: p.godId ?? p.selectedGodId ?? null };
-      });
-      return m;
-    })();
+    const playerMap =
+      this._playerMap ??
+      (() => {
+        const m = {};
+        Object.entries(serverPlayers ?? {}).forEach(([id, p]) => {
+          m[id] = { godId: p.godId ?? p.selectedGodId ?? null };
+        });
+        return m;
+      })();
 
     // ★ 変化のあった spot のみ再描画（全件無条件更新を防ぐ）
     let repaintCount = 0;
@@ -1313,11 +1324,7 @@ export default class MainScene extends Phaser.Scene {
       // ★ 前回と owner が同じなら再描画をスキップ（FPS最適化）
       if (d.owner === ownerId) return;
 
-      if (
-        !this.isSelectionMode &&
-        ownerId === socket.id &&
-        d.owner !== socket.id
-      ) {
+      if (!this.isSelectionMode && ownerId === socket.id && d.owner !== socket.id) {
         SoundManager.playSE("se_territory_control");
         this.effectManager?.playCapturePopup(d.center.x, d.center.y);
       }
@@ -1384,10 +1391,9 @@ export default class MainScene extends Phaser.Scene {
         const spawnId = data.spotId ?? data.districtId ?? data.currentDistrict;
         if (spawnId == null) return;
 
-        const serverSpotId   = Number(spawnId) >= 10000 ? Number(spawnId) : null;
-        const serverDistrict = Number(spawnId) >= 10000
-          ? Math.floor(Number(spawnId) / 100)
-          : normalizeId(spawnId);
+        const serverSpotId = Number(spawnId) >= 10000 ? Number(spawnId) : null;
+        const serverDistrict =
+          Number(spawnId) >= 10000 ? Math.floor(Number(spawnId) / 100) : normalizeId(spawnId);
 
         // ★ SET_AVATAR で既にスポーン済みの場合はサーバーの古いデータで位置を上書きしない
         // （サーバーが5桁spotIdを返してきた場合のみ位置を更新する）
@@ -1400,7 +1406,7 @@ export default class MainScene extends Phaser.Scene {
 
         // ★ currentSpotId を必ず設定する（from=null 防止）
         if (serverSpotId != null) {
-          this.currentSpotId     = serverSpotId;
+          this.currentSpotId = serverSpotId;
           this.currentDistrictId = serverDistrict;
         } else {
           // サーバーが3桁IDしか持っていない場合は district 情報だけ更新
@@ -1502,7 +1508,7 @@ export default class MainScene extends Phaser.Scene {
       if (d.textLabel) {
         const isHovered = d.id === hoveredId;
         // spot以外のラベルは非表示（LOD・ホバー問わず）
-        if (d.type !== 'spotName') {
+        if (d.type !== "spotName") {
           d.textLabel.setVisible(false);
         } else {
           // spot: LODがspotNameのとき、またはホバー時に表示
@@ -1514,8 +1520,7 @@ export default class MainScene extends Phaser.Scene {
       // ── アウトライングラフィックス ──────────────────
       if (d.outlineGraphics) {
         // spotName のみ表示。LOD が districtName 以上（ズーム十分）であれば表示
-        const showOutline = d.type === 'spotName' &&
-          (lod === 'districtName' || lod === 'spotName');
+        const showOutline = d.type === "spotName" && (lod === "districtName" || lod === "spotName");
         d.outlineGraphics.setVisible(showOutline);
       }
     });
@@ -1527,7 +1532,7 @@ export default class MainScene extends Phaser.Scene {
     if (hoveredId != null) {
       const d = this.districts[hoveredId];
       // spot 以外が来た場合は null にして表示しない
-      if (d && d.type !== 'spotName') spotHoveredId = null;
+      if (d && d.type !== "spotName") spotHoveredId = null;
     }
     if (this.zoomManager) this.zoomManager.setHover(spotHoveredId, this.districts);
   }
