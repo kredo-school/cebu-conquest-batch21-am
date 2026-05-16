@@ -97,6 +97,16 @@ function pointInPolygon(point, polygon) {
   return inside;
 }
 
+// ポリゴンの面積をshoelace公式で計算（クリック優先度の判定用）
+function _calcPolygonArea(polygon) {
+  let area = 0;
+  const n = polygon.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    area += (polygon[j].x + polygon[i].x) * (polygon[j].y - polygon[i].y);
+  }
+  return Math.abs(area / 2);
+}
+
 // point オブジェクト用: 中心 (cx, cy) に半径 r の正 sides 角形を生成
 function makePointPolygon(cx, cy, r = 20, sides = 8) {
   return Array.from({ length: sides }, (_, i) => {
@@ -1081,13 +1091,27 @@ export default class MainScene extends Phaser.Scene {
   _getDistrictAtPoint(x, y) {
     let hitId = null;
     let highestPriority = 0;
+    // spot同士で重なる場合、面積が小さい（より精密な）spotを優先するための変数
+    let smallestArea = Infinity;
+
     const priority = { spotName: 4, districtName: 3, areaName: 2, islandName: 1 };
+
     for (const d of Object.values(this.districts)) {
-      if (pointInPolygon({ x, y }, d.polygon)) {
-        const p = priority[d.type] || 0;
-        if (p > highestPriority) {
+      if (!pointInPolygon({ x, y }, d.polygon)) continue;
+
+      const p = priority[d.type] || 0;
+
+      if (p > highestPriority) {
+        // より高いpriorityのレイヤーが見つかった場合は無条件で採用
+        hitId = d.id;
+        highestPriority = p;
+        smallestArea = _calcPolygonArea(d.polygon);
+      } else if (p === highestPriority && p === priority.spotName) {
+        // 同じspotName同士で重なっている場合、面積の小さい方（より精密）を優先
+        const area = _calcPolygonArea(d.polygon);
+        if (area < smallestArea) {
           hitId = d.id;
-          highestPriority = p;
+          smallestArea = area;
         }
       }
     }
