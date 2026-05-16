@@ -32,6 +32,15 @@ interface SyncStatePayload {
   [key: string]: unknown;
 }
 
+// 🚀 ReactからPhaserへ渡す地区情報の型定義 (TSエラー回避用)
+interface DistrictPayload {
+  districtId: number;
+  districtName: string;
+  isMyTerritory: boolean;
+  isNeutral: boolean;
+  spotId?: number;
+}
+
 /**
  * 🛰️ useGameEvents: Socket.IO サーバーおよび Phaser からのリアルタイム同期を管理
  */
@@ -107,8 +116,7 @@ export const useGameEvents = () => {
         useGameStore.setState({ view: 'setup', roomId: undefined });
       }
 
-      // 🚀 修正ポイント: Phaser側へ通知 (playersをObjectのまま渡すことを明示)
-      // payload.players が Object であることを前提にそのまま PhaserBridge へ流す
+      // Phaser側へ通知 (playersをObjectのまま渡すことを明示)
       emitToPhaser(REACT_TO_PHASER.SYNC_MAP, {
         players: payload.players, // サーバーから届いた Object/Map 形式を維持
         districts: payload.districts,
@@ -154,22 +162,31 @@ export const useGameEvents = () => {
       const isMe = payload.isMyTurn !== undefined ? payload.isMyTurn : payload.turnOwnerId === myId;
       setStatus({ isMyTurn: isMe, turn: payload.turn });
       emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, { turn: payload.turn, isMyTurn: isMe });
+      
+      // 🚀 修正: キャストなしでそのまま null を渡す
+      updateSelectedDistrict(null);
     };
 
     // 5. ⚔️ 戦闘結果
     const handleBattleResult = (result: unknown) => {
       emitToPhaser(REACT_TO_PHASER.BATTLE_EFFECT, result as Record<string, unknown>);
+
+      updateSelectedDistrict(null);
     };
 
     // 6. 🚩 領土更新
     const handleTerritoryUpdated = (data: unknown) => {
       emitToPhaser(REACT_TO_PHASER.TERRITORY_EFFECT, data as Record<string, unknown>);
+
+      updateSelectedDistrict(null);
     };
 
     // 7. 🚫 拒否
     const handleActionRejected = (data: { reason: string }) => {
       setErrorMessage(data.reason); 
       addLog(`⚠️ Command Rejected: ${data.reason}`);
+
+      updateSelectedDistrict(null);
     };
 
     // 8. 🏆 終了
@@ -179,11 +196,17 @@ export const useGameEvents = () => {
         setStatus({ isGameOver: true, winnerId: payload.winnerId, view: 'ranking' });
       }, 1500);
       emitToPhaser(REACT_TO_PHASER.GAME_OVER_EFFECT, payload as unknown as Record<string, unknown>);
+
+      updateSelectedDistrict(null);
     };
 
     // 9. 💬 チャット
     const handleReceiveChat = (data: { username: string; message: string }) => {
       addLog({ sender: data.username || 'Operator', message: data.message });
+    };
+
+    const handleActionResult = () => {
+      updateSelectedDistrict(null);
     };
 
     socket.on(SERVER_EVENTS.SYNC_STATE, handleSyncState);
@@ -196,6 +219,7 @@ export const useGameEvents = () => {
     socket.on(SERVER_EVENTS.ACTION_REJECTED, handleActionRejected);
     socket.on(SERVER_EVENTS.GAME_OVER, handleGameOver);
     socket.on(SERVER_EVENTS.RECEIVE_CHAT, handleReceiveChat);
+    socket.on('actionResult', handleActionResult); 
 
     return () => {
       socket.off(SERVER_EVENTS.SYNC_STATE, handleSyncState);
@@ -208,6 +232,7 @@ export const useGameEvents = () => {
       socket.off(SERVER_EVENTS.ACTION_REJECTED, handleActionRejected);
       socket.off(SERVER_EVENTS.GAME_OVER, handleGameOver);
       socket.off(SERVER_EVENTS.RECEIVE_CHAT, handleReceiveChat);
+      socket.off('actionResult', handleActionResult);
       socket.off('connect', handleConnect);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleStatsUpdate);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleSelectDistrict);

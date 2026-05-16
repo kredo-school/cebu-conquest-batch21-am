@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import socket from './socket';
-// 🚀 修正：未使用の GameState をインポートから削除
 import { useGameStore, MasterData } from './store';
 
 // ✅ コンポーネントのインポート
@@ -26,7 +25,6 @@ import { AudioController } from './components/AudioController';
 
 import { useGameEvents } from './hook/useGameEvents';
 import { REACT_TO_PHASER } from './game/events/PhaserBridge';
-import { SERVER_EVENTS } from '../shared/socketEvents.js';
 import { stopBGM } from './hook/useBGM';
 
 const App: React.FC = () => {
@@ -36,8 +34,7 @@ const App: React.FC = () => {
   const { 
     addLog, playerName: storePlayerName, token, hasSeenTutorial, 
     isGameOver, roomId, players, setView, view,
-    authenticatedFetch, setLookupData, syncServerState, myId
-    // 🚀 修正：未使用変数エラーの原因（setZoomLevel, updateSelectedDistrict, updateStatsFromPhaser）を削除
+    authenticatedFetch, setLookupData
   } = useGameStore(useShallow(state => ({
     addLog: state.addLog,
     playerName: state.playerName,
@@ -49,9 +46,7 @@ const App: React.FC = () => {
     setView: state.setView,
     view: state.view,
     authenticatedFetch: state.authenticatedFetch,
-    setLookupData: state.setLookupData,
-    syncServerState: state.syncServerState,
-    myId: state.myId
+    setLookupData: state.setLookupData
   })));
   
   const gameRef = useRef<PhaserGameHandle | null>(null);
@@ -72,7 +67,8 @@ const App: React.FC = () => {
 
   const handleAbortGame = useCallback(() => {
     if (window.confirm("Abort mission and return to setup?")) {
-      useGameStore.setState({ roomId: undefined, players: [] });
+      // 🚀 I-6: roomId: undefined を roomId: '' に統一
+      useGameStore.setState({ roomId: '', players: [] });
       setView('setup');
     }
   }, [setView]);
@@ -131,32 +127,13 @@ const App: React.FC = () => {
     }, 2500);
   }, [isDeploying, setView]);
 
-  // 信号の監視（通信復旧・開始通知）
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleCommence = (data: Record<string, unknown>) => {
-      const currentView = useGameStore.getState().view;
-      const allowedViews = ['lobby', 'selection', 'waiting'];
-      if (allowedViews.includes(currentView)) {
-        if (data) syncServerState(data, myId);
-        addLog("🚀 All links locked. Deploying to mission sector!");
-        triggerDeploySequence();
-      }
-    };
-
-    socket.on(SERVER_EVENTS.COMMENCE_OPERATION, handleCommence);
-    socket.on(SERVER_EVENTS.GAME_START, handleCommence); 
-
-    return () => {
-      socket.off(SERVER_EVENTS.COMMENCE_OPERATION, handleCommence);
-      socket.off(SERVER_EVENTS.GAME_START, handleCommence);
-    };
-  }, [triggerDeploySequence, addLog, syncServerState, myId]);
+  // 🚀 I-5: GAME_START および COMMENCE_OPERATION の重複リスナーを削除
+  // (状態更新は useGameEvents.ts が、出撃アニメーションは WaitingView.tsx が担当します)
 
   const handleLoginSubmit = async (name: string) => {
     setLocalPlayerName(name);
-    useGameStore.setState({ roomId: undefined, players: [] });
+    // 🚀 I-6: roomId: undefined を roomId: '' に統一
+    useGameStore.setState({ roomId: '', players: [] });
     setView('setup'); 
     setTimeout(() => {
       if (socket && !socket.connected) {
@@ -189,7 +166,8 @@ const App: React.FC = () => {
       mainContent = <LobbySetupView onJoinSuccess={(id) => { useGameStore.getState().setStatus({ roomId: id }); setView('lobby'); }} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onOpenRanking={handleOpenRanking} />;
       break;
     case 'lobby':
-      mainContent = <LobbyView roomId={roomId} players={players} onStart={handleLobbyStart} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onOpenRanking={handleOpenRanking} onAbort={() => { useGameStore.setState({ roomId: undefined, players: [] }); setView('setup'); }} />;
+      // 🚀 I-6: onAbort時の roomId: undefined を roomId: '' に統一
+      mainContent = <LobbyView roomId={roomId} players={players} onStart={handleLobbyStart} onOpenSettings={() => setShowSettings(true)} onOpenHelp={() => setShowHelp(true)} onOpenRanking={handleOpenRanking} onAbort={() => { useGameStore.setState({ roomId: '', players: [] }); setView('setup'); }} />;
       break;
     case 'tutorial':
       mainContent = <TutorialView onComplete={() => setView('selection')} />;
@@ -239,7 +217,6 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-screen h-screen bg-slate-950 text-slate-200 overflow-hidden select-none text-left">
-      {/* 🚀 修正：AudioController に設定画面の開閉状態（showSettings）を渡す */}
       <AudioController isSettingsOpen={showSettings} />
 
       <div className="w-full h-full relative overflow-hidden touch-pan-y custom-scrollbar">

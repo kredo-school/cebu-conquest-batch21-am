@@ -43,7 +43,8 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
 
     try {
       if (isRegisterMode) {
-        const apiUrl = getApiUrl ? getApiUrl('login.php') : "http://10.20.60.154:5173/Cebu_Conquest/cebu-conquest-batch21-am/api/login.php";
+        // 🚀 修正: ハードコードされたIPを削除し、store.tsのgetApiUrlに統一
+        const apiUrl = getApiUrl('login.php');
         const res = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

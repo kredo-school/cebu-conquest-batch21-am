@@ -69,7 +69,9 @@ export const BattleModal: React.FC = memo(() => {
   let finalAtk = 0;
   let enemyDef = 40;
   let winRate = 0;
-  const AP_COST = 5;
+  // 🚀 修正: コスト表記を文字列にし、敵陣攻撃時の変動コスト(5-20)に対応
+  let displayApCost: string | number = 5; 
+  let requiredApCost = 5; // アクション可能な最低AP
   let canAction = false;
 
   let themeColor = 'text-orange-500';
@@ -88,8 +90,14 @@ export const BattleModal: React.FC = memo(() => {
     enemyDef = targetDistrictInfo.enemyDef || 40;
     winRate = (finalAtk / (finalAtk + enemyDef)) * 100;
 
-    // 🚀 リンク状況とAPの両方が揃った時だけアクション可能
-    canAction = isAdjacent && ap >= AP_COST;
+    // 🚀 GDD v4.1準拠: 敵陣への攻撃は5〜20の変動コスト
+    if (isEnemy) {
+      displayApCost = '5-20';
+      requiredApCost = 5; // 実行自体は最低5APあれば可能とする
+    }
+
+    // 🚀 リンク状況と最低APの両方が揃った時だけアクション可能
+    canAction = isAdjacent && ap >= requiredApCost;
 
     if (isMyTerritory) {
       themeColor = 'text-blue-400';
@@ -120,7 +128,8 @@ export const BattleModal: React.FC = memo(() => {
     }
   };
 
-  if (!predictionModalOpen && !isUnderAttack) return null;
+  // 🚀 重大バグ回避: 自分のターンではない時は、たとえ predictionModalOpen が true でも絶対に表示しない
+  if ((!predictionModalOpen || !isMyTurn) && !isUnderAttack) return null;
 
   return (
     <>
@@ -250,7 +259,8 @@ export const BattleModal: React.FC = memo(() => {
                 className={`flex-[2] text-white font-black py-3 rounded-lg text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 ${canAction ? btnClass : 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none grayscale opacity-60'}`}
               >
                 <span className="font-fix">
-                  {!isAdjacent ? 'OUT OF RANGE' : (ap >= AP_COST ? `${actionText} (-${AP_COST} AP)` : 'NO AP')}
+                  {/* 🚀 APコストの表記を修正 */}
+                  {!isAdjacent ? 'OUT OF RANGE' : (ap >= requiredApCost ? `${actionText} (-${displayApCost} AP)` : 'NO AP')}
                 </span>
               </button>
             </div>

@@ -68,7 +68,6 @@ export const HUD: React.FC<HUDProps> = memo(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  // 🚀 TURNアニメーション制御：setStateエラー回避版
   useEffect(() => {
     if (globalPhaseTracker.lastTurn !== turn) {
       globalPhaseTracker.lastTurn = turn;
@@ -87,17 +86,28 @@ export const HUD: React.FC<HUDProps> = memo(() => {
     }
   }, [isMyTurn, isSubmitted, turn, isPhaseAnimationEnabled]);
 
+  // 🚀 スプラトゥーン風ゲージのために「必ず2チーム」の配列としてマッピング
   const teamStats = useMemo(() => {
     const totalMapSize = lookupData?.districts?.size || 18; 
-    return (players || []).map(player => {
+    const stats = (players || []).map(player => {
       const ownedCount = Object.values(districts).filter(ownerId => ownerId === player.id).length;
       return {
         id: player.id,
-        color: player.color || '#f97316',
+        name: player.playerName || player.username || 'Operator',
+        color: player.color || '#0ea5e9', // 未設定ならデフォルトブルー
         percent: (ownedCount / totalMapSize) * 100
       };
     });
+    // プレイヤーが足りない場合でもUIが崩れないようにダミーを補完
+    return [
+      stats[0] || { id: 't0', name: 'Alpha Squad', color: '#0ea5e9', percent: 0 },
+      stats[1] || { id: 't1', name: 'Beta Squad', color: '#f97316', percent: 0 }
+    ];
   }, [districts, players, lookupData]);
+
+  const team0 = teamStats[0];
+  const team1 = teamStats[1];
+  const neutralPercent = Math.max(0, 100 - team0.percent - team1.percent);
 
   const lodClasses = isStrategicMode 
     ? "opacity-30 scale-95 hover:opacity-100 hover:scale-100 pointer-events-auto" 
@@ -112,55 +122,60 @@ export const HUD: React.FC<HUDProps> = memo(() => {
   return (
     <div className="absolute inset-0 pointer-events-none z-30 font-mono select-none flex flex-col transition-all duration-700">
       
-      {/* 📊 勢力分布：タクティカル・スラッシュ・バー */}
-      <div className={`p-6 flex flex-col items-center gap-2 transition-all duration-700 ${lodClasses}`}>
-        <div className="relative w-[600px] h-4 bg-slate-900/80 border-b border-white/10 overflow-hidden pointer-events-auto shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
-          
-          {/* 背景：グリッドスキャンライン */}
-          <div className="absolute inset-0 opacity-20 bg-[linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:20px_100%]" />
-
-          <div className="flex w-full h-full relative">
-            {teamStats.map((team, i) => (
-              <div 
-                key={team.id} 
-                className="h-full relative transition-all duration-1000 ease-out flex items-center" 
-                style={{ 
-                  width: `${team.percent}%`, 
-                  backgroundColor: team.color,
-                  // 🚀 境界線を斜めにカット（スラッシュデザイン）
-                  clipPath: i === 0 
-                    ? 'polygon(0 0, 100% 0, 96% 100%, 0 100%)' 
-                    : 'polygon(4% 0, 100% 0, 100% 100%, 0 100%)',
-                  marginLeft: i > 0 ? '-1%' : '0',
-                  zIndex: 10 - i
-                }}
-              >
-                {/* 内部の走査線ノイズ */}
-                <div className="absolute inset-0 opacity-20 bg-[repeating-linear-gradient(0deg,rgba(0,0,0,0.1),rgba(0,0,0,0.1)_1px,transparent_1px,transparent_2px)]" />
-                
-                {/* 数値：バーの端に配置 */}
-                <div className={`absolute flex items-center px-2 ${i === 0 ? 'left-0' : 'right-0'}`}>
-                  <span className="text-[12px] font-black italic tracking-tighter text-white drop-shadow-md">
-                    {team.percent.toFixed(1)}<span className="text-[8px] ml-0.5 opacity-70">%</span>
-                  </span>
-                </div>
-              </div>
-            ))}
-
-            {/* 未占領：スキャン中の空き領域 */}
-            <div className="flex-1 h-full bg-transparent relative">
-              <div className="absolute inset-0 bg-white/5 animate-pulse" />
-            </div>
-          </div>
-
-          {/* センター垂直ガイド線 */}
-          <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/20 z-20" />
+      {/* 🦑 勢力分布：スプラトゥーン風 ナワバリバトルゲージ */}
+      <div className={`pt-6 flex flex-col items-center gap-3 transition-all duration-700 ${lodClasses}`}>
+        {/* タイトルバッジ */}
+        <div className="flex items-center gap-2 mb-[-12px] z-10">
+          <span className="px-5 py-1.5 bg-slate-950 border-2 border-slate-800 rounded-full text-[11px] font-black italic uppercase tracking-[0.3em] text-white shadow-[0_0_20px_rgba(0,0,0,0.8)] font-fix">
+            TURF CONTROL
+          </span>
         </div>
 
-        {/* 🚀 セクターラベル */}
-        <div className="flex gap-20 text-[9px] font-black uppercase tracking-[0.4em] text-slate-500 font-fix">
-          <div className={teamStats[0]?.percent > teamStats[1]?.percent ? 'text-white' : ''}>Sector Alpha</div>
-          <div className={teamStats[1]?.percent > teamStats[0]?.percent ? 'text-white' : ''}>Sector Beta</div>
+        {/* 極太ゲージ本体 */}
+        <div className="relative w-[700px] h-14 bg-slate-950 rounded-2xl border-4 border-slate-950 overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.8)] flex p-1 gap-1">
+          
+          {/* 左側チーム (Team 0) */}
+          <div 
+            className="h-full relative transition-all duration-1000 ease-out flex items-center rounded-xl overflow-hidden" 
+            style={{ width: `${team0.percent}%`, backgroundColor: team0.color }}
+          >
+            {/* 流れるインク風ストライプ */}
+            <div className="absolute inset-0 opacity-20 bg-[repeating-linear-gradient(-45deg,transparent,transparent_15px,rgba(255,255,255,0.4)_15px,rgba(255,255,255,0.4)_30px)] animate-ink-flow" />
+            <div className="absolute inset-0 shadow-[inset_0_0_20px_rgba(0,0,0,0.4)]" />
+            <span className="absolute left-4 text-3xl font-black italic tracking-tighter text-white drop-shadow-[0_4px_6px_rgba(0,0,0,0.8)] z-10 font-fix">
+              {team0.percent.toFixed(1)}<span className="text-lg ml-0.5">%</span>
+            </span>
+          </div>
+
+          {/* 未占領 (Neutral) */}
+          <div 
+            className="h-full relative transition-all duration-1000 ease-out flex items-center rounded-md overflow-hidden bg-slate-800" 
+            style={{ width: `${neutralPercent}%` }}
+          >
+            {/* 未占領の網掛け */}
+            <div className="absolute inset-0 opacity-40 bg-[repeating-linear-gradient(90deg,transparent,transparent_6px,#000_6px,#000_12px)]" />
+          </div>
+
+          {/* 右側チーム (Team 1) */}
+          <div 
+            className="h-full relative transition-all duration-1000 ease-out flex items-center rounded-xl overflow-hidden" 
+            style={{ width: `${team1.percent}%`, backgroundColor: team1.color }}
+          >
+            {/* 逆向きに流れるインク風ストライプ */}
+            <div className="absolute inset-0 opacity-20 bg-[repeating-linear-gradient(45deg,transparent,transparent_15px,rgba(255,255,255,0.4)_15px,rgba(255,255,255,0.4)_30px)] animate-ink-flow-reverse" />
+            <div className="absolute inset-0 shadow-[inset_0_0_20px_rgba(0,0,0,0.4)]" />
+            <span className="absolute right-4 text-3xl font-black italic tracking-tighter text-white drop-shadow-[0_4px_6px_rgba(0,0,0,0.8)] z-10 font-fix">
+              {team1.percent.toFixed(1)}<span className="text-lg ml-0.5">%</span>
+            </span>
+          </div>
+
+        </div>
+
+        {/* プレイヤー名ラベル */}
+        <div className="flex w-[680px] justify-between text-[11px] font-black uppercase tracking-[0.2em] font-fix mt-1">
+          <div style={{ color: team0.color }} className="drop-shadow-md truncate max-w-[200px]">{team0.name}</div>
+          <div className="text-slate-600">UNOCCUPIED</div>
+          <div style={{ color: team1.color }} className="drop-shadow-md truncate max-w-[200px] text-right">{team1.name}</div>
         </div>
       </div>
 
@@ -251,6 +266,24 @@ export const HUD: React.FC<HUDProps> = memo(() => {
         .phase-animation-container { animation: phase-bounce-zoom 3.5s ease-in-out forwards; }
         .holographic-text { text-shadow: 0 0 15px rgba(249, 115, 22, 0.6); }
         .font-fix { line-height: 1; }
+        
+        /* 🦑 スプラトゥーン風 ゲージアニメーション */
+        @keyframes ink-flow {
+          from { background-position: 0% 0%; }
+          to { background-position: 60px 0%; }
+        }
+        @keyframes ink-flow-reverse {
+          from { background-position: 60px 0%; }
+          to { background-position: 0% 0%; }
+        }
+        .animate-ink-flow {
+          animation: ink-flow 4s linear infinite;
+          background-size: 60px 100%;
+        }
+        .animate-ink-flow-reverse {
+          animation: ink-flow-reverse 4s linear infinite;
+          background-size: 60px 100%;
+        }
       `}</style>
     </div>
   );
