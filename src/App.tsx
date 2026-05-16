@@ -97,18 +97,37 @@ const App: React.FC = () => {
   // 出撃演出
   const triggerDeploySequence = useCallback(() => {
     if (isDeploying) return;
-    setIsDeploying(true); 
-    
+    setIsDeploying(true);
+
     setTimeout(() => {
       setIsDeploying(false);
       setView('game');
 
-      const myStartId = useGameStore.getState().selectedDistrictId;
-      if (myStartId) {
-        window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, { 
-          detail: { startDistrictId: myStartId } 
-        }));
-      }
+      // Phaser の create() 完了を待ってからイベントを送る
+      // （setView('game') 直後はまだ Phaser が初期化されていないため）
+      setTimeout(() => {
+        const { selectedGodId, selectedDistrictId: startId } = useGameStore.getState();
+
+        // SET_AVATAR 再送（GodSelectionView での dispatch 時は Phaser 未起動だったため）
+        if (selectedGodId) {
+          const GOD_KEY_MAP: Record<number, string> = {
+            1: 'god-neil', 2: 'god-garry', 3: 'god-shem', 4: 'god-quisie',
+            5: 'god-eduardo', 6: 'god-kurt', 7: 'god-stephen', 8: 'god-bernardine',
+          };
+          const godKey = GOD_KEY_MAP[selectedGodId];
+          if (godKey) {
+            window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.SET_AVATAR, {
+              detail: { godKey, godId: selectedGodId }
+            }));
+          }
+        }
+
+        if (startId) {
+          window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_DEPLOY_CONFIRM, {
+            detail: { startDistrictId: startId }
+          }));
+        }
+      }, 500);
     }, 2500);
   }, [isDeploying, setView]);
 

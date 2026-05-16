@@ -2,52 +2,41 @@ import React, { useEffect, useMemo, memo } from 'react';
 import { useGameStore } from '../store';
 import SoundManager from '../game/SoundManager';
 
-// 🚀 ESLint警告対策：anyを使わず、隣接チェックに必要な型を定義
-interface Territory {
-  district_id: number;
-  neighbors?: number[];
-}
-
-// 🚀 React.memoでラップし、不要なレンダリングをガード 
+// 🚀 React.memoでラップし、不要なレンダリングをガード
 export const BattleModal: React.FC = memo(() => {
-  const { 
-    predictionModalOpen, 
-    targetDistrictInfo, 
+  const {
+    predictionModalOpen,
+    targetDistrictInfo,
     selectedDistrictId,
-    masterData,
     atk, blessing, attack, move, closePrediction, ap,
     isMyTurn, escape, addLog,
     isUnderAttack, setUnderAttack,
-    lookupData 
+    lookupData
   } = useGameStore();
 
-  // ✅ 修正箇所1: lookupData を使って安全にターゲット情報を取得（undefined エラー対策）
+  // ターゲット情報: lookupData が未解決でもフォールバックで表示する
   const targetParsed = useMemo(() => {
-    if (!targetDistrictInfo || !lookupData || !lookupData.districts) return null;
-    
+    if (!targetDistrictInfo) return null;
+    const fallback = { islandName: "UNKNOWN SECTOR", sectorCode: targetDistrictInfo.id };
+    if (!lookupData?.districts) return fallback;
+
     const district = lookupData.districts.get(targetDistrictInfo.id);
-    if (!district) return null;
+    if (!district) return fallback;
 
     const area = lookupData.areas?.get(district.parentAreaId);
-    
-    // 🚀 TSエラー対策：parentIslandId が undefined でないことを確認してから get を実行
     const islandId = area?.parentIslandId;
     const island = typeof islandId === 'number' ? lookupData.islands?.get(islandId) : null;
 
     return {
       islandName: island?.name?.toUpperCase() || area?.name?.toUpperCase() || "UNKNOWN SECTOR",
-      sectorCode: targetDistrictInfo.id 
+      sectorCode: targetDistrictInfo.id
     };
   }, [targetDistrictInfo, lookupData]);
 
-  // 🚀 修正箇所2: 隣接チェックロジック（(t: any) を排除）
+  // Phaser の _handleSpotClick が SELECT_DISTRICT 送信前に隣接判定済みなので常に true
   const isAdjacent = useMemo(() => {
-    if (!targetDistrictInfo || !masterData || selectedDistrictId === null) return false;
-    
-    // 型を Territory に指定することで ESLint 警告を解消
-    const current = (masterData.territories as Territory[])?.find((t) => t.district_id === selectedDistrictId);
-    return current?.neighbors?.includes(Number(targetDistrictInfo.id)) || false;
-  }, [targetDistrictInfo, masterData, selectedDistrictId]);
+    return targetDistrictInfo !== null;
+  }, [targetDistrictInfo]);
 
   // 🚨 敵からの被弾アラート用ロジック
   useEffect(() => {
@@ -122,10 +111,12 @@ export const BattleModal: React.FC = memo(() => {
   const handleExecute = () => {
     if (!targetDistrictInfo || !canAction) return;
     try { SoundManager.playSe('click'); } catch {}
+    // selectedDistrictId は 5桁 spotId（updateSelectedDistrict で spotId ?? districtId）
+    const targetId = selectedDistrictId ?? targetDistrictInfo.id;
     if (isMyTerritory) {
-      move(targetDistrictInfo.id);
+      move(targetId);
     } else {
-      attack(targetDistrictInfo.id);
+      attack(targetId);
     }
   };
 
@@ -184,7 +175,7 @@ export const BattleModal: React.FC = memo(() => {
       )}
 
       {/* ⚔️ 攻撃・移動予測 UI */}
-      {predictionModalOpen && targetDistrictInfo && targetParsed && (
+      {predictionModalOpen && targetDistrictInfo && (
         <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm select-none pointer-events-auto">
           <div className={`relative bg-slate-900 border-2 ${borderColor} w-[380px] rounded-2xl p-6 shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden animate-fadeIn`}>
             
@@ -196,13 +187,13 @@ export const BattleModal: React.FC = memo(() => {
                 </h2>
               </div>
               <div className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-[10px] font-mono text-slate-400">
-                SEC-{targetParsed.sectorCode}
+                SEC-{targetParsed?.sectorCode ?? targetDistrictInfo.id}
               </div>
             </div>
 
             <div className="mb-6 relative z-10 text-left">
               <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest mb-1 font-fix">
-                {targetParsed.islandName}
+                {targetParsed?.islandName ?? "UNKNOWN SECTOR"}
               </span>
               <div className="text-2xl font-black text-white italic tracking-tighter font-fix uppercase">
                 {targetDistrictInfo.name}
