@@ -1014,8 +1014,9 @@ export default class MainScene extends Phaser.Scene {
       SoundManager.playSE("se_click_non_button");
       this._pendingTargetId = spotId;
 
-      const targetOwner = (d?.owner ?? "neutral").toLowerCase();
-      const isMyTerritory = targetOwner === this._myTeam;
+      // d.owner は socket.id または "neutral" で保持される（チーム名ではない）
+      const targetOwner = d?.owner ?? "neutral";
+      const isMyTerritory = targetOwner === socket.id;
       const isNeutral = targetOwner === "neutral";
 
       // 5桁のspotIdから3桁のdistrictIdを算出（算術変換、文字列スライス禁止）
