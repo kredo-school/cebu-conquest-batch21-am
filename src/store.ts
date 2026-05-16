@@ -464,10 +464,12 @@ export const useGameStore = create<GameState>()(
         }
 
         set({
-          selectedDistrictId: data.spotId ?? data.districtId, 
+          // selectedDistrictId は 5桁 spotId を優先（サーバー送信用）
+          selectedDistrictId: data.spotId ?? data.districtId,
           currentDistrictName: data.districtName,
           targetDistrictInfo: {
-            id: data.spotId ?? data.districtId,
+            // id は 3桁 districtId を使用（lookupData.districts.get() の参照キー）
+            id: data.districtId,
             name: data.districtName,
             enemyDef: 40,
             isMyTerritory: data.isMyTerritory,

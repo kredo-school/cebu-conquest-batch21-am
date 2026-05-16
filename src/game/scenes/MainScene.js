@@ -45,6 +45,14 @@ function extractSpotId(obj) {
   const byPropName = normalizeId(obj.properties?.[0]?.name);
   if (byPropName != null && byPropName >= 10000) return byPropName;
 
+  // 方式A': properties[0].name の先頭5桁以上が数値（タイポ対応: "11304fsss" → 11304）
+  const propName0 = obj.properties?.[0]?.name ?? "";
+  const propLeadMatch = propName0.match(/^(\d{5,})/);
+  if (propLeadMatch) {
+    const v = normalizeId(propLeadMatch[1]);
+    if (v != null && v >= 10000) return v;
+  }
+
   // 方式B: "spot_id" または "id" という名前のプロパティの value
   const byNamedProp = obj.properties?.find((p) => p.name === "spot_id" || p.name === "id")?.value;
   if (byNamedProp != null) {
@@ -897,24 +905,22 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _handleSpotClick(spotObj) {
-    if (import.meta.env.DEV) {
-      console.log("[_handleSpotClick] 呼ばれた:", {
-        name: spotObj.name,
-        properties: spotObj.properties,
-        id: spotObj.id,
-      });
-    }
-
     // TMJ properties[0].name がスポットID（文字列 → Number に正規化）
+    // ※ spotObj.id は Tiled の内部オブジェクトID（連番）であり spot_id ではない
     const spotId = extractSpotId(spotObj); // ← ヘルパー関数に統一
     if (spotId == null) {
       if (import.meta.env.DEV) {
         console.error(
-          "[_handleSpotClick] normalizeId が null を返した。properties を確認:",
+          "[_handleSpotClick] spotId を特定できませんでした (Tiledオブジェクト内部id=" +
+            spotObj.id +
+            ")。TMJ properties を確認:",
           spotObj.properties,
         );
       }
       return;
+    }
+    if (import.meta.env.DEV) {
+      console.log(`[_handleSpotClick] spotId=${spotId} name="${spotObj.name}"`);
     }
 
     const d = this.districts[spotId];
@@ -1008,8 +1014,9 @@ export default class MainScene extends Phaser.Scene {
       SoundManager.playSE("se_click_non_button");
       this._pendingTargetId = spotId;
 
-      const targetOwner = (d?.owner ?? "neutral").toLowerCase();
-      const isMyTerritory = targetOwner === this._myTeam;
+      // d.owner は socket.id または "neutral" で保持される（チーム名ではない）
+      const targetOwner = d?.owner ?? "neutral";
+      const isMyTerritory = targetOwner === socket.id;
       const isNeutral = targetOwner === "neutral";
 
       // 5桁のspotIdから3桁のdistrictIdを算出（算術変換、文字列スライス禁止）
@@ -1205,7 +1212,8 @@ export default class MainScene extends Phaser.Scene {
     if (this._playerFrame) this._playerFrame.destroy();
 
     // ── テクスチャ存在チェック ────────────────────────────────
-    const hasTexture = this._avatarKey && this.textures.exists(this._avatarKey);
+    // _avatarKey が null（未選択）or textures に未登録の場合はオレンジ丸にフォールバック
+    const hasTexture = this._avatarKey != null && this.textures.exists(this._avatarKey);
 
     if (hasTexture) {
       // ── 神アバター画像で表示 ──────────────────────────────
@@ -1233,7 +1241,10 @@ export default class MainScene extends Phaser.Scene {
     } else {
       // ── フォールバック: オレンジの丸 ─────────────────────
       if (import.meta.env.DEV) {
-        console.warn(`[_placePlayer] texture "${this._avatarKey}" not found → circle fallback`);
+        // _avatarKey が null なら SET_AVATAR 未受信（神未選択）、文字列なら画像ロード失敗
+        console.warn(
+          `[_placePlayer] avatar key=${this._avatarKey ?? "(not set)"} → circle fallback`,
+        );
       }
       const PLAYER_RADIUS = 14;
       this.player = this.add

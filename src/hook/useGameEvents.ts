@@ -81,8 +81,8 @@ export const useGameEvents = () => {
 
     const handleSelectDistrict = (e: Event) => {
       const ce = e as CustomEvent;
-      const { districtId, districtName, isMyTerritory, isNeutral } = ce.detail;
-      updateSelectedDistrict({ districtId, districtName, isMyTerritory, isNeutral });
+      const { districtId, districtName, isMyTerritory, isNeutral, spotId } = ce.detail;
+      updateSelectedDistrict({ districtId, districtName, isMyTerritory, isNeutral, spotId });
     };
 
     window.addEventListener(PHASER_TO_REACT.STATS_UPDATED, handleStatsUpdate);

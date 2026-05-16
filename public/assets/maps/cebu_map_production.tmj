@@ -16936,6 +16936,12 @@
                  "id":133,
                  "name":"Cadiz City Port",
                  "opacity":1,
+                 "properties":[
+                        {
+                         "name":"21201",
+                         "type":"int",
+                         "value":0
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
@@ -17612,6 +17618,12 @@
                  "id":177,
                  "name":"Loboc River Cruise",
                  "opacity":1,
+                 "properties":[
+                        {
+                         "name":"33202",
+                         "type":"int",
+                         "value":0
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
@@ -17642,6 +17654,12 @@
                  "id":180,
                  "name":"Baclayon Church",
                  "opacity":1,
+                 "properties":[
+                        {
+                         "name":"33203",
+                         "type":"int",
+                         "value":0
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
@@ -17654,6 +17672,12 @@
                  "id":182,
                  "name":"Panagsama Fisher's Shack",
                  "opacity":1,
+                 "properties":[
+                        {
+                         "name":"15104",
+                         "type":"int",
+                         "value":0
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
@@ -17828,6 +17852,12 @@
                  "id":195,
                  "name":"Golden Wheat Hamlet",
                  "opacity":1,
+                 "properties":[
+                        {
+                         "name":"11305",
+                         "type":"int",
+                         "value":0
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
@@ -17914,7 +17944,7 @@
                  "opacity":1,
                  "properties":[
                         {
-                         "name":"11304fsss",
+                         "name":"11304",
                          "type":"int",
                          "value":0
                         }],
@@ -17966,6 +17996,12 @@
                  "id":203,
                  "name":"Black Barrel Depot",
                  "opacity":1,
+                 "properties":[
+                        {
+                         "name":"24209",
+                         "type":"int",
+                         "value":0
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
@@ -18050,6 +18086,12 @@
                  "id":209,
                  "name":"Dumaguete Motel",
                  "opacity":1,
+                 "properties":[
+                        {
+                         "name":"24215",
+                         "type":"int",
+                         "value":0
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
