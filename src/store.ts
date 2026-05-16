@@ -219,14 +219,16 @@ export interface GameState {
   resetGame: () => void;
   setBgmVolume: (vol: number) => void;
   setSeVolume: (vol: number) => void;
-  // 🚀 修正ポイント: spotId を追加
+  
+  // 🚀 修正ポイント: TypeScriptエラー解消のため null を許容
   updateSelectedDistrict: (data: { 
     districtId: number; 
     districtName: string; 
     isMyTerritory: boolean; 
     isNeutral: boolean;
     spotId?: number; 
-  }) => void;
+  } | null) => void;
+  
   updateStatsFromPhaser: (stats: Partial<GameState>) => void;
 }
 
@@ -448,9 +450,20 @@ export const useGameStore = create<GameState>()(
           window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: data.districts, players: playersAsObject } }));
         }
       },
+      
+      // 🚀 修正ポイント: null を受け取った際はターゲット情報を確実にクリアする
       updateSelectedDistrict: (data) => {
+        if (!data) {
+          set({
+            predictionModalOpen: false,
+            targetDistrictInfo: null,
+            selectedDistrictId: null,
+            currentDistrictName: "No Sector Selected"
+          });
+          return;
+        }
+
         set({
-          // 🚀 修正ポイント: 定義した spotId を使用（なければ districtId）
           selectedDistrictId: data.spotId ?? data.districtId, 
           currentDistrictName: data.districtName,
           targetDistrictInfo: {
@@ -463,6 +476,7 @@ export const useGameStore = create<GameState>()(
           predictionModalOpen: true
         });
       },
+      
       updateStatsFromPhaser: (stats) => {
         if (get().isGameOver) return;
         set((state) => ({ ...state, ...stats }));
@@ -512,6 +526,7 @@ export const useGameStore = create<GameState>()(
       useItem: (id) => socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId: id }),
 
       endTurn: () => {
+        // 🚀 I-1 修正完了箇所: TURN_END_SUBMITを使用。isMyTurnはサーバー同期まで触らない。
         socket.emit(CLIENT_EVENTS.TURN_END_SUBMIT); 
         set({ isSubmitted: true }); 
       },

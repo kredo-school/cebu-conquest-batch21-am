@@ -8,8 +8,7 @@ import { SERVER_EVENTS } from "../shared/socketEvents.js";
  * 設定変更なしで接続可能になります。
  */
 const host = window.location.hostname;
-// const SOCKET_URL = `http://${host}:3001`;
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || `http://${host}:3001`;
 
 /**
  * 🛰️ Socket.IO インスタンスの生成
@@ -36,19 +35,5 @@ if (import.meta.env.DEV) {
     console.log(`%c[Socket → Server] ${event}`, "color: #0099ff; font-weight: bold;", args);
   });
 }
-
-/**
- * 📡 サーバーからの全状態同期を受信
- * App.tsx(React) だけでなく、Phaser(あきらさん担当)が直接イベントを
- * キャッチできるように CustomEvent を発火させます。
- */
-// BUG-001: SERVER_EVENTS.syncState（undefined）→ SERVER_EVENTS.SYNC_STATE が正しいキー
-socket.on(SERVER_EVENTS.SYNC_STATE, (gameState) => {
-  window.dispatchEvent(
-    new CustomEvent(SERVER_EVENTS.SYNC_STATE, {
-      detail: gameState,
-    }),
-  );
-});
 
 export default socket;
