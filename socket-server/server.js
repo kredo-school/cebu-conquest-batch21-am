@@ -787,7 +787,7 @@ io.on('connection', (socket) => {
                             hpDamage: 0,
                             districtId: targetDistrictId
                         });
-                        
+
                         io.to(roomId).emit(SERVER_EVENTS.TERRITORY_UPDATED, {
                             districtId: targetDistrictId,
                             owner: socket.id,
@@ -831,14 +831,17 @@ io.on('connection', (socket) => {
                     p.ap = Math.max(0, p.ap - 5);
                     io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🚚 ${p.username}: ${targetSpotId} へ移動。`);
                 }
+
             } else if (data.type === 'stay') {
                 p.hp = Math.min(p.maxHp, p.hp + 20);
                 p.ap = Math.min(p.maxAp, p.ap + 30); // K-4準拠
                 io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🧘 ${p.username}: 休息を選択。`);
+
             } else if (data.type === 'defend') {
                 p.isDefending = true;
                 // AP消費なし
                 io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🛡️ ${p.username}: 守りを固めました。`);
+
             } else if (data.type === 'escape') {
                 const myDistricts = Object.keys(roomState.districts)
                     .filter(id => roomState.districts[id] === socket.id);
@@ -853,6 +856,7 @@ io.on('connection', (socket) => {
                     p.hp = Math.max(0, p.hp - 50);
                     io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `💥 ${p.username}: 逃げ場がなくダメージを受けた！`);
                 }
+
             } else if (data.type === 'turn_end') {
                 finalizeTurn(roomId, socket.id);
                 return;
@@ -863,6 +867,19 @@ io.on('connection', (socket) => {
             io.to(roomId).emit(SERVER_EVENTS.ACTION_RESULT, { state: sanitizeRoomState(roomState) });
             io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
         }
+
+        // ★ v3: ターン自動進行
+        // tryブロック内でreturnした場合（turn_end, 隣接エラー等）はここに到達しない。
+        // attack/stay/move/escape/defend が正常完了した場合のみここが実行される。
+        const _autoRid = roomId;
+        const _autoSid = socket.id;
+        setTimeout(() => {
+            const _st = rooms.get(_autoRid);
+            if (_st && _st.turnOwnerId === _autoSid && _st.status === 'playing') {
+                finalizeTurn(_autoRid, _autoSid);
+            }
+        }, 300);
+
     });
 
     // K-1: クライアントからの明示的なターン終了イベント
@@ -887,6 +904,12 @@ io.on('connection', (socket) => {
         io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🛡️ ${p.username}: 守りを固めました（次の攻撃への防御力1.5倍）。`);
         io.to(roomId).emit(SERVER_EVENTS.ACTION_RESULT, { state: sanitizeRoomState(roomState) });
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
+        // ★ v3追加
+        const _rid = roomId, _sid = socket.id;
+        setTimeout(() => {
+            const _s = rooms.get(_rid);
+            if (_s && _s.turnOwnerId === _sid && _s.status === 'playing') finalizeTurn(_rid, _sid);
+        }, 300);
     });
 
     socket.on(CLIENT_EVENTS.ACTION_ESCAPE, () => {
@@ -911,6 +934,12 @@ io.on('connection', (socket) => {
         }
         io.to(roomId).emit(SERVER_EVENTS.ACTION_RESULT, { state: sanitizeRoomState(roomState) });
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
+        // ★ v3追加（ACTION_ESCAPE末尾）
+        const _rid = roomId, _sid = socket.id;
+        setTimeout(() => {
+            const _s = rooms.get(_rid);
+            if (_s && _s.turnOwnerId === _sid && _s.status === 'playing') finalizeTurn(_rid, _sid);
+        }, 300);
     });
 
     socket.on(CLIENT_EVENTS.ACTION_USE_ITEM, async ({ itemId }) => {

@@ -3,7 +3,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import socket from './socket';
 import { CLIENT_EVENTS } from '../shared/socketEvents.js';
-import { REACT_TO_PHASER } from './game/events/PhaserBridge';
 import { buildLookup } from '../shared/idLookup'; 
 import SoundManager from './game/SoundManager';
 
@@ -513,8 +512,9 @@ export const useGameStore = create<GameState>()(
       },
 
       stay: () => {
+        // ★修正3: COMMAND_STAY の dispatchEvent を削除
+        // MainScene.js の COMMAND_STAY ハンドラが ACTION_SUBMIT を再送信するため二重送信になっていた
         socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'stay' });
-        window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_STAY));
       },
 
       defend: () => {

@@ -160,9 +160,11 @@ export const useGameEvents = () => {
     const handleTurnStart = (data: unknown) => {
       const payload = data as { turnOwnerId?: string; turn: number; isMyTurn?: boolean };
       const isMe = payload.isMyTurn !== undefined ? payload.isMyTurn : payload.turnOwnerId === myId;
-      setStatus({ isMyTurn: isMe, turn: payload.turn });
+      // ★修正1: ターン開始時に isSubmitted を false にリセット
+      // endTurn() で true になった isSubmitted がそのまま残るとActionPanelが次ターン以降も非表示になる
+      setStatus({ isMyTurn: isMe, turn: payload.turn, isSubmitted: false });
       emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, { turn: payload.turn, isMyTurn: isMe });
-      
+
       // 🚀 修正: キャストなしでそのまま null を渡す
       updateSelectedDistrict(null);
     };
@@ -206,6 +208,9 @@ export const useGameEvents = () => {
     };
 
     const handleActionResult = () => {
+      // ★追加: ACTION_RESULT受信 = サーバーがアクションを処理済み = ターン終了待ち
+      // isSubmitted: true でボタンを即時無効化し、TURN_START 待ち状態を明示する
+      useGameStore.setState({ isSubmitted: true });
       updateSelectedDistrict(null);
     };
 
@@ -219,7 +224,7 @@ export const useGameEvents = () => {
     socket.on(SERVER_EVENTS.ACTION_REJECTED, handleActionRejected);
     socket.on(SERVER_EVENTS.GAME_OVER, handleGameOver);
     socket.on(SERVER_EVENTS.RECEIVE_CHAT, handleReceiveChat);
-    socket.on('actionResult', handleActionResult); 
+    socket.on(SERVER_EVENTS.ACTION_RESULT, handleActionResult); // ★修正2: 定数経由に変更
 
     return () => {
       socket.off(SERVER_EVENTS.SYNC_STATE, handleSyncState);
@@ -232,7 +237,7 @@ export const useGameEvents = () => {
       socket.off(SERVER_EVENTS.ACTION_REJECTED, handleActionRejected);
       socket.off(SERVER_EVENTS.GAME_OVER, handleGameOver);
       socket.off(SERVER_EVENTS.RECEIVE_CHAT, handleReceiveChat);
-      socket.off('actionResult', handleActionResult);
+      socket.off(SERVER_EVENTS.ACTION_RESULT, handleActionResult); // ★修正2: 定数経由に変更
       socket.off('connect', handleConnect);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleStatsUpdate);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleSelectDistrict);
