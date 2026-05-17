@@ -32,7 +32,7 @@ interface SyncStatePayload {
 
 /**
  * 🛰️ useGameEvents: Manages persistent real-time socket streams & Phaser bridge datalinks.
- * Fixed: Enforced static listener registration to completely eliminate duplicate comms feed duplication bugs.
+ * Resolved: Merged remote 5-digit spotId, dynamic non-stale socket.id mapping, and action submit state resets.
  */
 export const useGameEvents = () => {
   useEffect(() => {
@@ -57,10 +57,11 @@ export const useGameEvents = () => {
       useGameStore.getState().setStatus({ hp, ap: stamina, atk, def, blessing: faith });
     };
 
+    // ✅ Merged: Captured incoming 5-digit spotId structures via non-stale static store selectors
     const handleSelectDistrict = (e: Event) => {
       const ce = e as CustomEvent;
-      const { districtId, districtName, isMyTerritory, isNeutral } = ce.detail;
-      useGameStore.getState().updateSelectedDistrict({ districtId, districtName, isMyTerritory, isNeutral });
+      const { districtId, districtName, isMyTerritory, isNeutral, spotId } = ce.detail;
+      useGameStore.getState().updateSelectedDistrict({ districtId, districtName, isMyTerritory, isNeutral, spotId });
     };
 
     window.addEventListener(PHASER_TO_REACT.STATS_UPDATED, handleStatsUpdate);
@@ -74,8 +75,8 @@ export const useGameEvents = () => {
       const currentView = store.view;
       const payload = data as SyncStatePayload; 
 
-      // Update React Core Store State parameters
-      store.syncServerState(payload as unknown as Record<string, unknown>, useGameStore.getState().myId);
+      // ✅ Merged: Prioritize real-time socket.id over stale closure strings to prevent isMyTurn overwrite errors
+      store.syncServerState(payload as unknown as Record<string, unknown>, socket.id || store.myId);
 
       // Update Active Lobby Operator Registries
       if (payload.players) {
@@ -138,8 +139,13 @@ export const useGameEvents = () => {
     const handleTurnStart = (data: unknown) => {
       const store = useGameStore.getState();
       const payload = data as { turnOwnerId?: string; turn: number; isMyTurn?: boolean };
-      const isMe = payload.isMyTurn !== undefined ? payload.isMyTurn : payload.turnOwnerId === useGameStore.getState().myId;
-      store.setStatus({ isMyTurn: isMe, turn: payload.turn });
+      const currentMyId = store.myId;
+      const isMe = payload.isMyTurn !== undefined ? payload.isMyTurn : payload.turnOwnerId === currentMyId;
+      
+      console.log(`[TURN_START] turn=${payload.turn} isMyTurn=${isMe} turnOwnerId=${payload.turnOwnerId} mySocketId=${socket.id}`);
+      
+      // ✅ Merged: Reset submission blocks instantly upon new phase rotators to free action inputs
+      store.setStatus({ isMyTurn: isMe, turn: payload.turn, isSubmitted: false });
       emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, { turn: payload.turn, isMyTurn: isMe });
       
       store.updateSelectedDistrict(null);
@@ -162,7 +168,7 @@ export const useGameEvents = () => {
       const store = useGameStore.getState();
       store.setErrorMessage(data.reason); 
       store.addLog(`⚠️ Command Rejected: ${data.reason}`);
-      store.updateSelectedDistrict(null);
+      useGameStore.getState().updateSelectedDistrict(null);
     };
 
     // 8. Operation Termination Matrix
@@ -180,7 +186,9 @@ export const useGameEvents = () => {
       useGameStore.getState().addLog({ sender: data.username || 'Operator', message: data.message });
     };
 
+    // ✅ Merged: Added instant action dispatch lockdown parameters to block transactional overlapping
     const handleActionResult = () => {
+      useGameStore.setState({ isSubmitted: true });
       useGameStore.getState().updateSelectedDistrict(null);
     };
 
@@ -194,9 +202,8 @@ export const useGameEvents = () => {
     socket.on(SERVER_EVENTS.ACTION_REJECTED, handleActionRejected);
     socket.on(SERVER_EVENTS.GAME_OVER, handleGameOver);
     socket.on(SERVER_EVENTS.RECEIVE_CHAT, handleReceiveChat);
-    socket.on('actionResult', handleActionResult); 
+    socket.on(SERVER_EVENTS.ACTION_RESULT, handleActionResult); // ✅ Enforced named event string key constants
 
-    // ⚡ Complete tear-down process on link loss to safeguard memory leaks
     return () => {
       socket.off(SERVER_EVENTS.SYNC_STATE, handleSyncState);
       socket.off(SERVER_EVENTS.GAME_START, handleGameBegin);
@@ -208,12 +215,12 @@ export const useGameEvents = () => {
       socket.off(SERVER_EVENTS.ACTION_REJECTED, handleActionRejected);
       socket.off(SERVER_EVENTS.GAME_OVER, handleGameOver);
       socket.off(SERVER_EVENTS.RECEIVE_CHAT, handleReceiveChat);
-      socket.off('actionResult', handleActionResult);
+      socket.off(SERVER_EVENTS.ACTION_RESULT, handleActionResult);
       socket.off('connect', handleConnect);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleStatsUpdate);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleSelectDistrict);
     };
-  }, []); // 🚀 空配列に固定。状態変化による Socket リスナーの無限リビルドを完全封印！
+  }, []); 
 };
 
 export default useGameEvents;

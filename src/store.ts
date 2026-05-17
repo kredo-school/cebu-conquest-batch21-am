@@ -3,7 +3,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import socket from './socket';
 import { CLIENT_EVENTS } from '../shared/socketEvents.js';
-import { REACT_TO_PHASER } from './game/events/PhaserBridge';
 import { buildLookup } from '../shared/idLookup'; 
 import SoundManager from './game/SoundManager';
 
@@ -464,10 +463,12 @@ export const useGameStore = create<GameState>()(
         }
 
         set({
-          selectedDistrictId: data.spotId ?? data.districtId, 
+          // selectedDistrictId は 5桁 spotId を優先（サーバー送信用）
+          selectedDistrictId: data.spotId ?? data.districtId,
           currentDistrictName: data.districtName,
           targetDistrictInfo: {
-            id: data.spotId ?? data.districtId,
+            // id は 3桁 districtId を使用（lookupData.districts.get() の参照キー）
+            id: data.districtId,
             name: data.districtName,
             enemyDef: 40,
             isMyTerritory: data.isMyTerritory,
@@ -511,8 +512,9 @@ export const useGameStore = create<GameState>()(
       },
 
       stay: () => {
+        // ★修正3: COMMAND_STAY の dispatchEvent を削除
+        // MainScene.js の COMMAND_STAY ハンドラが ACTION_SUBMIT を再送信するため二重送信になっていた
         socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'stay' });
-        window.dispatchEvent(new CustomEvent(REACT_TO_PHASER.COMMAND_STAY));
       },
 
       defend: () => {

@@ -129,8 +129,8 @@
               <div class="card">
                 <div class="badge badge-orange" style="margin-bottom: 0.5rem">School Spirit</div>
                 <p style="margin: 0; font-size: 0.88rem">
-                  Kredo IT School is located in Cebu. The 8 gods in the game are inspired by our
-                  teachers and mentors — a small tribute from Batch 21 AM.
+                  Kredo IT School is located in Cebu. The 8 gods in the game are inspired by our god
+                  teachers — a small tribute from Batch 21 AM.
                 </p>
               </div>
             </div>
@@ -144,7 +144,7 @@
             <h2>Project Goals</h2>
             <div class="two-col" style="margin-top: 1rem">
               <div>
-                <h3 class="text-orange" style="margin-bottom: 0.75rem">MVP Target</h3>
+                <h3 class="text-orange" style="margin-bottom: 0.75rem">Project Target</h3>
                 <div style="display: flex; flex-direction: column; gap: 0.5rem">
                   <div class="win-item primary">
                     <span>🎯</span>
@@ -152,7 +152,7 @@
                   </div>
                   <div class="win-item primary">
                     <span>👥</span>
-                    <span>Real-time 4-player + NPC over LAN</span>
+                    <span>Real-time 4 players including NPCs over LAN.</span>
                   </div>
                   <div class="win-item primary">
                     <span>🗺️</span>
@@ -191,63 +191,118 @@
 
         <!-- Slide 6: Development Timeline -->
         <section>
-          <div class="slide-inner top">
+          <div class="slide-inner">
             <div class="section-label">Timeline</div>
-            <h2>7-Week Sprint</h2>
-            <div class="timeline">
-              <div class="timeline-item done">
-                <span class="timeline-week"
-                  >Week 1<br /><span style="font-size: 0.65rem">3/30–4/5</span></span
-                >
-                <span class="timeline-label">Game Logic Foundation</span>
-                <span class="timeline-status text-green">✅ Done</span>
+            <h2>Development Timeline</h2>
+            <div class="timeline-dual">
+              <!-- LEFT: Planned -->
+              <div class="timeline-col">
+                <div class="timeline-col-header text-cyan">📋 Planned</div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W1 3/2</span>
+                  <span class="timeline-desc">Ideation, role assignment, MVP goals</span>
+                </div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W2 3/9</span>
+                  <span class="timeline-desc">GitHub setup, tech learning, dev start</span>
+                </div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W3 3/16</span>
+                  <span class="timeline-desc">MVP map, Socket.IO connection, basic HUD</span>
+                </div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W4 3/23</span>
+                  <span class="timeline-desc"
+                    >MVP integration test → fix → retest → ✅ MVP done</span
+                  >
+                </div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W5 3/30</span>
+                  <span class="timeline-desc">Game logic foundation (turns / AP / HUD)</span>
+                </div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W6 4/6</span>
+                  <span class="timeline-desc">Effects, UI polish + DB integration</span>
+                </div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W7 4/13</span>
+                  <span class="timeline-desc">Full integration test + production map</span>
+                </div>
+                <div class="timeline-row diff">
+                  <span class="timeline-week">W8 4/20</span>
+                  <span class="timeline-desc">Avatar + responsive UI</span>
+                </div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W9 4/27</span>
+                  <span class="timeline-desc">Full map feature test (FPS / errors / tutorial)</span>
+                </div>
+                <div class="timeline-row diff">
+                  <span class="timeline-week">W10 5/4</span>
+                  <span class="timeline-desc">Code freeze — bug fixes only</span>
+                </div>
+                <div class="timeline-row diff">
+                  <span class="timeline-week">W11 5/11</span>
+                  <span class="timeline-desc">Presentation prep + demo rehearsal</span>
+                </div>
               </div>
-              <div class="timeline-item done">
-                <span class="timeline-week"
-                  >Week 2<br /><span style="font-size: 0.65rem">4/6–4/12</span></span
-                >
-                <span class="timeline-label">Effects · UI · DB Integration</span>
-                <span class="timeline-status text-green">✅ Done</span>
-              </div>
-              <div class="timeline-item done">
-                <span class="timeline-week"
-                  >Week 3<br /><span style="font-size: 0.65rem">4/13–4/19</span></span
-                >
-                <span class="timeline-label">Full Integration Test · Production Map</span>
-                <span class="timeline-status text-green">✅ Done</span>
-              </div>
-              <div class="timeline-item done">
-                <span class="timeline-week"
-                  >Week 4<br /><span style="font-size: 0.65rem">4/20–4/26</span></span
-                >
-                <span class="timeline-label">PhaserBridge Unified · 8-God System</span>
-                <span class="timeline-status text-green">✅ Done</span>
-              </div>
-              <div class="timeline-item active">
-                <span class="timeline-week"
-                  >Week 5<br /><span style="font-size: 0.65rem">4/27–5/3</span></span
-                >
-                <span class="timeline-label">Full Map Testing · FPS Optimization</span>
-                <span class="timeline-status text-orange">🟡 Active</span>
-              </div>
-              <div class="timeline-item freeze">
-                <span class="timeline-week"
-                  >Week 6<br /><span style="font-size: 0.65rem">5/4–5/17</span></span
-                >
-                <span class="timeline-label">Code Freeze · Bug Fix Only · Demo Prep</span>
-                <span class="timeline-status text-cyan">🔒 Freeze</span>
-              </div>
-              <div
-                class="timeline-item"
-                style="border-color: var(--brand-orange); background: rgba(250, 112, 0, 0.1)"
-              >
-                <span class="timeline-week"
-                  >🎤<br /><span style="font-size: 0.65rem">May 20</span></span
-                >
-                <span class="timeline-label" style="color: var(--brand-orange); font-weight: 900"
-                  >PRESENTATION DAY</span
-                >
-                <span class="timeline-status text-orange">⭐</span>
+
+              <!-- RIGHT: Actual -->
+              <div class="timeline-col">
+                <div class="timeline-col-header text-orange">✅ Actual</div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W1 3/2</span>
+                  <span class="timeline-desc">Ideation, role assignment, MVP goals</span>
+                </div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W2 3/9</span>
+                  <span class="timeline-desc">GitHub setup, tech learning, dev start</span>
+                </div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W3 3/16</span>
+                  <span class="timeline-desc">MVP map, Socket.IO connection, basic HUD</span>
+                </div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W4 3/23</span>
+                  <span class="timeline-desc"
+                    >MVP integration test → fix → retest → ✅ MVP done</span
+                  >
+                </div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W5 3/30</span>
+                  <span class="timeline-desc">Game logic foundation (turns / AP / HUD)</span>
+                </div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W6 4/6</span>
+                  <span class="timeline-desc">Effects, UI polish + DB integration</span>
+                </div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W7 4/13</span>
+                  <span class="timeline-desc">Full integration test + production map</span>
+                </div>
+                <div class="timeline-row diff actual">
+                  <span class="timeline-week">W8 4/20</span>
+                  <span class="timeline-desc">PhaserBridge.js unification + 8-god system</span>
+                </div>
+                <div class="timeline-row">
+                  <span class="timeline-week">W9 4/27</span>
+                  <span class="timeline-desc">Full map feature test (FPS / errors / tutorial)</span>
+                </div>
+                <div class="timeline-row diff actual">
+                  <span class="timeline-week">W10 5/4</span>
+                  <span class="timeline-desc">Final new-code window + game balance tuning</span>
+                </div>
+                <div class="timeline-row diff actual">
+                  <span class="timeline-week">W11 5/11</span>
+                  <span class="timeline-desc"
+                    >Bug fixes + presentation prep (freeze 5/17 21:00)</span
+                  >
+                </div>
+                <div class="timeline-row diff actual">
+                  <span class="timeline-week">W12 5/18</span>
+                  <span class="timeline-desc"
+                    >Rehearsal + <strong>Presentation Day 🎉</strong></span
+                  >
+                </div>
               </div>
             </div>
           </div>
@@ -284,7 +339,7 @@
                 <div class="badge badge-orange" style="margin-bottom: 0.5rem">Step 3</div>
                 <h4 class="text-orange">Dominate in 10 Turns</h4>
                 <p style="font-size: 0.75rem; margin: 0">
-                  Hold the most districts after 10 turns — or capture everything for an instant win.
+                  Hold the most districts after 20 turns — or capture everything for an instant win.
                 </p>
               </div>
             </div>
@@ -327,9 +382,7 @@
                     <div class="badge badge-orange" style="margin-bottom: 0.4rem">
                       32 Districts (3-digit ID)
                     </div>
-                    <p style="margin: 0; font-size: 0.78rem">
-                      Buff calculation and visual area unit
-                    </p>
+                    <p style="margin: 0; font-size: 0.78rem">visual area unit</p>
                   </div>
                   <div
                     class="card"
@@ -365,7 +418,7 @@
 
         <!-- Slide 9: The 8 Gods -->
         <section>
-          <div class="slide-inner top">
+          <div class="slide-inner">
             <div class="section-label">God System</div>
             <h2>The 8 Gods — Buff Strategies</h2>
             <div class="gods-grid">
@@ -528,7 +581,8 @@
                   <span>🟢</span><span><strong>Win</strong> — you capture the enemy district</span>
                 </div>
                 <div class="win-item danger">
-                  <span>🔴</span><span><strong>Lose</strong> — you take −20 HP</span>
+                  <span>🔴</span
+                  ><span><strong>Lose</strong> — Damage = Enemy ATK − Defenseyou take −20 HP</span>
                 </div>
                 <div class="win-item instant">
                   <span>💡</span><span>Example: ATK 60 vs DEF 40 → P = 60%</span>
@@ -544,7 +598,7 @@
 
         <!-- Slide 12: Action Menu -->
         <section>
-          <div class="slide-inner top">
+          <div class="slide-inner">
             <div class="section-label">Actions</div>
             <h2>Action Menu</h2>
             <table class="action-table" style="margin-top: 0.75rem">
@@ -600,7 +654,7 @@
               <div class="win-item primary">
                 <span style="font-size: 1.2rem">🏆</span>
                 <div>
-                  <div style="font-weight: 700">Most Districts at Turn 10</div>
+                  <div style="font-weight: 700">Most Districts at Turn 20</div>
                   <div style="font-size: 0.75rem; color: var(--text-muted)">
                     Hold more spots than anyone else when the timer expires
                   </div>
@@ -628,8 +682,8 @@
             <div class="glass-panel" style="margin-top: 1rem">
               <span class="text-orange" style="font-weight: 700">Strategy tip:</span>
               <span style="font-size: 0.82rem">
-                Capture districts to activate local buffs, then use the faith multiplier to snowball
-                into late-game dominance.</span
+                Assess opponent positions and secure spots efficiently in early game. Ports and
+                airports enable fast inter-island movement</span
               >
             </div>
           </div>
@@ -740,7 +794,7 @@
 
         <!-- Slide 16: Why This Stack? -->
         <section>
-          <div class="slide-inner top">
+          <div class="slide-inner">
             <div class="section-label">Tech Choices</div>
             <h2>Why This Stack?</h2>
             <div class="stack-list" style="margin-top: 0.75rem">
@@ -809,28 +863,28 @@
                     class="card"
                     style="font-family: &quot;Courier New&quot;, monospace; font-size: 0.78rem"
                   >
-                    <span class="text-orange">feature/phaser-*</span
+                    <span class="text-orange">feature/akira-*</span
                     ><span class="text-muted"> → Akira</span>
                   </div>
                   <div
                     class="card"
                     style="font-family: &quot;Courier New&quot;, monospace; font-size: 0.78rem"
                   >
-                    <span class="text-cyan">feature/react-*</span
+                    <span class="text-cyan">feature/issei-*</span
                     ><span class="text-muted"> → Issei</span>
                   </div>
                   <div
                     class="card"
                     style="font-family: &quot;Courier New&quot;, monospace; font-size: 0.78rem"
                   >
-                    <span class="text-green">feature/socket-*</span
+                    <span class="text-green">feature/kei-*</span
                     ><span class="text-muted"> → Kei</span>
                   </div>
                   <div
                     class="card"
                     style="font-family: &quot;Courier New&quot;, monospace; font-size: 0.78rem"
                   >
-                    <span style="color: #818cf8">feature/api-*</span
+                    <span style="color: #818cf8">feature/nao-*</span
                     ><span class="text-muted"> → Nao</span>
                   </div>
                   <div class="card" style="font-size: 0.78rem; border-color: var(--red-err)">
@@ -1410,7 +1464,7 @@
                     Lose
                   </div>
                   <p style="font-size: 0.78rem; margin-top: 0.4rem; margin-bottom: 0">
-                    Attacker HP −20. District unchanged. No client-side override.
+                    Damage based on ATK/DEF difference. District unchanged. No client-side override.
                   </p>
                 </div>
               </div>
@@ -1479,7 +1533,7 @@
 
         <!-- Slide 30: Real-Time Sync Challenges -->
         <section>
-          <div class="slide-inner top">
+          <div class="slide-inner">
             <div class="section-label">Gotchas</div>
             <h2>Real-Time Sync Challenges</h2>
             <div class="gotcha-list">
@@ -1767,9 +1821,9 @@
 
         <!-- ■ LESSONS LEARNED ────────────────────────────────── -->
 
-        <!-- Slide 35: Top 5 Bugs -->
+        <!-- Slide 35: Top 5 Bugs We Fought -->
         <section>
-          <div class="slide-inner top">
+          <div class="slide-inner">
             <div class="section-label">Post-Mortem</div>
             <h2>Top 5 Bugs We Fought</h2>
             <div class="bug-list">
@@ -1783,24 +1837,12 @@
                   </div>
                 </div>
               </div>
+
               <div class="bug-item">
                 <span class="bug-icon">🐛</span>
                 <div>
                   <div class="bug-text">
-                    <strong>TMJ layer name mismatch</strong> — <code>districtName</code> renamed in
-                    Tiled editor
-                  </div>
-                  <div class="bug-fix">
-                    Fix: Always verify Tiled layer names after export. Changing "districtName" makes
-                    all districts disappear.
-                  </div>
-                </div>
-              </div>
-              <div class="bug-item">
-                <span class="bug-icon">🐛</span>
-                <div>
-                  <div class="bug-text">
-                    <strong>territoryUpdated typo</strong> — missing trailing 'd'
+                    <strong>territoryUpdated typo — missing trailing 'd'</strong>
                   </div>
                   <div class="bug-fix">
                     Fix: Use SERVER_EVENTS.TERRITORY_UPDATED constant. Never write event names as
@@ -1808,6 +1850,7 @@
                   </div>
                 </div>
               </div>
+
               <div class="bug-item">
                 <span class="bug-icon">🐛</span>
                 <div>
@@ -1816,19 +1859,33 @@
                   </div>
                   <div class="bug-fix">
                     Fix: Use <code>origin: "*"</code> (string). Wildcard in array form is rejected
-                    by Socket.IO.
+                    by Socket.IO with no error message.
                   </div>
                 </div>
               </div>
+
               <div class="bug-item">
                 <span class="bug-icon">🐛</span>
                 <div>
                   <div class="bug-text">
-                    <strong>fromDistrictId captured after movePlayer()</strong>
+                    <strong>Database connection failure — MySQL not running on host PC</strong>
                   </div>
                   <div class="bug-fix">
-                    Fix: <code>const fromId = this.currentDistrictId</code> must be saved before
-                    calling movePlayer().
+                    Fix: Always verify XAMPP MySQL is running before testing. Confirm IP in .env
+                    matches actual network state.
+                  </div>
+                </div>
+              </div>
+
+              <div class="bug-item">
+                <span class="bug-icon">🐛</span>
+                <div>
+                  <div class="bug-text">
+                    <strong>Spots not clickable / not displayed on map</strong>
+                  </div>
+                  <div class="bug-fix">
+                    Fix: Verify 5-digit spot IDs are consistent across Tiled TMJ, ADJACENCY map, and
+                    DISTRICTS_MASTER. One mismatch hides everything.
                   </div>
                 </div>
               </div>
@@ -1917,14 +1974,14 @@
               <div class="achieve-item">
                 <span class="achieve-icon">✅</span>
                 <span
-                  ><strong>MVP Complete</strong> — Move → Capture → Battle cycle fully
+                  ><strong>Project Complete</strong> — Move → Capture → Battle cycle fully
                   playable</span
                 >
               </div>
               <div class="achieve-item">
                 <span class="achieve-icon">✅</span>
                 <span
-                  ><strong>Real-Time 4-Player + NPC</strong> — synchronized over ZeroTier LAN</span
+                  ><strong>Real-Time up to 4 players including NPCs</strong> — synchronized over ZeroTier LAN</span
                 >
               </div>
               <div class="achieve-item">

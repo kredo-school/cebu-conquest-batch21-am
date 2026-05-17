@@ -45,6 +45,14 @@ function extractSpotId(obj) {
   const byPropName = normalizeId(obj.properties?.[0]?.name);
   if (byPropName != null && byPropName >= 10000) return byPropName;
 
+  // 方式A': properties[0].name の先頭5桁以上が数値（タイポ対応: "11304fsss" → 11304）
+  const propName0 = obj.properties?.[0]?.name ?? "";
+  const propLeadMatch = propName0.match(/^(\d{5,})/);
+  if (propLeadMatch) {
+    const v = normalizeId(propLeadMatch[1]);
+    if (v != null && v >= 10000) return v;
+  }
+
   // 方式B: "spot_id" または "id" という名前のプロパティの value
   const byNamedProp = obj.properties?.find((p) => p.name === "spot_id" || p.name === "id")?.value;
   if (byNamedProp != null) {
@@ -87,6 +95,16 @@ function pointInPolygon(point, polygon) {
     if (intersect) inside = !inside;
   }
   return inside;
+}
+
+// ポリゴンの面積をshoelace公式で計算（クリック優先度の判定用）
+function _calcPolygonArea(polygon) {
+  let area = 0;
+  const n = polygon.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    area += (polygon[j].x + polygon[i].x) * (polygon[j].y - polygon[i].y);
+  }
+  return Math.abs(area / 2);
 }
 
 // point オブジェクト用: 中心 (cx, cy) に半径 r の正 sides 角形を生成
@@ -897,24 +915,22 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _handleSpotClick(spotObj) {
-    if (import.meta.env.DEV) {
-      console.log("[_handleSpotClick] 呼ばれた:", {
-        name: spotObj.name,
-        properties: spotObj.properties,
-        id: spotObj.id,
-      });
-    }
-
     // TMJ properties[0].name がスポットID（文字列 → Number に正規化）
+    // ※ spotObj.id は Tiled の内部オブジェクトID（連番）であり spot_id ではない
     const spotId = extractSpotId(spotObj); // ← ヘルパー関数に統一
     if (spotId == null) {
       if (import.meta.env.DEV) {
         console.error(
-          "[_handleSpotClick] normalizeId が null を返した。properties を確認:",
+          "[_handleSpotClick] spotId を特定できませんでした (Tiledオブジェクト内部id=" +
+            spotObj.id +
+            ")。TMJ properties を確認:",
           spotObj.properties,
         );
       }
       return;
+    }
+    if (import.meta.env.DEV) {
+      console.log(`[_handleSpotClick] spotId=${spotId} name="${spotObj.name}"`);
     }
 
     const d = this.districts[spotId];
@@ -1008,8 +1024,9 @@ export default class MainScene extends Phaser.Scene {
       SoundManager.playSE("se_click_non_button");
       this._pendingTargetId = spotId;
 
-      const targetOwner = (d?.owner ?? "neutral").toLowerCase();
-      const isMyTerritory = targetOwner === this._myTeam;
+      // d.owner は socket.id または "neutral" で保持される（チーム名ではない）
+      const targetOwner = d?.owner ?? "neutral";
+      const isMyTerritory = targetOwner === socket.id;
       const isNeutral = targetOwner === "neutral";
 
       // 5桁のspotIdから3桁のdistrictIdを算出（算術変換、文字列スライス禁止）
@@ -1074,13 +1091,27 @@ export default class MainScene extends Phaser.Scene {
   _getDistrictAtPoint(x, y) {
     let hitId = null;
     let highestPriority = 0;
+    // spot同士で重なる場合、面積が小さい（より精密な）spotを優先するための変数
+    let smallestArea = Infinity;
+
     const priority = { spotName: 4, districtName: 3, areaName: 2, islandName: 1 };
+
     for (const d of Object.values(this.districts)) {
-      if (pointInPolygon({ x, y }, d.polygon)) {
-        const p = priority[d.type] || 0;
-        if (p > highestPriority) {
+      if (!pointInPolygon({ x, y }, d.polygon)) continue;
+
+      const p = priority[d.type] || 0;
+
+      if (p > highestPriority) {
+        // より高いpriorityのレイヤーが見つかった場合は無条件で採用
+        hitId = d.id;
+        highestPriority = p;
+        smallestArea = _calcPolygonArea(d.polygon);
+      } else if (p === highestPriority && p === priority.spotName) {
+        // 同じspotName同士で重なっている場合、面積の小さい方（より精密）を優先
+        const area = _calcPolygonArea(d.polygon);
+        if (area < smallestArea) {
           hitId = d.id;
-          highestPriority = p;
+          smallestArea = area;
         }
       }
     }
@@ -1205,7 +1236,8 @@ export default class MainScene extends Phaser.Scene {
     if (this._playerFrame) this._playerFrame.destroy();
 
     // ── テクスチャ存在チェック ────────────────────────────────
-    const hasTexture = this._avatarKey && this.textures.exists(this._avatarKey);
+    // _avatarKey が null（未選択）or textures に未登録の場合はオレンジ丸にフォールバック
+    const hasTexture = this._avatarKey != null && this.textures.exists(this._avatarKey);
 
     if (hasTexture) {
       // ── 神アバター画像で表示 ──────────────────────────────
@@ -1233,7 +1265,10 @@ export default class MainScene extends Phaser.Scene {
     } else {
       // ── フォールバック: オレンジの丸 ─────────────────────
       if (import.meta.env.DEV) {
-        console.warn(`[_placePlayer] texture "${this._avatarKey}" not found → circle fallback`);
+        // _avatarKey が null なら SET_AVATAR 未受信（神未選択）、文字列なら画像ロード失敗
+        console.warn(
+          `[_placePlayer] avatar key=${this._avatarKey ?? "(not set)"} → circle fallback`,
+        );
       }
       const PLAYER_RADIUS = 14;
       this.player = this.add

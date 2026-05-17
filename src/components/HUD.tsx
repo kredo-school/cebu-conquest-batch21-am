@@ -278,7 +278,7 @@ export const HUD: React.FC<HUDProps> = memo(() => {
             )}
           </div>
 
-          <div className={`flex gap-5 items-end transition-all duration-500 ${isMyTurn && !isSubmitted ? 'opacity-100' : 'opacity-30'}`}>
+          <div className={`flex gap-5 items-end transition-all duration-500 ${isMyTurn && !isSubmitted ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
             <button onClick={handleAttack} disabled={!canAttack} className={`relative overflow-hidden w-40 h-20 rounded-lg font-black italic tracking-tighter transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-xl ${canAttack ? 'bg-orange-600 text-white shadow-[0_0_30px_rgba(234,88,12,0.4)]' : 'bg-slate-900/80 text-slate-600 border border-slate-800'}`}>
               <span className="material-symbols-outlined text-2xl">swords</span>
               <span className="font-fix uppercase text-base">Attack ({finalAtk})</span>
