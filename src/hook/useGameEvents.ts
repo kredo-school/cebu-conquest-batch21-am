@@ -95,8 +95,10 @@ export const useGameEvents = () => {
       const currentView = useGameStore.getState().view;
       const payload = data as SyncStatePayload; 
 
-      // Reactのストア更新（内部で配列変換などを行う）
-      syncServerState(payload as unknown as Record<string, unknown>, myId);
+      // Reactのストア更新
+      // ★根本修正: closure の stale myId ではなく socket.id を直接使う
+      // myId が "" のまま固定されると syncServerState が isMyTurn: false を全員に上書きし続ける
+      syncServerState(payload as unknown as Record<string, unknown>, socket.id || useGameStore.getState().myId);
 
       // LobbyUI用の更新
       if (payload.players) {
@@ -160,12 +162,10 @@ export const useGameEvents = () => {
     const handleTurnStart = (data: unknown) => {
       const payload = data as { turnOwnerId?: string; turn: number; isMyTurn?: boolean };
       const isMe = payload.isMyTurn !== undefined ? payload.isMyTurn : payload.turnOwnerId === myId;
+      console.log(`[TURN_START] turn=${payload.turn} isMyTurn=${isMe} turnOwnerId=${payload.turnOwnerId} mySocketId=${socket.id}`);
       // ★修正1: ターン開始時に isSubmitted を false にリセット
-      // endTurn() で true になった isSubmitted がそのまま残るとActionPanelが次ターン以降も非表示になる
       setStatus({ isMyTurn: isMe, turn: payload.turn, isSubmitted: false });
       emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, { turn: payload.turn, isMyTurn: isMe });
-
-      // 🚀 修正: キャストなしでそのまま null を渡す
       updateSelectedDistrict(null);
     };
 

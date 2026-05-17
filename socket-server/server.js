@@ -282,6 +282,7 @@ function processNpcTurn(roomId) {
 // 🔄 ターン終了処理とゲーム終了判定
 // ==========================================
 function finalizeTurn(roomId, currentId) {
+    console.log(`[finalizeTurn] roomId=${roomId} currentId=${currentId}`);
     const roomState = rooms.get(roomId);
     if (!roomState) return;
 
@@ -307,14 +308,19 @@ function finalizeTurn(roomId, currentId) {
 
     if (roomState.turn > roomState.maxTurn || isAllConquered || isSomeoneDead) {
         handleGameOver(roomId, playerIds);
-        return; 
+        return;
     }
 
+    console.log(`[finalizeTurn] nextId=${nextId} turn=${roomState.turn} → TURN_START emit`);
     io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
-    io.to(roomId).emit(SERVER_EVENTS.TURN_START, {
-        turn: roomState.turn,
-        turnOwnerId: nextId,
-        turnOwnerName: roomState.players[nextId]?.username
+    // 各プレイヤーに isMyTurn を明示的に送る（client の myId 比較に依存しない）
+    playerIds.forEach(playerId => {
+        io.to(playerId).emit(SERVER_EVENTS.TURN_START, {
+            turn: roomState.turn,
+            turnOwnerId: nextId,
+            turnOwnerName: roomState.players[nextId]?.username,
+            isMyTurn: playerId === nextId
+        });
     });
 
     if (roomState.players[nextId]?.isNpc) {
@@ -711,10 +717,14 @@ io.on('connection', (socket) => {
                 
                 io.to(roomId).emit(SERVER_EVENTS.GAME_START);
                 io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
-                io.to(roomId).emit(SERVER_EVENTS.TURN_START, { 
-                    turn: 1, 
-                    turnOwnerId: firstId,
-                    turnOwnerName: roomState.players[firstId]?.username 
+                // 各プレイヤーに isMyTurn を明示的に送る
+                playerIds.forEach(playerId => {
+                    io.to(playerId).emit(SERVER_EVENTS.TURN_START, {
+                        turn: 1,
+                        turnOwnerId: firstId,
+                        turnOwnerName: roomState.players[firstId]?.username,
+                        isMyTurn: playerId === firstId
+                    });
                 });
                 io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`⚔️ 作戦開始！全オペレーターの同期に成功しました。`);
             } else {
@@ -864,7 +874,7 @@ io.on('connection', (socket) => {
 
         } finally {
             roomState.isProcessingAction = false;
-            io.to(roomId).emit(SERVER_EVENTS.ACTION_RESULT, { state: sanitizeRoomState(roomState) });
+            socket.emit(SERVER_EVENTS.ACTION_RESULT, { state: sanitizeRoomState(roomState) }); // 自分だけに送る
             io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
         }
 
@@ -875,6 +885,7 @@ io.on('connection', (socket) => {
         const _autoSid = socket.id;
         setTimeout(() => {
             const _st = rooms.get(_autoRid);
+            console.log(`[setTimeout] turnOwnerId=${_st?.turnOwnerId} _autoSid=${_autoSid} status=${_st?.status}`);
             if (_st && _st.turnOwnerId === _autoSid && _st.status === 'playing') {
                 finalizeTurn(_autoRid, _autoSid);
             }
@@ -902,7 +913,7 @@ io.on('connection', (socket) => {
 
         p.isDefending = true;
         io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🛡️ ${p.username}: 守りを固めました（次の攻撃への防御力1.5倍）。`);
-        io.to(roomId).emit(SERVER_EVENTS.ACTION_RESULT, { state: sanitizeRoomState(roomState) });
+        socket.emit(SERVER_EVENTS.ACTION_RESULT, { state: sanitizeRoomState(roomState) }); // 自分だけに送る
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
         // ★ v3追加
         const _rid = roomId, _sid = socket.id;
@@ -932,7 +943,7 @@ io.on('connection', (socket) => {
             p.hp = Math.max(0, p.hp - 50);
             io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `💥 ${p.username}: 逃げ場がなくダメージを受けた！`);
         }
-        io.to(roomId).emit(SERVER_EVENTS.ACTION_RESULT, { state: sanitizeRoomState(roomState) });
+        socket.emit(SERVER_EVENTS.ACTION_RESULT, { state: sanitizeRoomState(roomState) }); // 自分だけに送る
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
         // ★ v3追加（ACTION_ESCAPE末尾）
         const _rid = roomId, _sid = socket.id;
