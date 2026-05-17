@@ -1,14 +1,13 @@
+/// <reference types="vite/client" />
 import React, { useEffect, useMemo, memo } from 'react';
 import { useGameStore } from '../store';
 import SoundManager from '../game/SoundManager';
 
-// 🚀 ESLint警告対策：anyを使わず、隣接チェックに必要な型を定義
 interface Territory {
   district_id: number;
   neighbors?: number[];
 }
 
-// 🚀 React.memoでラップし、不要なレンダリングをガード 
 export const BattleModal: React.FC = memo(() => {
   const { 
     predictionModalOpen, 
@@ -21,7 +20,7 @@ export const BattleModal: React.FC = memo(() => {
     lookupData 
   } = useGameStore();
 
-  // ✅ lookupData を使って安全にターゲット情報を取得
+  // ✅ Secure target info dynamically via lookupData mapping
   const targetParsed = useMemo(() => {
     if (!targetDistrictInfo || !lookupData || !lookupData.districts) return null;
     
@@ -39,7 +38,7 @@ export const BattleModal: React.FC = memo(() => {
     };
   }, [targetDistrictInfo, lookupData]);
 
-  // 🚀 隣接チェックロジック
+  // 🚀 Neighbor proximity detection logic
   const isAdjacent = useMemo(() => {
     if (!targetDistrictInfo || !masterData || selectedDistrictId === null) return false;
     
@@ -47,7 +46,7 @@ export const BattleModal: React.FC = memo(() => {
     return current?.neighbors?.includes(Number(targetDistrictInfo.id)) || false;
   }, [targetDistrictInfo, masterData, selectedDistrictId]);
 
-  // 🚨 敵からの被弾アラート用ロジック
+  // 🚨 Incoming strike detection logic from opponent store triggers
   useEffect(() => {
     const handleIncomingAttack = () => {
       if (!useGameStore.getState().isMyTurn) {
@@ -61,7 +60,7 @@ export const BattleModal: React.FC = memo(() => {
 
   const handleDefense = () => {
     try { SoundManager.playSe('click'); } catch {}
-    addLog("🛡️ 防御態勢を展開！ダメージを軽減します。");
+    addLog("🛡️ Defensive stance deployed! Mitigating incoming damage vectors.");
     setUnderAttack(false);
   };
 
@@ -71,16 +70,15 @@ export const BattleModal: React.FC = memo(() => {
     setUnderAttack(false);
   };
 
-  // ⚔️ バトルロジック変数
+  // ⚔️ Engagement resolution variables
   let isMyTerritory = false;
   let isNeutral = false;
   let isEnemy = false;
   let finalAtk = 0;
   let enemyDef = 40;
   let winRate = 0;
-  // 🚀 修正: コスト表記を文字列にし、敵陣攻撃時の変動コスト(5-20)に対応
   let displayApCost: string | number = 5; 
-  let requiredApCost = 5; // アクション可能な最低AP
+  let requiredApCost = 5; 
   let canAction = false;
 
   let themeColor = 'text-orange-500';
@@ -99,13 +97,12 @@ export const BattleModal: React.FC = memo(() => {
     enemyDef = targetDistrictInfo.enemyDef || 40;
     winRate = (finalAtk / (finalAtk + enemyDef)) * 100;
 
-    // 🚀 GDD v4.1準拠: 敵陣への攻撃は5〜20の変動コスト
+    // 🚀 GDD v4.1: Hostile assault initiates a fluctuating AP load (5-20)
     if (isEnemy) {
       displayApCost = '5-20';
-      requiredApCost = 5; // 実行自体は最低5APあれば可能とする
+      requiredApCost = 5; 
     }
 
-    // 🚀 リンク状況と最低APの両方が揃った時だけアクション可能
     canAction = isAdjacent && ap >= requiredApCost;
 
     if (isMyTerritory) {
@@ -129,7 +126,6 @@ export const BattleModal: React.FC = memo(() => {
     if (!targetDistrictInfo || !canAction) return;
     try { SoundManager.playSe('click'); } catch {}
     
-    // アクション実行直後にモーダルを閉じる（二重送信防止と強制クリア）
     closePrediction();
 
     if (isMyTerritory) {
@@ -139,7 +135,6 @@ export const BattleModal: React.FC = memo(() => {
     }
   };
 
-  // 🚀 重大バグ回避: 自分のターンではない時は、たとえ predictionModalOpen が true でも絶対に表示しない
   if ((!predictionModalOpen || !isMyTurn) && !isUnderAttack) return null;
 
   return (
@@ -168,7 +163,7 @@ export const BattleModal: React.FC = memo(() => {
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
       `}</style>
 
-      {/* 🚨 被弾アラート UI */}
+      {/* 🚨 INCOMING ASSAULT ALERT UI */}
       {isUnderAttack && !isMyTurn && (
         <div className="absolute inset-0 z-[200] pointer-events-none overflow-hidden">
           <div className="absolute inset-0 animate-overlay-alarm pointer-events-none border-[12px] border-red-500/20"></div>
@@ -194,8 +189,7 @@ export const BattleModal: React.FC = memo(() => {
         </div>
       )}
 
-      {/* ⚔️ 攻撃・移動予測 UI */}
-      {/* isMyTurnのチェックは上の早期リターンで行っているので、ここは自分のターンのみ表示される */}
+      {/* ⚔️ STRATEGIC PREDICTION / ACTION MODAL */}
       {predictionModalOpen && targetDistrictInfo && targetParsed && (
         <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm select-none pointer-events-auto">
           <div className={`relative bg-slate-900 border-2 ${borderColor} w-[380px] rounded-2xl p-6 shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden animate-fadeIn`}>
@@ -221,7 +215,7 @@ export const BattleModal: React.FC = memo(() => {
               </div>
             </div>
 
-            {/* 🚀 リンクステータスのバッジ */}
+            {/* Link Proximity Badge */}
             <div className="flex justify-between items-center mb-4 px-1">
                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest font-fix">Link Status</span>
                <span className={`text-[10px] font-black font-fix px-2 py-0.5 rounded ${isAdjacent ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10 animate-pulse'}`}>
@@ -252,8 +246,8 @@ export const BattleModal: React.FC = memo(() => {
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-6 relative z-10 text-left">
                 <p className="text-[11px] text-slate-400 font-bold leading-relaxed font-fix">
                   {isMyTerritory 
-                    ? "本陣をこの地区に移動します。移動後はこの地区からの隣接エリアにしか攻撃できなくなります。" 
-                    : "この地区は現在無人です。戦闘なしで無血占領し、領土を拡大することが可能です。"}
+                    ? "Relocates your neural command base to this district. Following redeployment, tactical actions can only be initiated from spots adjacent to this grid." 
+                    : "This district is currently vacant. Secure bloodless annexation without engagement to expand your network grid dominance."}
                 </p>
               </div>
             )}
@@ -271,7 +265,6 @@ export const BattleModal: React.FC = memo(() => {
                 className={`flex-[2] text-white font-black py-3 rounded-lg text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 ${canAction ? btnClass : 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none grayscale opacity-60'}`}
               >
                 <span className="font-fix">
-                  {/* 🚀 APコストの表記を修正 */}
                   {!isAdjacent ? 'OUT OF RANGE' : (ap >= requiredApCost ? `${actionText} (-${displayApCost} AP)` : 'NO AP')}
                 </span>
               </button>
@@ -282,3 +275,5 @@ export const BattleModal: React.FC = memo(() => {
     </>
   );
 });
+
+export default BattleModal;

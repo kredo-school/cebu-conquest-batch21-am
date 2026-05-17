@@ -1,14 +1,13 @@
-// src/components/TutorialView.tsx
+/// <reference types="vite/client" />
 import React, { useState, memo } from 'react';
 import { useGameStore } from '../store';
 
 /**
- * 🛰️ TutorialView: 新規プレイヤーへの作戦ブリーフィング画面
- * 仕様: v3.0 5島制覇・8神体制・5桁ID体系準拠
- * v4.1: 勝利条件、APコスト、バトルロジック、バフ計算をGDDに完全準拠
+ * 🛰️ TutorialView: Tactical briefing terminal for new operators.
+ * Specification: v3.0 5-Island Conquest / 8-God Pantheon / 5-Digit System Compliant
+ * v4.1: Fully synchronized with GDD victory conditions, AP parameters, combat resolution, and buff multipliers.
  */
 
-// ✅ プロップスの型定義を追加 (App.tsx のエラー解消)
 interface TutorialViewProps {
   onComplete: () => void;
 }
@@ -16,10 +15,10 @@ interface TutorialViewProps {
 const TUTORIAL_STEPS = [
   {
     title: "MISSION OBJECTIVE",
-    subtitle: "作戦目的と勝利条件",
+    subtitle: "Operation parameters & victory conditions",
     content: [
-      "全島の完全制覇、または10ターン終了時に最もspotの占有率が高いプレイヤーが勝利となる。",
-      "HPが0になった時点で即時敗北（ゲームオーバー）となる。リスポーンは一切行われない。"
+      "Achieve total conquest of all islands, or secure the highest district occupancy rate by the end of Turn 10 to claim ultimate victory.",
+      "Immediate elimination (Game Over) occurs the moment your HP drops to 0. Neural link respawns are strictly unavailable."
     ],
     accent: "border-orange-500",
     textAccent: "text-orange-500",
@@ -27,11 +26,11 @@ const TUTORIAL_STEPS = [
   },
   {
     title: "RESOURCE MANAGEMENT",
-    subtitle: "生命線：HPとAP",
+    subtitle: "The combat lifelines: HP and AP",
     content: [
-      "HP (体力): バトル敗北などで減少。0になると即時敗北となるため、慎重な判断が求められる。",
-      "AP (スタミナ): アクション実行に消費。空き地占領は「AP-5」、敵陣攻撃は「AP-5〜-20」を消費する。",
-      "Stay (待機): APを消費せずに、HPを「+20」、APを「+30」回復する（上限100）。"
+      "HP (Vitality): Depleted upon combat failure or critical penalties. Reaching 0 results in instant death—tactical caution is mandatory.",
+      "AP (Action Points): Consumed by executing all operational commands. Occupying a vacant spot drains 5 AP; attacking enemy sectors costs between 5 to 20 AP.",
+      "Stay (Standby): Skip your action phase to synchronize networks, recovering +20 HP and +30 AP (capped at 100)."
     ],
     accent: "border-cyan-500",
     textAccent: "text-cyan-500",
@@ -39,11 +38,11 @@ const TUTORIAL_STEPS = [
   },
   {
     title: "TACTICAL ACTIONS",
-    subtitle: "戦術コマンドとバトルロジック",
+    subtitle: "Combat protocols & engagement resolution",
     content: [
-      "攻撃: 隣接する空き地を無条件で占領、または敵陣へ攻撃を仕掛ける。敵陣攻撃に敗北するとHP-20のダメージを受ける。",
-      "防御 / 逃げる: 防御は被攻撃時に両者のステータス差異で判定される。逃げるは自陣へ撤退するが、逃げ場がないとHP-50のペナルティ。",
-      "バトルロジック: バトルの勝敗は、攻撃側のATK(A)と防御側のDEF(D)による比例確率「P = A / (A + D)」で算出される。"
+      "Attack: Instantly annex adjacent vacant spots or launch an offensive into hostile territory. Failing an infiltration assault inflicts a severe -20 HP damage penalty.",
+      "Defend / Retreat: Defense efficiency is calculated via status differentials upon being breached. Retreating pulls you back to safety, but failing to secure an escape vectors triggers a catastrophic -50 HP penalty.",
+      "Combat Resolution: Engagements are resolved via proportional probability matrix derived from the attacker's ATK (A) and defender's DEF (D): $P = A / (A + D)$."
     ],
     accent: "border-orange-500",
     textAccent: "text-orange-500",
@@ -51,11 +50,11 @@ const TUTORIAL_STEPS = [
   },
   {
     title: "FAITH & SPECIALTY",
-    subtitle: "神の加護と特産品バフ",
+    subtitle: "Divine alignment & regional modifier matrices",
     content: [
-      "神の加護: 8柱の神々から一柱を選択し、強力な初期ボーナスを得よ。試合中の変更はできない。",
-      "特産品バフ: 陣地（spot）を占領すると、その地区に紐づく特産品バフが付与されステータスを強化する。",
-      "信仰力 (Faith): 最終的なATK/DEFは、基礎値とバフの加算値に、この信仰力を「乗算」して決定される。"
+      "Divine Covenant: Form a link with one of the 8 guardian deities at deployment to unlock critical baseline perks. This neural sync cannot be modified mid-game.",
+      "Specialty Buffs: Annexing specific hotspots triggers local specialty modifiers, permanently reinforcing your operational status parameters.",
+      "Faith Multiplier: Final combat threshold outputs are determined by multiplying the aggregate of your base stats and specialty modifiers by your Faith coefficient."
     ],
     accent: "border-cyan-500",
     textAccent: "text-cyan-500",
@@ -63,7 +62,6 @@ const TUTORIAL_STEPS = [
   }
 ];
 
-// ✅ React.FC<TutorialViewProps> で型を適用し、onComplete を受け取る
 export const TutorialView: React.FC<TutorialViewProps> = memo(({ onComplete }) => {
   const { completeTutorial } = useGameStore();
   const [currentStep, setCurrentStep] = useState(0);
@@ -72,9 +70,7 @@ export const TutorialView: React.FC<TutorialViewProps> = memo(({ onComplete }) =
 
   const handleNext = () => {
     if (isLastStep) {
-      // 🚀 1. Zustandのフラグ更新 (localStorage永続化)
       completeTutorial(); 
-      // 🚀 2. App.tsx から渡された遷移処理を実行
       onComplete(); 
     } else {
       setCurrentStep(prev => prev + 1);
@@ -86,17 +82,17 @@ export const TutorialView: React.FC<TutorialViewProps> = memo(({ onComplete }) =
   return (
     <div className="absolute inset-0 z-[50000] bg-slate-950 font-body text-slate-200 select-none flex items-center justify-center p-4 overflow-hidden">
       
-      {/* 🌌 背景グリッド: 脈動するスキャンラインエフェクト */}
+      {/* 🌌 Background grid with pulsating scanline effect */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(249,115,22,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(249,115,22,0.03)_1px,transparent_1px)] bg-[size:50px_50px] animate-gridPulse pointer-events-none"></div>
       
       <div className={`w-full max-w-4xl min-h-[65vh] flex flex-col bg-zinc-950/90 border-t-2 border-b-2 ${step.accent} ${step.glow} relative backdrop-blur-2xl transition-all duration-700 ease-in-out`}>
         
-        {/* 🛠️ 装飾コーナービット */}
+        {/* Corner Decals */}
         <div className={`absolute -top-1 -left-1 w-12 h-12 border-t-4 border-l-4 ${step.accent} opacity-50`}></div>
         <div className={`absolute -bottom-1 -right-1 w-12 h-12 border-b-4 border-r-4 ${step.accent} opacity-50`}></div>
 
         <div className="flex-1 p-16 flex flex-col justify-center relative overflow-hidden">
-          {/* 背景の大きなステップ数 */}
+          {/* Large background step indicator */}
           <div className="absolute -right-10 -bottom-20 text-[20rem] font-black italic opacity-5 text-white pointer-events-none font-fix">
             0{currentStep + 1}
           </div>
@@ -125,7 +121,7 @@ export const TutorialView: React.FC<TutorialViewProps> = memo(({ onComplete }) =
           </div>
         </div>
 
-        {/* 🧭 下部ナビゲーション */}
+        {/* 下部ナビゲーション */}
         <div className="px-12 py-10 flex items-center justify-between border-t border-white/5 bg-white/5 backdrop-blur-md">
           <div className="flex gap-3">
             {TUTORIAL_STEPS.map((_, i) => (
@@ -152,7 +148,7 @@ export const TutorialView: React.FC<TutorialViewProps> = memo(({ onComplete }) =
         </div>
       </div>
 
-      {/* ⚡ スキップボタン: 熟練コマンダー用 */}
+      {/* スキップボタン */}
       <button 
         onClick={() => { completeTutorial(); onComplete(); }}
         className="absolute bottom-10 text-[11px] font-black text-zinc-600 hover:text-orange-500 uppercase tracking-[0.3em] transition-all hover:scale-110 font-fix"
@@ -178,3 +174,5 @@ export const TutorialView: React.FC<TutorialViewProps> = memo(({ onComplete }) =
     </div>
   );
 });
+
+export default TutorialView;

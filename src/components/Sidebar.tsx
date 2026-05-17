@@ -1,4 +1,4 @@
-// src/components/Sidebar.tsx
+/// <reference types="vite/client" />
 import React, { useMemo, memo } from 'react';
 import { useGameStore } from '../store';
 
@@ -8,16 +8,16 @@ interface SidebarProps {
   onOpenInventory: () => void;
 }
 
-// 🚀 神のバフデータを定義
+// 🚀 Define Guardian God modifier matrix values
 const GOD_BUFFS: Record<number, { hp?: number; atk?: number; def?: number; ap?: number }> = {
-  1: { hp: 40 },      // Neil: MAX_HP +30, HP +10
-  2: { atk: 20 },     // Garry: ATK +20
+  1: { hp: 40 },         // Neil: MAX_HP +30, HP +10
+  2: { atk: 20 },        // Garry: ATK +20
   3: { hp: 10, ap: 15 }, // Shem: HP +10, MAX_AP +15
-  4: { hp: -20 },     // Quisie: HP -20
-  5: { def: 15 },     // Eduardo: DEF +15
-  6: { hp: -10 },     // Kurt: HP -10
-  7: {},              // Stephen: FAITH_REGEN (Passive)
-  8: { ap: 30 },      // Bernardine: MAX_AP +30
+  4: { hp: -20 },        // Quisie: HP -20
+  5: { def: 15 },        // Eduardo: DEF +15
+  6: { hp: -10 },        // Kurt: HP -10
+  7: {},                 // Stephen: FAITH_REGEN (Passive)
+  8: { ap: 30 },         // Bernardine: MAX_AP +30
 };
 
 export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHelp, onOpenInventory }) => {
@@ -37,12 +37,12 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
   const lookupData = useGameStore(state => state.lookupData);
   const selectedGodId = useGameStore(state => state.selectedGodId);
 
-  // 🚀 1. 実効最大値の算出（バフを反映）
+  // 🚀 1. Calculate effective maximum parameter limits reflecting active god modifiers
   const buffs = useMemo(() => (selectedGodId ? GOD_BUFFS[selectedGodId] : {}), [selectedGodId]);
   const effectiveMaxHp = useMemo(() => maxHp + (buffs.hp || 0), [maxHp, buffs.hp]);
   const effectiveMaxAp = useMemo(() => maxAp + (buffs.ap || 0), [maxAp, buffs.ap]);
 
-  // 🚀 2. 【バグ修正】現在値が表示上の最大値を超えないように制限（クランプ）
+  // 🚀 2. [Bug Fix] Clamp current gauge thresholds to safely prevent exceeding maximum constraints
   const displayHp = useMemo(() => Math.min(hp, effectiveMaxHp), [hp, effectiveMaxHp]);
   const displayAp = useMemo(() => Math.min(ap, effectiveMaxAp), [ap, effectiveMaxAp]);
 
@@ -107,7 +107,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
         .animate-pulse-red { animation: pulse-red 2s infinite; }
         .animate-energy-critical { animation: energy-critical 0.8s infinite ease-in-out; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #ea580c; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #realm-color; border-radius: 10px; }
         .font-fix { line-height: 1.2; }
       `}</style>
 
@@ -140,7 +140,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
           </div>
 
           <div className="space-y-4">
-            {/* HP ゲージ (最大値拡張反映 & 100/90バグ回避) */}
+            {/* HP Gauge Display Section */}
             <div className="space-y-2">
               <div className="flex justify-between items-end">
                 <span className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Vitality</span>
@@ -156,7 +156,7 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
               </div>
             </div>
 
-            {/* AP ゲージ (最大値拡張 ＆ 点滅演出追加) */}
+            {/* AP Gauge Display Section */}
             <div className={`space-y-2 p-2 -m-2 rounded-lg transition-all border border-transparent ${ap <= 0 ? 'animate-energy-critical' : ''}`}>
               <div className="flex justify-between items-end">
                 <span className={`text-[10px] font-black uppercase tracking-tighter ${ap <= 0 ? 'text-red-500' : 'text-slate-500'}`}>
@@ -252,3 +252,5 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
     </>
   );
 });
+
+export default Sidebar;

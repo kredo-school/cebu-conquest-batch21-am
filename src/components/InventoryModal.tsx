@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import React, { useEffect, useState, useCallback } from 'react';
 import { useGameStore } from '../store';
 
@@ -14,30 +15,30 @@ interface InventoryModalProps {
   onClose: () => void;
 }
 
-// 🚀 魔法の関数: アイテムの効果から5種類の属性スタイルを自動判定！
+// 🚀 Magic function: Automatically detects 5 distinct attribute styles based on item effects
 const getItemStyle = (effect: string = '') => {
   const e = effect.toUpperCase();
-  // ⚔️ ATK (攻撃)
-  if (e.includes('ATK') || e.includes('攻撃') || e.includes('ダメージ')) {
+  // ⚔️ ATK (Offensive)
+  if (e.includes('ATK') || e.includes('ATTACK') || e.includes('DAMAGE') || e.includes('OFFENSE')) {
     return { type: 'ATK', icon: 'swords', color: 'text-red-500', border: 'border-red-500/50', hover: 'hover:border-red-500', bg: 'bg-red-500/10', btn: 'bg-red-600 hover:bg-red-500', badge: 'bg-red-500/20 text-red-400' };
   }
-  // 🛡️ DEF (防御)
-  if (e.includes('DEF') || e.includes('防御') || e.includes('シールド')) {
+  // 🛡️ DEF (Defensive)
+  if (e.includes('DEF') || e.includes('DEFENSE') || e.includes('SHIELD')) {
     return { type: 'DEF', icon: 'shield', color: 'text-blue-500', border: 'border-blue-500/50', hover: 'hover:border-blue-500', bg: 'bg-blue-500/10', btn: 'bg-blue-600 hover:bg-blue-500', badge: 'bg-blue-500/20 text-blue-400' };
   }
-  // 💚 HP (体力)
-  if (e.includes('HP') || e.includes('体力') || e.includes('回復')) {
+  // 💚 HP (Vitality / Recovery)
+  if (e.includes('HP') || e.includes('HEALTH') || e.includes('RECOVERY') || e.includes('VITALITY')) {
     return { type: 'HP', icon: 'favorite', color: 'text-emerald-500', border: 'border-emerald-500/50', hover: 'hover:border-emerald-500', bg: 'bg-emerald-500/10', btn: 'bg-emerald-600 hover:bg-emerald-500', badge: 'bg-emerald-500/20 text-emerald-400' };
   }
-  // ⚡ AP (スタミナ/行動力)
-  if (e.includes('AP') || e.includes('行動') || e.includes('スタミナ')) {
+  // ⚡ AP (Action Points / Stamina)
+  if (e.includes('AP') || e.includes('ACTION') || e.includes('STAMINA') || e.includes('ENERGY')) {
     return { type: 'AP', icon: 'bolt', color: 'text-amber-500', border: 'border-amber-500/50', hover: 'hover:border-amber-500', bg: 'bg-amber-500/10', btn: 'bg-amber-600 hover:bg-amber-500', badge: 'bg-amber-500/20 text-amber-400' };
   }
-  // ✨ FAITH (信仰)
-  if (e.includes('FAITH') || e.includes('信仰') || e.includes('神')) {
+  // ✨ FAITH (Divine Alignment)
+  if (e.includes('FAITH') || e.includes('GOD') || e.includes('DIVINE')) {
     return { type: 'FAITH', icon: 'auto_awesome', color: 'text-fuchsia-500', border: 'border-fuchsia-500/50', hover: 'hover:border-fuchsia-500', bg: 'bg-fuchsia-500/10', btn: 'bg-fuchsia-600 hover:bg-fuchsia-500', badge: 'bg-fuchsia-500/20 text-fuchsia-400' };
   }
-  // 📦 その他 (デフォルト)
+  // 📦 Miscellaneous (Default Fallback)
   return { type: 'ITEM', icon: 'inventory_2', color: 'text-orange-500', border: 'border-orange-500/50', hover: 'hover:border-orange-500', bg: 'bg-orange-500/10', btn: 'bg-orange-600 hover:bg-orange-500', badge: 'bg-orange-500/20 text-orange-400' };
 };
 
@@ -46,7 +47,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 📦 1. インベントリ取得（初期表示用：永続化データのため PHP 経由）
+  // 📦 1. Fetch Inventory (For initial display: handled via PHP for persistent database synchronization)
   const fetchInventory = useCallback(async () => {
     setLoading(true);
     try {
@@ -55,7 +56,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
         setItems(json.data);
       }
     } catch {
-      addLog("❌ インベントリの取得に失敗しました");
+      addLog("❌ Failed to retrieve tactical inventory database link");
     } finally {
       setLoading(false);
     }
@@ -65,14 +66,14 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
     fetchInventory();
   }, [fetchInventory]);
 
-  // 📦 Zustand 側の inventory と同期
+  // 📦 Synchronize with input state on the Zustand store inventory
   useEffect(() => {
     if (inventory && Array.isArray(inventory)) {
       setItems(inventory as Item[]);
     }
   }, [inventory]);
 
-  // ⚡ 2. アイテム使用処理
+  // ⚡ 2. Item Deployment Execution
   const handleDeployItem = (itemId: number) => {
     executeUseItem(itemId);
     onClose(); 
@@ -101,7 +102,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {items.map((item) => {
                 
-                // 🏝️ 所属島の名前を解決
+                // 🏝️ Resolve parent island sector assignment names
                 let islandName = "UNKNOWN SECTOR";
                 if (lookupData) {
                   const spot = lookupData.spots.get(item.id);
@@ -113,13 +114,13 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
                   }
                 }
 
-                // 🚀 属性スタイルを取得！
+                // 🚀 Fetch responsive attribute theme style parameters
                 const style = getItemStyle(item.effect);
 
                 return (
                   <div key={item.id} className={`bg-slate-800/40 border ${style.border} ${style.hover} rounded-2xl p-4 flex gap-4 transition-all group relative overflow-hidden text-left shadow-lg`}>
                     
-                    {/* アイコン表示エリア（画像がない場合は属性アイコンを表示） */}
+                    {/* Icon Display Area (Renders responsive attribute icon if image_url is missing) */}
                     <div className={`w-16 h-16 ${style.bg} rounded-xl flex items-center justify-center border border-white/10 shrink-0 overflow-hidden relative z-10`}>
                       {item.image_url ? (
                         <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
@@ -151,7 +152,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
                       </button>
                     </div>
 
-                    {/* 🚀 背景に透かしアイコンを配置 */}
+                    {/* 🚀 Integrate sub-layer backdrop watermark icon */}
                     <div className="absolute -right-4 -bottom-4 opacity-5 pointer-events-none group-hover:scale-110 group-hover:opacity-10 transition-all duration-500">
                         <span className={`material-symbols-outlined text-[80px] ${style.color}`}>{style.icon}</span>
                     </div>
@@ -187,3 +188,5 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
     </div>
   );
 };
+
+export default InventoryModal;

@@ -1,31 +1,31 @@
-// src/components/BuffCards.tsx
+/// <reference types="vite/client" />
 import React, { memo } from 'react';
 import { useGameStore } from '../store';
 
-// 🚀 自動で効果を判別して、5種類のデザイン（色・アイコン）を返す魔法の関数
+// 🚀 Magic function to dynamically detect effect types and return 5 distinct theme designs (colors/icons)
 const getBuffStyle = (effect: string = '') => {
   const e = effect.toUpperCase();
-  // ⚔️ ATK (攻撃)
-  if (e.includes('ATK') || e.includes('攻撃')) {
+  // ⚔️ ATK (Offensive)
+  if (e.includes('ATK') || e.includes('ATTACK') || e.includes('OFFENSE')) {
     return { type: 'ATK', icon: 'swords', border: 'border-red-500', text: 'text-red-500', bg: 'bg-red-500/10', badge: 'bg-red-500/20', line: 'bg-red-500/60', gradient: 'from-red-500/0 via-red-500/5 to-red-500/0' };
   }
-  // 🛡️ DEF (防御)
-  if (e.includes('DEF') || e.includes('防御')) {
+  // 🛡️ DEF (Defensive)
+  if (e.includes('DEF') || e.includes('DEFENSE')) {
     return { type: 'DEF', icon: 'shield', border: 'border-blue-500', text: 'text-blue-500', bg: 'bg-blue-500/10', badge: 'bg-blue-500/20', line: 'bg-blue-500/60', gradient: 'from-blue-500/0 via-blue-500/5 to-blue-500/0' };
   }
-  // 💚 HP (体力)
-  if (e.includes('HP') || e.includes('体力') || e.includes('回復')) {
+  // 💚 HP (Vitality / Health)
+  if (e.includes('HP') || e.includes('HEALTH') || e.includes('RECOVERY') || e.includes('VITALITY')) {
     return { type: 'HP', icon: 'favorite', border: 'border-emerald-500', text: 'text-emerald-500', bg: 'bg-emerald-500/10', badge: 'bg-emerald-500/20', line: 'bg-emerald-500/60', gradient: 'from-emerald-500/0 via-emerald-500/5 to-emerald-500/0' };
   }
-  // ⚡ AP (スタミナ/行動力)
-  if (e.includes('AP') || e.includes('行動') || e.includes('スタミナ')) {
+  // ⚡ AP (Stamina / Action Points)
+  if (e.includes('AP') || e.includes('ACTION') || e.includes('STAMINA') || e.includes('ENERGY')) {
     return { type: 'AP', icon: 'bolt', border: 'border-amber-500', text: 'text-amber-500', bg: 'bg-amber-500/10', badge: 'bg-amber-500/20', line: 'bg-amber-500/60', gradient: 'from-amber-500/0 via-amber-500/5 to-amber-500/0' };
   }
-  // ✨ FAITH (信仰)
-  if (e.includes('FAITH') || e.includes('信仰') || e.includes('神')) {
+  // ✨ FAITH (Divine Alignment)
+  if (e.includes('FAITH') || e.includes('GOD') || e.includes('DIVINE')) {
     return { type: 'FAITH', icon: 'auto_awesome', border: 'border-fuchsia-500', text: 'text-fuchsia-500', bg: 'bg-fuchsia-500/10', badge: 'bg-fuchsia-500/20', line: 'bg-fuchsia-500/60', gradient: 'from-fuchsia-500/0 via-fuchsia-500/5 to-fuchsia-500/0' };
   }
-  // 📦 その他 (デフォルト)
+  // 📦 Miscellaneous (Default Fallback)
   return { type: 'BUFF', icon: 'extension', border: 'border-orange-500', text: 'text-orange-500', bg: 'bg-orange-500/10', badge: 'bg-orange-500/20', line: 'bg-orange-500/60', gradient: 'from-orange-500/0 via-orange-500/5 to-orange-500/0' };
 };
 
@@ -68,7 +68,7 @@ export const BuffCards: React.FC = memo(() => {
           }
         }
 
-        // 🚀 バフの効果テキストからデザインスタイルを取得！
+        // 🚀 Fetch specific UI theme style parameters based on effect text keywords
         const style = getBuffStyle(buff.effect);
 
         return (
@@ -76,14 +76,14 @@ export const BuffCards: React.FC = memo(() => {
             key={buff.id} 
             className={`group relative bg-slate-900/60 backdrop-blur-sm border-l-2 ${style.border} p-3 rounded-r-lg shadow-lg overflow-hidden transition-all hover:bg-slate-800/80`}
           >
-            {/* 右上の小さな識別コード */}
+            {/* Small identification registry code in top-right */}
             <div className={`absolute top-0 right-0 px-2 py-0.5 ${style.badge} text-[8px] font-mono ${style.text} opacity-60 font-bold font-fix group-hover:opacity-100 transition-opacity`}>
               U-{String(unitId).padStart(2, '0')}
             </div>
             
             <div className="relative z-10 text-left">
               <div className="flex items-center gap-1.5 mb-1">
-                {/* 🚀 種類ごとのマテリアルアイコンを配置 */}
+                {/* 🚀 Render responsive Material Icon corresponding to the category type */}
                 <span className={`material-symbols-outlined text-[12px] ${style.text}`}>
                   {style.icon}
                 </span>
@@ -105,7 +105,7 @@ export const BuffCards: React.FC = memo(() => {
                 </span>
               </div>
 
-              {/* 装飾ラインもテーマカラーに */}
+              {/* Decorative theme color status bars */}
               <div className="flex gap-0.5 mt-2 opacity-80">
                 <div className={`h-0.5 w-8 ${style.line}`}></div>
                 <div className={`h-0.5 w-1 ${style.line} opacity-50`}></div>
@@ -113,10 +113,10 @@ export const BuffCards: React.FC = memo(() => {
               </div>
             </div>
 
-            {/* 背景のグラデーションもテーマカラーに */}
+            {/* Dynamic theme color background overlay gradient */}
             <div className={`absolute inset-0 bg-gradient-to-b ${style.gradient} opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none`}></div>
             
-            {/* 🚀 背景にうっすら巨大なアイコンを透かして表示（超サイバーパンク！） */}
+            {/* 🚀 Giant watermark icon subtly integrated into the background for premium sci-fi aesthetics */}
             <span className={`material-symbols-outlined absolute -right-2 -bottom-2 text-[60px] ${style.text} opacity-[0.05] pointer-events-none rotate-12 group-hover:opacity-10 group-hover:scale-110 transition-all duration-500`}>
               {style.icon}
             </span>
@@ -130,3 +130,5 @@ export const BuffCards: React.FC = memo(() => {
     </div>
   );
 });
+
+export default BuffCards;

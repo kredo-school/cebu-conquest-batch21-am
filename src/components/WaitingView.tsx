@@ -5,6 +5,7 @@ import socket from '../socket';
 import SoundManager from '../game/SoundManager';
 import { GlobalNavbar } from './layout/GlobalNavbar';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../../shared/socketEvents.js';
+import { useBGM } from '../hook/useBGM';
 
 interface WaitingViewProps {
   onStart: () => void;
@@ -50,6 +51,7 @@ const GOD_TRAITS: Record<number, { name: string; img: string; icon: string; role
 const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedPlayer; isMe: boolean; isHost: boolean; myAvatar: string | null }) => {
   const godId = player.selectedGodId || player.godId;
   const god = godId ? GOD_TRAITS[godId] : null;
+  // 🚀 自分自身の ready 状態も正しく反映させるため、親から渡された isReady を使う
   const isPlayerReady = player.isReady === true || player.ready === true;
   const avatarUrl = isMe ? myAvatar : null;
   const [isHovered, setIsHovered] = useState(false);
@@ -60,15 +62,19 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
     <div 
       className={`glass-panel p-5 rounded-2xl border-l-4 flex flex-col gap-4 group transition-all duration-500 h-64 w-72 shrink-0 relative overflow-visible ${
         isPlayerReady ? 'border-l-[#fa7000] bg-orange-950/10 shadow-[0_0_30px_rgba(250,112,0,0.2)]' : 'border-l-slate-800 bg-slate-900/40 opacity-90'
-      }`}
+      } ${isHovered ? 'z-50' : 'z-10'}`} // 🚀 修正: ホバー時に最前面へ持ってくる
       style={{
         background: `radial-gradient(circle at top right, ${isPlayerReady ? 'rgba(250, 112, 0, 0.15)' : 'rgba(255, 255, 255, 0.05)'}, transparent 70%), rgba(15, 23, 42, 0.8)`
       }}
     >
-      {/* 🎨 LobbyViewと完全一致: アバター高さ h-40 */}
-      <div className="relative h-40 w-full shrink-0 overflow-hidden rounded-xl bg-slate-950 flex items-center justify-center border border-white/5">
+      {/* 🚀 修正: 画像エリア全体でホバー判定するように変更 */}
+      <div 
+        className="relative h-40 w-full shrink-0 overflow-hidden rounded-xl bg-slate-950 flex items-center justify-center border border-white/5 cursor-help"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
         {!god ? (
-          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/80">
+          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/80 pointer-events-none">
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
             <div className="w-full h-[2px] bg-[#fa7000]/20 absolute top-0 animate-scanline"></div>
             <span className="material-symbols-outlined text-4xl text-slate-700 mb-2 animate-pulse">fingerprint</span>
@@ -76,19 +82,18 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
           </div>
         ) : (
           <img 
-            className={`w-full h-full object-cover object-top transition-all duration-700 cursor-help ${!isPlayerReady ? 'opacity-40 grayscale blur-[1px]' : 'opacity-100 grayscale-0 blur-0'}`} 
+            className={`w-full h-full object-cover object-top transition-all duration-700 pointer-events-none ${!isPlayerReady ? 'opacity-40 grayscale blur-[1px]' : 'opacity-100 grayscale-0 blur-0'}`} 
             src={god.img} 
             alt="God Portrait"
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
             style={{ filter: isPlayerReady ? 'none' : undefined }}
           />
         )}
         <div className="absolute inset-0 pointer-events-none border border-white/5 m-1 rounded-lg"></div>
-        {isHost && <div className="absolute top-2 left-2 px-2 py-0.5 bg-[#fa7000] text-[9px] font-black text-black rounded uppercase shadow-lg z-10 font-fix">HOST</div>}
-        {isMe && <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-slate-900/90 text-[9px] font-black text-[#fa7000] rounded border border-[#fa7000]/30 uppercase z-10 font-fix">YOU</div>}
+        {isHost && <div className="absolute top-2 left-2 px-2 py-0.5 bg-[#fa7000] text-[9px] font-black text-black rounded uppercase shadow-lg z-10 font-fix pointer-events-none">HOST</div>}
+        {isMe && <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-slate-900/90 text-[9px] font-black text-[#fa7000] rounded border border-[#fa7000]/30 uppercase z-10 font-fix pointer-events-none">YOU</div>}
       </div>
 
+      {/* 🚀 ホバー時の神の詳細情報 */}
       {isHovered && god && (
         <div className="absolute top-0 left-full ml-4 z-[100] w-64 bg-slate-950 border border-orange-500/50 p-4 rounded-xl backdrop-blur-2xl shadow-[0_0_40px_rgba(0,0,0,0.8)] animate-fadeIn pointer-events-none text-left">
           <div className="border-l-4 border-orange-600 pl-3 py-0.5 mb-2">
@@ -118,13 +123,13 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
           {isPlayerReady ? (
              <div className="relative">
                 {isNpc ? (
-                  <div className="w-7 h-7 rounded-full border border-slate-700 bg-slate-900 flex items-center justify-center">
+                  // 🚀 NPCのアバター
+                  <div className="w-7 h-7 rounded-full border border-slate-700 bg-slate-900 flex items-center justify-center shadow-[0_0_10px_rgba(6,182,212,0.3)]">
                     <span className="material-symbols-outlined text-[16px] text-cyan-500">smart_toy</span>
                   </div>
                 ) : (
                   <img className="w-7 h-7 rounded-full border border-[#fa7000]/50 object-cover" src={god?.icon} alt="" />
                 )}
-                {/* 🚀 修正: avatarUrl を使用するバッジを復活 */}
                 {isMe && (
                   <div className="w-4 h-4 rounded-full border border-white absolute -bottom-1 -right-1 z-20 overflow-hidden bg-slate-800 flex items-center justify-center shadow-md">
                     {avatarUrl ? <img src={avatarUrl} alt="Me" className="w-full h-full object-cover" /> : <span className="material-symbols-outlined text-slate-400" style={{ fontSize: '10px' }}>person</span>}
@@ -147,16 +152,37 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
 export const WaitingView: React.FC<WaitingViewProps> = ({
   onStart, onOpenSettings, onOpenHelp, onOpenRanking, onAbort
 }) => {
-  const { players, lobbyPlayers, myId, chatLogs, roomId, playerName, maxPlayers, selectedGodId, addChatLog, playerAvatar } = useGameStore();
+  const { players, lobbyPlayers, myId, chatLogs, roomId, playerName, maxPlayers, selectedGodId, playerAvatar } = useGameStore();
   const [chatInput, setChatInput] = useState('');
   const [isLocked, setIsLocked] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const { playBGM } = useBGM();
 
+  // 🚀 BGMのフェードイン切り替え
   useEffect(() => {
-    const handleReceiveMessage = (data: ChatData) => { addChatLog(data); };
+    playBGM('waiting');
+  }, [playBGM]);
+
+  // 🚀 チャット二重送信バグ解消（依存配列を適切に設定し、複数登録を防ぐ）
+  useEffect(() => {
+    const handleReceiveMessage = (data: ChatData) => { 
+      // 重複チェック: 同じメッセージが直近にあれば弾く（簡易対策）
+      useGameStore.setState(state => {
+        const lastMsg = state.chatLogs[state.chatLogs.length - 1];
+        if (lastMsg && lastMsg.sender === data.sender && lastMsg.message === data.message && lastMsg.timestamp === data.timestamp) {
+          return state;
+        }
+        return { chatLogs: [...state.chatLogs, data].slice(-50) };
+      });
+    };
+    
+    socket.off(SERVER_EVENTS.CHAT_MESSAGE); // 古いリスナーを確実に消す
     socket.on(SERVER_EVENTS.CHAT_MESSAGE, handleReceiveMessage);
-    return () => { socket.off(SERVER_EVENTS.CHAT_MESSAGE, handleReceiveMessage); };
-  }, [addChatLog]);
+    
+    return () => { 
+      socket.off(SERVER_EVENTS.CHAT_MESSAGE, handleReceiveMessage); 
+    };
+  }, []); // 空の依存配列で初回のみ実行
 
   useEffect(() => { if (roomId) socket.emit(CLIENT_EVENTS.READY_TO_START, { roomId, ready: false }); }, [roomId]);
   useEffect(() => { if (selectedGodId) socket.emit(CLIENT_EVENTS.SELECT_GOD, { roomId, godId: selectedGodId }); }, [selectedGodId, roomId]);
@@ -246,6 +272,7 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                   return <PlayerCard key={lp.playerId} player={playerData} isMe={lp.playerId === myId} isHost={index === 0} myAvatar={playerAvatar} />;
                 }
                 return (
+                  // 🎨 LobbyViewと完全一致: h-64 w-72 p-5 rounded-2xl
                   <div key={`empty-${index}`} className="glass-panel p-5 rounded-2xl border-2 border-dashed border-slate-800 flex flex-col items-center justify-center gap-3 h-64 w-72 shrink-0 text-slate-600">
                     <span className="material-symbols-outlined text-5xl">person_add</span>
                     <span className="text-[11px] font-black uppercase tracking-[0.2em] font-fix text-center">AWAITING OPERATOR</span>
@@ -257,7 +284,8 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
 
           <div className="flex flex-col lg:flex-row gap-8 shrink-0 mb-4 items-end justify-center w-full max-w-6xl mx-auto px-4">
             
-            <div className="flex-1 glass-panel rounded-xl overflow-hidden flex flex-col h-36 border-slate-800 shadow-2xl w-full">
+            {/* 🚀 コメント欄（チャット）の比率を調整し、圧迫感を減らしました */}
+            <div className="flex-1 glass-panel rounded-xl overflow-hidden flex flex-col h-32 border-slate-800 shadow-2xl w-full max-w-[600px]">
               <div className="flex-1 p-4 space-y-3 overflow-y-auto text-sm custom-scrollbar font-mono bg-slate-950/20 text-left">
                 {chatLogs.map((log, i) => (
                   <div key={`chat-${i}`} className="flex gap-2 animate-fadeIn text-left">

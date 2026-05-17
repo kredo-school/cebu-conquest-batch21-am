@@ -86,28 +86,32 @@ export const HUD: React.FC<HUDProps> = memo(() => {
     }
   }, [isMyTurn, isSubmitted, turn, isPhaseAnimationEnabled]);
 
-  // 🚀 スプラトゥーン風ゲージのために「必ず2チーム」の配列としてマッピング
+  // 🚀 占領済み領地のみを100%として算出する高エネルギーせめぎ合いロジック
   const teamStats = useMemo(() => {
-    const totalMapSize = lookupData?.districts?.size || 18; 
-    const stats = (players || []).map(player => {
+    const totalOccupied = Object.values(districts).filter(ownerId => ownerId && ownerId !== '').length;
+
+    const stats = (players || []).map((player, index) => {
       const ownedCount = Object.values(districts).filter(ownerId => ownerId === player.id).length;
+      const defaultColor = index === 0 ? '#0ea5e9' : '#ea580c'; 
+      
+      const percent = totalOccupied > 0 ? (ownedCount / totalOccupied) * 100 : 0;
+      
       return {
         id: player.id,
         name: player.playerName || player.username || 'Operator',
-        color: player.color || '#0ea5e9', // 未設定ならデフォルトブルー
-        percent: (ownedCount / totalMapSize) * 100
+        color: player.color || defaultColor, 
+        percent: percent
       };
     });
-    // プレイヤーが足りない場合でもUIが崩れないようにダミーを補完
+    
     return [
       stats[0] || { id: 't0', name: 'Alpha Squad', color: '#0ea5e9', percent: 0 },
-      stats[1] || { id: 't1', name: 'Beta Squad', color: '#f97316', percent: 0 }
+      stats[1] || { id: 't1', name: 'Beta Squad', color: '#ea580c', percent: 0 }
     ];
-  }, [districts, players, lookupData]);
+  }, [districts, players]);
 
   const team0 = teamStats[0];
   const team1 = teamStats[1];
-  const neutralPercent = Math.max(0, 100 - team0.percent - team1.percent);
 
   const lodClasses = isStrategicMode 
     ? "opacity-30 scale-95 hover:opacity-100 hover:scale-100 pointer-events-auto" 
@@ -122,71 +126,107 @@ export const HUD: React.FC<HUDProps> = memo(() => {
   return (
     <div className="absolute inset-0 pointer-events-none z-30 font-mono select-none flex flex-col transition-all duration-700">
       
-      {/* 🦑 勢力分布：スプラトゥーン風 ナワバリバトルゲージ */}
+      {/* 📊 勢力分布：次世代ナワバリ・タクティカルゲージ */}
       <div className={`pt-6 flex flex-col items-center gap-3 transition-all duration-700 ${lodClasses}`}>
         {/* タイトルバッジ */}
         <div className="flex items-center gap-2 mb-[-12px] z-10">
-          <span className="px-5 py-1.5 bg-slate-950 border-2 border-slate-800 rounded-full text-[11px] font-black italic uppercase tracking-[0.3em] text-white shadow-[0_0_20px_rgba(0,0,0,0.8)] font-fix">
-            TURF CONTROL
+          <span className="px-5 py-1.5 bg-slate-950 border border-slate-800 rounded-full text-[10px] font-black italic uppercase tracking-[0.3em] text-slate-400 shadow-[0_4px_12px_rgba(0,0,0,0.5)] font-fix">
+            TURF INFLUENCE
           </span>
         </div>
 
-        {/* 極太ゲージ本体 */}
-        <div className="relative w-[700px] h-14 bg-slate-950 rounded-2xl border-4 border-slate-950 overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.8)] flex p-1 gap-1">
-          
-          {/* 左側チーム (Team 0) */}
+        {/* 洗練された極太シームレスゲージ本体 */}
+        <div 
+          className="relative w-[650px] h-11 bg-slate-900 rounded-full border-2 border-slate-950 overflow-hidden shadow-[0_10px_25px_rgba(0,0,0,0.7)] flex"
+          style={{ backgroundColor: team1.percent > 0 ? team1.color : '#1e293b' }}
+        >
+          {/* 右側チーム (Team 1) の背景ストライプ演出 */}
+          {team1.percent > 0 && (
+            <div className="absolute inset-0 z-0">
+              <div className="absolute inset-0 opacity-15 bg-[repeating-linear-gradient(45deg,transparent,transparent_12px,rgba(255,255,255,0.3)_12px,rgba(255,255,255,0.3)_24px)] animate-ink-flow-reverse" />
+              <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
+              {/* 2P パーセンテージ表示 */}
+              <div className="absolute right-5 top-1/2 -translate-y-1/2 flex items-baseline z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+                <span className="text-xl font-black italic tracking-tighter text-white font-fix">
+                  {team1.percent.toFixed(1)}
+                </span>
+                <span className="text-xs font-black italic text-white ml-0.5 opacity-80 font-fix">
+                  %
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* 左側チーム (Team 0) ：上に重ねて右端を斜めにカット */}
           <div 
-            className="h-full relative transition-all duration-1000 ease-out flex items-center rounded-xl overflow-hidden" 
-            style={{ width: `${team0.percent}%`, backgroundColor: team0.color }}
+            className="h-full relative transition-all duration-1000 ease-out z-10" 
+            style={{ 
+              width: `${team0.percent}%`, 
+              backgroundColor: team0.color,
+              clipPath: 'polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%)' 
+            }}
           >
-            {/* 流れるインク風ストライプ */}
-            <div className="absolute inset-0 opacity-20 bg-[repeating-linear-gradient(-45deg,transparent,transparent_15px,rgba(255,255,255,0.4)_15px,rgba(255,255,255,0.4)_30px)] animate-ink-flow" />
-            <div className="absolute inset-0 shadow-[inset_0_0_20px_rgba(0,0,0,0.4)]" />
-            <span className="absolute left-4 text-3xl font-black italic tracking-tighter text-white drop-shadow-[0_4px_6px_rgba(0,0,0,0.8)] z-10 font-fix">
-              {team0.percent.toFixed(1)}<span className="text-lg ml-0.5">%</span>
-            </span>
+            <div className="absolute inset-0 opacity-15 bg-[repeating-linear-gradient(-45deg,transparent,transparent_12px,rgba(255,255,255,0.3)_12px,rgba(255,255,255,0.4)_24px)] animate-ink-flow" />
+            <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
+            
+            {/* 1P パーセンテージ表示 */}
+            {team0.percent > 0 && (
+              <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-baseline z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+                <span className="text-xl font-black italic tracking-tighter text-white font-fix">
+                  {team0.percent.toFixed(1)}
+                </span>
+                <span className="text-xs font-black italic text-white ml-0.5 opacity-80 font-fix">
+                  %
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* 未占領 (Neutral) */}
-          <div 
-            className="h-full relative transition-all duration-1000 ease-out flex items-center rounded-md overflow-hidden bg-slate-800" 
-            style={{ width: `${neutralPercent}%` }}
-          >
-            {/* 未占領の網掛け */}
-            <div className="absolute inset-0 opacity-40 bg-[repeating-linear-gradient(90deg,transparent,transparent_6px,#000_6px,#000_12px)]" />
-          </div>
+          {/* 衝突点：せめぎ合いを表現する雷状のパルス発光エフェクトライン */}
+          {team0.percent > 0 && team0.percent < 100 && (
+            <div 
+              className="absolute top-0 bottom-0 w-1 bg-white z-20 shadow-[0_0_15px_#fff,0_0_30px_rgba(255,255,255,0.8)] transition-all duration-1000 ease-out skew-x-[-18deg] animate-pulse"
+              style={{ left: `calc(${team0.percent}% - 7px)` }}
+            />
+          )}
 
-          {/* 右側チーム (Team 1) */}
-          <div 
-            className="h-full relative transition-all duration-1000 ease-out flex items-center rounded-xl overflow-hidden" 
-            style={{ width: `${team1.percent}%`, backgroundColor: team1.color }}
-          >
-            {/* 逆向きに流れるインク風ストライプ */}
-            <div className="absolute inset-0 opacity-20 bg-[repeating-linear-gradient(45deg,transparent,transparent_15px,rgba(255,255,255,0.4)_15px,rgba(255,255,255,0.4)_30px)] animate-ink-flow-reverse" />
-            <div className="absolute inset-0 shadow-[inset_0_0_20px_rgba(0,0,0,0.4)]" />
-            <span className="absolute right-4 text-3xl font-black italic tracking-tighter text-white drop-shadow-[0_4px_6px_rgba(0,0,0,0.8)] z-10 font-fix">
-              {team1.percent.toFixed(1)}<span className="text-lg ml-0.5">%</span>
-            </span>
-          </div>
-
-        </div>
-
-        {/* プレイヤー名ラベル */}
-        <div className="flex w-[680px] justify-between text-[11px] font-black uppercase tracking-[0.2em] font-fix mt-1">
-          <div style={{ color: team0.color }} className="drop-shadow-md truncate max-w-[200px]">{team0.name}</div>
-          <div className="text-slate-600">UNOCCUPIED</div>
-          <div style={{ color: team1.color }} className="drop-shadow-md truncate max-w-[200px] text-right">{team1.name}</div>
+          {/* 全体のインナーシャドウ効果 */}
+          <div className="absolute inset-0 pointer-events-none shadow-[inset_0_4px_12px_rgba(0,0,0,0.6)] z-30 rounded-full" />
         </div>
       </div>
 
-      {/* 中央：YOUR TURN アニメーション */}
-      <div className="flex-grow flex items-center justify-center">
+      <div className="flex-grow pointer-events-none" />
+
+      {/* 🚀 中央：YOUR PHASE ホログラフィック・グリッチアニメーション（超巨大化版） */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
         {showPhase && (
-          <div className="phase-animation-container flex flex-col items-center relative p-16">
-            <h1 className="holographic-text text-8xl md:text-9xl font-black italic tracking-tighter uppercase flex flex-col items-center font-fix text-center leading-none">
-              <span className="text-white block">YOUR</span>
-              <span className="text-orange-500 -mt-4 block">TURN</span>
-            </h1>
+          <div className="phase-animation-container">
+            <div className="phase-container flex flex-col items-center">
+              {/* Tactical Decorative Brackets */}
+              <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-orange-500/50"></div>
+              <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-orange-500/50"></div>
+              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-orange-500/50"></div>
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-orange-500/50"></div>
+              
+              <div className="flex items-center gap-4 mb-2">
+                <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-orange-500"></div>
+                <span className="text-[10px] font-black text-orange-400 uppercase tracking-[0.5em] holographic-text" data-text="TACTICAL ENGAGEMENT">
+                  TACTICAL ENGAGEMENT
+                </span>
+                <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-orange-500"></div>
+              </div>
+              
+              {/* 🚀 text-8xlから元の超巨大サイズ [140px] md:[200px] に拡張、重なりも微調整 */}
+              <h1 className="holographic-text text-[140px] md:text-[200px] font-black italic tracking-tighter uppercase flex flex-col items-center leading-none" data-text="YOUR PHASE">
+                <span className="text-white">YOUR</span>
+                <span className="text-orange-500 -mt-8 md:-mt-12">PHASE</span>
+              </h1>
+              
+              <div className="mt-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-orange-400 text-sm animate-pulse">radar</span>
+                <span className="text-[9px] font-bold text-slate-400 tracking-widest uppercase">Awaiting Command Input...</span>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -257,14 +297,6 @@ export const HUD: React.FC<HUDProps> = memo(() => {
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 3px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #ea580c; border-radius: 10px; }
-        @keyframes phase-bounce-zoom {
-          0% { opacity: 0; transform: scale(0.4); filter: brightness(2); }
-          15% { opacity: 1; transform: scale(1.1); filter: brightness(1); }
-          85% { opacity: 1; transform: scale(1); }
-          100% { opacity: 0; transform: scale(1.4); filter: brightness(2); }
-        }
-        .phase-animation-container { animation: phase-bounce-zoom 3.5s ease-in-out forwards; }
-        .holographic-text { text-shadow: 0 0 15px rgba(249, 115, 22, 0.6); }
         .font-fix { line-height: 1; }
         
         /* 🦑 スプラトゥーン風 ゲージアニメーション */
@@ -283,6 +315,76 @@ export const HUD: React.FC<HUDProps> = memo(() => {
         .animate-ink-flow-reverse {
           animation: ink-flow-reverse 4s linear infinite;
           background-size: 60px 100%;
+        }
+
+        /* 📡 YOUR PHASE 専用ホログラフィック・アニメーションマトリクス */
+        @keyframes scanline {
+          0% { transform: translateY(-100%); }
+          100% { transform: translateY(100%); }
+        }
+        @keyframes holographic-flicker {
+          0% { opacity: 0.85; transform: scaleY(1); }
+          5% { opacity: 0.9; transform: scaleY(1.005); }
+          10% { opacity: 0.85; transform: scaleY(1); }
+          15% { opacity: 1; transform: scaleY(1); }
+          20% { opacity: 0.9; transform: scaleY(1.01); }
+          25% { opacity: 0.85; transform: scaleY(1); }
+          100% { opacity: 0.85; transform: scaleY(1); }
+        }
+        @keyframes glitch-slice {
+          0% { clip-path: inset(10% 0 30% 0); transform: translateX(-2px); }
+          2% { clip-path: inset(50% 0 10% 0); transform: translateX(2px); }
+          4% { clip-path: inset(0% 0 80% 0); transform: translateX(-1px); }
+          6% { clip-path: none; transform: translateX(0); }
+          100% { clip-path: none; transform: translateX(0); }
+        }
+        @keyframes phase-bounce-zoom {
+          0% { opacity: 0; transform: scale(0); filter: brightness(2); }
+          15% { opacity: 1; transform: scale(1.2); filter: brightness(1.5); }
+          20% { transform: scale(0.95); }
+          25% { transform: scale(1); filter: brightness(1); }
+          35% { text-shadow: 0 0 20px rgba(249, 115, 22, 0.8), 0 0 40px rgba(249, 115, 22, 0.4); }
+          45% { text-shadow: 0 0 10px rgba(249, 115, 22, 0.5), 0 0 20px rgba(249, 115, 22, 0.3); }
+          55% { text-shadow: 0 0 20px rgba(249, 115, 22, 0.8), 0 0 40px rgba(249, 115, 22, 0.4); }
+          65% { text-shadow: 0 0 10px rgba(249, 115, 22, 0.5), 0 0 20px rgba(249, 115, 22, 0.3); }
+          75% { text-shadow: 0 0 20px rgba(249, 115, 22, 0.8), 0 0 40px rgba(249, 115, 22, 0.4); }
+          85% { opacity: 1; transform: scale(1); filter: brightness(1); }
+          95% { opacity: 0.5; transform: scale(1.1); }
+          100% { opacity: 0; transform: scale(0); filter: brightness(3); }
+        }
+
+        .holographic-text {
+          text-shadow: 
+            0 0 10px rgba(249, 115, 22, 0.5),
+            0 0 20px rgba(249, 115, 22, 0.3),
+            0 0 40px rgba(255, 255, 255, 0.2);
+          animation: holographic-flicker 4s infinite linear;
+          position: relative;
+        }
+        .holographic-text::before {
+          content: attr(data-text);
+          position: absolute;
+          left: 0; top: 0; width: 100%; height: 100%;
+          color: #fb923c;
+          opacity: 0.5;
+          z-index: -1;
+          animation: glitch-slice 8s infinite linear;
+        }
+
+        .phase-animation-container {
+          animation: phase-bounce-zoom 3.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        .phase-container {
+          position: relative;
+          padding: 2rem 4rem;
+        }
+        .phase-container::after {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: linear-gradient(transparent, rgba(249, 115, 22, 0.05), transparent);
+          animation: scanline 3s linear infinite;
+          pointer-events: none;
         }
       `}</style>
     </div>

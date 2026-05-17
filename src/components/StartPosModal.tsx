@@ -1,20 +1,20 @@
-// src/components/StartPosModal.tsx
+/// <reference types="vite/client" />
 import React, { useMemo } from 'react';
 import { useGameStore } from '../store';
 
-// ✅ 本番マップの spotId（5桁）に対応した出撃候補リスト
+// ✅ Deployment site candidates matching production 5-digit spotId
 const START_CANDIDATES = [
-  // ── セブ北部エリア ──
-  { id: 11101, fallbackName: "Maya Port（マヤ港）" },
-  { id: 11102, fallbackName: "Sugarcane Field（サトウキビ畑）" },
-  { id: 11108, fallbackName: "Farmer House（農家）" },
-  { id: 11112, fallbackName: "Bogo Transit Terminal（ボゴバスターミナル）" },
-  { id: 11113, fallbackName: "Bogo Hilltop Shrine（ボゴ丘の神社）" },
-  // ── セブ中央エリア ──
-  { id: 13101, fallbackName: "IT Park（ITパーク）" },
-  { id: 13102, fallbackName: "Waterfront Hotel（ウォーターフロントホテル）" },
-  { id: 13103, fallbackName: "Ayala Malls Center（アヤラモール）" },
-  { id: 13204, fallbackName: "Basilica del Santo Nino（サント・ニーニョ大聖堂）" },
+  // ── Cebu North Sector ──
+  { id: 11101, fallbackName: "Maya Port" },
+  { id: 11102, fallbackName: "Sugarcane Field" },
+  { id: 11108, fallbackName: "Farmer House" },
+  { id: 11112, fallbackName: "Bogo Transit Terminal" },
+  { id: 11113, fallbackName: "Bogo Hilltop Shrine" },
+  // ── Cebu Central Sector ──
+  { id: 13101, fallbackName: "IT Park" },
+  { id: 13102, fallbackName: "Waterfront Hotel" },
+  { id: 13103, fallbackName: "Ayala Malls Center" },
+  { id: 13204, fallbackName: "Basilica del Santo Niño" },
 ];
 
 interface Props {
@@ -22,31 +22,31 @@ interface Props {
 }
 
 export const StartPosModal: React.FC<Props> = ({ onSelect }) => {
-  // ✅ GDD v3.1: ルックアップ辞書を取得
+  // ✅ GDD v3.1: Retrieve lookup dictionary
   const lookupData = useGameStore(state => state.lookupData);
 
-  // 🚀 5桁IDを元に、lookupDataから動的に情報を引き当ててグルーピング
+  // 🚀 Group candidates dynamically by fetching master data using 5-digit IDs
   const groupedCandidates = useMemo(() => {
-    // ✅ 修正: 値の型を配列（[]）に指定
+    // ✅ Fix: Set value type explicitly as an array
     const groups: Record<number, { id: number; name: string; unitId: number }[]> = {};
     
     START_CANDIDATES.forEach(candidate => {
       let areaId = 0;
       let name = candidate.fallbackName;
-      let unitId = candidate.id % 1000; // フォールバック
+      let unitId = candidate.id % 1000; // Fallback
 
       if (lookupData && lookupData.spots && lookupData.districts) {
         const spot = lookupData.spots.get(candidate.id);
         if (spot) {
-          name = spot.name; // マスターデータの名称で上書き
-          unitId = spot.id % 100; // GDD v3.1: spot連番は下2桁
+          name = spot.name; // Override with master data name
+          unitId = spot.id % 100; // GDD v3.1: spot sequence is the lower 2 digits
           const district = lookupData.districts.get(spot.parentDistrictId);
           if (district) {
             areaId = district.parentAreaId;
           }
         }
       } else {
-        // lookupData が未取得の場合の旧ロジックフォールバック
+        // Legacy logic fallback if lookupData is not retrieved
         areaId = Math.floor(candidate.id / 1000);
       }
 
@@ -67,14 +67,14 @@ export const StartPosModal: React.FC<Props> = ({ onSelect }) => {
         
         <p className="text-slate-400 text-sm leading-relaxed mb-6 font-fix shrink-0 text-left">
           Please choose the district that will become your first territory.<br />
-          <span className="text-xs text-slate-500 block mt-1 font-fix">司令官、最初の拠点をリストから選定してください。</span>
+          <span className="text-xs text-slate-500 block mt-1 font-fix">Commander, please designate your primary deployment zone from the registry.</span>
         </p>
 
         <div className="flex-1 flex flex-col gap-6 overflow-y-auto custom-scrollbar pr-2">
           {Object.entries(groupedCandidates).map(([areaIdStr, spots]) => {
             const areaId = Number(areaIdStr);
             
-            // ✅ エリア名もマスターデータから動的に取得
+            // ✅ Dynamically fetch area name from master data
             let areaName = `UNKNOWN SECTOR ${areaId}`;
             if (lookupData && lookupData.areas) {
               const area = lookupData.areas.get(areaId);
@@ -83,7 +83,7 @@ export const StartPosModal: React.FC<Props> = ({ onSelect }) => {
 
             return (
               <div key={areaId} className="space-y-2">
-                {/* 🚀 エリアヘッダー */}
+                // 🚀 Area Header
                 <div className="flex items-center gap-2 px-1">
                   <span className="w-1 h-3 bg-orange-500"></span>
                   <span className="text-[10px] font-black text-slate-400 tracking-[0.2em] uppercase font-fix">
@@ -91,7 +91,7 @@ export const StartPosModal: React.FC<Props> = ({ onSelect }) => {
                   </span>
                 </div>
 
-                {/* 地点ボタン */}
+                // Destination Buttons
                 <div className="grid gap-2">
                   {spots.map(spot => (
                     <button 
@@ -114,7 +114,7 @@ export const StartPosModal: React.FC<Props> = ({ onSelect }) => {
           })}
         </div>
 
-        {/* Footer装飾 */}
+        // Footer Decals
         <div className="mt-6 pt-4 border-t border-white/5 shrink-0 flex justify-between items-center">
           <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest font-fix">Neural Link: Online</span>
           <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest font-fix">B21-AM-CEBU</span>
@@ -132,3 +132,5 @@ export const StartPosModal: React.FC<Props> = ({ onSelect }) => {
     </div>
   );
 };
+
+export default StartPosModal;

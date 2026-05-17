@@ -16,13 +16,13 @@ interface LobbySetupViewProps {
 
 interface SocketResponse {
   success: boolean;
-  roomId: string; // 🚀 サーバーから返ってくる「本物」のID
+  roomId: string; // 🚀 Real identifier returned from the server
   maxPlayers?: number;
   players?: string[]; 
   message?: string;
 }
 
-// 🚀 1. 物理ロック
+// 🚀 1. Physical Lock
 let isCreatingLock = false; 
 
 export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({ 
@@ -37,24 +37,24 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
     turnTime: 60,
   });
 
-  // --- 🚀 部屋作成ロジック：サーバー採番に完全同期 ＆ 型エラー修正 ---
+  // --- 🚀 Room Creation Logic: Fully synchronized with server allocation & type safety fixed ---
   const handleFinalCreate = useCallback(async (): Promise<void> => {
     if (isCreatingLock) return;
     isCreatingLock = true;
 
     try {
       SoundManager.playSe('click');
-      addLog(`📡 司令部へ作戦承認をリクエスト中...`);
+      addLog(`📡 Requesting operational clearance from HQ...`);
 
-      // 🚀 2. クライアント側でのID生成を廃止！
-      // まずはSocketサーバーに作成リクエストを投げ、コールバックでサーバー生成のIDを受け取る
+      // 🚀 2. Client-side ID generation deprecated!
+      // Send creation request to Socket server first, receiving server-generated ID via callback
       socket.emit(CLIENT_EVENTS.CREATE_ROOM, { ...config, username: playerName }, async (response: SocketResponse) => {
         if (response && response.success && response.roomId) {
-          const serverRoomId = response.roomId; // 🚀 これがサーバー製の「正解ID」
+          const serverRoomId = response.roomId; // 🚀 This is the definitive server-allocated identifier
           
-          addLog(`✅ 作戦承認: Room[${serverRoomId}] を構築しました`);
+          addLog(`✅ Clearance Granted: Room[${serverRoomId}] successfully established`);
 
-          // 🚀 3. サーバーから届いたIDで PHP DB側にも同期（必要なら）
+          // 🚀 3. Sync with PHP DB via server-provided ID if necessary
           try {
             await authenticatedFetch('create-room.php', {
               method: 'POST',
@@ -62,7 +62,7 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
             });
           } catch (_dbErr) { console.error("DB Sync Error", _dbErr); }
 
-          // 🚀 4. ストアにセット（型エラー回避のため isHost を削除）
+          // 🚀 4. Set to store (isHost removed to prevent type errors)
           setStatus({ 
             maxPlayers: response.maxPlayers || config.maxPlayers,
             roomId: serverRoomId, 
@@ -74,38 +74,38 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
             }]
           });
 
-          // 🚀 5. 正しいIDで画面遷移
+          // 🚀 5. Navigate with the validated room ID
           onJoinSuccess(serverRoomId);
 
         } else {
-          addLog(`❌ Socket承認失敗: ${response?.message || "Server error"}`);
+          addLog(`❌ Socket Clearance Failed: ${response?.message || "Server error"}`);
           isCreatingLock = false;
         }
       });
 
     } catch (_err: unknown) {
-      addLog("❌ API接続エラー");
+      addLog("❌ API Connection Error");
       isCreatingLock = false;
     }
   }, [config, playerName, addLog, setStatus, onJoinSuccess, authenticatedFetch]);
 
-  // --- 🚀 参加ロジック（スペース完全除去対応） ---
+  // --- 🚀 Join Logic (Handles total space elimination) ---
   const handleJoin = useCallback(async (): Promise<void> => {
-    // 💡 スペースを全て消去して大文字にする
+    // 💡 Sanitize inputs by removing all spaces and converting to uppercase
     const cleanId = joinId.replace(/\s/g, '').toUpperCase();
     
     if (cleanId.length !== 6) {
-      addLog(`⚠️ IDは6文字必要です（現在は${cleanId.length}文字）`);
+      addLog(`⚠️ Code must be 6 characters (Current: ${cleanId.length})`);
       return;
     }
 
     try { SoundManager.playSe('click'); } catch { /* ignore */ }
-    addLog(`📡 Room[${cleanId}] 接続試行中...`);
+    addLog(`📡 Attempting connection to Room[${cleanId}]...`);
 
     try {
       const dbResult = await authenticatedFetch<{ status: string; message?: string }>('join-room.php', {
         method: 'POST',
-        // 💡 サーバーにはスペースを取り除いた cleanId を送信
+        // 💡 Transmit cleanId with spaces completely extracted to the server gateway
         body: JSON.stringify({ roomId: cleanId, username: playerName })
       });
 
@@ -118,10 +118,10 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
         });
         onJoinSuccess(cleanId);
       } else {
-        addLog(`❌ サーバー拒否: ${dbResult.message || "Unknown error"}`);
+        addLog(`❌ Server Rejected: ${dbResult.message || "Unknown error"}`);
       }
     } catch (_err: unknown) {
-      addLog("❌ API接続エラー");
+      addLog("❌ API Connection Error");
     }
   }, [joinId, playerName, addLog, onJoinSuccess, setStatus, authenticatedFetch]);
 
@@ -192,7 +192,7 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
             <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter font-fix">Join Room</h2>
             <div className="mb-10 text-left">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block font-fix">Enter Command Code</label>
-              {/* 💡 JSによる最強の入力バリデーション（記号排除＆実質6文字制限） */}
+              {/* 💡 Robust input validation via JS filtering specific syntax & restricting max raw characters to 6 */}
               <input type="text" value={joinId} placeholder="0 0 0 0 0 0"
                 onChange={(e) => {
                   let val = e.target.value.toUpperCase();
@@ -203,7 +203,7 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
                 className="w-full bg-black/40 border border-slate-800 rounded-lg py-4 px-6 text-3xl font-black tracking-[0.5em] text-cyan-400 text-center focus:outline-none focus:border-cyan-500 transition-all font-mono"
               />
             </div>
-            {/* 💡 disabled条件とクラス名の条件を「スペースを抜いた状態で6文字か」で判定 */}
+            {/* 💡 Disabling constraints evaluate character thresholds dynamically matching clean variants omitting spaces */}
             <CustomButton onClick={handleJoin} disabled={joinId.replace(/\s/g, '').length !== 6} variant="primary" className={`mt-auto w-full text-lg py-4 ${joinId.replace(/\s/g, '').length === 6 ? '!bg-slate-100 !text-slate-900 hover:!bg-white' : ''}`}>
               Join Operation
             </CustomButton>
