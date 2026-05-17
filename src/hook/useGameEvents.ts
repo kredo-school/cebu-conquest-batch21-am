@@ -5,7 +5,6 @@ import { SERVER_EVENTS } from '../../shared/socketEvents.js';
 import { useGameStore, Player } from '../store'; 
 import { emitToPhaser, REACT_TO_PHASER, PHASER_TO_REACT } from '../game/events/PhaserBridge'; 
 
-// 🚀 サーバーから受信するプレイヤー情報の詳細定義
 interface ServerPlayerPayload {
   playerId: string;
   id?: string;
@@ -17,7 +16,6 @@ interface ServerPlayerPayload {
   [key: string]: unknown;
 }
 
-// 🚀 サーバーから受信する全体同期データの構造定義
 interface SyncStatePayload {
   roomId?: string;
   players?: Record<string, ServerPlayerPayload> | ServerPlayerPayload[];
@@ -32,37 +30,17 @@ interface SyncStatePayload {
   [key: string]: unknown;
 }
 
-// 🚀 ReactからPhaserへ渡す地区情報の型定義 (TSエラー回避用)
-interface DistrictPayload {
-  districtId: number;
-  districtName: string;
-  isMyTerritory: boolean;
-  isNeutral: boolean;
-  spotId?: number;
-}
-
 /**
- * 🛰️ useGameEvents: Socket.IO サーバーおよび Phaser からのリアルタイム同期を管理
+ * 🛰️ useGameEvents: Manages persistent real-time socket streams & Phaser bridge datalinks.
+ * Resolved: Merged remote 5-digit spotId, dynamic non-stale socket.id mapping, and action submit state resets.
  */
 export const useGameEvents = () => {
-  const { 
-    syncServerState, 
-    setNpcs, 
-    addLog, 
-    myId,
-    setStatus,
-    setErrorMessage,
-    setLobbyPlayers,
-    setGameStarted,
-    updateSelectedDistrict 
-  } = useGameStore();
-
   useEffect(() => {
     if (!socket) return;
 
-    // 0. 🔌 接続時同期
+    // 0. 🔌 Connection Lifecycle Recovery Handler
     const handleConnect = () => {
-      setStatus({ myId: socket.id });
+      useGameStore.setState({ myId: socket.id });
       const { roomId, playerName } = useGameStore.getState();
       if (roomId && typeof roomId === 'string' && roomId.length > 0 && playerName) {
         socket.emit('RECOVER_CONNECTION', { roomId, playerName });
@@ -72,40 +50,40 @@ export const useGameEvents = () => {
     socket.on('connect', handleConnect);
     if (socket.connected && !useGameStore.getState().myId) { handleConnect(); }
 
-    // A. Phaser → React 同期
+    // A. 🎮 Phaser Instance -> React UI State Synchronization
     const handleStatsUpdate = (e: Event) => {
       const ce = e as CustomEvent;
       const { hp, stamina, atk, def, faith } = ce.detail;
-      setStatus({ hp, ap: stamina, atk, def, blessing: faith });
+      useGameStore.getState().setStatus({ hp, ap: stamina, atk, def, blessing: faith });
     };
 
+    // ✅ Merged: Captured incoming 5-digit spotId structures via non-stale static store selectors
     const handleSelectDistrict = (e: Event) => {
       const ce = e as CustomEvent;
       const { districtId, districtName, isMyTerritory, isNeutral, spotId } = ce.detail;
-      updateSelectedDistrict({ districtId, districtName, isMyTerritory, isNeutral, spotId });
+      useGameStore.getState().updateSelectedDistrict({ districtId, districtName, isMyTerritory, isNeutral, spotId });
     };
 
     window.addEventListener(PHASER_TO_REACT.STATS_UPDATED, handleStatsUpdate);
     window.addEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleSelectDistrict);
 
-    // B. Socket.IO サーバー → クライアント 同期
+    // B. 📡 Socket.IO Server -> Client Protocol Synchronization
 
-    // 1. 🛡️ サーバー全体のステート同期
+    // 1. Core Server State Sync Matrix
     const handleSyncState = (data: unknown) => {
-      const currentView = useGameStore.getState().view;
+      const store = useGameStore.getState();
+      const currentView = store.view;
       const payload = data as SyncStatePayload; 
 
-      // Reactのストア更新
-      // ★根本修正: closure の stale myId ではなく socket.id を直接使う
-      // myId が "" のまま固定されると syncServerState が isMyTurn: false を全員に上書きし続ける
-      syncServerState(payload as unknown as Record<string, unknown>, socket.id || useGameStore.getState().myId);
+      // ✅ Merged: Prioritize real-time socket.id over stale closure strings to prevent isMyTurn overwrite errors
+      store.syncServerState(payload as unknown as Record<string, unknown>, socket.id || store.myId);
 
-      // LobbyUI用の更新
+      // Update Active Lobby Operator Registries
       if (payload.players) {
         const rawPlayers = payload.players;
         const playersArray = Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers);
         
-        setLobbyPlayers(playersArray.map((p) => ({
+        store.setLobbyPlayers(playersArray.map((p) => ({
           playerId: (p.id || p.playerId) as string,
           username: p.username,
           playerName: p.playerName || p.username,
@@ -118,23 +96,23 @@ export const useGameEvents = () => {
         useGameStore.setState({ view: 'setup', roomId: undefined });
       }
 
-      // Phaser側へ通知 (playersをObjectのまま渡すことを明示)
+      // Route data matrices seamlessly to active Phaser instance
       emitToPhaser(REACT_TO_PHASER.SYNC_MAP, {
-        players: payload.players, // サーバーから届いた Object/Map 形式を維持
+        players: payload.players, 
         districts: payload.districts,
         turn: payload.turn,
         status: payload.status || 'playing'
       });
     };
 
-    // 2. 🎮 試合開始
+    // 2. Mission Commencement Protocol
     const handleGameBegin = (_data: unknown) => {
-      addLog("🎮 Mission commencement authorized.");
-      setGameStarted(true);
+      const store = useGameStore.getState();
+      store.addLog("🎮 Mission commencement authorized.");
+      store.setGameStarted(true);
       emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, { isFirstTurn: true });
 
-      const state = useGameStore.getState();
-      const rawPlayers = state.players; // Zustand内はArrayになっている可能性があるため
+      const rawPlayers = store.players; 
       if (rawPlayers && rawPlayers.length > 0) {
         const playersMap: Record<string, Player> = {};
         rawPlayers.forEach((p) => {
@@ -142,76 +120,76 @@ export const useGameEvents = () => {
           if (key) playersMap[key] = p;
         });
         
-        // Phaserへ通知
         emitToPhaser(REACT_TO_PHASER.SYNC_MAP, {
-          players: playersMap, // Phaserが処理しやすいMap形式
-          districts: state.districts,
-          turn: state.turn,
+          players: playersMap, 
+          districts: store.districts,
+          turn: store.turn,
           status: 'playing',
         });
       }
     };
 
-    // 3. 🤖 NPC更新
+    // 3. Auxiliary AI Unit Modifiers
     const handleNpcUpdate = (npcData: unknown) => {
-      setNpcs(npcData as Record<string, Player>);
+      useGameStore.getState().setNpcs(npcData as Record<string, Player>);
       emitToPhaser(REACT_TO_PHASER.UPDATE_NPCS, npcData as Record<string, unknown>);
     };
 
-    // 4. 📢 ターン開始
+    // 4. Tactical Phase Rotations
     const handleTurnStart = (data: unknown) => {
+      const store = useGameStore.getState();
       const payload = data as { turnOwnerId?: string; turn: number; isMyTurn?: boolean };
-      const isMe = payload.isMyTurn !== undefined ? payload.isMyTurn : payload.turnOwnerId === myId;
+      const currentMyId = store.myId;
+      const isMe = payload.isMyTurn !== undefined ? payload.isMyTurn : payload.turnOwnerId === currentMyId;
+      
       console.log(`[TURN_START] turn=${payload.turn} isMyTurn=${isMe} turnOwnerId=${payload.turnOwnerId} mySocketId=${socket.id}`);
-      // ★修正1: ターン開始時に isSubmitted を false にリセット
-      setStatus({ isMyTurn: isMe, turn: payload.turn, isSubmitted: false });
+      
+      // ✅ Merged: Reset submission blocks instantly upon new phase rotators to free action inputs
+      store.setStatus({ isMyTurn: isMe, turn: payload.turn, isSubmitted: false });
       emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, { turn: payload.turn, isMyTurn: isMe });
-      updateSelectedDistrict(null);
+      
+      store.updateSelectedDistrict(null);
     };
 
-    // 5. ⚔️ 戦闘結果
+    // 5. Combat Engagement Resolution Logs
     const handleBattleResult = (result: unknown) => {
       emitToPhaser(REACT_TO_PHASER.BATTLE_EFFECT, result as Record<string, unknown>);
-
-      updateSelectedDistrict(null);
+      useGameStore.getState().updateSelectedDistrict(null);
     };
 
-    // 6. 🚩 領土更新
+    // 6. Network Grid Dominance Updates
     const handleTerritoryUpdated = (data: unknown) => {
       emitToPhaser(REACT_TO_PHASER.TERRITORY_EFFECT, data as Record<string, unknown>);
-
-      updateSelectedDistrict(null);
+      useGameStore.getState().updateSelectedDistrict(null);
     };
 
-    // 7. 🚫 拒否
+    // 7. Core Command Execution Rejections
     const handleActionRejected = (data: { reason: string }) => {
-      setErrorMessage(data.reason); 
-      addLog(`⚠️ Command Rejected: ${data.reason}`);
-
-      updateSelectedDistrict(null);
+      const store = useGameStore.getState();
+      store.setErrorMessage(data.reason); 
+      store.addLog(`⚠️ Command Rejected: ${data.reason}`);
+      useGameStore.getState().updateSelectedDistrict(null);
     };
 
-    // 8. 🏆 終了
+    // 8. Operation Termination Matrix
     const handleGameOver = (data: unknown) => {
       const payload = data as { winnerName: string; winnerId: string };
       setTimeout(() => {
-        setStatus({ isGameOver: true, winnerId: payload.winnerId, view: 'ranking' });
+        useGameStore.getState().setStatus({ isGameOver: true, winnerId: payload.winnerId, view: 'ranking' });
       }, 1500);
       emitToPhaser(REACT_TO_PHASER.GAME_OVER_EFFECT, payload as unknown as Record<string, unknown>);
-
-      updateSelectedDistrict(null);
+      useGameStore.getState().updateSelectedDistrict(null);
     };
 
-    // 9. 💬 チャット
+    // 9. Incoming Comms Feed Infiltration (Tactical Chat Streams)
     const handleReceiveChat = (data: { username: string; message: string }) => {
-      addLog({ sender: data.username || 'Operator', message: data.message });
+      useGameStore.getState().addLog({ sender: data.username || 'Operator', message: data.message });
     };
 
+    // ✅ Merged: Added instant action dispatch lockdown parameters to block transactional overlapping
     const handleActionResult = () => {
-      // ★追加: ACTION_RESULT受信 = サーバーがアクションを処理済み = ターン終了待ち
-      // isSubmitted: true でボタンを即時無効化し、TURN_START 待ち状態を明示する
       useGameStore.setState({ isSubmitted: true });
-      updateSelectedDistrict(null);
+      useGameStore.getState().updateSelectedDistrict(null);
     };
 
     socket.on(SERVER_EVENTS.SYNC_STATE, handleSyncState);
@@ -224,7 +202,7 @@ export const useGameEvents = () => {
     socket.on(SERVER_EVENTS.ACTION_REJECTED, handleActionRejected);
     socket.on(SERVER_EVENTS.GAME_OVER, handleGameOver);
     socket.on(SERVER_EVENTS.RECEIVE_CHAT, handleReceiveChat);
-    socket.on(SERVER_EVENTS.ACTION_RESULT, handleActionResult); // ★修正2: 定数経由に変更
+    socket.on(SERVER_EVENTS.ACTION_RESULT, handleActionResult); // ✅ Enforced named event string key constants
 
     return () => {
       socket.off(SERVER_EVENTS.SYNC_STATE, handleSyncState);
@@ -237,12 +215,12 @@ export const useGameEvents = () => {
       socket.off(SERVER_EVENTS.ACTION_REJECTED, handleActionRejected);
       socket.off(SERVER_EVENTS.GAME_OVER, handleGameOver);
       socket.off(SERVER_EVENTS.RECEIVE_CHAT, handleReceiveChat);
-      socket.off(SERVER_EVENTS.ACTION_RESULT, handleActionResult); // ★修正2: 定数経由に変更
+      socket.off(SERVER_EVENTS.ACTION_RESULT, handleActionResult);
       socket.off('connect', handleConnect);
       window.removeEventListener(PHASER_TO_REACT.STATS_UPDATED, handleStatsUpdate);
       window.removeEventListener(PHASER_TO_REACT.SELECT_DISTRICT, handleSelectDistrict);
     };
-  }, [myId, syncServerState, setNpcs, addLog, setStatus, setErrorMessage, setLobbyPlayers, setGameStarted, updateSelectedDistrict]);
+  }, []); 
 };
 
 export default useGameEvents;

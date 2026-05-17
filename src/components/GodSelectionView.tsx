@@ -30,14 +30,14 @@ interface GodSacredLand {
 }
 
 const GOD_SLOTS: GodSlot[] = [
-  { id: 1, textureKey: 'god-neil',   name: "Neil", role: "WAR",         bonus: "MAX_HP +30, STAMINA -25, HP +10", img: "/assets/images/gods/Neil.png", desc: "高い耐久力を誇る戦士向けのステータス補正。" },
-  { id: 2, textureKey: 'god-garry',  name: "Garry", role: "STRATEGIST", bonus: "ATK +20",    img: "/assets/images/gods/Garry.png", desc: "攻撃性能を純粋に強化するアタッカー仕様。" },
-  { id: 3, textureKey: 'god-shem',   name: "Shem", role: "BURN",        bonus: "MAX_AP +15, HP +10, AP +10", img: "/assets/images/gods/Shem.png", desc: "行動回数と継戦能力のバランスを重視。" },
-  { id: 4, textureKey: 'god-quisie', name: "Quisie", role: "STEALTH",    bonus: "HP -20, FAITH 100", img: "/assets/images/gods/Quisie.png", desc: "FAITHが初回から100でスタートする特殊構成。" },
-  { id: 5, textureKey: 'god-eduardo', name: "Eduardo", role: "HEAVY",       bonus: "DEF +15",    img: "/assets/images/gods/Eduardo.png", desc: "防御力を高め、敵の反撃ダメージを抑える構成。" },
-  { id: 6, textureKey: 'god-kurt',   name: "Kurt", role: "SUPPORT",    bonus: "STAMINA +30, HP -10", img: "/assets/images/gods/Kurt.png", desc: "スタミナ上限を大きく伸ばし、機動力を確保。" },
-  { id: 7, textureKey: 'god-stephen', name: "Stephen", role: "SHADOW",     bonus: "FAITH_REGEN (5)", img: "/assets/images/gods/Stephen.png", desc: "毎ターン信仰心が5回復する、長期戦特化型。" },
-  { id: 8, textureKey: 'god-bernardine', name: "Bernardine", role: "RECON",      bonus: "MAX_AP +30, AP +30", img: "/assets/images/gods/Bernardine.png", desc: "圧倒的なリソース量を活かした立ち回りが可能。" },
+  { id: 1, textureKey: 'god-neil',   name: "Neil", role: "WAR",         bonus: "MAX_HP +30, STAMINA -25, HP +10", img: "/assets/images/gods/Neil.png", desc: "High durability status configuration tailored for frontline operators." },
+  { id: 2, textureKey: 'god-garry',  name: "Garry", role: "STRATEGIST", bonus: "ATK +20",    img: "/assets/images/gods/Garry.png", desc: "Pure offensive augmentation designed for high-caliber strikers." },
+  { id: 3, textureKey: 'god-shem',   name: "Shem", role: "BURN",        bonus: "MAX_AP +15, HP +10, AP +10", img: "/assets/images/gods/Shem.png", desc: "Optimized balance prioritizing action frequency and sustained engagement durability." },
+  { id: 4, textureKey: 'god-quisie', name: "Quisie", role: "STEALTH",    bonus: "HP -20, FAITH 100", img: "/assets/images/gods/Quisie.png", desc: "Special auxiliary configuration initiating deployment with maximum FAITH matrix values." },
+  { id: 5, textureKey: 'god-eduardo', name: "Eduardo", role: "HEAVY",       bonus: "DEF +15",    img: "/assets/images/gods/Eduardo.png", desc: "Reinforced defense parameters to effectively mitigate counter-offensive damage." },
+  { id: 6, textureKey: 'god-kurt',   name: "Kurt", role: "SUPPORT",    bonus: "STAMINA +30, HP -10", img: "/assets/images/gods/Kurt.png", desc: "Extends maximum stamina capacity to ensure optimal maneuvering and mobility." },
+  { id: 7, textureKey: 'god-stephen', name: "Stephen", role: "SHADOW",     bonus: "FAITH_REGEN (5)", img: "/assets/images/gods/Stephen.png", desc: "Specialized endurance model engineered for prolonged attrition warfare, recovering 5 FAITH per phase." },
+  { id: 8, textureKey: 'god-bernardine', name: "Bernardine", role: "RECON",      bonus: "MAX_AP +30, AP +30", img: "/assets/images/gods/Bernardine.png", desc: "Enables dominant grid positioning utilizing an overwhelming baseline resource pool." },
 ];
 
 export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({ 
@@ -170,19 +170,19 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
                   onClick={() => !lock && selectedGodId === null && setPendingSelection(god)} 
                   className={`group relative flex flex-col bg-zinc-900/40 border-2 transition-all duration-300 rounded-xl overflow-hidden ${
                     isSelected 
-                      ? "border-orange-500 z-10 scale-[1.02]" // 🚀 修正: カード全体のシャドーを撤廃
+                      ? "border-orange-500 z-10 scale-[1.02]" // 🚀 Mod: Removed card-wide shadow
                       : lock 
-                        ? "border-orange-500/20 opacity-80 grayscale-[0.3] cursor-not-allowed" // 🚀 修正: 選択済みでも内容が見えるよう明るく調整
+                        ? "border-orange-500/20 opacity-80 grayscale-[0.3] cursor-not-allowed" // 🚀 Mod: Increased contrast for locked slots to remain legible
                         : selectedGodId !== null
                           ? "border-orange-500/10 opacity-50 cursor-default"
-                          : "border-orange-500/20 hover:border-orange-500/50 hover:bg-zinc-800/50 cursor-pointer" // 🚀 修正: 外枠に薄くオレンジラインを追加
+                          : "border-orange-500/20 hover:border-orange-500/50 hover:bg-zinc-800/50 cursor-pointer" // 🚀 Mod: Added subtle orange boundary lines
                   }`}
                 >
                   <div className="relative h-[60%] shrink-0 overflow-hidden bg-black flex items-center justify-center">
                     <img 
                       src={god.img} 
                       className={`w-full h-full object-cover object-top transition-all duration-700 group-hover:scale-110 
-                        ${isSelected ? 'drop-shadow-[0_10px_20px_rgba(249,115,22,0.4)]' : 'drop-shadow-[0_5px_15px_rgba(0,0,0,0.6)]'} // 🚀 修正: 写真だけに薄い影を適用
+                        ${isSelected ? 'drop-shadow-[0_10px_20px_rgba(249,115,22,0.4)]' : 'drop-shadow-[0_5px_15px_rgba(0,0,0,0.6)]'} // 🚀 Mod: Applied faint dropshadow properties exclusively to the portrait image
                       `} 
                       alt={god.name} 
                       onError={(e) => {
@@ -197,7 +197,7 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
                       </div>
                     )}
                     {lock && (
-                      /* 🚀 修正: 背景を bg-slate-950/40 にして内容を見えやすく */
+                      // 🚀 Mod: Adjusted backing to bg-slate-950/40 for clearer sub-content legibility
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/40 backdrop-blur-[1px]">
                          <div className="w-10 h-10 rounded-full border-2 border-orange-500/30 bg-slate-900/90 mb-2 overflow-hidden flex items-center justify-center shadow-xl">
                             <span className="material-symbols-outlined text-orange-500/70">person</span>

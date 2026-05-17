@@ -1,4 +1,5 @@
-import React, { useState, useMemo, memo } from 'react';
+/// <reference types="vite/client" />
+import React, { useState, memo, useMemo } from 'react';
 import { useGameStore, Player, LookupData } from '../store';
 
 interface RankingViewProps {
@@ -8,13 +9,12 @@ interface RankingViewProps {
 }
 
 /**
- * 🏆 RankingView: 勢力占有率ランキング表示
- * 修正内容：Unexpected any の排除とリテラル型のアサーション
+ * 🏆 RankingView: Territorial Occupancy Leaderboard
  */
 export const RankingView: React.FC<RankingViewProps> = memo(({ 
   onOpenSettings, onOpenHelp, onBack
 }) => {
-  const { players, myId, lookupData, playerName: myPlayerName } = useGameStore();
+  const { players, myId, lookupData } = useGameStore();
   const [filter, setFilter] = useState<'weekly' | 'global'>('weekly');
 
   const sortedPlayers = useMemo(() => {
@@ -53,8 +53,6 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
 
   const topThree = sortedPlayers.slice(0, 3);
   const remaining = sortedPlayers.slice(3);
-  const me = sortedPlayers.find(p => p.id === myId);
-  const myRank = sortedPlayers.findIndex(p => p.id === myId) + 1;
 
   return (
     <div className="w-full h-full bg-slate-950 text-slate-100 font-body selection:bg-orange-500/30 overflow-hidden flex flex-col relative animate-fadeIn">
@@ -85,7 +83,7 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
       </nav>
 
       {/* 2. Main Content */}
-      <main className="flex-1 overflow-y-auto custom-scrollbar pt-8 pb-40 relative">
+      <main className="flex-1 overflow-y-auto custom-scrollbar pt-8 pb-20 relative">
         <div className="p-6 max-w-6xl mx-auto">
           
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6 text-left">
@@ -105,7 +103,6 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
               {['weekly', 'global'].map(type => (
                 <button 
                   key={type}
-                  // ✅ 修正(Line 108): リテラル型でキャストして any を排除
                   onClick={() => setFilter(type as 'weekly' | 'global')}
                   className={`px-8 py-2.5 text-[10px] font-black rounded-lg uppercase transition-all font-fix ${filter === type ? 'bg-orange-600 text-black shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
@@ -169,7 +166,7 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
             )}
           </div>
 
-          {/* List View: 洗練された一行レイアウト */}
+          {/* List View */}
           <div className="grid gap-2 text-left">
             {remaining.map((player: Player, index: number) => {
               const isMe = player.id === myId;
@@ -206,42 +203,8 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
           </div>
         </div>
       </main>
-
-      {/* Sticky Bottom Status */}
-      {me && (
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-4xl px-6 hidden md:block z-50">
-          <div className="bg-slate-900/90 backdrop-blur-2xl border border-orange-500/30 rounded-2xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex items-center justify-between">
-            <div className="flex items-center gap-8">
-              <div className="flex flex-col items-center">
-                <span className="text-[9px] font-black text-slate-500 uppercase font-fix tracking-widest mb-1">Commander Rank</span>
-                <span className="text-4xl font-black italic text-orange-500 font-fix leading-none">{myRank}</span>
-              </div>
-              
-              <div className="h-12 w-[1px] bg-white/5"></div>
-              
-              <div className="flex items-center gap-5">
-                <div className="w-14 h-14 rounded-xl border border-orange-500/40 p-1 bg-slate-950">
-                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${myPlayerName || me.username}`} className="w-full h-full object-cover rounded-lg" alt="" />
-                </div>
-                <div className="text-left">
-                  <div className="text-white font-black text-lg uppercase font-fix italic tracking-tight">{myPlayerName || me.username}</div>
-                  <div className="text-[9px] text-orange-500 font-black tracking-[0.3em] uppercase font-fix">Status: Active Service // Origin: {me.baseIsland}</div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-10">
-              <div className="text-right">
-                <div className="text-slate-500 text-[9px] font-black uppercase font-fix tracking-[0.2em] mb-1">Global Occupancy</div>
-                <div className="text-white font-black text-2xl font-fix leading-none">{me.occupancy || 0}%</div>
-              </div>
-              <button className="bg-orange-600 hover:bg-orange-500 text-black font-black px-10 py-3.5 rounded-xl uppercase text-[11px] tracking-widest transition-all shadow-xl active:scale-95 font-fix">
-                Service Record
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 });
+
+export default RankingView;

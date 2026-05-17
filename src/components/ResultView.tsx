@@ -1,4 +1,5 @@
-import React, { useMemo, useEffect, useRef } from 'react';
+/// <reference types="vite/client" />
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useGameStore } from '../store';
 import { useBGM } from '../hook/useBGM';
 
@@ -29,7 +30,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
     return () => stopBGM();
   }, [isGameOver]); // eslint-disable-line react-hooks/exhaustive-deps
   
-  // 勝者の詳細情報を取得
+  // Fetch detailed information of the victor
   const winnerPlayer = useMemo(() => 
     players.find(p => p.id === winnerId), 
   [players, winnerId]);
@@ -39,7 +40,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
   [godsList, winnerPlayer]);
 
   const stats = useMemo(() => {
-    // ✅ 修正：比較エラー ts(2367) を確実に回避するため、値を string としてキャストして比較
+    // ✅ Fix: Safely cast to string to prevent comparison errors ts(2367)
     const myDistrictsCount = Object.values(districts).filter(val => (val as unknown as string) === myId).length;
     const totalDistrictsCount = Math.max(1, Object.keys(districts).length);
     const territoryPercent = Math.round((myDistrictsCount / totalDistrictsCount) * 100);
@@ -82,7 +83,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
     border: isWinner ? 'border-orange-900/40' : 'border-red-900/40',
     glow: isWinner ? 'bg-orange-900/20' : 'bg-red-900/20',
     mainTitle: isWinner ? 'MISSION ACCOMPLISHED' : 'MISSION FAILED',
-    jpTitle: isWinner ? '最高司令官として承認されました' : `勝者: ${winnerPlayer?.playerName || 'UNKNOWN'}`,
+    subTitle: isWinner ? 'AUTHORIZED AS SUPREME COMMANDER' : `VICTOR: ${winnerPlayer?.playerName || 'UNKNOWN'}`,
     buttonBg: isWinner ? 'bg-orange-600 hover:bg-orange-500' : 'bg-zinc-800 hover:bg-zinc-700'
   };
 
@@ -131,7 +132,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
           </h1>
           <div className="inline-flex items-center gap-4 bg-white/5 border border-white/10 px-8 py-2 rounded-full backdrop-blur-sm">
             <span className={`text-xl font-black uppercase italic tracking-widest font-fix ${isWinner ? 'text-white' : 'text-red-500'}`}>
-              {theme.jpTitle}
+              {theme.subTitle}
             </span>
           </div>
         </div>
@@ -231,3 +232,5 @@ export const ResultView: React.FC<ResultViewProps> = ({
     </div>
   );
 };
+
+export default ResultView;

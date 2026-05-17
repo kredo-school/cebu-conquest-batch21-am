@@ -101,7 +101,7 @@ export const SettingsView: React.FC<SettingsViewProps> = memo(({ onBack }) => {
       <main className="relative z-20 flex-1 px-6 py-8 lg:px-40 max-w-7xl mx-auto w-full overflow-y-auto custom-scrollbar">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* サイドバータブ：BentoCardのデザインを完全に移植 */}
+          {/* 🚀 サイドバータブ：LoginViewのBentoCardデザインに完全に統一 */}
           <div className="hidden lg:flex flex-col col-span-3 gap-3">
             <SettingsTab active={activeTab === 'sound'} onClick={() => setActiveTab('sound')} icon="volume_up" title="Audio Output" sub="Master & BGM" />
             <SettingsTab active={activeTab === 'gameplay'} onClick={() => setActiveTab('gameplay')} icon="sports_esports" title="Game Logic" sub="Quality & Camera" />
@@ -109,12 +109,19 @@ export const SettingsView: React.FC<SettingsViewProps> = memo(({ onBack }) => {
             <SettingsTab active={activeTab === 'account'} onClick={() => setActiveTab('account')} icon="account_circle" title="Operator ID" sub="Neural Identity" />
           </div>
 
-          {/* コンテンツエリア：LoginViewのメインカードスタイル */}
+          {/* 🚀 コンテンツエリア：LoginViewのメインカードスタイルに完全に統一 */}
           <div className="col-span-1 lg:col-span-9">
-            <div className="w-full bg-slate-900/80 backdrop-blur-xl p-8 rounded-2xl border border-slate-800 shadow-2xl relative overflow-hidden min-h-[550px] flex flex-col">
+            <div 
+              className="w-full backdrop-blur-xl p-8 rounded-2xl border border-slate-800 shadow-2xl relative overflow-hidden min-h-[550px] flex flex-col"
+              style={{
+                background: `radial-gradient(circle at top right, rgba(234, 88, 12, 0.15), transparent 60%), 
+                             radial-gradient(circle at bottom left, rgba(234, 88, 12, 0.05), transparent 60%), 
+                             rgba(15, 23, 42, 0.9)`
+              }}
+            >
               
               {/* 各セクションのコンテンツ */}
-              <div className="flex-1">
+              <div className="flex-1 relative z-10">
                 {activeTab === 'sound' && (
                   <div className="animate-fadeIn space-y-10">
                     <SectionHeader title="Sound Protocols" sub="Manage sensory input levels" />
@@ -185,8 +192,8 @@ export const SettingsView: React.FC<SettingsViewProps> = memo(({ onBack }) => {
                 )}
               </div>
 
-              {/* フッターアクション：LoginViewのCustomButtonスタイル */}
-              <div className="mt-12 pt-6 border-t border-white/5 flex justify-end gap-4">
+              {/* フッターアクション */}
+              <div className="mt-12 pt-6 border-t border-white/5 flex justify-end gap-4 relative z-10">
                 <CustomButton onClick={onBack} variant="ghost" className="px-8">CANCEL</CustomButton>
                 <CustomButton onClick={handleSave} variant="primary" className="px-12 py-4 text-sm font-black italic tracking-[0.2em]">
                   SAVE & SYNC <span className="material-symbols-outlined ml-1">bolt</span>
@@ -197,15 +204,15 @@ export const SettingsView: React.FC<SettingsViewProps> = memo(({ onBack }) => {
         </div>
       </main>
 
-      <footer className="relative z-20 bg-slate-950/80 backdrop-blur-md flex justify-center items-center w-full py-3 border-t border-slate-800">
-        <div className="text-orange-500/50 font-bold uppercase tracking-[0.3em] font-fix text-[8px]">© 2026 Batch21 [AM GI Offline] Protocol Active</div>
-      </footer>
-
-      {/* 🚀 トースト通知：LoginViewのモーダルスタイルを応用 */}
+      {/* 🚀 トースト通知：LoginViewのBentoCardスタイルに統一 */}
       {showToast && (
-        <div className="fixed inset-0 z-[30000] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-fadeIn">
-          <div className="bg-orange-600 text-slate-950 px-10 py-5 rounded-lg skew-x-[-10deg] shadow-[0_0_50px_rgba(249,115,22,0.5)] border-4 border-white/20 font-black italic tracking-widest uppercase">
-            Configuration Locked
+        <div className="fixed inset-0 z-[30000] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-fadeIn pointer-events-none">
+          <div className="bg-slate-900/90 backdrop-blur-xl border border-orange-500/50 text-orange-400 px-10 py-5 rounded-2xl shadow-[0_0_40px_rgba(249,115,22,0.3)] flex items-center gap-4">
+            <span className="material-symbols-outlined text-3xl">task_alt</span>
+            <div className="flex flex-col">
+              <span className="font-black italic tracking-widest uppercase text-white">Configuration Locked</span>
+              <span className="text-[10px] tracking-widest uppercase text-orange-500/80 mt-1">Changes synchronized to Command Center</span>
+            </div>
           </div>
         </div>
       )}
@@ -237,16 +244,27 @@ export const SettingsView: React.FC<SettingsViewProps> = memo(({ onBack }) => {
   );
 });
 
-// --- 再利用可能なコンポーネント（LoginViewのDNAを継承） ---
+// --- 🚀 再利用可能なコンポーネント（LoginViewのBentoCardデザインに完全に統一） ---
 
 const SettingsTab = ({ active, onClick, icon, title, sub }: { active: boolean, onClick: () => void, icon: string, title: string, sub: string }) => (
-  <div onClick={onClick} className={`bg-slate-900/40 backdrop-blur-sm p-4 rounded-xl border flex items-center gap-4 group transition-all cursor-pointer text-left ${active ? 'bg-slate-800 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.2)]' : 'border-slate-800/50 hover:bg-slate-800'}`}>
-    <div className={`p-2 rounded-lg transition-colors shrink-0 flex items-center justify-center ${active ? 'bg-orange-500 text-white' : 'bg-orange-500/20 group-hover:bg-orange-500/40 text-orange-400'}`}>
-      <span className="material-symbols-outlined text-xl">{icon}</span>
+  <div 
+    onClick={onClick} 
+    className={`p-3 rounded-2xl border flex items-center gap-3 group transition-all cursor-pointer text-left ${active ? 'bg-slate-800 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.2)]' : 'border-slate-800/50 hover:bg-slate-800'}`}
+    style={{
+      background: active
+        ? `radial-gradient(circle at top right, rgba(234, 88, 12, 0.2), transparent 70%), 
+           radial-gradient(circle at bottom left, rgba(234, 88, 12, 0.1), transparent 70%), 
+           rgba(30, 41, 59, 0.9)`
+        : `radial-gradient(circle at top right, rgba(234, 88, 12, 0.08), transparent 60%), 
+           rgba(15, 23, 42, 0.4)`
+    }}
+  >
+    <div className={`p-1.5 rounded-lg transition-colors shrink-0 text-left flex items-center justify-center ${active ? 'bg-orange-500 text-white' : 'bg-orange-500/20 group-hover:bg-orange-500/40 text-orange-400'}`}>
+      <span className="material-symbols-outlined text-lg">{icon}</span>
     </div>
     <div className="text-left overflow-hidden">
-      <div className={`font-black text-sm uppercase leading-tight italic truncate ${active ? 'text-white' : 'text-slate-200'}`}>{title}</div>
-      <div className="text-slate-500 text-[9px] uppercase tracking-widest leading-tight mt-0.5 truncate">{sub}</div>
+      <div className={`font-bold text-sm leading-tight truncate ${active ? 'text-orange-400' : 'text-white'}`}>{title}</div>
+      <div className="text-slate-500 text-[10px] leading-tight mt-0.5 truncate">{sub}</div>
     </div>
   </div>
 );
@@ -269,9 +287,9 @@ const VolumeSlider = ({ label, value, onChange }: { label: string, value: number
 );
 
 const ToggleItem = ({ label, active, onToggle }: { label: string, active: boolean, onToggle: () => void }) => (
-  <div className="flex items-center justify-between py-5 border-b border-white/5 last:border-0 group">
+  <div className="flex items-center justify-between py-5 border-b border-white/5 last:border-0 group cursor-pointer" onClick={onToggle}>
     <p className="text-sm font-bold text-slate-300 group-hover:text-white transition-colors">{label}</p>
-    <button onClick={onToggle} className={`relative inline-flex h-7 w-14 items-center rounded-full transition-all border-2 ${active ? 'bg-orange-600 border-orange-500' : 'bg-slate-800 border-slate-700'}`}>
+    <button className={`relative inline-flex h-7 w-14 items-center rounded-full transition-all border-2 ${active ? 'bg-orange-600 border-orange-500' : 'bg-slate-800 border-slate-700'}`}>
       <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-all shadow-md ${active ? 'translate-x-8' : 'translate-x-1'}`}></span>
     </button>
   </div>

@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import React from 'react';
 
 interface PlayerCardProps {
@@ -14,6 +15,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ name, id, isReady, isNPC
       ${isReady ? 'border-brand-500 shadow-brand-500/10' : 'border-slate-800 opacity-60'}
       ${isNPC ? 'border-red-500/50' : ''}`}>
       
+      {/* 🖼️ Avatar Link Container */}
       <div className="relative mb-4 text-left overflow-hidden rounded-lg bg-slate-950">
         <img 
           className={`w-full aspect-video object-cover transition-transform duration-500 ${isReady ? 'scale-105' : 'grayscale'}`} 
@@ -48,3 +50,5 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ name, id, isReady, isNPC
     </div>
   );
 };
+
+export default PlayerCard;
