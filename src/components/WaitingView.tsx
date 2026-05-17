@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import React, { useState, useEffect, useRef, memo, useMemo } from 'react';
+import React, { useEffect, useMemo, memo, useState, useRef } from 'react';
 import { useGameStore, Player, LobbyPlayer } from '../store';
 import socket from '../socket';
 import SoundManager from '../game/SoundManager';
@@ -30,7 +30,6 @@ type UnifiedPlayer = {
   ready?: boolean;
 };
 
-// 🚀 チャットメッセージの型を明示的に定義
 interface ChatData {
   sender: string;
   message: string;
@@ -38,36 +37,33 @@ interface ChatData {
 }
 
 const GOD_TRAITS: Record<number, { name: string; img: string; icon: string; role: string; desc: string }> = {
-  1: { name: "Neil",       img: "/assets/images/gods/Neil.png",       icon: "https://api.dicebear.com/7.x/identicon/svg?seed=1", role: "High Commander", desc: "初期HPを大幅に強化し、盤面の維持能力を高める。" },
-  2: { name: "Garry",      img: "/assets/images/gods/Garry.png",      icon: "https://api.dicebear.com/7.x/identicon/svg?seed=2", role: "War Lord", desc: "圧倒的な攻撃力を付与し、敵陣地への侵攻を容易にする。" },
-  3: { name: "Shem",       img: "/assets/images/gods/Shem.png",       icon: "https://api.dicebear.com/7.x/identicon/svg?seed=3", role: "Tactical Mind", desc: "HPとAPのバランスを整え、手数を増やす戦術に長ける。" },
-  4: { name: "Quisie",     img: "/assets/images/gods/Quisie.png",     icon: "https://api.dicebear.com/7.x/identicon/svg?seed=4", role: "Berserker", desc: "HPを犠牲に、極限の火力を引き出すハイリスク・ハイリターン型。" },
-  5: { name: "Eduardo",    img: "/assets/images/gods/Eduardo.png",    icon: "https://api.dicebear.com/7.x/identicon/svg?seed=5", role: "Iron Shield", desc: "防御力を極限まで高め、敵の反撃を無力化する守備の要。" },
-  6: { name: "Kurt",       img: "/assets/images/gods/Kurt.png",       icon: "https://api.dicebear.com/7.x/identicon/svg?seed=6", role: "Assassin", desc: "低HPながら隠密性に優れ、隙を突いた一撃を得意とする。" },
-  7: { name: "Stephen",    img: "/assets/images/gods/Stephen.png",    icon: "https://api.dicebear.com/7.x/identicon/svg?seed=7", role: "Oracle", desc: "信仰心の回復を促進し、神の加護を常に受け続けるパッシブを持つ。" },
-  8: { name: "Bernardine", img: "/assets/images/gods/Bernardine.png", icon: "https://api.dicebear.com/7.x/identicon/svg?seed=8", role: "Energy Core", desc: "最大APを大幅に底上げし、1ターン内での連続行動を可能にする。" },
+  1: { name: "Neil",       img: "/assets/images/gods/Neil.png",       icon: "https://api.dicebear.com/7.x/identicon/svg?seed=1", role: "High Commander", desc: "Greatly bolsters starting HP, significantly enhancing board preservation and tactical longevity." },
+  2: { name: "Garry",      img: "/assets/images/gods/Garry.png",      icon: "https://api.dicebear.com/7.x/identicon/svg?seed=2", role: "War Lord", desc: "Grants overwhelming offensive power, paving a smooth path to breach hostile sectors seamlessly." },
+  3: { name: "Shem",       img: "/assets/images/gods/Shem.png",       icon: "https://api.dicebear.com/7.x/identicon/svg?seed=3", role: "Tactical Mind", desc: "Perfectly balances HP and AP metrics, excelling in multi-action tactical combat sequences." },
+  4: { name: "Quisie",     img: "/assets/images/gods/Quisie.png",     icon: "https://api.dicebear.com/7.x/identicon/svg?seed=4", role: "Berserker", desc: "A high-risk unit that sacrifices core HP matrix to unleash ultimate, volatile destructive firepower." },
+  5: { name: "Eduardo",    img: "/assets/images/gods/Eduardo.png",    icon: "https://api.dicebear.com/7.x/identicon/svg?seed=5", role: "Iron Shield", desc: "Maxes out defensive parameters, serving as the ultimate bulwark to neutralize enemy counter-offensives." },
+  6: { name: "Kurt",       img: "/assets/images/gods/Kurt.png",       icon: "https://api.dicebear.com/7.x/identicon/svg?seed=6", role: "Assassin", desc: "Possesses a fragile HP pool but excels in low-profile infiltration to deliver lethal, critical strikes." },
+  7: { name: "Stephen",    img: "/assets/images/gods/Stephen.png",    icon: "https://api.dicebear.com/7.x/identicon/svg?seed=7", role: "Oracle", desc: "Passive uplink accelerates Faith regeneration, ensuring continuous divine protection and baseline stat enhancements." },
+  8: { name: "Bernardine", img: "/assets/images/gods/Bernardine.png", icon: "https://api.dicebear.com/7.x/identicon/svg?seed=8", role: "Energy Core", desc: "Substantially elevates maximum AP thresholds, unlocking complex multi-action tactical chains within a single turn phase." },
 };
 
 const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedPlayer; isMe: boolean; isHost: boolean; myAvatar: string | null }) => {
   const godId = player.selectedGodId || player.godId;
   const god = godId ? GOD_TRAITS[godId] : null;
-  // 🚀 自分自身の ready 状態も正しく反映させるため、親から渡された isReady を使う
   const isPlayerReady = player.isReady === true || player.ready === true;
   const avatarUrl = isMe ? myAvatar : null;
   const [isHovered, setIsHovered] = useState(false);
   const isNpc = player.id?.includes('npc') || (!player.username && !isMe);
 
   return (
-    // 🎨 LobbyViewと完全一致: h-64 w-72 p-5 rounded-2xl
     <div 
       className={`glass-panel p-5 rounded-2xl border-l-4 flex flex-col gap-4 group transition-all duration-500 h-64 w-72 shrink-0 relative overflow-visible ${
         isPlayerReady ? 'border-l-[#fa7000] bg-orange-950/10 shadow-[0_0_30px_rgba(250,112,0,0.2)]' : 'border-l-slate-800 bg-slate-900/40 opacity-90'
-      } ${isHovered ? 'z-50' : 'z-10'}`} // 🚀 修正: ホバー時に最前面へ持ってくる
+      } ${isHovered ? 'z-50' : 'z-10'}`}
       style={{
         background: `radial-gradient(circle at top right, ${isPlayerReady ? 'rgba(250, 112, 0, 0.15)' : 'rgba(255, 255, 255, 0.05)'}, transparent 70%), rgba(15, 23, 42, 0.8)`
       }}
     >
-      {/* 🚀 修正: 画像エリア全体でホバー判定するように変更 */}
       <div 
         className="relative h-40 w-full shrink-0 overflow-hidden rounded-xl bg-slate-950 flex items-center justify-center border border-white/5 cursor-help"
         onMouseEnter={() => setIsHovered(true)}
@@ -93,7 +89,6 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
         {isMe && <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-slate-900/90 text-[9px] font-black text-[#fa7000] rounded border border-[#fa7000]/30 uppercase z-10 font-fix pointer-events-none">YOU</div>}
       </div>
 
-      {/* 🚀 ホバー時の神の詳細情報 */}
       {isHovered && god && (
         <div className="absolute top-0 left-full ml-4 z-[100] w-64 bg-slate-950 border border-orange-500/50 p-4 rounded-xl backdrop-blur-2xl shadow-[0_0_40px_rgba(0,0,0,0.8)] animate-fadeIn pointer-events-none text-left">
           <div className="border-l-4 border-orange-600 pl-3 py-0.5 mb-2">
@@ -104,7 +99,6 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
         </div>
       )}
 
-      {/* プレイヤー情報 */}
       <div className="flex justify-between items-center shrink-0">
         <div className="flex flex-col text-left">
           <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-none mb-1 font-fix">{isPlayerReady ? 'Link Confirmed' : 'Decrypting Signal'}</p>
@@ -117,13 +111,11 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
         </div>
       </div>
 
-      {/* 神情報 */}
       <div className="relative god-area mt-auto pt-2 border-t border-slate-800/50 shrink-0 text-left">
         <div className={`flex items-center gap-2 transition-all duration-700 ${isPlayerReady ? 'opacity-100 translate-y-0' : 'opacity-20 translate-y-1'}`}>
           {isPlayerReady ? (
              <div className="relative">
                 {isNpc ? (
-                  // 🚀 NPCのアバター
                   <div className="w-7 h-7 rounded-full border border-slate-700 bg-slate-900 flex items-center justify-center shadow-[0_0_10px_rgba(6,182,212,0.3)]">
                     <span className="material-symbols-outlined text-[16px] text-cyan-500">smart_toy</span>
                   </div>
@@ -158,15 +150,12 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
   const chatEndRef = useRef<HTMLDivElement>(null);
   const { playBGM } = useBGM();
 
-  // 🚀 BGMのフェードイン切り替え
   useEffect(() => {
     playBGM('waiting');
   }, [playBGM]);
 
-  // 🚀 チャット二重送信バグ解消（依存配列を適切に設定し、複数登録を防ぐ）
   useEffect(() => {
     const handleReceiveMessage = (data: ChatData) => { 
-      // 重複チェック: 同じメッセージが直近にあれば弾く（簡易対策）
       useGameStore.setState(state => {
         const lastMsg = state.chatLogs[state.chatLogs.length - 1];
         if (lastMsg && lastMsg.sender === data.sender && lastMsg.message === data.message && lastMsg.timestamp === data.timestamp) {
@@ -176,13 +165,13 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
       });
     };
     
-    socket.off(SERVER_EVENTS.CHAT_MESSAGE); // 古いリスナーを確実に消す
+    socket.off(SERVER_EVENTS.CHAT_MESSAGE);
     socket.on(SERVER_EVENTS.CHAT_MESSAGE, handleReceiveMessage);
     
     return () => { 
       socket.off(SERVER_EVENTS.CHAT_MESSAGE, handleReceiveMessage); 
     };
-  }, []); // 空の依存配列で初回のみ実行
+  }, []);
 
   useEffect(() => { if (roomId) socket.emit(CLIENT_EVENTS.READY_TO_START, { roomId, ready: false }); }, [roomId]);
   useEffect(() => { if (selectedGodId) socket.emit(CLIENT_EVENTS.SELECT_GOD, { roomId, godId: selectedGodId }); }, [selectedGodId, roomId]);
@@ -272,7 +261,6 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                   return <PlayerCard key={lp.playerId} player={playerData} isMe={lp.playerId === myId} isHost={index === 0} myAvatar={playerAvatar} />;
                 }
                 return (
-                  // 🎨 LobbyViewと完全一致: h-64 w-72 p-5 rounded-2xl
                   <div key={`empty-${index}`} className="glass-panel p-5 rounded-2xl border-2 border-dashed border-slate-800 flex flex-col items-center justify-center gap-3 h-64 w-72 shrink-0 text-slate-600">
                     <span className="material-symbols-outlined text-5xl">person_add</span>
                     <span className="text-[11px] font-black uppercase tracking-[0.2em] font-fix text-center">AWAITING OPERATOR</span>
@@ -284,7 +272,6 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
 
           <div className="flex flex-col lg:flex-row gap-8 shrink-0 mb-4 items-end justify-center w-full max-w-6xl mx-auto px-4">
             
-            {/* 🚀 コメント欄（チャット）の比率を調整し、圧迫感を減らしました */}
             <div className="flex-1 glass-panel rounded-xl overflow-hidden flex flex-col h-32 border-slate-800 shadow-2xl w-full max-w-[600px]">
               <div className="flex-1 p-4 space-y-3 overflow-y-auto text-sm custom-scrollbar font-mono bg-slate-950/20 text-left">
                 {chatLogs.map((log, i) => (
