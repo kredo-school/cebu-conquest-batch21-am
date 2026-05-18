@@ -124,7 +124,6 @@ function checkAllConquered(roomState) {
 
 // ==========================================
 // 🏴 所有地区数カウント（全滅判定用）
-// roomState.districts はキーが districtId（3桁）のため district 単位でカウント
 // ==========================================
 function countOwnedSpots(roomState, playerId) {
     return Object.values(roomState.districts).filter(owner => owner === playerId).length;
@@ -324,7 +323,7 @@ function finalizeTurn(roomId, currentId) {
         if (eliminatedBySpotLoss.length > 0) {
             eliminatedBySpotLoss.forEach(pid => {
                 const player = roomState.players[pid];
-                console.log(`[finalizeTurn] spot elimination: playerId=${pid} username=${player?.username}`);
+                console.log(`[FINALIZE_TURN] プレイヤー敗北検知: playerId=${pid} username=${player?.username}`);
                 io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,
                     `💀 ${player?.username ?? pid}: 全地区を失い敗北しました！`
                 );
@@ -332,7 +331,6 @@ function finalizeTurn(roomId, currentId) {
             handleGameOver(roomId, roomState.turnOrder || Object.keys(roomState.players));
             return;
         }
-        // ==========================================
 
         const isAllConquered = checkAllConquered(roomState);
         const isSomeoneDead = Object.values(roomState.players).some(p => p && p.hp <= 0);
@@ -470,6 +468,11 @@ io.on('connection', (socket) => {
             if (roomState.turnOrder) {
                 const idx = roomState.turnOrder.indexOf(oldId);
                 if (idx !== -1) roomState.turnOrder[idx] = socket.id;
+            }
+
+            // ★ BUG FIX: リロード時にターンオーナーIDも確実に新IDに引き継ぐ
+            if (roomState.turnOwnerId === oldId) {
+                roomState.turnOwnerId = socket.id;
             }
 
             socket.join(roomId);
@@ -864,7 +867,7 @@ io.on('connection', (socket) => {
         if (!roomState || roomState.turnOwnerId !== socket.id) return;
 
         if (roomState.isProcessingAction) {
-            socket.emit(SERVER_EVENTS.ERROR_MESSAGE, "アクション処理中です。");
+            socket.emit(SERVER_EVENTS.ERROR_MESSAGE, "アクション処理中です。次のターン移行までお待ちください。");
             return;
         }
         roomState.isProcessingAction = true;
@@ -872,7 +875,8 @@ io.on('connection', (socket) => {
         let shouldAdvanceTurn = false; 
 
         try {
-            console.log(`[ACTION_SUBMIT] Player ${roomState.players[socket.id]?.username} が ${data.type} を実行しました`);
+            console.log(`\n[ACTION_SUBMIT] Player ${roomState.players[socket.id]?.username} がアクション [${data.type}] を実行`);
+            
             const p = roomState.players[socket.id];
             p.isDefending = false;
 
@@ -886,8 +890,7 @@ io.on('connection', (socket) => {
             if (data.type === 'attack' || data.type === 'move') {
                 if (neighbors.length > 0 && !neighbors.includes(targetSpotId)) {
                     socket.emit(SERVER_EVENTS.ERROR_MESSAGE, "隣接していないspotには移動・攻撃できません。");
-                    roomState.isProcessingAction = false; 
-                    return;
+                    return; // finallyでロックを解除してやり直し
                 }
 
                 if (data.type === 'attack') {
@@ -930,6 +933,7 @@ io.on('connection', (socket) => {
                                     })
                                 });
                                 const dbResult = await response.json();
+                                console.log(`✅ [Room ${roomId} DB] 陣地 ${targetDistrictId} 制圧:`, dbResult.message || dbResult);
                                 if (dbResult.dropped_item) {
                                     p.inventory.push(dbResult.dropped_item);
                                     io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🎁 ${p.username} が戦利品【${dbResult.dropped_item.name}】を獲得！`);
@@ -969,7 +973,8 @@ io.on('connection', (socket) => {
                 shouldAdvanceTurn = true;
 
             } else if (data.type === 'escape') {
-                const myDistricts = Object.keys(roomState.districts).filter(id => roomState.districts[id] === socket.id);
+                const myDistricts = Object.keys(roomState.districts)
+                    .filter(id => roomState.districts[id] === socket.id);
 
                 if (myDistricts.length > 0) {
                     const dest = myDistricts[Math.floor(Math.random() * myDistricts.length)];
@@ -984,14 +989,18 @@ io.on('connection', (socket) => {
 
             } else if (data.type === 'turn_end') {
                 shouldAdvanceTurn = true;
+            } else {
+                roomState.isProcessingAction = false;
+                return;
             }
 
         } catch (globalErr) {
             console.error(`❌ [ACTION_SUBMIT 致命的エラー]:`, globalErr);
+            roomState.isProcessingAction = false;
         } finally {
-            console.log(`[ACTION_SUBMIT] アクション完了. shouldAdvanceTurn=${shouldAdvanceTurn}`);
-            // オートターンエンドを強制実行するため、ここでロックは解除せず finalizeTurn に託す
+            console.log(`[ACTION_SUBMIT] アクション完了. オートターンエンド(shouldAdvanceTurn)=${shouldAdvanceTurn}`);
             socket.emit(SERVER_EVENTS.ACTION_RESULT, { state: sanitizeRoomState(roomState) }); 
+            
             if (!shouldAdvanceTurn) {
                 roomState.isProcessingAction = false; 
                 io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
@@ -1042,7 +1051,8 @@ io.on('connection', (socket) => {
 
         const p = roomState.players[socket.id];
         p.isDefending = false;
-        const myDistricts = Object.keys(roomState.districts).filter(id => roomState.districts[id] === socket.id);
+        const myDistricts = Object.keys(roomState.districts)
+            .filter(id => roomState.districts[id] === socket.id);
 
         if (myDistricts.length > 0) {
             const dest = myDistricts[Math.floor(Math.random() * myDistricts.length)];
