@@ -122,6 +122,23 @@ function checkAllConquered(roomState) {
     return allDistricts.every(dId => roomState.districts[dId] === firstOwner);
 }
 
+// ==========================================
+// 🏴 所有地区数カウント（全滅判定用）
+// roomState.districts はキーが districtId（3桁）のため district 単位でカウント
+// ==========================================
+function countOwnedSpots(roomState, playerId) {
+    return Object.values(roomState.districts).filter(owner => owner === playerId).length;
+}
+
+function getEliminatedBySpotLoss(roomState) {
+    if (roomState.turn === 0) return [];
+    return Object.keys(roomState.players).filter(pid => {
+        const player = roomState.players[pid];
+        if (!player || player.isNpc) return false;
+        return countOwnedSpots(roomState, pid) === 0;
+    });
+}
+
 function applyGodBonus(p, godId) {
     switch(Number(godId)) {
         case 1: p.maxHp += 30; p.maxAp -= 25; p.hp += 10; break;
@@ -299,6 +316,23 @@ function finalizeTurn(roomId, currentId) {
         if (currentPlayer && typeof currentPlayer.faithRegen === 'number') {
             currentPlayer.faith += currentPlayer.faithRegen;
         }
+
+        // ==========================================
+        // ★ BUG FIX: 所有地区数ゼロによる即時敗北チェック
+        // ==========================================
+        const eliminatedBySpotLoss = getEliminatedBySpotLoss(roomState);
+        if (eliminatedBySpotLoss.length > 0) {
+            eliminatedBySpotLoss.forEach(pid => {
+                const player = roomState.players[pid];
+                console.log(`[finalizeTurn] spot elimination: playerId=${pid} username=${player?.username}`);
+                io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,
+                    `💀 ${player?.username ?? pid}: 全地区を失い敗北しました！`
+                );
+            });
+            handleGameOver(roomId, roomState.turnOrder || Object.keys(roomState.players));
+            return;
+        }
+        // ==========================================
 
         const isAllConquered = checkAllConquered(roomState);
         const isSomeoneDead = Object.values(roomState.players).some(p => p && p.hp <= 0);
