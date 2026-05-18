@@ -419,11 +419,9 @@ export default class MainScene extends Phaser.Scene {
           }
 
           // ★ 全地区を神カラーで再描画
-          // spotName(5桁)はdistrictレベル(3桁)フォールバックで正しいオーナーを解決する
-          // （サーバーが3桁IDで送ってきた場合に全spotが"neutral"にリセットされるバグを防ぐ）
           Object.values(this.districts).forEach((d) => {
-            const distId = d.type === "spotName" && d.id >= 10000 ? Math.floor(d.id / 100) : null;
-            const ownerId = districtOwnerMap[d.id] ?? (distId != null ? districtOwnerMap[distId] : undefined) ?? "neutral";
+            if (d.type !== "spotName") return; // ★ spot以外をスキップ
+            const ownerId = districtOwnerMap[d.id] ?? "neutral";
             this._repaintDistrictByOwner(d, ownerId, playerMap);
           });
 
@@ -1340,13 +1338,11 @@ export default class MainScene extends Phaser.Scene {
   _syncDistricts(serverDistricts, serverPlayers) {
     if (!serverDistricts) return;
 
-    // ownerIdMap: Number(spotId) → ownerId (socket.id | "neutral")
     const ownerIdMap = {};
     Object.entries(serverDistricts).forEach(([id, ownerId]) => {
       ownerIdMap[Number(id)] = ownerId || "neutral";
     });
 
-    // playerMap: { [ownerId]: { godId } } — this._playerMap がなければ今回分で構築
     const playerMap =
       this._playerMap ??
       (() => {
@@ -1357,23 +1353,21 @@ export default class MainScene extends Phaser.Scene {
         return m;
       })();
 
-    // ★ 変化のあった spot のみ再描画（全件無条件更新を防ぐ）
     let repaintCount = 0;
 
     Object.values(this.districts).forEach((d) => {
       if (d.type !== "spotName") return;
 
       const spotId = d.id;
-      const districtId = Math.floor(spotId / 100);
 
-      // spot単位でマッチ → なければdistrict単位で判定
-      const ownerId = ownerIdMap[spotId] ?? ownerIdMap[districtId] ?? "neutral";
+      // ★ spotId(5桁)のみでマッチ。districtフォールバックは使わない
+      const ownerId = ownerIdMap[spotId] ?? "neutral";
 
-      // ★ 前回と owner が同じなら再描画をスキップ（FPS最適化）
       if (d.owner === ownerId) return;
 
       if (!this.isSelectionMode && ownerId === socket.id && d.owner !== socket.id) {
         SoundManager.playSE("se_territory_control");
+        this.effectManager?.playCapturePopup(d.center.x, d.center.y);
       }
 
       d.owner = ownerId;
@@ -1382,10 +1376,8 @@ export default class MainScene extends Phaser.Scene {
       if (ownerId === "neutral") {
         this._redrawDistrict(d, COLOR.NEUTRAL, 0);
       } else {
-        // ★ 所有者の godId → godColor で塗り分け
         const godId = playerMap[ownerId]?.godId ?? null;
         const color = godId ? getGodColor(godId) : 0xaaaaaa;
-        // Kurt など暗色神はアウトラインを白固定で視認性確保
         const DARK_THRESHOLD = 0x404040;
         if (d.outlineGraphics && color < DARK_THRESHOLD) {
           d._darkOwner = true;
@@ -1396,7 +1388,6 @@ export default class MainScene extends Phaser.Scene {
         this._redrawDistrict(d, color, alpha);
       }
 
-      // アウトラインも更新
       this._updateSpotOutline(d, false);
     });
 
@@ -1466,38 +1457,37 @@ export default class MainScene extends Phaser.Scene {
         return;
       }
 
-      // ── 他プレイヤー / NPC ──
-      let rawDistrictId = data.districtId ?? data.currentDistrict ?? data.pos;
-      if (rawDistrictId == null && data.spotId != null) {
-        rawDistrictId = Math.floor(Number(data.spotId) / 100);
-      }
-      const dId = normalizeId(rawDistrictId);
-      if (!dId) {
-        if (import.meta.env.DEV) {
-          console.warn(`[_syncPlayers] Player ${playerId} (${data.username}) no valid id:`, data);
-        }
-        return;
-      }
-
-      const d = this.districts[dId];
-      if (!d?.center) {
-        if (import.meta.env.DEV) {
-          console.warn(`[_syncPlayers] district ${dId} not in Phaser for ${playerId}`);
-        }
-        return;
-      }
-
-      // ★ spotId があればspot座標を優先（自プレイヤーと同じロジック）、なければdistrict中心にフォールバック
-      let px = d.center.x;
-      let py = d.center.y;
+      // ── 他プレイヤー / NPC ── spotId 優先、なければ districtId 中心にフォールバック
       const rawSpotId = data.spotId != null ? Number(data.spotId) : null;
-      if (rawSpotId != null && rawSpotId >= 10000) {
-        const spotEntry = this.spots[rawSpotId];
-        if (spotEntry) {
-          px = spotEntry.x;
-          py = spotEntry.y;
-        } else if (import.meta.env.DEV) {
-          console.warn(`[_syncPlayers] spotId=${rawSpotId} not in this.spots for ${playerId}, falling back to district center`);
+      const spotData = rawSpotId != null && rawSpotId >= 10000 ? this.spots[rawSpotId] : null;
+
+      let posX, posY;
+      if (spotData) {
+        posX = spotData.x;
+        posY = spotData.y;
+      } else {
+        let rawDistrictId = data.districtId ?? data.currentDistrict ?? data.pos;
+        if (rawDistrictId == null && data.spotId != null) {
+          rawDistrictId = Math.floor(Number(data.spotId) / 100);
+        }
+        const dId = normalizeId(rawDistrictId);
+        if (!dId) {
+          if (import.meta.env.DEV) {
+            console.warn(`[_syncPlayers] Player ${playerId} (${data.username}) no valid id:`, data);
+          }
+          return;
+        }
+        const d = this.districts[dId];
+        if (!d?.center) {
+          if (import.meta.env.DEV) {
+            console.warn(`[_syncPlayers] district ${dId} not in Phaser for ${playerId}`);
+          }
+          return;
+        }
+        posX = d.center.x;
+        posY = d.center.y;
+        if (import.meta.env.DEV) {
+          console.warn(`[_syncPlayers] spotId missing for ${playerId}, falling back to district center`);
         }
       }
 
@@ -1521,7 +1511,7 @@ export default class MainScene extends Phaser.Scene {
       let dot;
       if (isNpc) {
         dot = this.add
-          .circle(px, py, 16, 0xff00ff)
+          .circle(posX, posY, 16, 0xff00ff)
           .setDepth(900)
           .setStrokeStyle(3, 0x000000);
       } else if (hasEnemyTexture) {
@@ -1531,20 +1521,20 @@ export default class MainScene extends Phaser.Scene {
         const cropY = Math.floor((src.height - size) / 2);
 
         dot = this.add
-          .image(px, py, enemyGodKey)
+          .image(posX, posY, enemyGodKey)
           .setCrop(cropX, cropY, size, size)
           .setDisplaySize(ENEMY_SIZE, ENEMY_SIZE)
           .setDepth(900);
       } else {
         dot = this.add
-          .circle(px, py, 16, COLOR.ENEMY_DOT)
+          .circle(posX, posY, 16, COLOR.ENEMY_DOT)
           .setDepth(900)
           .setStrokeStyle(3, 0x000000);
       }
 
       const enemyName = data.username || data.playerName || (isNpc ? "NPC" : "???");
       const label = this.add
-        .text(px, py - (isNpc ? 24 : 30), isNpc ? "NPC" : enemyName, {
+        .text(posX, posY - (isNpc ? 24 : 30), isNpc ? "NPC" : enemyName, {
           fontSize: "10px",
           fontFamily: "monospace",
           fill: isNpc ? "#ff00ff" : "#cccccc",
