@@ -211,7 +211,6 @@ export default class MainScene extends Phaser.Scene {
       SoundManager.playBGM("bgm_field");
     });
     this.effectManager = new EffectManager(this);
-    this._previousOwnerMap = {};
     window.__SCENE__ = this;
     this._setupBGMListeners();
     this._setupSEListeners();
@@ -420,19 +419,13 @@ export default class MainScene extends Phaser.Scene {
           }
 
           // ★ 全地区を神カラーで再描画
+          // spotName(5桁)はdistrictレベル(3桁)フォールバックで正しいオーナーを解決する
+          // （サーバーが3桁IDで送ってきた場合に全spotが"neutral"にリセットされるバグを防ぐ）
           Object.values(this.districts).forEach((d) => {
-            const ownerId = districtOwnerMap[d.id] ?? "neutral";
+            const distId = d.type === "spotName" && d.id >= 10000 ? Math.floor(d.id / 100) : null;
+            const ownerId = districtOwnerMap[d.id] ?? (distId != null ? districtOwnerMap[distId] : undefined) ?? "neutral";
             this._repaintDistrictByOwner(d, ownerId, playerMap);
           });
-
-          // 差分チェック：新規取得spotだけにエフェクト発火
-          if (!this.isSelectionMode) {
-            const newlyAcquired = this._diffOwnerMap(districtOwnerMap, socket.id);
-            newlyAcquired.forEach((id) => this._showCaptureEffect(id));
-          }
-
-          // スナップショットを今回の状態で上書き
-          this._previousOwnerMap = { ...districtOwnerMap };
 
           if (players) this._syncPlayers(players);
         },
@@ -504,19 +497,9 @@ export default class MainScene extends Phaser.Scene {
 
           this._repaintDistrictByOwner(d, owner ?? "neutral", playerMap);
 
-          // 自分が取得したdistrictだけ差分チェックしてエフェクト発火
+          // 自分が新たに取得したときだけ "+1 SPOT" エフェクトを1回発火
           if (owner === socket.id && !this.isSelectionMode) {
-            const distId = dId >= 10000 ? Math.floor(dId / 100) : dId;
-            const spotsInDistrict = this._getSpotsInDistrict(distId);
-            if (spotsInDistrict.length > 0) {
-              spotsInDistrict.forEach((spot) => {
-                if (this._previousOwnerMap[spot.id] !== socket.id) {
-                  this._showCaptureEffect(spot.id);
-                }
-              });
-            } else if (this._previousOwnerMap[dId] !== socket.id) {
-              this._showCaptureEffect(dId);
-            }
+            this.effectManager?.playCapturePopup(d.center.x, d.center.y);
           }
         },
       },
@@ -1098,49 +1081,6 @@ export default class MainScene extends Phaser.Scene {
     );
   }
 
-  /**
-   * districtOwnerMap { id: ownerId } と _previousOwnerMap を比較し、
-   * myPlayerId が新たに取得した id の配列を返す。
-   */
-  _diffOwnerMap(newOwnerMap, myPlayerId) {
-    const newlyAcquired = [];
-    Object.entries(newOwnerMap).forEach(([id, owner]) => {
-      const wasAlreadyMine = this._previousOwnerMap[id] === myPlayerId;
-      const isNowMine = owner === myPlayerId;
-      if (isNowMine && !wasAlreadyMine) {
-        newlyAcquired.push(Number(id));
-      }
-    });
-    return newlyAcquired;
-  }
-
-  /**
-   * 指定 spotId/districtId のワールド座標に "+1 Spot" テキストをフロートアップ表示する。
-   */
-  _showCaptureEffect(id) {
-    const d = this.districts[Number(id)];
-    if (!d) return;
-    const { x, y } = d.center;
-    const text = this.add
-      .text(x, y, "+1 Spot", {
-        fontSize: "14px",
-        fontFamily: "Arial",
-        color: "#facc15",
-        stroke: "#000000",
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5, 1)
-      .setDepth(100);
-    this.tweens.add({
-      targets: text,
-      y: y - 40,
-      alpha: 0,
-      duration: 1200,
-      ease: "Power2",
-      onComplete: () => text.destroy(),
-    });
-  }
-
   _handleDistrictClick(districtObj) {
     const districtId = normalizeId(districtObj.properties?.[0]?.name ?? districtObj.id);
     if (districtId == null) return;
@@ -1434,7 +1374,6 @@ export default class MainScene extends Phaser.Scene {
 
       if (!this.isSelectionMode && ownerId === socket.id && d.owner !== socket.id) {
         SoundManager.playSE("se_territory_control");
-        this.effectManager?.playCapturePopup(d.center.x, d.center.y);
       }
 
       d.owner = ownerId;
