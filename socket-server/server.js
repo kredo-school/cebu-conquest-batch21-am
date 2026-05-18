@@ -127,14 +127,14 @@ function checkAllConquered(roomState) {
     return allDistricts.every(dId => roomState.districts[dId] === firstOwner);
 }
 
-// 指定プレイヤーの所有territory数を返す
-// roomState.districts のキーは3桁districtId（roomState.spotsは存在しない）
+// ==========================================
+// 🏴 所有地区数カウント（全滅判定用）
+// roomState.districts はキーが districtId（3桁）のため district 単位でカウント
+// ==========================================
 function countOwnedSpots(roomState, playerId) {
     return Object.values(roomState.districts).filter(owner => owner === playerId).length;
 }
 
-// 人間プレイヤーのうち所有territoryを全て失ったプレイヤーIDの配列を返す
-// turn === 0 は初期配置中のため除外
 function getEliminatedBySpotLoss(roomState) {
     if (roomState.turn === 0) return [];
     return Object.keys(roomState.players).filter(pid => {
@@ -319,19 +319,22 @@ function finalizeTurn(roomId, currentId) {
             currentPlayer.faith += currentPlayer.faithRegen;
         }
 
-        // ★ BUG FIX: 所有territory数ゼロによる即時敗北チェック
+        // ==========================================
+        // ★ BUG FIX: 所有地区数ゼロによる即時敗北チェック
+        // ==========================================
         const eliminatedBySpotLoss = getEliminatedBySpotLoss(roomState);
         if (eliminatedBySpotLoss.length > 0) {
             eliminatedBySpotLoss.forEach(pid => {
                 const player = roomState.players[pid];
                 console.log(`[finalizeTurn] spot elimination: playerId=${pid} username=${player?.username}`);
                 io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,
-                    `💀 ${player?.username ?? pid}: Lost all spots — ELIMINATED!`
+                    `💀 ${player?.username ?? pid}: 全地区を失い敗北しました！`
                 );
             });
-            handleGameOver(roomId, roomState.turnOrder);
+            handleGameOver(roomId, roomState.turnOrder || Object.keys(roomState.players));
             return;
         }
+        // ==========================================
 
         const isAllConquered = checkAllConquered(roomState);
         const isSomeoneDead = Object.values(roomState.players).some(p => p && p.hp <= 0);
