@@ -119,9 +119,7 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
   };
 
   return (
-    // 🚀 修正ポイント: 最外層のクラス名・背景色・z-indexを LobbySetupView と完全に同一の構造に統一
     <div className="w-full h-screen bg-slate-950 text-slate-200 font-body relative flex flex-col overflow-hidden select-none text-left z-0">
-      {/* 🚀 修正ポイント: LobbySetupView から背景レイヤー（-z-10、opacity-40）を完全移植 */}
       <div className="fixed inset-0 -z-10 island-silhouette opacity-40 pointer-events-none" />
       <div className="fixed inset-0 -z-10 tropical-flare pointer-events-none" />
 
@@ -130,22 +128,23 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
         onOpenHelp={onOpenHelp} 
       />
 
-      <main className="relative z-20 flex-1 flex flex-col items-center justify-center px-4 pt-16 pb-4 overflow-hidden">
+      {/* 🚀 修正: pt-24 などで上部を固定し、全体の要素がブレないように調整 */}
+      <main className="relative z-20 flex-1 flex flex-col items-center justify-start px-4 pt-24 pb-4 overflow-y-auto custom-scrollbar">
         
-        {/* タイトル周り：バッジとオレンジ巨大タイトル */}
-        <div className="text-center mb-6 shrink-0 h-[110px] flex flex-col justify-end items-center">
-          <div className="px-4 py-0.5 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-400 text-[10px] font-black tracking-[0.2em] uppercase mb-3 font-fix">
-            WELCOME TO THE ARCHIPELAGO
-          </div>
+        {/* タイトル周り：高さとマージンを固定し、モード切替時にガタガタ動かないようにする */}
+        <div className="text-center mb-6 shrink-0 flex flex-col items-center">
           <h1 className="text-4xl md:text-6xl font-black text-[#e05a13] tracking-tighter uppercase font-fix">
             CEBU CONQUEST
           </h1>
-          <p className="text-slate-400 text-sm font-medium tracking-wide mt-1 mb-3 font-fix">Enter the battlefield.</p>
+          {/* 🚀 修正: 「WELCOME TO THE ARCHIPELAGO」をタイトルとフォームの間に移動 */}
+          <div className="mt-4 px-4 py-0.5 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-400 text-[10px] font-black tracking-[0.2em] uppercase font-fix">
+            WELCOME TO THE ARCHIPELAGO
+          </div>
         </div>
 
         {/* 中央フォームカード */}
         <div 
-          className="w-full max-w-sm bg-[#151c2c]/60 backdrop-blur-xl p-6 rounded-2xl border border-slate-800 shadow-2xl relative overflow-hidden text-left shrink-0"
+          className="w-full max-w-sm bg-[#151c2c]/60 backdrop-blur-xl p-6 rounded-2xl border border-slate-800 shadow-2xl relative overflow-hidden text-left shrink-0 transition-all duration-300"
           style={{
             backgroundImage: isRegisterMode
               ? `radial-gradient(circle at top right, rgba(6, 182, 212, 0.12), transparent 60%), 
@@ -214,9 +213,20 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
               )}
 
               {/* ENTER ARCHIPELAGO ボタン */}
+              {/* 🚀 修正: isLoading 時は色を暗く沈み込ませ、テキストを SCANNING... に変更する渋い演出 */}
               <div className="pt-2">
-                <CustomButton type="submit" disabled={isLoading} variant="primary" className={`w-full py-3 text-sm font-black tracking-widest font-fix bg-[#e05a13] hover:brightness-110 text-white flex items-center justify-center gap-1 ${isRegisterMode ? '!bg-cyan-700 hover:!bg-cyan-600 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : ''}`}>
-                  {isLoading ? 'SYNCING...' : (isRegisterMode ? 'REGISTER ACCOUNT' : 'ENTER ACCOUNT')}
+                <CustomButton 
+                  type="submit" 
+                  disabled={isLoading} 
+                  variant="primary" 
+                  className={`w-full py-3 text-sm font-black tracking-widest font-fix transition-all duration-300 flex items-center justify-center gap-1
+                    ${isLoading 
+                      ? (isRegisterMode ? '!bg-cyan-950 !text-cyan-600 border border-cyan-900 shadow-none' : '!bg-orange-950 !text-orange-600 border border-orange-900 shadow-none') 
+                      : (isRegisterMode ? '!bg-cyan-700 hover:!bg-cyan-600 shadow-[0_0_15px_rgba(6,182,212,0.3)] text-white' : 'bg-[#e05a13] hover:brightness-110 text-white')
+                    }
+                  `}
+                >
+                  {isLoading ? 'SCANNING...' : (isRegisterMode ? 'REGISTER ACCOUNT' : 'ENTER ACCOUNT')}
                   {!isLoading && <span className="material-symbols-outlined text-base">bolt</span>}
                 </CustomButton>
               </div>
@@ -235,9 +245,9 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
           )}
         </div>
 
-        {/* 下部3つのBentoCard */}
+        {/* 🚀 修正: BentoCard とフォームの間に mt-14 を設定してゆとりを持たせる */}
         {!isRegisterMode && (
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-3 w-full max-w-3xl shrink-0 animate-fadeIn">
+          <div className="mt-14 grid grid-cols-1 md:grid-cols-3 gap-3 w-full max-w-3xl shrink-0 animate-fadeIn mb-8">
             <BentoCard icon="cloud_off" title="No Laravel" sub="First project without Laravel" isActive={activeCategory === 'laravel'} onClick={() => setActiveCategory('laravel')}/>
             <BentoCard icon="military_tech" title="God Teachers" sub="Do you believe in God" isActive={activeCategory === 'gods'} onClick={() => setActiveCategory('gods')}/>
             <BentoCard icon="map" title="Cebu Conquest" sub="Learn about Cebu" isActive={activeCategory === 'about'} onClick={() => setActiveCategory('about')}/>
@@ -246,7 +256,7 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
 
         {/* ポップアップ詳細ダイアログ */}
         {activeCategory && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-fadeIn">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-fadeIn">
             <div className="bg-[#151c2c]/80 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl relative text-left">
               <button onClick={() => setActiveCategory(null)} className="absolute top-4 right-4 text-slate-500 hover:text-orange-400 transition-colors">
                 <span className="material-symbols-outlined">close</span>
@@ -281,11 +291,10 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
         )}
       </main>
 
-      <footer className="relative z-20 bg-[#060a12]/80 backdrop-blur-md flex flex-col md:flex-row justify-center items-center w-full py-3 border-t border-slate-900 shrink-0">
+      <footer className="relative z-20 bg-[#060a12]/80 backdrop-blur-md flex flex-col md:flex-row justify-center items-center w-full py-3 border-t border-slate-900 shrink-0 mt-auto">
         <div className="text-orange-500/40 font-bold uppercase tracking-[0.3em] font-fix text-[8px]">© 2026 Batch21 [AM GI Offline] Protocol Active</div>
       </footer>
 
-      {/* 🚀 修正ポイント: スタイル定義内のアセット定義を LobbySetupView のアセットに100%完全同期 */}
       <style>{`
         .material-symbols-outlined { font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 48 }
         .scanning-line { height: 1px; position: absolute; width: 100%; top: 0; animation: scan 3s linear infinite; opacity: 0.3; }
@@ -294,7 +303,6 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .font-fix { line-height: 1.2; }
         
-        /* 💡 LobbySetupView から完全にコピーした高輝度演出およびカラープロパティ */
         .tropical-flare { 
           background: radial-gradient(circle at center, rgba(249, 115, 22, 0.4) 0%, rgba(249, 115, 22, 0) 70%); 
         }
@@ -303,12 +311,18 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
           background-size: cover; 
           background-position: center bottom; 
         }
+
+        /* カスタムスクロールバー（全体のスクロール用） */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(234, 88, 12, 0.4); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
       `}</style>
     </div>
   );
 });
 
 const BentoCard = ({ icon, title, sub, onClick, isActive }: { icon: string, title: React.ReactNode, sub: React.ReactNode, onClick?: () => void, isActive?: boolean }) => (
+  // 🚀 修正: 角の丸みを rounded-2xl で統一
   <div 
     onClick={onClick} 
     className={`p-3 rounded-2xl border flex items-center gap-3 group transition-all cursor-pointer text-left ${isActive ? 'bg-[#1e293b]/80 border-orange-500 shadow-2xl' : 'border-slate-800/60 bg-[#111827]/40 hover:bg-[#1e293b]/50'}`}

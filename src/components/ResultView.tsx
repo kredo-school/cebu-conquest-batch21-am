@@ -20,15 +20,20 @@ export const ResultView: React.FC<ResultViewProps> = ({
   } = useGameStore();
 
   const hasSavedResult = useRef(false);
-  const { playBGM, stopBGM } = useBGM();
+  
+  // 🚀 修正: playBGMはstore.tsで既に呼び出されるため、ここでは不要。終了時のstopBGMのみ使用。
+  const { stopBGM } = useBGM();
 
   const isWinner = useMemo(() => winnerId === myId, [winnerId, myId]);
 
+  // 🚀 修正: store.tsと競合してBGMが2重に鳴るバグを防止するため、ここでのBGM再生ロジックを削除
   useEffect(() => {
     if (!isGameOver) return;
-    playBGM(isWinner ? 'winner' : 'Loser');
+    // BGMの再生は store.ts の syncServerState 内で行われるため、ここには書かない。
+    
+    // 画面が閉じられる(Restart等)時にBGMを止める
     return () => stopBGM();
-  }, [isGameOver]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isGameOver, stopBGM]);
   
   // Fetch detailed information of the victor
   const winnerPlayer = useMemo(() => 
@@ -40,7 +45,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
   [godsList, winnerPlayer]);
 
   const stats = useMemo(() => {
-    // ✅ Fix: Safely cast to string to prevent comparison errors ts(2367)
+    // Fix: Safely cast to string to prevent comparison errors ts(2367)
     const myDistrictsCount = Object.values(districts).filter(val => (val as unknown as string) === myId).length;
     const totalDistrictsCount = Math.max(1, Object.keys(districts).length);
     const territoryPercent = Math.round((myDistrictsCount / totalDistrictsCount) * 100);
@@ -141,6 +146,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl w-full mb-12">
           
           {/* Winner God Portrait */}
+          {/* 🚀 修正: デザイン統一のため rounded-2xl を適用 */}
           <div className={`relative aspect-[4/5] bg-zinc-900 border-2 ${theme.border} rounded-2xl overflow-hidden shadow-2xl group`}>
             <img className="w-full h-full object-cover grayscale-[0.3] brightness-75 transition-transform duration-1000 group-hover:scale-110" src={winnerGod.img} alt="" />
             <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80"></div>
@@ -151,6 +157,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
           </div>
 
           {/* Commander Stats */}
+          {/* 🚀 修正: デザイン統一のため rounded-2xl を適用 */}
           <div className={`bg-zinc-900/40 backdrop-blur-xl border ${theme.border} p-10 md:col-span-2 rounded-2xl flex flex-col justify-between shadow-inner`}>
             <div className="grid grid-cols-2 gap-12 text-left">
               
@@ -203,9 +210,10 @@ export const ResultView: React.FC<ResultViewProps> = ({
 
         {/* Final Actions */}
         <div className="flex flex-col sm:flex-row gap-6 w-full max-w-xl">
+          {/* 🚀 修正: デザイン統一のため rounded-2xl を適用 */}
           <button 
             onClick={onRestart}
-            className={`flex-1 group relative overflow-hidden ${theme.buttonBg} py-5 rounded-xl transition-all active:scale-95 shadow-[0_10px_30px_rgba(0,0,0,0.3)]`}
+            className={`flex-1 group relative overflow-hidden ${theme.buttonBg} py-5 rounded-2xl transition-all active:scale-95 shadow-[0_10px_30px_rgba(0,0,0,0.3)]`}
           >
             <div className="relative z-10 flex items-center justify-center gap-3 text-white font-black uppercase italic text-xl tracking-tighter font-fix">
               <span className="material-symbols-outlined">refresh</span>
@@ -214,9 +222,10 @@ export const ResultView: React.FC<ResultViewProps> = ({
             <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
           </button>
           
+          {/* 🚀 修正: デザイン統一のため rounded-2xl を適用 */}
           <button 
             onClick={onOpenRanking}
-            className="flex-1 bg-transparent border-2 border-zinc-800 hover:border-orange-500/50 py-5 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-3 text-zinc-400 hover:text-white group"
+            className="flex-1 bg-transparent border-2 border-zinc-800 hover:border-orange-500/50 py-5 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-3 text-zinc-400 hover:text-white group"
           >
             <span className="material-symbols-outlined group-hover:rotate-12 transition-transform">military_tech</span>
             <span className="font-black uppercase italic text-xl tracking-tighter font-fix">View Ranking</span>
