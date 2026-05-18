@@ -34,7 +34,7 @@ export default class EffectManager {
    */
   playCapturePopup(x, y) {
     playBellRipple(this.scene, x, y, { rings: 3 });
-    this._playGoldText(x, y, '+1地区');
+    this._playGoldText(x, y, '+1 SPOT');
   }
 
   // ─── 内部ヘルパー ───────────────────────────────────────
