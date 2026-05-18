@@ -138,6 +138,7 @@ export interface GameState {
   districts: Record<string, string>; 
   currentDistrictName: string;
   selectedDistrictId: number | null;
+  selectedSpotId: number | null; // 🚀 追加: 5桁のspotIdを保存
   playerName: string;
   myId: string; 
   myTeam: string; 
@@ -205,8 +206,8 @@ export interface GameState {
   updateBuffs: () => void;
   setStatus: (status: Partial<GameState>) => void;
   syncServerState: (data: Record<string, unknown>, myId: string) => void;
-  attack: (targetId: number) => void;
-  move: (targetId: number) => void;
+  attack: (spotId: number) => void; // 🚀 変数名を targetId から spotId に変更
+  move: (spotId: number) => void;   // 🚀 変数名を targetId から spotId に変更
   stay: () => void;
   defend: () => void;
   escape: () => void;
@@ -241,7 +242,7 @@ export const useGameStore = create<GameState>()(
       errorMessage: null, isServerOnline: socket.connected, zoomLevel: 1.0, 
       hp: 100, maxHp: 100, ap: 100, maxAp: 100, blessing: 1.0, atk: 50, def: 40,
       turn: 0, maxTurn: 10, logs: [], chatLogs: [], roomId: '', players: [], maxPlayers: 2,
-      districts: {}, currentDistrictName: "No Sector Selected", selectedDistrictId: null,
+      districts: {}, currentDistrictName: "No Sector Selected", selectedDistrictId: null, selectedSpotId: null,
       playerName: "",
       myId: "", myTeam: "Explorer", isMyTurn: true, turnOwner: "YOU",
       isGameOver: false, winnerId: null, isSubmitted: false,
@@ -315,14 +316,12 @@ export const useGameStore = create<GameState>()(
         } catch { return false; }
       },
       
-      // 🚀 修正ポイント: PHP側から territories が正常に取得できなかった場合の判定を安全ガードで強化
       syncMasterData: async () => {
         try {
           const json = await get().authenticatedFetch<MasterData>('master-data.php');
           if (json?.status === 'success' && json.data) {
             const districtsMap: Record<string, string> = {};
             
-            // territoriesが未定義(undefined)の時、forEachでクラッシュするのを配列チェックで鉄壁ガード
             if (json.data && Array.isArray(json.data.territories)) {
               json.data.territories.forEach((t) => { 
                 districtsMap[String(t.district_id)] = t.owner_id || ''; 
@@ -383,40 +382,52 @@ export const useGameStore = create<GameState>()(
 
       syncServerState: (data, myId) => {
         if (!data) return;
+        
+        const nextDistricts = (data.districts as Record<string, string>) ?? get().districts;
+        const totalTerritories = get().masterData?.territories?.length || get().lookupData?.districts?.size || 100;
+
         const rawPlayers = (data.players as Record<string, Player>) ?? {};
         let playersArray = (Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers)) as Player[];
-        playersArray = playersArray.map(p => ({
-          ...p,
-          playerName: p.playerName || p.username,
-          name: p.name || p.username,
-          godId: p.godId || p.selectedGodId, 
-          selectedGodId: p.selectedGodId || p.godId,
-          location: p.location || p.districtId,
-          current_hp: p.current_hp || p.hp,
-          isReady: !!p.isReady
-        }));
+        
+        playersArray = playersArray.map(p => {
+          const ownedCount = Object.values(nextDistricts).filter(id => id === p.id).length;
+          const calcOccupancy = totalTerritories > 0 ? Math.round((ownedCount / totalTerritories) * 100) : 0;
+
+          return {
+            ...p,
+            playerName: p.playerName || p.username,
+            name: p.name || p.username,
+            godId: p.godId || p.selectedGodId, 
+            selectedGodId: p.selectedGodId || p.godId,
+            location: p.location || p.districtId,
+            current_hp: p.current_hp || p.hp,
+            isReady: !!p.isReady,
+            occupancy: calcOccupancy
+          };
+        });
+
         const myPlayerData = playersArray.find((p) => p.id === myId);
         
         set((state) => {
           let nextView = state.view;
           const isActuallyStarted = !!data.gameStarted;
           const hasInitialPosition = !!(myPlayerData?.districtId || myPlayerData?.location);
-          if (data.isGameOver) {
-            nextView = 'ranking';
-            if (!state.isGameOver) get().saveResult();
-          } else if (isActuallyStarted) {
-            if (hasInitialPosition) {
-              nextView = 'game';
-            } else {
-              nextView = 'waiting';
+
+          if (!['login', 'setup'].includes(state.view)) {
+            if (data.isGameOver) {
+              if (!state.isGameOver) get().saveResult();
+            } else if (isActuallyStarted) {
+              if (hasInitialPosition) {
+                nextView = 'game';
+              } else {
+                nextView = 'waiting';
+              }
+            } else if (data.phase === 'selection' && nextView === 'lobby') {
+              nextView = 'selection';
             }
-          } else if (data.phase === 'selection' && nextView === 'lobby') {
-            nextView = 'selection';
           }
           
-          const safeRoomId = (data.roomId && data.roomId !== "") 
-                             ? (data.roomId as string) 
-                             : state.roomId;
+          const safeRoomId = (data.roomId && data.roomId !== "") ? (data.roomId as string) : state.roomId;
 
           return {
             ...state,
@@ -427,7 +438,7 @@ export const useGameStore = create<GameState>()(
             ap: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.ap,
             selectedDistrictId: myPlayerData?.districtId ?? myPlayerData?.location ?? state.selectedDistrictId, 
             selectedGodId: myPlayerData?.selectedGodId ?? myPlayerData?.godId ?? state.selectedGodId,
-            districts: (data.districts as Record<string, string>) ?? state.districts,
+            districts: nextDistricts,
             players: playersArray,
             lobbyPlayers: (['lobby', 'selection', 'waiting'].includes(nextView))
               ? playersArray.map(p => ({
@@ -452,7 +463,7 @@ export const useGameStore = create<GameState>()(
           acc[p.id] = p; return acc; 
         }, {});
         if (get().view === 'game') {
-          window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: data.districts, players: playersAsObject } }));
+          window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: nextDistricts, players: playersAsObject } }));
         }
       },
       
@@ -462,16 +473,18 @@ export const useGameStore = create<GameState>()(
             predictionModalOpen: false,
             targetDistrictInfo: null,
             selectedDistrictId: null,
+            selectedSpotId: null, // 🚀 5桁クリア
             currentDistrictName: "No Sector Selected"
           });
           return;
         }
 
         set({
-          selectedDistrictId: data.spotId ?? data.districtId,
+          selectedDistrictId: data.districtId, // 🚀 ここは3桁（HUD表示やUI判定用）
+          selectedSpotId: data.spotId ?? null, // 🚀 ここに5桁のspotIdを格納！
           currentDistrictName: data.districtName,
           targetDistrictInfo: {
-            id: data.districtId,
+            id: data.districtId, // 3桁
             name: data.districtName,
             enemyDef: 40,
             isMyTerritory: data.isMyTerritory,
@@ -485,6 +498,7 @@ export const useGameStore = create<GameState>()(
         if (get().isGameOver) return;
         set((state) => ({ ...state, ...stats }));
       },
+
       saveResult: async () => {
         try {
           const { players, myId } = get();
@@ -499,19 +513,22 @@ export const useGameStore = create<GameState>()(
         } catch (e) { console.error(e); }
       },
 
-      attack: (id) => {
+      // 🚀 修正ポイント: 引数の名前を明確に targetId から spotId へ変更
+      attack: (spotId) => {
         if (get().ap <= 0) {
           get().addLog("⚠️ Insufficient energy! Attack maneuver locked.");
           return;
         }
-        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'attack', targetId: id });
+        // 🚀 必ず5桁のspotIdが渡される想定
+        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'attack', targetId: spotId });
       },
-      move: (id) => {
+      move: (spotId) => {
         if (get().ap <= 0) {
           get().addLog("⚠️ Critical energy depletion! Movement impossible.");
           return;
         }
-        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'move', targetId: id });
+        // 🚀 必ず5桁のspotIdが渡される想定
+        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'move', targetId: spotId });
       },
 
       stay: () => {

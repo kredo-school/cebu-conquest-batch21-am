@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import React, { useEffect, useState, useMemo, memo, useRef } from 'react';
 import { useGameStore } from '../store';
-import SoundManager from '../game/SoundManager'; // 🚀 SE再生用にインポートを追加
+import SoundManager from '../game/SoundManager'; 
 
 type HUDProps = object;
 
@@ -20,14 +20,13 @@ const globalPhaseTracker = {
 
 export const HUD: React.FC<HUDProps> = memo(() => {
   const logs = useGameStore(state => state.logs);
-  const districts = useGameStore(state => state.districts);
   const isMyTurn = useGameStore(state => state.isMyTurn);
   const turn = useGameStore(state => state.turn);
   const isSubmitted = useGameStore(state => state.isSubmitted);
   const activeBuffs = useGameStore(state => state.activeBuffs);
   const players = useGameStore(state => state.players);
   const stay = useGameStore(state => state.stay);
-  const endTurn = useGameStore(state => state.endTurn); // 🚀 ターンエンド処理を取得
+  const endTurn = useGameStore(state => state.endTurn); 
   const selectedDistrictId = useGameStore(state => state.selectedDistrictId);
   const lookupData = useGameStore(state => state.lookupData);
   const zoomLevel = useGameStore(state => state.zoomLevel);
@@ -75,21 +74,15 @@ export const HUD: React.FC<HUDProps> = memo(() => {
     }
   }, [isMyTurn, isSubmitted, turn, isPhaseAnimationEnabled]);
 
-  // 🚀 占領済み領地のみを100%として算出する高エネルギーせめぎ合いロジック
   const teamStats = useMemo(() => {
-    const totalOccupied = Object.values(districts).filter(ownerId => ownerId && ownerId !== '').length;
-
     const stats = (players || []).map((player, index) => {
-      const ownedCount = Object.values(districts).filter(ownerId => ownerId === player.id).length;
       const defaultColor = index === 0 ? '#0ea5e9' : '#ea580c'; 
-      
-      const percent = totalOccupied > 0 ? (ownedCount / totalOccupied) * 100 : 0;
-      
       return {
         id: player.id,
         name: player.playerName || player.username || 'Operator',
         color: player.color || defaultColor, 
-        percent: percent
+        // 🚀 修正ポイント: occupancy が undefined の場合でも確実に 0 にフォールバックする
+        percent: player.occupancy ?? 0 
       };
     });
     
@@ -97,7 +90,7 @@ export const HUD: React.FC<HUDProps> = memo(() => {
       stats[0] || { id: 't0', name: 'Alpha Squad', color: '#0ea5e9', percent: 0 },
       stats[1] || { id: 't1', name: 'Beta Squad', color: '#ea580c', percent: 0 }
     ];
-  }, [districts, players]);
+  }, [players]);
 
   const team0 = teamStats[0];
   const team1 = teamStats[1];
@@ -111,69 +104,52 @@ export const HUD: React.FC<HUDProps> = memo(() => {
       
       {/* 📊 勢力分布：次世代ナワバリ・タクティカルゲージ */}
       <div className={`pt-6 flex flex-col items-center gap-3 transition-all duration-700 ${lodClasses}`}>
-        {/* タイトルバッジ */}
         <div className="flex items-center gap-2 mb-[-12px] z-10">
           <span className="px-5 py-1.5 bg-slate-950 border border-slate-800 rounded-full text-[10px] font-black italic uppercase tracking-[0.3em] text-slate-400 shadow-[0_4px_12px_rgba(0,0,0,0.5)] font-fix">
-            TURF INFLULINE
+            GLOBAL OCCUPANCY
           </span>
         </div>
 
-        {/* 洗練された極太シームレスゲージ本体 */}
-        <div 
-          className="relative w-[650px] h-11 bg-slate-900 rounded-full border-2 border-slate-950 overflow-hidden shadow-[0_10px_25px_rgba(0,0,0,0.7)] flex"
-          style={{ backgroundColor: team1.percent > 0 ? team1.color : '#1e293b' }}
-        >
-          {/* 右側チーム (Team 1) の背景ストライプ演出 */}
+        <div className="relative w-[650px] h-11 bg-slate-900 rounded-full border-2 border-slate-950 overflow-hidden shadow-[0_10px_25px_rgba(0,0,0,0.7)]">
+          
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+
+          {/* 右側チーム (Team 1) : 右端から伸びる */}
           {team1.percent > 0 && (
-            <div className="absolute inset-0 z-0">
+            <div 
+              className="absolute top-0 bottom-0 right-0 transition-all duration-1000 ease-out z-10"
+              style={{ width: `${team1.percent}%`, backgroundColor: team1.color }}
+            >
               <div className="absolute inset-0 opacity-15 bg-[repeating-linear-gradient(45deg,transparent,transparent_12px,rgba(255,255,255,0.3)_12px,rgba(255,255,255,0.3)_24px)] animate-ink-flow-reverse" />
               <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
-              {/* 2P パーセンテージ表示 */}
               <div className="absolute right-5 top-1/2 -translate-y-1/2 flex items-baseline z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-                <span className="text-xl font-black italic tracking-tighter text-white font-fix">
-                  {team1.percent.toFixed(1)}
-                </span>
-                <span className="text-xs font-black italic text-white ml-0.5 opacity-80 font-fix">
-                  %
-                </span>
+                {/* 🚀 修正ポイント: .toFixed(1) の前に安全ガードを適用 */}
+                <span className="text-xl font-black italic tracking-tighter text-white font-fix">{(team1.percent ?? 0).toFixed(1)}</span>
+                <span className="text-xs font-black italic text-white ml-0.5 opacity-80 font-fix">%</span>
               </div>
             </div>
           )}
 
-          {/* 左側チーム (Team 0) ：上に重ねて右端を斜めにカット */}
-          <div 
-            className="h-full relative transition-all duration-1000 ease-out z-10" 
-            style={{ 
-              width: `${team0.percent}%`, 
-              backgroundColor: team0.color,
-              clipPath: 'polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%)' 
-            }}
-          >
-            <div className="absolute inset-0 opacity-15 bg-[repeating-linear-gradient(-45deg,transparent,transparent_12px,rgba(255,255,255,0.3)_12px,rgba(255,255,255,0.4)_24px)] animate-ink-flow" />
-            <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
-            
-            {/* 1P パーセンテージ表示 */}
-            {team0.percent > 0 && (
-              <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-baseline z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-                <span className="text-xl font-black italic tracking-tighter text-white font-fix">
-                  {team0.percent.toFixed(1)}
-                </span>
-                <span className="text-xs font-black italic text-white ml-0.5 opacity-80 font-fix">
-                  %
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* 衝突点：雷状のパルス発光エフェクトライン */}
-          {team0.percent > 0 && team0.percent < 100 && (
+          {/* 左側チーム (Team 0) : 左端から伸びる */}
+          {team0.percent > 0 && (
             <div 
-              className="absolute top-0 bottom-0 w-1 bg-white z-20 shadow-[0_0_15px_#fff,0_0_30px_rgba(255,255,255,0.8)] transition-all duration-1000 ease-out skew-x-[-18deg] animate-pulse"
-              style={{ left: `calc(${team0.percent}% - 7px)` }}
-            />
+              className="absolute top-0 bottom-0 left-0 transition-all duration-1000 ease-out z-10" 
+              style={{ 
+                width: `${team0.percent}%`, 
+                backgroundColor: team0.color,
+                clipPath: 'polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%)' 
+              }}
+            >
+              <div className="absolute inset-0 opacity-15 bg-[repeating-linear-gradient(-45deg,transparent,transparent_12px,rgba(255,255,255,0.3)_12px,rgba(255,255,255,0.4)_24px)] animate-ink-flow" />
+              <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
+              <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-baseline z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+                {/* 🚀 修正ポイント: .toFixed(1) の前に安全ガードを適用 */}
+                <span className="text-xl font-black italic tracking-tighter text-white font-fix">{(team0.percent ?? 0).toFixed(1)}</span>
+                <span className="text-xs font-black italic text-white ml-0.5 opacity-80 font-fix">%</span>
+              </div>
+            </div>
           )}
 
-          {/* 全体のインナーシャドウ効果 */}
           <div className="absolute inset-0 pointer-events-none shadow-[inset_0_4px_12px_rgba(0,0,0,0.6)] z-30 rounded-full" />
         </div>
       </div>
@@ -260,9 +236,6 @@ export const HUD: React.FC<HUDProps> = memo(() => {
           </div>
 
           <div className={`flex gap-5 items-end transition-all duration-500 ${isMyTurn ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-            
-            {/* 🚀 修正ポイント: 暗いサイバーブルー(bg-blue-950)のせいでグレーアウトに誤認されていた配色を完全リプレイス。
-                活性時はハッキリ目立つ高輝度ブルー(bg-blue-600/90)と鮮明な白文字(text-white)で点点灯させます */}
             <button
               onClick={() => {
                 try { SoundManager.playSe("click"); } catch {}

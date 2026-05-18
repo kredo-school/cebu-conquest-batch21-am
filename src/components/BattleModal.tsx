@@ -16,7 +16,7 @@ export const BattleModal: React.FC = memo(() => {
   const {
     predictionModalOpen,
     targetDistrictInfo,
-    selectedDistrictId,
+    selectedSpotId, // 🚀 追加: 5桁のspotIdをストアから取得
     atk, blessing, attack, move, closePrediction, ap,
     isMyTurn, escape, addLog,
     isUnderAttack, setUnderAttack,
@@ -125,16 +125,23 @@ export const BattleModal: React.FC = memo(() => {
 
   const handleExecute = () => {
     if (!targetDistrictInfo || !canAction) return;
+    
+    // 🚀 修正箇所: 5桁の spotId が存在しない場合は安全にブロックする
+    if (selectedSpotId == null) {
+      addLog("⚠️ No spot selected.");
+      return;
+    }
+
     try { SoundManager.playSe('click'); } catch {}
     
     // ✅ Close tactical overlay modal and map target ID resolving 5-digit code metrics
     closePrediction();
-    const targetId = selectedDistrictId ?? targetDistrictInfo.id;
 
+    // 🚀 修正箇所: 3桁の selectedDistrictId ではなく、5桁の selectedSpotId を渡す
     if (isMyTerritory) {
-      move(targetId);
+      move(selectedSpotId);
     } else {
-      attack(targetId);
+      attack(selectedSpotId);
     }
   };
 
