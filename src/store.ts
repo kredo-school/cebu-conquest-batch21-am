@@ -5,6 +5,7 @@ import socket from './socket';
 import { CLIENT_EVENTS } from '../shared/socketEvents.js';
 import { buildLookup } from '../shared/idLookup'; 
 import SoundManager from './game/SoundManager';
+import { playBGM } from './hook/useBGM'; // 🚀 修正ポイント: useBGM.ts から playBGM を直接インポート (anyを排除)
 
 const MAP_REPAINT_EVENT = 'react:mapRepaint';
 
@@ -138,7 +139,7 @@ export interface GameState {
   districts: Record<string, string>; 
   currentDistrictName: string;
   selectedDistrictId: number | null;
-  selectedSpotId: number | null; // 🚀 追加: 5桁のspotIdを保存
+  selectedSpotId: number | null;
   playerName: string;
   myId: string; 
   myTeam: string; 
@@ -206,8 +207,8 @@ export interface GameState {
   updateBuffs: () => void;
   setStatus: (status: Partial<GameState>) => void;
   syncServerState: (data: Record<string, unknown>, myId: string) => void;
-  attack: (spotId: number) => void; // 🚀 変数名を targetId から spotId に変更
-  move: (spotId: number) => void;   // 🚀 変数名を targetId から spotId に変更
+  attack: (spotId: number) => void;
+  move: (spotId: number) => void;
   stay: () => void;
   defend: () => void;
   escape: () => void;
@@ -384,14 +385,14 @@ export const useGameStore = create<GameState>()(
         if (!data) return;
         
         const nextDistricts = (data.districts as Record<string, string>) ?? get().districts;
-        const totalTerritories = get().masterData?.territories?.length || get().lookupData?.districts?.size || 100;
+        const totalTerritories = get().lookupData?.spots?.size || 100;
 
         const rawPlayers = (data.players as Record<string, Player>) ?? {};
         let playersArray = (Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers)) as Player[];
         
         playersArray = playersArray.map(p => {
           const ownedCount = Object.values(nextDistricts).filter(id => id === p.id).length;
-          const calcOccupancy = totalTerritories > 0 ? Math.round((ownedCount / totalTerritories) * 100) : 0;
+          const calcOccupancy = totalTerritories > 0 ? (ownedCount / totalTerritories) * 100 : 0;
 
           return {
             ...p,
@@ -415,7 +416,18 @@ export const useGameStore = create<GameState>()(
 
           if (!['login', 'setup'].includes(state.view)) {
             if (data.isGameOver) {
-              if (!state.isGameOver) get().saveResult();
+              if (!state.isGameOver) {
+                // 🚀 ゲーム終了時の処理（ResultViewを重ねるためにviewはそのまま）
+                get().saveResult();
+
+                // 🚀 修正ポイント: playBGMを使用して型安全に勝敗BGMを鳴らす
+                const isWinner = data.winnerId === myId;
+                if (isWinner) {
+                  try { playBGM('winner'); } catch (e) { console.error("BGM Play Error:", e); } 
+                } else {
+                  try { playBGM('Loser'); } catch (e) { console.error("BGM Play Error:", e); }
+                }
+              }
             } else if (isActuallyStarted) {
               if (hasInitialPosition) {
                 nextView = 'game';
@@ -473,18 +485,18 @@ export const useGameStore = create<GameState>()(
             predictionModalOpen: false,
             targetDistrictInfo: null,
             selectedDistrictId: null,
-            selectedSpotId: null, // 🚀 5桁クリア
+            selectedSpotId: null,
             currentDistrictName: "No Sector Selected"
           });
           return;
         }
 
         set({
-          selectedDistrictId: data.districtId, // 🚀 ここは3桁（HUD表示やUI判定用）
-          selectedSpotId: data.spotId ?? null, // 🚀 ここに5桁のspotIdを格納！
+          selectedDistrictId: data.districtId, 
+          selectedSpotId: data.spotId ?? null,
           currentDistrictName: data.districtName,
           targetDistrictInfo: {
-            id: data.districtId, // 3桁
+            id: data.districtId,
             name: data.districtName,
             enemyDef: 40,
             isMyTerritory: data.isMyTerritory,
@@ -506,20 +518,18 @@ export const useGameStore = create<GameState>()(
           await get().authenticatedFetch('result.php', {
             method: 'POST',
             body: JSON.stringify({ 
-              score: myResult?.occupancy || 0, 
+              score: Math.round(myResult?.occupancy || 0), 
               team: myResult?.team 
             })
           });
         } catch (e) { console.error(e); }
       },
 
-      // 🚀 修正ポイント: 引数の名前を明確に targetId から spotId へ変更
       attack: (spotId) => {
         if (get().ap <= 0) {
           get().addLog("⚠️ Insufficient energy! Attack maneuver locked.");
           return;
         }
-        // 🚀 必ず5桁のspotIdが渡される想定
         socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'attack', targetId: spotId });
       },
       move: (spotId) => {
@@ -527,7 +537,6 @@ export const useGameStore = create<GameState>()(
           get().addLog("⚠️ Critical energy depletion! Movement impossible.");
           return;
         }
-        // 🚀 必ず5桁のspotIdが渡される想定
         socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'move', targetId: spotId });
       },
 

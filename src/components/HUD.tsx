@@ -74,21 +74,34 @@ export const HUD: React.FC<HUDProps> = memo(() => {
     }
   }, [isMyTurn, isSubmitted, turn, isPhaseAnimationEnabled]);
 
+  // 🚀 スプラ風「勢力綱引き」と「絶対パーセント」のハイブリッド計算
   const teamStats = useMemo(() => {
-    const stats = (players || []).map((player, index) => {
-      const defaultColor = index === 0 ? '#0ea5e9' : '#ea580c'; 
-      return {
-        id: player.id,
-        name: player.playerName || player.username || 'Operator',
-        color: player.color || defaultColor, 
-        // 🚀 修正ポイント: occupancy が undefined の場合でも確実に 0 にフォールバックする
-        percent: player.occupancy ?? 0 
-      };
-    });
-    
+    const p0 = players?.[0];
+    const p1 = players?.[1];
+
+    const occ0 = p0?.occupancy ?? 0;
+    const occ1 = p1?.occupancy ?? 0;
+    const totalOcc = occ0 + occ1;
+
+    // バーの幅を決める相対シェア（どちらも0%の時は50:50で中央でぶつからせる）
+    const share0 = totalOcc > 0 ? (occ0 / totalOcc) * 100 : 50;
+    const share1 = totalOcc > 0 ? (occ1 / totalOcc) * 100 : 50;
+
     return [
-      stats[0] || { id: 't0', name: 'Alpha Squad', color: '#0ea5e9', percent: 0 },
-      stats[1] || { id: 't1', name: 'Beta Squad', color: '#ea580c', percent: 0 }
+      {
+        id: p0?.id || 't0',
+        name: p0?.playerName || p0?.username || 'Alpha Squad',
+        color: p0?.color || '#0ea5e9',
+        percent: occ0,
+        share: share0
+      },
+      {
+        id: p1?.id || 't1',
+        name: p1?.playerName || p1?.username || 'Beta Squad',
+        color: p1?.color || '#ea580c',
+        percent: occ1,
+        share: share1
+      }
     ];
   }, [players]);
 
@@ -110,45 +123,47 @@ export const HUD: React.FC<HUDProps> = memo(() => {
           </span>
         </div>
 
-        <div className="relative w-[650px] h-11 bg-slate-900 rounded-full border-2 border-slate-950 overflow-hidden shadow-[0_10px_25px_rgba(0,0,0,0.7)]">
+        {/* 🚀 黒い隙間をなくし、1本のバーの中で2色が激突するスプラトゥーン仕様 */}
+        <div className="relative w-[650px] h-11 bg-slate-900 rounded-full border-2 border-slate-950 overflow-hidden shadow-[0_10px_25px_rgba(0,0,0,0.7)] flex">
           
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+          {/* 右側チーム (Team 1): 背景全体に敷くことで、Team0との間に一切の隙間を作らない */}
+          <div 
+            className="absolute inset-0 transition-all duration-1000 ease-out z-0"
+            style={{ backgroundColor: team1.color }}
+          >
+            <div className="absolute inset-0 opacity-15 bg-[repeating-linear-gradient(45deg,transparent,transparent_12px,rgba(255,255,255,0.3)_12px,rgba(255,255,255,0.3)_24px)] animate-ink-flow-reverse" />
+            <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
+          </div>
 
-          {/* 右側チーム (Team 1) : 右端から伸びる */}
-          {team1.percent > 0 && (
-            <div 
-              className="absolute top-0 bottom-0 right-0 transition-all duration-1000 ease-out z-10"
-              style={{ width: `${team1.percent}%`, backgroundColor: team1.color }}
-            >
-              <div className="absolute inset-0 opacity-15 bg-[repeating-linear-gradient(45deg,transparent,transparent_12px,rgba(255,255,255,0.3)_12px,rgba(255,255,255,0.3)_24px)] animate-ink-flow-reverse" />
-              <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
-              <div className="absolute right-5 top-1/2 -translate-y-1/2 flex items-baseline z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-                {/* 🚀 修正ポイント: .toFixed(1) の前に安全ガードを適用 */}
-                <span className="text-xl font-black italic tracking-tighter text-white font-fix">{(team1.percent ?? 0).toFixed(1)}</span>
-                <span className="text-xs font-black italic text-white ml-0.5 opacity-80 font-fix">%</span>
-              </div>
-            </div>
-          )}
+          {/* 左側チーム (Team 0): 自分の「勢力シェア(%)」分だけ左から伸び、右端を斜めにカットして重ねる */}
+          <div 
+            className="absolute top-0 bottom-0 left-0 transition-all duration-1000 ease-out z-10" 
+            style={{ 
+              width: `${team0.share}%`, 
+              backgroundColor: team0.color,
+              clipPath: 'polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%)' 
+            }}
+          >
+            <div className="absolute inset-0 opacity-15 bg-[repeating-linear-gradient(-45deg,transparent,transparent_12px,rgba(255,255,255,0.3)_12px,rgba(255,255,255,0.4)_24px)] animate-ink-flow" />
+            <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
+          </div>
 
-          {/* 左側チーム (Team 0) : 左端から伸びる */}
-          {team0.percent > 0 && (
-            <div 
-              className="absolute top-0 bottom-0 left-0 transition-all duration-1000 ease-out z-10" 
-              style={{ 
-                width: `${team0.percent}%`, 
-                backgroundColor: team0.color,
-                clipPath: 'polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%)' 
-              }}
-            >
-              <div className="absolute inset-0 opacity-15 bg-[repeating-linear-gradient(-45deg,transparent,transparent_12px,rgba(255,255,255,0.3)_12px,rgba(255,255,255,0.4)_24px)] animate-ink-flow" />
-              <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
-              <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-baseline z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-                {/* 🚀 修正ポイント: .toFixed(1) の前に安全ガードを適用 */}
-                <span className="text-xl font-black italic tracking-tighter text-white font-fix">{(team0.percent ?? 0).toFixed(1)}</span>
-                <span className="text-xs font-black italic text-white ml-0.5 opacity-80 font-fix">%</span>
-              </div>
-            </div>
-          )}
+          {/* ⚡ 衝突点のパルスライン（スプラ風の激突エフェクト） */}
+          <div 
+            className="absolute top-0 bottom-0 w-1 bg-white z-20 shadow-[0_0_15px_#fff,0_0_30px_rgba(255,255,255,0.8)] transition-all duration-1000 ease-out skew-x-[-18deg] animate-pulse"
+            style={{ left: `calc(${team0.share}% - 7px)` }}
+          />
+
+          {/* テキスト表示（文字欠け防止のため絶対配置で浮遊・表示する数値は「絶対占領率」のままキープ） */}
+          <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-baseline z-40 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+            <span className="text-xl font-black italic tracking-tighter text-white font-fix">{(team0.percent ?? 0).toFixed(1)}</span>
+            <span className="text-xs font-black italic text-white ml-0.5 opacity-80 font-fix">%</span>
+          </div>
+
+          <div className="absolute right-5 top-1/2 -translate-y-1/2 flex items-baseline z-40 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+            <span className="text-xl font-black italic tracking-tighter text-white font-fix">{(team1.percent ?? 0).toFixed(1)}</span>
+            <span className="text-xs font-black italic text-white ml-0.5 opacity-80 font-fix">%</span>
+          </div>
 
           <div className="absolute inset-0 pointer-events-none shadow-[inset_0_4px_12px_rgba(0,0,0,0.6)] z-30 rounded-full" />
         </div>
