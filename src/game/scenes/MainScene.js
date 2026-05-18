@@ -211,6 +211,7 @@ export default class MainScene extends Phaser.Scene {
       SoundManager.playBGM("bgm_field");
     });
     this.effectManager = new EffectManager(this);
+    this._previousOwnerMap = {};
     window.__SCENE__ = this;
     this._setupBGMListeners();
     this._setupSEListeners();
@@ -424,6 +425,15 @@ export default class MainScene extends Phaser.Scene {
             this._repaintDistrictByOwner(d, ownerId, playerMap);
           });
 
+          // 差分チェック：新規取得spotだけにエフェクト発火
+          if (!this.isSelectionMode) {
+            const newlyAcquired = this._diffOwnerMap(districtOwnerMap, socket.id);
+            newlyAcquired.forEach((id) => this._showCaptureEffect(id));
+          }
+
+          // スナップショットを今回の状態で上書き
+          this._previousOwnerMap = { ...districtOwnerMap };
+
           if (players) this._syncPlayers(players);
         },
       },
@@ -482,7 +492,8 @@ export default class MainScene extends Phaser.Scene {
         event: REACT_TO_PHASER.TERRITORY_EFFECT,
         handler: (e) => {
           const { districtId, owner, players } = e.detail ?? {};
-          const d = this.districts[normalizeId(districtId)];
+          const dId = normalizeId(districtId);
+          const d = this.districts[dId];
           if (!d) return;
 
           // ✅ 修正E-1: players は Object { socketId: playerData } の場合があるため Object.values() で配列化
@@ -492,6 +503,21 @@ export default class MainScene extends Phaser.Scene {
           });
 
           this._repaintDistrictByOwner(d, owner ?? "neutral", playerMap);
+
+          // 自分が取得したdistrictだけ差分チェックしてエフェクト発火
+          if (owner === socket.id && !this.isSelectionMode) {
+            const distId = dId >= 10000 ? Math.floor(dId / 100) : dId;
+            const spotsInDistrict = this._getSpotsInDistrict(distId);
+            if (spotsInDistrict.length > 0) {
+              spotsInDistrict.forEach((spot) => {
+                if (this._previousOwnerMap[spot.id] !== socket.id) {
+                  this._showCaptureEffect(spot.id);
+                }
+              });
+            } else if (this._previousOwnerMap[dId] !== socket.id) {
+              this._showCaptureEffect(dId);
+            }
+          }
         },
       },
     ];
@@ -1070,6 +1096,49 @@ export default class MainScene extends Phaser.Scene {
     return Object.values(this.districts).filter(
       (d) => d.type === "spotName" && Math.floor(d.id / 100) === districtId,
     );
+  }
+
+  /**
+   * districtOwnerMap { id: ownerId } と _previousOwnerMap を比較し、
+   * myPlayerId が新たに取得した id の配列を返す。
+   */
+  _diffOwnerMap(newOwnerMap, myPlayerId) {
+    const newlyAcquired = [];
+    Object.entries(newOwnerMap).forEach(([id, owner]) => {
+      const wasAlreadyMine = this._previousOwnerMap[id] === myPlayerId;
+      const isNowMine = owner === myPlayerId;
+      if (isNowMine && !wasAlreadyMine) {
+        newlyAcquired.push(Number(id));
+      }
+    });
+    return newlyAcquired;
+  }
+
+  /**
+   * 指定 spotId/districtId のワールド座標に "+1 Spot" テキストをフロートアップ表示する。
+   */
+  _showCaptureEffect(id) {
+    const d = this.districts[Number(id)];
+    if (!d) return;
+    const { x, y } = d.center;
+    const text = this.add
+      .text(x, y, "+1 Spot", {
+        fontSize: "14px",
+        fontFamily: "Arial",
+        color: "#facc15",
+        stroke: "#000000",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(100);
+    this.tweens.add({
+      targets: text,
+      y: y - 40,
+      alpha: 0,
+      duration: 1200,
+      ease: "Power2",
+      onComplete: () => text.destroy(),
+    });
   }
 
   _handleDistrictClick(districtObj) {
