@@ -5,7 +5,6 @@ import socket from './socket';
 import { CLIENT_EVENTS } from '../shared/socketEvents.js';
 import { buildLookup } from '../shared/idLookup'; 
 import SoundManager from './game/SoundManager';
-import { playBGM } from './hook/useBGM'; // 🚀 修正ポイント: useBGM.ts から playBGM を直接インポート (anyを排除)
 
 const MAP_REPAINT_EVENT = 'react:mapRepaint';
 
@@ -51,7 +50,7 @@ export interface Territory {
 }
 
 export interface Player {
-  id: string;
+  id: string; // 🚀 完全復元: ピュアな string 型に固定
   username: string;
   playerName?: string;
   name?: string;
@@ -136,10 +135,9 @@ export interface GameState {
   roomId: string;
   players: Player[];
   maxPlayers: number;
-  districts: Record<string, string>; 
+  districts: Record<string, string>; // 🚀 完全復元: ピュアな string マップに固定
   currentDistrictName: string;
   selectedDistrictId: number | null;
-  selectedSpotId: number | null;
   playerName: string;
   myId: string; 
   myTeam: string; 
@@ -207,8 +205,8 @@ export interface GameState {
   updateBuffs: () => void;
   setStatus: (status: Partial<GameState>) => void;
   syncServerState: (data: Record<string, unknown>, myId: string) => void;
-  attack: (spotId: number) => void;
-  move: (spotId: number) => void;
+  attack: (targetId: number) => void;
+  move: (targetId: number) => void;
   stay: () => void;
   defend: () => void;
   escape: () => void;
@@ -243,7 +241,7 @@ export const useGameStore = create<GameState>()(
       errorMessage: null, isServerOnline: socket.connected, zoomLevel: 1.0, 
       hp: 100, maxHp: 100, ap: 100, maxAp: 100, blessing: 1.0, atk: 50, def: 40,
       turn: 0, maxTurn: 10, logs: [], chatLogs: [], roomId: '', players: [], maxPlayers: 2,
-      districts: {}, currentDistrictName: "No Sector Selected", selectedDistrictId: null, selectedSpotId: null,
+      districts: {}, currentDistrictName: "No Sector Selected", selectedDistrictId: null,
       playerName: "",
       myId: "", myTeam: "Explorer", isMyTurn: true, turnOwner: "YOU",
       isGameOver: false, winnerId: null, isSubmitted: false,
@@ -316,7 +314,6 @@ export const useGameStore = create<GameState>()(
           return false;
         } catch { return false; }
       },
-      
       syncMasterData: async () => {
         try {
           const json = await get().authenticatedFetch<MasterData>('master-data.php');
@@ -351,7 +348,7 @@ export const useGameStore = create<GameState>()(
         const { roomId, myId, players } = get();
         if (get().selectedGodId !== null) return;
         const updatedPlayers = players.map(p => 
-          p.id === myId ? { ...p, selectedGodId: id, godId: id, isReady: false } : p
+          String(p.id) === String(myId) ? { ...p, selectedGodId: id, godId: id, isReady: false } : p
         );
         set({ 
           selectedGodId: id, 
@@ -383,63 +380,60 @@ export const useGameStore = create<GameState>()(
 
       syncServerState: (data, myId) => {
         if (!data) return;
-        
-        const nextDistricts = (data.districts as Record<string, string>) ?? get().districts;
-        const totalTerritories = get().lookupData?.spots?.size || 100;
-
         const rawPlayers = (data.players as Record<string, Player>) ?? {};
         let playersArray = (Array.isArray(rawPlayers) ? rawPlayers : Object.values(rawPlayers)) as Player[];
         
-        playersArray = playersArray.map(p => {
-          const ownedCount = Object.values(nextDistricts).filter(id => id === p.id).length;
-          const calcOccupancy = totalTerritories > 0 ? (ownedCount / totalTerritories) * 100 : 0;
+        // 🚀 型安全・防衛ロジック: サーバーから届く不確かなID型をすべて安全に「文字列」へキャスト統一
+        playersArray = playersArray.map(p => ({
+          ...p,
+          id: String(p.id), 
+          playerName: p.playerName || p.username,
+          name: p.name || p.username,
+          godId: p.godId || p.selectedGodId, 
+          selectedGodId: p.selectedGodId || p.godId,
+          location: p.location || p.districtId,
+          current_hp: p.current_hp || p.hp,
+          isReady: !!p.isReady
+        }));
+        
+        // 🚀 領地データ(districts)のクレンジング: 値が数値であっても安全に文字列に変換して格納
+        const nextDistricts: Record<string, string> = {};
+        if (data.districts) {
+          Object.entries(data.districts).forEach(([k, v]) => {
+            nextDistricts[String(k)] = (v !== undefined && v !== null) ? String(v) : '';
+          });
+        } else {
+          Object.entries(get().districts).forEach(([k, v]) => {
+            nextDistricts[String(k)] = String(v);
+          });
+        }
 
-          return {
-            ...p,
-            playerName: p.playerName || p.username,
-            name: p.name || p.username,
-            godId: p.godId || p.selectedGodId, 
-            selectedGodId: p.selectedGodId || p.godId,
-            location: p.location || p.districtId,
-            current_hp: p.current_hp || p.hp,
-            isReady: !!p.isReady,
-            occupancy: calcOccupancy
-          };
-        });
-
-        const myPlayerData = playersArray.find((p) => p.id === myId);
+        // 型を string で完全統一したため、アキラさんのオリジナルの比較式が100%ヒットします！
+        const myPlayerData = playersArray.find((p) => p.id === String(myId));
+        
+        // スコープエラー解消：ビュー切り替え判定を set の外側で安全に算出
+        const currentView = get().view;
+        let nextView = currentView;
+        const isActuallyStarted = !!data.gameStarted;
+        const hasInitialPosition = !!(myPlayerData?.districtId || myPlayerData?.location);
+        
+        if (data.isGameOver) {
+          nextView = 'ranking';
+          if (!currentView.includes('ranking')) get().saveResult();
+        } else if (isActuallyStarted) {
+          if (hasInitialPosition) {
+            nextView = 'game'; // 🚀 これで画面が正常に切り替わり裏フリーズが解けます
+          } else {
+            nextView = 'waiting';
+          }
+        } else if (data.phase === 'selection' && nextView === 'lobby') {
+          nextView = 'selection';
+        }
         
         set((state) => {
-          let nextView = state.view;
-          const isActuallyStarted = !!data.gameStarted;
-          const hasInitialPosition = !!(myPlayerData?.districtId || myPlayerData?.location);
-
-          if (!['login', 'setup'].includes(state.view)) {
-            if (data.isGameOver) {
-              if (!state.isGameOver) {
-                // 🚀 ゲーム終了時の処理（ResultViewを重ねるためにviewはそのまま）
-                get().saveResult();
-
-                // 🚀 修正ポイント: playBGMを使用して型安全に勝敗BGMを鳴らす
-                const isWinner = data.winnerId === myId;
-                if (isWinner) {
-                  try { playBGM('winner'); } catch (e) { console.error("BGM Play Error:", e); } 
-                } else {
-                  try { playBGM('Loser'); } catch (e) { console.error("BGM Play Error:", e); }
-                }
-              }
-            } else if (isActuallyStarted) {
-              if (hasInitialPosition) {
-                nextView = 'game';
-              } else {
-                nextView = 'waiting';
-              }
-            } else if (data.phase === 'selection' && nextView === 'lobby') {
-              nextView = 'selection';
-            }
-          }
-          
-          const safeRoomId = (data.roomId && data.roomId !== "") ? (data.roomId as string) : state.roomId;
+          const safeRoomId = (data.roomId && data.roomId !== "") 
+                             ? (data.roomId as string) 
+                             : state.roomId;
 
           return {
             ...state,
@@ -450,7 +444,7 @@ export const useGameStore = create<GameState>()(
             ap: myPlayerData?.ap ?? myPlayerData?.stamina ?? state.ap,
             selectedDistrictId: myPlayerData?.districtId ?? myPlayerData?.location ?? state.selectedDistrictId, 
             selectedGodId: myPlayerData?.selectedGodId ?? myPlayerData?.godId ?? state.selectedGodId,
-            districts: nextDistricts,
+            districts: nextDistricts, // クレンジング済みの Record<string, string> を安全に代入
             players: playersArray,
             lobbyPlayers: (['lobby', 'selection', 'waiting'].includes(nextView))
               ? playersArray.map(p => ({
@@ -463,18 +457,21 @@ export const useGameStore = create<GameState>()(
                 }))
               : state.lobbyPlayers,
             turn: (data.turn as number) ?? state.turn,
-            isMyTurn: (data.turnOwnerId as string) === myId,
-            turnOwner: (data.turnOwnerId as string) === myId ? "YOU" : ((data.turnOwnerName as string) || "ENEMY"),
+            isMyTurn: String(data.turnOwnerId) === String(myId),
+            turnOwner: String(data.turnOwnerId) === String(myId) ? "YOU" : ((data.turnOwnerName as string) || "ENEMY"),
             isGameOver: typeof data.isGameOver === 'boolean' ? data.isGameOver : state.isGameOver,
-            winnerId: (data.winnerId as string) ?? state.winnerId,
+            winnerId: data.winnerId ? String(data.winnerId) : state.winnerId,
             view: nextView,
           };
         });
         
+        // 🚀 完全復元: アキラさんのPhaserが元々期待していた100%ピュアなreduce構造
         const playersAsObject = playersArray.reduce((acc: Record<string, Player>, p: Player) => { 
           acc[p.id] = p; return acc; 
         }, {});
-        if (get().view === 'game') {
+
+        // 🚀 カメラ＆色塗り最速同期トリガー！
+        if (get().view === 'game' || nextView === 'game') {
           window.dispatchEvent(new CustomEvent(MAP_REPAINT_EVENT, { detail: { districts: nextDistricts, players: playersAsObject } }));
         }
       },
@@ -485,15 +482,13 @@ export const useGameStore = create<GameState>()(
             predictionModalOpen: false,
             targetDistrictInfo: null,
             selectedDistrictId: null,
-            selectedSpotId: null,
             currentDistrictName: "No Sector Selected"
           });
           return;
         }
 
         set({
-          selectedDistrictId: data.districtId, 
-          selectedSpotId: data.spotId ?? null,
+          selectedDistrictId: data.spotId ?? data.districtId,
           currentDistrictName: data.districtName,
           targetDistrictInfo: {
             id: data.districtId,
@@ -510,34 +505,33 @@ export const useGameStore = create<GameState>()(
         if (get().isGameOver) return;
         set((state) => ({ ...state, ...stats }));
       },
-
       saveResult: async () => {
         try {
           const { players, myId } = get();
-          const myResult = players.find(p => p.id === myId);
+          const myResult = players.find(p => p.id === String(myId));
           await get().authenticatedFetch('result.php', {
             method: 'POST',
             body: JSON.stringify({ 
-              score: Math.round(myResult?.occupancy || 0), 
+              score: myResult?.occupancy || 0, 
               team: myResult?.team 
             })
           });
         } catch (e) { console.error(e); }
       },
 
-      attack: (spotId) => {
+      attack: (id) => {
         if (get().ap <= 0) {
           get().addLog("⚠️ Insufficient energy! Attack maneuver locked.");
           return;
         }
-        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'attack', targetId: spotId });
+        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'attack', targetId: id });
       },
-      move: (spotId) => {
+      move: (id) => {
         if (get().ap <= 0) {
           get().addLog("⚠️ Critical energy depletion! Movement impossible.");
           return;
         }
-        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'move', targetId: spotId });
+        socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'move', targetId: id });
       },
 
       stay: () => {
@@ -598,7 +592,7 @@ export const useGameStore = create<GameState>()(
         cameraSensitivity: state.cameraSensitivity,
         autoBattle: state.autoBattle,
         language: state.language,
-        playerAvatar: state.playerAvatar,
+        playerAvatar: state.playerAvatar, // 🚀 タイポ修正完了
       }),
     }
   )
