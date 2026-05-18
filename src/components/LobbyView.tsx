@@ -169,7 +169,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
       <GlobalNavbar onOpenSettings={onOpenSettings} onOpenHelp={onOpenHelp} onOpenRanking={onOpenRanking} onAbort={onAbort} />
 
-      <main className="flex-1 mt-16 flex relative overflow-hidden min-h-0">
+      <main className="relative z-20 flex-1 mt-16 flex relative overflow-hidden min-h-0">
         <section className="flex-1 flex flex-col p-8 z-10 max-w-7xl mx-auto w-full min-h-0 justify-between">
           
           <div className="flex justify-between items-end mb-6 shrink-0 text-left">
@@ -199,7 +199,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             </div>
           </div>
 
-          {/* 🚀 修正点1: グリッドをやめ、フレックスボックスで常に中央配置 */}
+          {/* 👥 プレイヤーカードエリア */}
           <div className="flex-1 flex items-center justify-center min-h-0 mb-8 overflow-y-auto custom-scrollbar px-4 w-full">
             <div className="flex flex-wrap justify-center gap-8 w-full max-w-6xl mx-auto content-center p-2">
               {players.map((p, idx) => (
@@ -214,14 +214,15 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             </div>
           </div>
 
-          {/* 🚀 修正点2: チャットとボタンのバランスを調整 */}
+          {/* 🕹️ フッターコントロールエリア */}
           <div className="flex flex-col lg:flex-row gap-8 shrink-0 mb-4 items-end justify-center w-full max-w-6xl mx-auto">
             
-            {/* 💬 チャット (高さを抑えつつ、フレックスで幅を柔軟に取る) */}
+            {/* 💬 チャットログ & 入力エリア */}
             <div className="flex-1 glass-panel rounded-xl overflow-hidden flex flex-col h-36 border-slate-800 shadow-2xl w-full">
               <div ref={scrollRef} className="flex-1 p-4 space-y-3 overflow-y-auto text-sm custom-scrollbar text-left font-mono bg-slate-950/20">
                 {chatLogs.map((log, i) => (
                   <div key={`chat-${i}`} className="flex gap-2 animate-fadeIn text-left">
+                    <span className="text-slate-500 font-bold shrink-0">[{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}]</span>
                     <span className={`${log.sender === (playerName || 'Operator') ? 'text-cyan-400' : 'text-[#fa7000]'} font-bold shrink-0`}>{log.sender}:</span>
                     <span className="text-slate-300 break-words font-fix">{log.message}</span>
                   </div>
@@ -229,7 +230,14 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               </div>
               <div className="p-3 bg-slate-950/50 border-t border-slate-800 shrink-0">
                 <div className="relative flex items-center">
-                  <input className="w-full bg-slate-900 border-slate-800 rounded-lg py-2 px-4 text-xs focus:ring-[#fa7000] focus:border-[#fa7000] text-slate-200 outline-none font-mono" placeholder="TRANSMIT TACTICAL DATA..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}/>
+                  {/* 🚀 修正ポイント: 送信ボタンと文字が重ならないよう、px-4 から pl-4 / pr-10 へパディングを変更して右端のガードラインを確保 */}
+                  <input 
+                    className="w-full bg-slate-900 border-slate-800 rounded-lg py-2 pl-4 pr-10 text-xs focus:ring-[#fa7000] focus:border-[#fa7000] text-slate-200 outline-none font-mono" 
+                    placeholder="TRANSMIT TACTICAL DATA..." 
+                    value={chatInput} 
+                    onChange={(e) => setChatInput(e.target.value)} 
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                  />
                   <button onClick={handleSendMessage} className="absolute right-2 text-[#fa7000] hover:text-orange-400 transition-colors">
                     <span className="material-symbols-outlined">send</span>
                   </button>
@@ -237,7 +245,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               </div>
             </div>
 
-            {/* ⚡ 準備完了ボタン (幅を固定・改行を防止して引き締める) */}
+            {/* ⚡ 準備完了ボタン */}
             <div className="w-full lg:w-[400px] shrink-0">
               <button 
                 onClick={handleReady}
@@ -248,7 +256,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               >
                 <div className="flex items-center gap-3">
                   {isReady && <span className="material-symbols-outlined animate-pulse text-2xl">lock</span>}
-                  {/* whitespace-nowrap で改行を防ぎ、文字サイズを調整 */}
                   <span className="text-2xl font-black italic tracking-widest leading-none font-fix whitespace-nowrap">
                     {isReady ? 'LINK LOCKED' : 'ESTABLISH LINK'}
                   </span>

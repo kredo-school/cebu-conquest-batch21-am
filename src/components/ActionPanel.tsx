@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import React, { useMemo, memo } from "react";
 import { useGameStore } from "../store";
 import { REACT_TO_PHASER, emitToPhaser } from "../game/events/PhaserBridge";
@@ -13,7 +14,6 @@ export const ActionPanel: React.FC = memo(() => {
   const ap = useGameStore((state) => state.ap);
   const attack = useGameStore((state) => state.attack);
   const stay = useGameStore((state) => state.stay);
-  const endTurn = useGameStore((state) => state.endTurn);
   const addLog = useGameStore((state) => state.addLog); // 🚀 エラー表示用
 
   // ✅ GDD v3.1: ルックアップ辞書を取得
@@ -177,20 +177,6 @@ export const ActionPanel: React.FC = memo(() => {
             monitoring
           </span>
           <span className="font-fix uppercase tracking-widest text-[9px]">Recover</span>
-        </button>
-
-        {/* 🚀 Turn End (ターン終了) - 🚀 常に選択可能 */}
-        <button
-          onClick={() => {
-            try { SoundManager.playSe("click"); } catch {}
-            endTurn();
-          }}
-          className="group bg-blue-950/40 border-2 border-blue-500/30 text-blue-400 rounded-2xl font-black hover:bg-blue-600 hover:text-white hover:border-blue-400 transition-all active:scale-95 flex flex-col items-center justify-center gap-1 w-32 h-28 text-sm shadow-[0_0_20px_rgba(59,130,246,0.2)]"
-        >
-          <span className="material-symbols-outlined text-3xl group-hover:rotate-180 transition-transform duration-500">
-            logout
-          </span>
-          <span className="font-fix uppercase tracking-widest text-[9px]">Turn End</span>
         </button>
       </div>
 
