@@ -1,7 +1,6 @@
 <?php
 require_once __DIR__ . '/api-cors.php';
 require_once __DIR__ . '/../db_connection.php';
-require_once 'jwt-helper.php';
 
 // HTTPメソッド制限（POST以外を405で弾く）
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -14,8 +13,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // JWT認証チェック (検問)
-$headers = getallheaders();
-$authHeader = $headers['Authorization'] ?? '';
 
 if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
   $jwt = $matches[1];

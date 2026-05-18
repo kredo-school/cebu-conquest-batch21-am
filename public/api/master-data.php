@@ -1,11 +1,6 @@
-// api/master-data.php
-
 <?php
 require_once __DIR__ . '/api-cors.php';
 require_once __DIR__ . '/../db_connection.php';
-require_once 'jwt-helper.php';
-
-header("Content-Type: application/json; charset=UTF-8");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
@@ -14,8 +9,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 // --- JWT認証チェック ---
-$headers = getallheaders();
-$authHeader = $headers['Authorization'] ?? '';
 
 if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
     $jwt = $matches[1];
