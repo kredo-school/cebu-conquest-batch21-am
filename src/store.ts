@@ -218,8 +218,6 @@ export interface GameState {
   resetGame: () => void;
   setBgmVolume: (vol: number) => void;
   setSeVolume: (vol: number) => void;
-  
-  // 🚀 修正ポイント: TypeScriptエラー解消のため null を許容
   updateSelectedDistrict: (data: { 
     districtId: number; 
     districtName: string; 
@@ -227,7 +225,6 @@ export interface GameState {
     isNeutral: boolean;
     spotId?: number; 
   } | null) => void;
-  
   updateStatsFromPhaser: (stats: Partial<GameState>) => void;
 }
 
@@ -317,14 +314,23 @@ export const useGameStore = create<GameState>()(
           return false;
         } catch { return false; }
       },
+      
+      // 🚀 修正ポイント: PHP側から territories が正常に取得できなかった場合の判定を安全ガードで強化
       syncMasterData: async () => {
         try {
           const json = await get().authenticatedFetch<MasterData>('master-data.php');
           if (json?.status === 'success' && json.data) {
             const districtsMap: Record<string, string> = {};
-            json.data.territories.forEach((t) => { 
-              districtsMap[String(t.district_id)] = t.owner_id || ''; 
-            });
+            
+            // territoriesが未定義(undefined)の時、forEachでクラッシュするのを配列チェックで鉄壁ガード
+            if (json.data && Array.isArray(json.data.territories)) {
+              json.data.territories.forEach((t) => { 
+                districtsMap[String(t.district_id)] = t.owner_id || ''; 
+              });
+            } else {
+              console.warn("📡 syncMasterData Guard: 'territories' is missing or not an array. Suppressed crash.");
+            }
+            
             const lookup = buildLookup(json.data) as unknown as LookupData;
             set({ districts: districtsMap, masterData: json.data, lookupData: lookup });
           }
@@ -450,7 +456,6 @@ export const useGameStore = create<GameState>()(
         }
       },
       
-      // 🚀 修正ポイント: null を受け取った際はターゲット情報を確実にクリアする
       updateSelectedDistrict: (data) => {
         if (!data) {
           set({
@@ -463,11 +468,9 @@ export const useGameStore = create<GameState>()(
         }
 
         set({
-          // selectedDistrictId は 5桁 spotId を優先（サーバー送信用）
           selectedDistrictId: data.spotId ?? data.districtId,
           currentDistrictName: data.districtName,
           targetDistrictInfo: {
-            // id は 3桁 districtId を使用（lookupData.districts.get() の参照キー）
             id: data.districtId,
             name: data.districtName,
             enemyDef: 40,
@@ -512,8 +515,6 @@ export const useGameStore = create<GameState>()(
       },
 
       stay: () => {
-        // ★修正3: COMMAND_STAY の dispatchEvent を削除
-        // MainScene.js の COMMAND_STAY ハンドラが ACTION_SUBMIT を再送信するため二重送信になっていた
         socket.emit(CLIENT_EVENTS.ACTION_SUBMIT, { type: 'stay' });
       },
 
@@ -528,8 +529,10 @@ export const useGameStore = create<GameState>()(
       useItem: (id) => socket.emit(CLIENT_EVENTS.ACTION_USE_ITEM, { itemId: id }),
 
       endTurn: () => {
-        // 🚀 I-1 修正完了箇所: TURN_END_SUBMITを使用。isMyTurnはサーバー同期まで触らない。
-        socket.emit(CLIENT_EVENTS.TURN_END_SUBMIT); 
+        const { roomId, isMyTurn } = get();
+        if (!isMyTurn) return;
+
+        socket.emit(CLIENT_EVENTS.TURN_END_SUBMIT, { roomId }); 
         set({ isSubmitted: true }); 
       },
 
@@ -584,3 +587,5 @@ declare global {
 if (typeof window !== 'undefined') {
   window.useGameStore = useGameStore;
 }
+
+export default useGameStore;

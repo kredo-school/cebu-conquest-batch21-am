@@ -1,5 +1,7 @@
+/// <reference types="vite/client" />
 import React, { useEffect, useState, useMemo, memo, useRef } from 'react';
 import { useGameStore } from '../store';
+import SoundManager from '../game/SoundManager'; // 🚀 SE再生用にインポートを追加
 
 type HUDProps = object;
 
@@ -21,16 +23,12 @@ export const HUD: React.FC<HUDProps> = memo(() => {
   const districts = useGameStore(state => state.districts);
   const isMyTurn = useGameStore(state => state.isMyTurn);
   const turn = useGameStore(state => state.turn);
-  const ap = useGameStore(state => state.ap);
-  const atk = useGameStore(state => state.atk);
-  const blessing = useGameStore(state => state.blessing);
   const isSubmitted = useGameStore(state => state.isSubmitted);
   const activeBuffs = useGameStore(state => state.activeBuffs);
   const players = useGameStore(state => state.players);
-  const attack = useGameStore(state => state.attack);
   const stay = useGameStore(state => state.stay);
+  const endTurn = useGameStore(state => state.endTurn); // 🚀 ターンエンド処理を取得
   const selectedDistrictId = useGameStore(state => state.selectedDistrictId);
-  const setErrorMessage = useGameStore(state => state.setErrorMessage);
   const lookupData = useGameStore(state => state.lookupData);
   const zoomLevel = useGameStore(state => state.zoomLevel);
 
@@ -39,15 +37,6 @@ export const HUD: React.FC<HUDProps> = memo(() => {
   const isStrategicMode = useMemo(() => zoomLevel < 0.75, [zoomLevel]);
   const isPhaseAnimationEnabled = useMemo(() => zoomLevel >= 0.6, [zoomLevel]);
   const [showPhase, setShowPhase] = useState(false);
-
-  const finalAtk = useMemo(() => {
-    const buffValue = activeBuffs.reduce((acc, b) => acc + ((b as ExtendedBuff).value || 0), 0);
-    return Math.floor((atk + buffValue) * blessing);
-  }, [atk, blessing, activeBuffs]);
-
-  const canAttack = useMemo(() => {
-    return isMyTurn && !isSubmitted && ap >= 5 && selectedDistrictId !== null;
-  }, [isMyTurn, isSubmitted, ap, selectedDistrictId]);
 
   const targetInfo = useMemo(() => {
     if (selectedDistrictId === null || typeof selectedDistrictId === 'undefined' || !lookupData?.districts) return null;
@@ -117,12 +106,6 @@ export const HUD: React.FC<HUDProps> = memo(() => {
     ? "opacity-30 scale-95 hover:opacity-100 hover:scale-100 pointer-events-auto" 
     : "opacity-100 scale-100 pointer-events-auto";
 
-  const handleAttack = () => {
-    if (ap < 5) { setErrorMessage("INSUFFICIENT AP"); return; }
-    if (typeof selectedDistrictId !== 'number') { setErrorMessage("TARGET NOT SELECTED"); return; }
-    attack(selectedDistrictId);
-  };
-
   return (
     <div className="absolute inset-0 pointer-events-none z-30 font-mono select-none flex flex-col transition-all duration-700">
       
@@ -131,7 +114,7 @@ export const HUD: React.FC<HUDProps> = memo(() => {
         {/* タイトルバッジ */}
         <div className="flex items-center gap-2 mb-[-12px] z-10">
           <span className="px-5 py-1.5 bg-slate-950 border border-slate-800 rounded-full text-[10px] font-black italic uppercase tracking-[0.3em] text-slate-400 shadow-[0_4px_12px_rgba(0,0,0,0.5)] font-fix">
-            TURF INFLUENCE
+            TURF INFLULINE
           </span>
         </div>
 
@@ -182,7 +165,7 @@ export const HUD: React.FC<HUDProps> = memo(() => {
             )}
           </div>
 
-          {/* 衝突点：せめぎ合いを表現する雷状のパルス発光エフェクトライン */}
+          {/* 衝突点：雷状のパルス発光エフェクトライン */}
           {team0.percent > 0 && team0.percent < 100 && (
             <div 
               className="absolute top-0 bottom-0 w-1 bg-white z-20 shadow-[0_0_15px_#fff,0_0_30px_rgba(255,255,255,0.8)] transition-all duration-1000 ease-out skew-x-[-18deg] animate-pulse"
@@ -197,12 +180,11 @@ export const HUD: React.FC<HUDProps> = memo(() => {
 
       <div className="flex-grow pointer-events-none" />
 
-      {/* 🚀 中央：YOUR PHASE ホログラフィック・グリッチアニメーション（超巨大化版） */}
+      {/* 🚀 中央：YOUR PHASE ホログラフィック・グリッチアニメーション */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
         {showPhase && (
           <div className="phase-animation-container">
             <div className="phase-container flex flex-col items-center">
-              {/* Tactical Decorative Brackets */}
               <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-orange-500/50"></div>
               <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-orange-500/50"></div>
               <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-orange-500/50"></div>
@@ -216,7 +198,6 @@ export const HUD: React.FC<HUDProps> = memo(() => {
                 <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-orange-500"></div>
               </div>
               
-              {/* 🚀 text-8xlから元の超巨大サイズ [140px] md:[200px] に拡張、重なりも微調整 */}
               <h1 className="holographic-text text-[140px] md:text-[200px] font-black italic tracking-tighter uppercase flex flex-col items-center leading-none" data-text="YOUR PHASE">
                 <span className="text-white">YOUR</span>
                 <span className="text-orange-500 -mt-8 md:-mt-12">PHASE</span>
@@ -260,7 +241,7 @@ export const HUD: React.FC<HUDProps> = memo(() => {
           </div>
         </div>
 
-        {/* 右側：アクションパネル */}
+        {/* 右側：アクションパネル統合エリア */}
         <div className="flex flex-col items-end gap-4 pointer-events-auto">
           <div className={`flex flex-col items-end transition-all duration-500 ${isMyTurn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
             <div className="flex items-center gap-2 mb-1">
@@ -278,14 +259,27 @@ export const HUD: React.FC<HUDProps> = memo(() => {
             )}
           </div>
 
-          <div className={`flex gap-5 items-end transition-all duration-500 ${isMyTurn && !isSubmitted ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-            <button onClick={handleAttack} disabled={!canAttack} className={`relative overflow-hidden w-40 h-20 rounded-lg font-black italic tracking-tighter transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-xl ${canAttack ? 'bg-orange-600 text-white shadow-[0_0_30px_rgba(234,88,12,0.4)]' : 'bg-slate-900/80 text-slate-600 border border-slate-800'}`}>
-              <span className="material-symbols-outlined text-2xl">swords</span>
-              <span className="font-fix uppercase text-base">Attack ({finalAtk})</span>
-              <div className="absolute top-1 right-2 text-[7px] font-black text-cyan-400">5 AP</div>
+          <div className={`flex gap-5 items-end transition-all duration-500 ${isMyTurn ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+            
+            {/* 🚀 修正ポイント: 暗いサイバーブルー(bg-blue-950)のせいでグレーアウトに誤認されていた配色を完全リプレイス。
+                活性時はハッキリ目立つ高輝度ブルー(bg-blue-600/90)と鮮明な白文字(text-white)で点点灯させます */}
+            <button
+              onClick={() => {
+                try { SoundManager.playSe("click"); } catch {}
+                endTurn();
+              }}
+              disabled={!isMyTurn}
+              className={`relative overflow-hidden w-40 h-20 rounded-lg font-black italic tracking-tighter transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-xl
+                ${(!isMyTurn)
+                  ? 'bg-slate-900/80 text-slate-600 border border-slate-800'
+                  : 'bg-blue-600/90 border-2 border-blue-400 text-white hover:bg-blue-500 shadow-[0_0_25px_rgba(59,130,246,0.5)]'
+                }`}
+            >
+              <span className={`material-symbols-outlined text-xl ${!isMyTurn ? 'text-slate-600' : 'text-blue-200'}`}>logout</span>
+              <span className="font-fix text-base">TURN END</span>
             </button>
 
-            <button onClick={stay} disabled={!isMyTurn || isSubmitted} className={`bg-slate-900/90 backdrop-blur-xl border border-slate-700 text-slate-100 rounded-lg font-bold transition-all active:scale-95 flex flex-col items-center justify-center gap-1 w-36 h-20 text-lg shadow-lg`}>
+            <button onClick={stay} disabled={!isMyTurn} className={`bg-slate-900/90 backdrop-blur-xl border border-slate-700 text-slate-100 rounded-lg font-bold transition-all active:scale-95 flex flex-col items-center justify-center gap-1 w-36 h-20 text-lg shadow-lg`}>
               <span className="material-symbols-outlined text-green-400 text-xl">vitals</span>
               <span className="font-fix text-base">STAY (回復)</span>
               <span className="text-[7px] text-slate-500 uppercase tracking-widest font-fix">HP+20 / AP+30</span>
@@ -299,7 +293,6 @@ export const HUD: React.FC<HUDProps> = memo(() => {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #ea580c; border-radius: 10px; }
         .font-fix { line-height: 1; }
         
-        /* 🦑 スプラトゥーン風 ゲージアニメーション */
         @keyframes ink-flow {
           from { background-position: 0% 0%; }
           to { background-position: 60px 0%; }
@@ -317,7 +310,6 @@ export const HUD: React.FC<HUDProps> = memo(() => {
           background-size: 60px 100%;
         }
 
-        /* 📡 YOUR PHASE 専用ホログラフィック・アニメーションマトリクス */
         @keyframes scanline {
           0% { transform: translateY(-100%); }
           100% { transform: translateY(100%); }

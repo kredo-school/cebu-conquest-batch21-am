@@ -112,7 +112,7 @@ const App: React.FC = () => {
       setTimeout(() => {
         const { selectedGodId, selectedDistrictId: startId } = useGameStore.getState();
 
-        // SET_AVATAR 再送（GodSelectionView での dispatch 時は Phaser 未起動だったため）
+        // SET_AVATAR 再送（GodSelectionView ででの dispatch 時は Phaser 未起動だったため）
         if (selectedGodId) {
           const GOD_KEY_MAP: Record<number, string> = {
             1: "god-neil",
@@ -298,13 +298,15 @@ const App: React.FC = () => {
           </p>
         </div>
       )}
+      
+      {/* 🚀 修正ポイント: モーダル同士の z-index の重なり順を最適化し、ランキング画面やインベントリ画面よりも高い最前面へ引き上げました */}
       {showSettings && (
-        <div className="fixed inset-0 z-[300000]">
+        <div className="fixed inset-0 z-[340000]">
           <SettingsView onBack={() => setShowSettings(false)} />
         </div>
       )}
       {showHelp && (
-        <div className="fixed inset-0 z-[310000]">
+        <div className="fixed inset-0 z-[350000]">
           <HelpModal onClose={() => setShowHelp(false)} />
         </div>
       )}

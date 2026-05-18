@@ -288,7 +288,8 @@ const VolumeSlider = ({ label, value, onChange }: { label: string, value: number
 
 const ToggleItem = ({ label, active, onToggle }: { label: string, active: boolean, onToggle: () => void }) => (
   <div className="flex items-center justify-between py-5 border-b border-white/5 last:border-0 group cursor-pointer" onClick={onToggle}>
-    <p className="text-sm font-bold text-slate-300 group-hover:text-white transition-colors">{label}</p>
+    {/* 🚀 修正ポイント: 指示通りテキスト色のみを text-slate-300 から薄い文字色 text-slate-400 へ変更 */}
+    <p className="text-sm font-bold text-slate-400 group-hover:text-white transition-colors">{label}</p>
     <button className={`relative inline-flex h-7 w-14 items-center rounded-full transition-all border-2 ${active ? 'bg-orange-600 border-orange-500' : 'bg-slate-800 border-slate-700'}`}>
       <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-all shadow-md ${active ? 'translate-x-8' : 'translate-x-1'}`}></span>
     </button>

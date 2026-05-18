@@ -72,11 +72,18 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
           <div className="text-xl font-black text-brand-500 uppercase tracking-tighter font-fix">CEBU CONQUEST // RANKING</div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button onClick={onOpenHelp} className="p-2 text-slate-500 hover:text-cyan-400 transition-colors">
+        <div className="flex items-center gap-2 relative z-50 pointer-events-auto">
+          {/* 🚀 修正：オプショナルチェーニング(?.)を追加し、関数が未定義でも落ちないように保護＆ログ追加 */}
+          <button 
+            onClick={() => { console.log("🔮 RankingView: Help triggered"); onOpenHelp?.(); }} 
+            className="p-2 text-slate-500 hover:text-cyan-400 transition-colors cursor-pointer relative z-50 pointer-events-auto"
+          >
             <span className="material-symbols-outlined">help</span>
           </button>
-          <button onClick={onOpenSettings} className="p-2 text-slate-500 hover:text-orange-500 transition-colors">
+          <button 
+            onClick={() => { console.log("🔮 RankingView: Settings triggered"); onOpenSettings?.(); }} 
+            className="p-2 text-slate-500 hover:text-orange-500 transition-colors cursor-pointer relative z-50 pointer-events-auto"
+          >
             <span className="material-symbols-outlined">settings</span>
           </button>
         </div>
@@ -142,7 +149,7 @@ export const RankingView: React.FC<RankingViewProps> = memo(({
                 </div>
                 <h3 className="text-3xl font-black text-white font-fix uppercase italic tracking-tighter mb-2">{topThree[0].playerName || topThree[0].username}</h3>
                 <span className="text-[11px] font-black text-orange-500 tracking-[0.4em] uppercase mb-8 font-fix">{topThree[0].baseIsland} Dominator</span>
-                <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden mb-4 border border-white/5">
+                <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden mb-4 border border-white/5">
                   <div className="bg-orange-600 h-full shadow-[0_0_20px_#ea580c]" style={{ width: `${topThree[0].occupancy}%` }}></div>
                 </div>
                 <p className="text-white text-xs font-black font-fix uppercase tracking-widest">Global Control: {topThree[0].occupancy}%</p>

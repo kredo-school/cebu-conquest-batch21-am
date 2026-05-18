@@ -284,7 +284,14 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
               </div>
               <div className="p-3 bg-slate-950/50 border-t border-slate-800 shrink-0">
                 <div className="relative flex items-center">
-                  <input className="w-full bg-slate-900 border-slate-800 rounded-lg py-2 px-4 text-xs focus:ring-[#fa7000] focus:border-[#fa7000] text-slate-200 outline-none font-mono" placeholder="TRANSMIT TACTICAL DATA..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}/>
+                  {/* 🚀 修正ポイント: 送信ボタンとの重複を防ぐため、py-2 px-4 から py-2 pl-4 pr-10 へ右端のパディングを確保 */}
+                  <input 
+                    className="w-full bg-slate-900 border-slate-800 rounded-lg py-2 pl-4 pr-10 text-xs focus:ring-[#fa7000] focus:border-[#fa7000] text-slate-200 outline-none font-mono" 
+                    placeholder="TRANSMIT TACTICAL DATA..." 
+                    value={chatInput} 
+                    onChange={(e) => setChatInput(e.target.value)} 
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                  />
                   <button onClick={handleSendMessage} className="absolute right-2 text-[#fa7000] hover:text-orange-400 transition-colors"><span className="material-symbols-outlined text-sm">send</span></button>
                 </div>
               </div>
