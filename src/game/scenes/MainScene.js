@@ -4,8 +4,6 @@ import { CLIENT_EVENTS, SERVER_EVENTS } from "../../../shared/socketEvents.js";
 import { PHASER_TO_REACT, REACT_TO_PHASER, emitToReact } from "../events/PhaserBridge";
 import { MAP_CONFIG } from "../config/mapConfig";
 import {
-  ADJACENCY,
-  getNeighbors,
   SPOT_ADJACENCY,
   getSpotNeighbors,
 } from "../../../shared/adjacency.js";
@@ -978,63 +976,6 @@ export default class MainScene extends Phaser.Scene {
     } else {
       // ── プレイ中：移動・攻撃フェーズ ──
       if (spotId === this.currentSpotId) return; // ★ currentSpotId (5桁) と比較
-
-      // FIX-A: currentSpotId が null のときは district レベルのフォールバックへ確実に進む
-      const effectiveSpotId = this.currentSpotId;
-      const effectiveDistrictId = this.currentDistrictId;
-
-      // ★ SPOT_ADJACENCY (5桁キー) を優先して隣接チェック
-      const spotNeighbors =
-        typeof SPOT_ADJACENCY !== "undefined" && SPOT_ADJACENCY !== null && effectiveSpotId != null
-          ? (SPOT_ADJACENCY[effectiveSpotId] ?? null)
-          : null;
-
-      let canMove = false;
-      if (Array.isArray(spotNeighbors)) {
-        // SPOT_ADJACENCY が存在する場合: 5桁 vs 5桁 で比較
-        canMove = spotNeighbors.includes(spotId);
-      } else {
-        // フォールバック: district ADJACENCY (3桁 vs 3桁) で判定
-        const currentDistrict = effectiveDistrictId; // FIX-A: effectiveDistrictId を使う
-        const targetDistrict = spotId >= 10000 ? Math.floor(spotId / 100) : spotId;
-
-        if (currentDistrict == null) {
-          // FIX-A: 現在地が不明なら同一island内はすべて許可（デプロイ直後の安全弁）
-          canMove = true;
-        } else if (targetDistrict === currentDistrict) {
-          // 同一district内のspot間移動はSPOT_ADJACENCY未定義時も許可する
-          canMove = true;
-          if (import.meta.env.DEV) {
-            console.log(
-              `[MainScene] 同一district内移動を許可: spot ${this.currentSpotId} → ${spotId}` +
-                ` (district ${currentDistrict})`,
-            );
-          }
-        } else {
-          // 異なるdistrictへの移動: ADJACENCY グラフで判定
-          const distNeighbors = ADJACENCY?.[currentDistrict] ?? [];
-          canMove = Array.isArray(distNeighbors) && distNeighbors.includes(targetDistrict);
-
-          if (import.meta.env.DEV) {
-            console.warn(
-              `[MainScene] SPOT_ADJACENCY[${this.currentSpotId}] 未定義のため` +
-                ` district ADJACENCY で代替判定 (${currentDistrict} → ${targetDistrict})` +
-                ` | canMove: ${canMove}`,
-            );
-          }
-        }
-      }
-
-      if (!canMove) {
-        this.showLog("⚠️ You cannot move to non-adjacent spots.");
-        if (import.meta.env.DEV) {
-          console.log(
-            `[移動拒否] from=${this.currentSpotId} → to=${spotId}` +
-              ` | 隣接spots: [${(spotNeighbors ?? []).join(", ")}]`,
-          );
-        }
-        return;
-      }
 
       SoundManager.playSE("se_click_non_button");
       this._pendingTargetId = spotId;
