@@ -13,7 +13,7 @@ interface LobbyPlayer extends Player {
 const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: LobbyPlayer; isMe: boolean; isHost: boolean; myAvatar: string | null }) => {
   const isPlayerReady = player.isReady === true || player.ready === true;
   const avatarUrl = isMe ? myAvatar : null;
-  const isNpc = player.id?.includes('npc') || (!player.username && !isMe);
+  const isNpc = String(player.id ?? '').includes('npc') || (!player.username && !isMe);
 
   return (
     <div className={`glass-panel p-5 rounded-2xl border-l-4 flex flex-col gap-4 group transition-all duration-500 h-64 w-72 shrink-0 ${
@@ -27,8 +27,10 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: LobbyPlay
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/80">
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
             <div className="w-full h-[2px] bg-[#fa7000]/20 absolute top-0 animate-scanline"></div>
-            <span className="material-symbols-outlined text-5xl text-slate-700 mb-2 animate-pulse">fingerprint</span>
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] font-fix">Awaiting Link</p>
+            
+            <p className="text-[12px] font-black text-slate-500 uppercase tracking-[0.4em] font-fix">
+              WAITING<span className="loading-dots"></span>
+            </p>
           </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-slate-900">
@@ -162,6 +164,18 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           background-image: linear-gradient(to top, #020617 10%, transparent 100%), url(https://images.unsplash.com/photo-1506466010722-395aa2bef877?auto=format&fit=crop&w=1920&q=80);
           background-size: cover; background-position: center bottom;
         }
+
+        .loading-dots::after {
+          content: '';
+          animation: dots 1.5s steps(4, end) infinite;
+        }
+        @keyframes dots {
+          0%   { content: ''; }
+          25%  { content: '.'; }
+          50%  { content: '..'; }
+          75%  { content: '...'; }
+          100% { content: ''; }
+        }
       `}</style>
       
       <div className="fixed inset-0 -z-10 island-silhouette opacity-40 pointer-events-none" />
@@ -199,7 +213,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             </div>
           </div>
 
-          {/* 👥 プレイヤーカードエリア */}
           <div className="flex-1 flex items-center justify-center min-h-0 mb-8 overflow-y-auto custom-scrollbar px-4 w-full">
             <div className="flex flex-wrap justify-center gap-8 w-full max-w-6xl mx-auto content-center p-2">
               {players.map((p, idx) => (
@@ -214,10 +227,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             </div>
           </div>
 
-          {/* 🕹️ フッターコントロールエリア */}
           <div className="flex flex-col lg:flex-row gap-8 shrink-0 mb-4 items-end justify-center w-full max-w-6xl mx-auto">
             
-            {/* 💬 チャットログ & 入力エリア */}
             <div className="flex-1 glass-panel rounded-xl overflow-hidden flex flex-col h-36 border-slate-800 shadow-2xl w-full">
               <div ref={scrollRef} className="flex-1 p-4 space-y-3 overflow-y-auto text-sm custom-scrollbar text-left font-mono bg-slate-950/20">
                 {chatLogs.map((log, i) => (
@@ -230,7 +241,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               </div>
               <div className="p-3 bg-slate-950/50 border-t border-slate-800 shrink-0">
                 <div className="relative flex items-center">
-                  {/* 🚀 修正ポイント: 送信ボタンと文字が重ならないよう、px-4 から pl-4 / pr-10 へパディングを変更して右端のガードラインを確保 */}
                   <input 
                     className="w-full bg-slate-900 border-slate-800 rounded-lg py-2 pl-4 pr-10 text-xs focus:ring-[#fa7000] focus:border-[#fa7000] text-slate-200 outline-none font-mono" 
                     placeholder="TRANSMIT TACTICAL DATA..." 
@@ -245,8 +255,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               </div>
             </div>
 
-            {/* ⚡ 準備完了ボタン */}
             <div className="w-full lg:w-[400px] shrink-0">
+              {/* 🚀 修正: 雷・鍵アイコンを撤去し、完全にフラットでクリーンなテキストのみのデザインにシンプル化 */}
               <button 
                 onClick={handleReady}
                 className={`w-full h-[96px] flex flex-col items-center justify-center rounded-2xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-[2px] shadow-lg shrink-0
@@ -254,14 +264,13 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   ? 'bg-slate-800 border-slate-950 text-[#fa7000] shadow-orange-950/20 active:brightness-90' 
                   : 'bg-gradient-to-r from-orange-600 to-brand-500 border-orange-800 text-black font-black shadow-orange-500/20 hover:brightness-110 active:brightness-90'}`}
               >
-                <div className="flex items-center gap-3">
-                  {isReady && <span className="material-symbols-outlined animate-pulse text-2xl">lock</span>}
+                <div className="flex items-center justify-center">
                   <span className="text-2xl font-black italic tracking-widest leading-none font-fix whitespace-nowrap">
-                    {isReady ? 'LINK LOCKED' : 'ESTABLISH LINK'}
+                    {isReady ? 'UNREADY' : 'READY'}
                   </span>
                 </div>
                 <div className={`text-[11px] font-mono tracking-[0.4em] mt-2 opacity-80 font-fix ${isReady ? 'text-[#fa7000]' : 'text-orange-950'}`}>
-                  {isReady ? 'SYNC_ACTIVE_100_AUTHORIZED' : 'UPLINK_PROTOCOL_B21'}
+                  {isReady ? 'SYNCED' : 'WAITING FOR CONFIRMATION'}
                 </div>
               </button>
             </div>

@@ -1,7 +1,6 @@
 <?php
 require_once __DIR__ . '/api-cors.php';
 require_once __DIR__ . '/../db_connection.php';
-require_once 'jwt-helper.php';
 // このファイルは開発・テスト用です。本番公開時は削除するか、アクセス制限をかけてください。
 //http://localhost/Cebu_Conquest/cebu-conquest-batch21-am/api/debug-reset-db.php
 

@@ -31,11 +31,10 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
   const def = useGameStore(state => state.def);
   const isMyTurn = useGameStore(state => state.isMyTurn);
   const isUnderAttack = useGameStore(state => state.isUnderAttack);
-  const districts = useGameStore(state => state.districts);
-  const myId = useGameStore(state => state.myId);
   const playerName = useGameStore(state => state.playerName);
   const lookupData = useGameStore(state => state.lookupData);
   const selectedGodId = useGameStore(state => state.selectedGodId);
+  const selectedDistrictId = useGameStore(state => state.selectedDistrictId);
 
   // 🚀 1. Calculate effective maximum parameter limits reflecting active god modifiers
   const buffs = useMemo(() => (selectedGodId ? GOD_BUFFS[selectedGodId] : {}), [selectedGodId]);
@@ -46,51 +45,21 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
   const displayHp = useMemo(() => Math.min(hp, effectiveMaxHp), [hp, effectiveMaxHp]);
   const displayAp = useMemo(() => Math.min(ap, effectiveMaxAp), [ap, effectiveMaxAp]);
 
-  const territorySummary = useMemo(() => {
-    const myDistricts = Object.entries(districts)
-      .filter(([, ownerId]) => ownerId === myId)
-      .map(([id]) => Number(id));
-
-    const groups: Record<number, { name: string; ids: number[] }> = {};
-
-    myDistricts.forEach(id => {
-      let islandId = 0;
-      let islandName = "UNKNOWN SECTOR";
-
-      if (lookupData?.districts && lookupData.areas && lookupData.islands) {
-        let district = lookupData.districts.get(id);
-        if (!district && lookupData.spots) {
-          const spot = lookupData.spots.get(id);
-          if (spot) district = lookupData.districts.get(spot.parentDistrictId);
-        }
-
-        if (district) {
-          const area = lookupData.areas.get(district.parentAreaId);
-          if (area) {
-            const island = lookupData.islands.get(area.parentIslandId);
-            if (island) {
-              islandId = island.id;
-              islandName = island.name.toUpperCase();
-            }
-          }
-        }
-      } else {
-        islandId = Math.floor(id / 1000);
-        islandName = `SECTOR ${islandId}`;
-      }
-
-      if (!groups[islandId]) {
-        groups[islandId] = { name: islandName, ids: [] };
-      }
-      groups[islandId].ids.push(id);
-    });
-
-    return Object.entries(groups).map(([iId, data]) => ({
-      islandId: Number(iId),
-      name: data.name,
-      ids: data.ids
-    })).sort((a, b) => a.islandId - b.islandId);
-  }, [districts, myId, lookupData]);
+  // 🚀 修正: 削除した Territory Intelligence の代わりに、Stitch風の「現在位置」を計算
+  const locationInfo = useMemo(() => {
+    if (selectedDistrictId === null || typeof selectedDistrictId === 'undefined' || !lookupData?.districts) return null;
+    const district = lookupData.districts.get(selectedDistrictId);
+    if (!district) return null;
+    const areaId = district.parentAreaId;
+    const area = (typeof areaId === 'number') ? lookupData.areas?.get(areaId) : null;
+    const islandId = area?.parentIslandId;
+    const island = (typeof islandId === 'number') ? lookupData.islands?.get(islandId) : null;
+    return {
+      islandName: island?.name || area?.name || "UNKNOWN SECTOR",
+      unit: selectedDistrictId,
+      fullCode: district.name 
+    };
+  }, [selectedDistrictId, lookupData]);
 
   return (
     <>
@@ -107,14 +76,43 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
         .animate-pulse-red { animation: pulse-red 2s infinite; }
         .animate-energy-critical { animation: energy-critical 0.8s infinite ease-in-out; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #realm-color; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #ea580c; border-radius: 10px; }
         .font-fix { line-height: 1.2; }
       `}</style>
 
       <aside className="fixed left-0 top-0 bottom-0 z-40 flex flex-col bg-slate-950 w-80 border-r border-slate-800 shadow-2xl overflow-hidden font-body select-none text-left">
         
+        {/* 🚀 新機能: Stitch風「現在位置（Current Location）」パネルを最上部に追加 */}
+        {locationInfo && (
+          <div className="px-6 pt-6 pb-2">
+            <div className="relative bg-slate-900/80 border border-cyan-500/30 rounded-xl p-4 overflow-hidden shadow-[0_0_15px_rgba(6,182,212,0.15)] group">
+              <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500 shadow-[0_0_10px_#06b6d4]"></div>
+              
+              {/* 背景の斜め透かしアイコン */}
+              <div className="absolute -right-4 -top-2 text-cyan-500/10 rotate-[15deg] pointer-events-none transition-transform duration-500 group-hover:scale-110">
+                <span className="material-symbols-outlined text-[80px]">satellite_alt</span>
+              </div>
+              
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-2 pl-1">
+                  <span className="material-symbols-outlined text-[14px] text-cyan-400 animate-pulse">my_location</span>
+                  <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest font-fix">Current Location</span>
+                </div>
+                <div className="pl-1">
+                  <div className="text-xl font-black text-white italic tracking-tighter uppercase font-fix leading-none truncate drop-shadow-md">
+                    {locationInfo.fullCode}
+                  </div>
+                  <div className="text-[10px] text-slate-400 uppercase tracking-widest font-fix mt-1.5 truncate">
+                    {locationInfo.islandName}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* --- 1. Commander & Status Area --- */}
-        <div className="flex-none p-6 pb-2 space-y-4">
+        <div className={`flex-none px-6 pb-2 space-y-4 ${!locationInfo ? 'pt-6' : 'pt-2'}`}>
           <div className="flex flex-col gap-1 border-l-2 border-orange-600 pl-3 mb-4">
             <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] font-fix">Neural Link Operator</span>
             <h2 className="text-xl font-black text-white italic uppercase tracking-tighter font-fix truncate">
@@ -191,37 +189,11 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
           </div>
         </div>
 
-        {/* --- 2. Territory Control Area --- */}
-        <div className="flex-1 px-6 py-2 overflow-y-auto custom-scrollbar border-t border-white/5 mt-4">
-          <div className="flex items-center gap-2 mb-4 pt-4">
-            <span className="w-1 h-3 bg-orange-500"></span>
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest font-fix">Territory Intelligence</span>
-          </div>
-          <div className="space-y-3">
-            {territorySummary.length > 0 ? territorySummary.map(({ islandId, name, ids }) => (
-              <div key={islandId} className="bg-slate-900/40 border border-white/5 rounded-lg p-3">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-[10px] font-bold text-orange-500/80 font-fix uppercase">{name}</span>
-                  <span className="text-[9px] text-slate-500 font-mono">x{ids.length}</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {ids.map(id => (
-                    <div key={id} className="px-1.5 py-0.5 bg-black/40 border border-slate-800 rounded text-[8px] text-slate-400 font-mono">
-                      {String(id % 100).padStart(2, '0')}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )) : (
-              <div className="py-8 text-center border border-dashed border-slate-800 rounded-lg">
-                <span className="text-[9px] text-slate-600 uppercase font-bold font-fix">No Secured Sectors</span>
-              </div>
-            )}
-          </div>
-        </div>
+        {/* 🚀 不要になった Territory Control Area を削除し、下のログが浮かばないように flex-grow を配置 */}
+        <div className="flex-grow"></div>
 
         {/* --- 3. Inventory & Tactical Feed Area --- */}
-        <div className="flex-none px-6 py-4 space-y-3 bg-slate-950/80 backdrop-blur-md">
+        <div className="flex-none px-6 py-4 space-y-3 bg-slate-950 border-t border-white/5">
           <button onClick={onOpenInventory} className="w-full py-2.5 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 hover:border-emerald-500/50 rounded flex items-center justify-center gap-2 transition-all shadow-lg group">
             <span className="material-symbols-outlined text-emerald-400 text-sm group-hover:scale-110 transition-transform">inventory_2</span>
             <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest font-fix">Open Inventory</span>

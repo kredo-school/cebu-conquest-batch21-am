@@ -29,7 +29,6 @@ const TEAM_CONFIG = [
 // 🚀 【32地区マスタ】すべての地区のバフと優先度
 // ==========================================
 const DISTRICTS_MASTER = {
-    // Cebu & Mactan (1000)
     "111": { name: "Northern Reach: The Apex (Daanbantayan)", priority: 5, buff: { atk: 8, def: 8 } },
     "112": { name: "Cane Fields Lagoon (Medellin)", priority: 4, buff: { atk: 5, def: 5 } },
     "113": { name: "The Transit Crossroad (Bogo City)", priority: 8, buff: { atk: 12, def: 12 } },
@@ -48,8 +47,6 @@ const DISTRICTS_MASTER = {
     "153": { name: "Whale Shark Abyss (Oslob)", priority: 10, buff: { atk: 25, def: 0 } },
     "161": { name: "The Chief's Victory Landing (Lapu-Lapu)", priority: 8, buff: { atk: 12, def: 12 } },
     "162": { name: "Roseate Mangrove Gardens (Cordova)", priority: 5, buff: { atk: 5, def: 10 } },
-
-    // Negros (2000)
     "211": { name: "Sweetleaf Plains (Victorias / Sagay)", priority: 5, buff: { atk: 5, def: 5 } },
     "212": { name: "Cadiz Copper Port (Cadiz)", priority: 6, buff: { atk: 8, def: 8 } },
     "221": { name: "Heritage Manor (Silay)", priority: 7, buff: { atk: 5, def: 15 } },
@@ -59,8 +56,6 @@ const DISTRICTS_MASTER = {
     "241": { name: "Silliman University (Silliman University)", priority: 8, buff: { atk: 10, def: 10 } },
     "242": { name: "The Gentle Core (Dumaguete)", priority: 7, buff: { atk: 8, def: 8 } },
     "243": { name: "Witch's Shadow Isle (Siquijor)", priority: 6, buff: { atk: 15, def: 0 } },
-
-    // Bohol (3000)
     "311": { name: "The Coral Guard (Talibon)", priority: 6, buff: { atk: 5, def: 10 } },
     "312": { name: "Gale Winds Pier (Tubigon)", priority: 5, buff: { atk: 8, def: 5 } },
     "321": { name: "Cone Hill Monoliths (Carmen)", priority: 7, buff: { atk: 10, def: 10 } },
@@ -213,6 +208,7 @@ function processNpcTurn(roomId) {
         const npc = roomState.players[npcId];
         if (!npc || !npc.isNpc) return;
 
+        console.log(`[NPC_TURN] 🤖 NPC ${npc.username} の行動を開始します...`);
         npc.isDefending = false;
         const stats = calculateFinalStats(roomId, npcId);
         
@@ -295,6 +291,7 @@ function processNpcTurn(roomId) {
             } catch (innerErr) {
                 console.error("NPC行動実行エラー:", innerErr);
             } finally {
+                console.log(`[NPC_TURN] 🤖 NPC ${npc.username} の行動完了。ターンを回します。`);
                 setTimeout(() => finalizeTurn(roomId, npcId), 1500);
             }
         }, 1000);
@@ -305,14 +302,15 @@ function processNpcTurn(roomId) {
 }
 
 // ==========================================
-// 🔄 ターン終了処理とゲーム終了判定
+// 🔄 ターン終了処理とゲーム終了判定（完全耐障害版）
 // ==========================================
 function finalizeTurn(roomId, currentId) {
     const roomState = rooms.get(roomId);
     if (!roomState) return;
 
     try {
-        console.log(`[finalizeTurn] 開始: roomId=${roomId} currentId=${currentId}`);
+        console.log(`\n========================================`);
+        console.log(`[FINALIZE_TURN] 開始: roomId=${roomId} 現在のターン終了者=${currentId}`);
         
         const currentPlayer = roomState.players[currentId];
         if (currentPlayer && typeof currentPlayer.faithRegen === 'number') {
@@ -359,11 +357,14 @@ function finalizeTurn(roomId, currentId) {
         }
 
         if (roomState.turn > roomState.maxTurn || isAllConquered || isSomeoneDead) {
+            console.log(`[FINALIZE_TURN] 終了条件到達。ゲーム終了処理へ移行します。`);
             handleGameOver(roomId, roomState.turnOrder);
             return;
         }
 
-        console.log(`[finalizeTurn] 進捗: 次のターンは nextId=${nextId} turn=${roomState.turn}`);
+        console.log(`[FINALIZE_TURN] ターン移行決定: 次のプレイヤー=[${roomState.players[nextId]?.username}] Turn=${roomState.turn}`);
+        console.log(`========================================\n`);
+
         io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
         
         const basePayload = {
@@ -388,7 +389,7 @@ function finalizeTurn(roomId, currentId) {
             setTimeout(() => processNpcTurn(roomId), 2000);
         }
     } catch (error) {
-        console.error(`🔥 [finalizeTurn] 致命的エラー:`, error);
+        console.error(`🔥 [FINALIZE_TURN] 致命的エラー:`, error);
     } finally {
         roomState.isProcessingAction = false; 
     }
@@ -469,6 +470,11 @@ io.on('connection', (socket) => {
             if (roomState.turnOrder) {
                 const idx = roomState.turnOrder.indexOf(oldId);
                 if (idx !== -1) roomState.turnOrder[idx] = socket.id;
+            }
+
+            // ★ BUG FIX: リロード時にターンオーナーIDも確実に新IDに引き継ぐ
+            if (roomState.turnOwnerId === oldId) {
+                roomState.turnOwnerId = socket.id;
             }
 
             socket.join(roomId);
@@ -737,8 +743,6 @@ io.on('connection', (socket) => {
                 roomState.districts[sacredId] = socket.id;
                 p.districtId = sacredId;
                 p.spotId     = String(spawnSpot);
-
-                console.log(`✨ [Room ${roomId}] ${p.username} に聖地 district=${sacredId}(3桁), spot=${spawnSpot}(5桁) を付与しました`);
             }
             
             io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
@@ -870,7 +874,11 @@ io.on('connection', (socket) => {
         }
         roomState.isProcessingAction = true;
 
+        let shouldAdvanceTurn = false; 
+
         try {
+            console.log(`\n[ACTION_SUBMIT] Player ${roomState.players[socket.id]?.username} がアクション [${data.type}] を実行`);
+            
             const p = roomState.players[socket.id];
             p.isDefending = false;
 
@@ -884,8 +892,7 @@ io.on('connection', (socket) => {
             if (data.type === 'attack' || data.type === 'move') {
                 if (neighbors.length > 0 && !neighbors.includes(targetSpotId)) {
                     socket.emit(SERVER_EVENTS.ERROR_MESSAGE, "隣接していないspotには移動・攻撃できません。");
-                    roomState.isProcessingAction = false; 
-                    return;
+                    return; // finallyでロックを解除してやり直し
                 }
 
                 if (data.type === 'attack') {
@@ -895,6 +902,8 @@ io.on('connection', (socket) => {
                     const defBase   = defenderId ? calculateFinalStats(roomId, defenderId).def : 30;
                     const defValue  = defBase * (defender?.isDefending ? 1.5 : 1);
                     const result = resolveBattle(stats.atk, defValue);
+
+                    shouldAdvanceTurn = true; 
 
                     if (result.isWin) {
                         roomState.districts[targetDistrictId] = socket.id;
@@ -951,16 +960,19 @@ io.on('connection', (socket) => {
                     p.districtId = targetDistrictId;
                     p.ap = Math.max(0, p.ap - 5);
                     io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🚚 ${p.username}: ${targetSpotId} へ移動。`);
+                    shouldAdvanceTurn = true;
                 }
 
             } else if (data.type === 'stay') {
                 p.hp = Math.min(p.maxHp, p.hp + 20);
                 p.ap = Math.min(p.maxAp, p.ap + 30); 
                 io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🧘 ${p.username}: 休息を選択。`);
+                shouldAdvanceTurn = true;
 
             } else if (data.type === 'defend') {
                 p.isDefending = true;
                 io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `🛡️ ${p.username}: 守りを固めました。`);
+                shouldAdvanceTurn = true;
 
             } else if (data.type === 'escape') {
                 const myDistricts = Object.keys(roomState.districts)
@@ -975,18 +987,31 @@ io.on('connection', (socket) => {
                     p.hp = Math.max(0, p.hp - 50);
                     io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `💥 ${p.username}: 逃げ場がなくダメージを受けた！`);
                 }
+                shouldAdvanceTurn = true;
 
             } else if (data.type === 'turn_end') {
-                finalizeTurn(roomId, socket.id);
+                shouldAdvanceTurn = true;
+            } else {
+                roomState.isProcessingAction = false;
                 return;
             }
 
         } catch (globalErr) {
             console.error(`❌ [ACTION_SUBMIT 致命的エラー]:`, globalErr);
+            roomState.isProcessingAction = false;
         } finally {
-            roomState.isProcessingAction = false; 
+            console.log(`[ACTION_SUBMIT] アクション完了. オートターンエンド(shouldAdvanceTurn)=${shouldAdvanceTurn}`);
             socket.emit(SERVER_EVENTS.ACTION_RESULT, { state: sanitizeRoomState(roomState) }); 
-            io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
+            
+            if (!shouldAdvanceTurn) {
+                roomState.isProcessingAction = false; 
+                io.to(roomId).emit(SERVER_EVENTS.SYNC_STATE, sanitizeRoomState(roomState));
+            }
+        }
+
+        // 強制オートターンエンド
+        if (shouldAdvanceTurn) {
+            finalizeTurn(roomId, socket.id);
         }
     };
 
