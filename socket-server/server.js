@@ -127,6 +127,23 @@ function checkAllConquered(roomState) {
     return allDistricts.every(dId => roomState.districts[dId] === firstOwner);
 }
 
+// 指定プレイヤーの所有territory数を返す
+// roomState.districts のキーは3桁districtId（roomState.spotsは存在しない）
+function countOwnedSpots(roomState, playerId) {
+    return Object.values(roomState.districts).filter(owner => owner === playerId).length;
+}
+
+// 人間プレイヤーのうち所有territoryを全て失ったプレイヤーIDの配列を返す
+// turn === 0 は初期配置中のため除外
+function getEliminatedBySpotLoss(roomState) {
+    if (roomState.turn === 0) return [];
+    return Object.keys(roomState.players).filter(pid => {
+        const player = roomState.players[pid];
+        if (!player || player.isNpc) return false;
+        return countOwnedSpots(roomState, pid) === 0;
+    });
+}
+
 function applyGodBonus(p, godId) {
     switch(Number(godId)) {
         case 1: p.maxHp += 30; p.maxAp -= 25; p.hp += 10; break;
@@ -300,6 +317,20 @@ function finalizeTurn(roomId, currentId) {
         const currentPlayer = roomState.players[currentId];
         if (currentPlayer && typeof currentPlayer.faithRegen === 'number') {
             currentPlayer.faith += currentPlayer.faithRegen;
+        }
+
+        // ★ BUG FIX: 所有territory数ゼロによる即時敗北チェック
+        const eliminatedBySpotLoss = getEliminatedBySpotLoss(roomState);
+        if (eliminatedBySpotLoss.length > 0) {
+            eliminatedBySpotLoss.forEach(pid => {
+                const player = roomState.players[pid];
+                console.log(`[finalizeTurn] spot elimination: playerId=${pid} username=${player?.username}`);
+                io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,
+                    `💀 ${player?.username ?? pid}: Lost all spots — ELIMINATED!`
+                );
+            });
+            handleGameOver(roomId, roomState.turnOrder);
+            return;
         }
 
         const isAllConquered = checkAllConquered(roomState);

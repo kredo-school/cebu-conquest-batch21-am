@@ -1466,7 +1466,7 @@ export default class MainScene extends Phaser.Scene {
         return;
       }
 
-      // ── 他プレイヤー / NPC ── (ドット表示は districtId レベル)
+      // ── 他プレイヤー / NPC ──
       let rawDistrictId = data.districtId ?? data.currentDistrict ?? data.pos;
       if (rawDistrictId == null && data.spotId != null) {
         rawDistrictId = Math.floor(Number(data.spotId) / 100);
@@ -1485,6 +1485,20 @@ export default class MainScene extends Phaser.Scene {
           console.warn(`[_syncPlayers] district ${dId} not in Phaser for ${playerId}`);
         }
         return;
+      }
+
+      // ★ spotId があればspot座標を優先（自プレイヤーと同じロジック）、なければdistrict中心にフォールバック
+      let px = d.center.x;
+      let py = d.center.y;
+      const rawSpotId = data.spotId != null ? Number(data.spotId) : null;
+      if (rawSpotId != null && rawSpotId >= 10000) {
+        const spotEntry = this.spots[rawSpotId];
+        if (spotEntry) {
+          px = spotEntry.x;
+          py = spotEntry.y;
+        } else if (import.meta.env.DEV) {
+          console.warn(`[_syncPlayers] spotId=${rawSpotId} not in this.spots for ${playerId}, falling back to district center`);
+        }
       }
 
       const isNpc = data.isNpc === true;
@@ -1507,7 +1521,7 @@ export default class MainScene extends Phaser.Scene {
       let dot;
       if (isNpc) {
         dot = this.add
-          .circle(d.center.x, d.center.y, 16, 0xff00ff)
+          .circle(px, py, 16, 0xff00ff)
           .setDepth(900)
           .setStrokeStyle(3, 0x000000);
       } else if (hasEnemyTexture) {
@@ -1517,20 +1531,20 @@ export default class MainScene extends Phaser.Scene {
         const cropY = Math.floor((src.height - size) / 2);
 
         dot = this.add
-          .image(d.center.x, d.center.y, enemyGodKey)
+          .image(px, py, enemyGodKey)
           .setCrop(cropX, cropY, size, size)
           .setDisplaySize(ENEMY_SIZE, ENEMY_SIZE)
           .setDepth(900);
       } else {
         dot = this.add
-          .circle(d.center.x, d.center.y, 16, COLOR.ENEMY_DOT)
+          .circle(px, py, 16, COLOR.ENEMY_DOT)
           .setDepth(900)
           .setStrokeStyle(3, 0x000000);
       }
 
       const enemyName = data.username || data.playerName || (isNpc ? "NPC" : "???");
       const label = this.add
-        .text(d.center.x, d.center.y - (isNpc ? 24 : 30), isNpc ? "NPC" : enemyName, {
+        .text(px, py - (isNpc ? 24 : 30), isNpc ? "NPC" : enemyName, {
           fontSize: "10px",
           fontFamily: "monospace",
           fill: isNpc ? "#ff00ff" : "#cccccc",
