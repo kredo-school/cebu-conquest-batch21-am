@@ -7,6 +7,8 @@ import { Server } from 'socket.io';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '../shared/socketEvents.js';
 import { getSpawnSpot, getSacredDistrict, GOD_SACRED_LANDS } from '../shared/godSacredLands.js';
 import { getNeighbors } from '../shared/adjacency.js';
+// ★ C-1対応: 特産品マスタをインポート（ファイルが存在しない場合は作成するかDB参照に変更してください）
+import { ITEMS_MASTER } from '../shared/itemsMaster.js'; 
 
 const app = express();
 const server = http.createServer(app);
@@ -94,7 +96,7 @@ function createInitialGameState(maxPlayers = 4) {
         turnIndex: 0,      
         isProcessingAction: false,
         players: {}, 
-        districts: {} 
+        districts: {} // ★ C-2対応: キーはすべてspotId(5桁)で統一
     };
 }
 
@@ -115,16 +117,22 @@ function broadcastLobbyUpdate(roomId, roomState) {
     io.to(roomId).emit("lobbyUpdated", { players: playersArr });
 }
 
+// ★ C-2対応: 5桁spotIdベースでの全滅・完全制覇判定
 function checkAllConquered(roomState) {
-    const allDistricts = Object.keys(DISTRICTS_MASTER);
-    const firstOwner = roomState.districts[allDistricts[0]];
-    if (!firstOwner) return false;
-    return allDistricts.every(dId => roomState.districts[dId] === firstOwner);
+    const owners = Object.values(roomState.districts);
+    if (owners.length === 0) return false;
+    
+    const firstOwner = owners[0];
+    const isSingleOwner = owners.every(owner => owner === firstOwner);
+    
+    const capturedDistrictIds = new Set(
+        Object.keys(roomState.districts).map(spotId => String(Math.floor(Number(spotId) / 100)))
+    );
+    
+    const allDistrictsCount = Object.keys(DISTRICTS_MASTER).length;
+    return isSingleOwner && capturedDistrictIds.size === allDistrictsCount;
 }
 
-// ==========================================
-// 🏴 所有地区数カウント（全滅判定用）
-// ==========================================
 function countOwnedSpots(roomState, playerId) {
     return Object.values(roomState.districts).filter(owner => owner === playerId).length;
 }
@@ -166,12 +174,18 @@ function calculateFinalStats(roomId, playerId) {
     let bonusAtk = 0;
     let bonusDef = 0;
 
-    Object.entries(roomState.districts).forEach(([dId, ownerId]) => {
+    // ★ C-1 & C-2対応: spot単位(5桁)でバフを集計
+    Object.entries(roomState.districts).forEach(([spotId, ownerId]) => {
         if (ownerId === playerId) {
-            const master = DISTRICTS_MASTER[dId];
-            if (master && master.buff) {
-                bonusAtk += master.buff.atk;
-                bonusDef += master.buff.def;
+            const item = typeof ITEMS_MASTER !== 'undefined' ? ITEMS_MASTER[spotId] : null;
+            if (item) {
+                const val = Number(item.spot_buff_value) || 0;
+                const isPercent = item.spot_buff_type === 'add_percent';
+                if (item.spot_buff_target === 'ATK') {
+                    bonusAtk += isPercent ? Math.round(p.atk * val / 100) : val;
+                } else if (item.spot_buff_target === 'DEF') {
+                    bonusDef += isPercent ? Math.round(p.def * val / 100) : val;
+                }
             }
         }
     });
@@ -211,12 +225,14 @@ function processNpcTurn(roomId) {
         npc.isDefending = false;
         const stats = calculateFinalStats(roomId, npcId);
         
-        const rawNeighbors = getNeighbors(npc.spotId || npc.districtId + "01");
+        // ★ H-5対応: 5桁のspotIdを直接使用して隣接判定
+        const rawNeighbors = getNeighbors(npc.spotId);
         const neighbors = Array.isArray(rawNeighbors) ? rawNeighbors.map(String) : [];
 
         let targets = neighbors.map(spotId => {
             const dId = String(Math.floor(Number(spotId) / 100));
-            const ownerId = roomState.districts[dId];
+            // ★ C-2対応: オーナー判定をspotId(5桁)で実施
+            const ownerId = roomState.districts[spotId];
             const master = DISTRICTS_MASTER[dId];
             let score = master ? master.priority : 1;
 
@@ -253,7 +269,8 @@ function processNpcTurn(roomId) {
                         const battleResult = resolveBattle(stats.atk, defValue);
 
                         if (battleResult.isWin) {
-                            currentState.districts[target.dId] = npcId;
+                            // ★ C-2対応: 5桁で占領状態を更新
+                            currentState.districts[target.spotId] = npcId;
                             npc.spotId = target.spotId;
                             npc.districtId = target.dId;
                             io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,`⚔️ ${npc.username}: ${target.name} を制圧しました！`);
@@ -266,6 +283,7 @@ function processNpcTurn(roomId) {
                             });
                             
                             io.to(roomId).emit(SERVER_EVENTS.TERRITORY_UPDATED, {
+                                spotId: target.spotId,  // ★ 追加
                                 districtId: target.dId,
                                 owner: npcId,
                                 team: npc.teamColor
@@ -301,7 +319,7 @@ function processNpcTurn(roomId) {
 }
 
 // ==========================================
-// 🔄 ターン終了処理とゲーム終了判定（完全耐障害版）
+// 🔄 ターン終了処理とゲーム終了判定
 // ==========================================
 function finalizeTurn(roomId, currentId) {
     const roomState = rooms.get(roomId);
@@ -316,9 +334,6 @@ function finalizeTurn(roomId, currentId) {
             currentPlayer.faith += currentPlayer.faithRegen;
         }
 
-        // ==========================================
-        // ★ BUG FIX: 所有地区数ゼロによる即時敗北チェック
-        // ==========================================
         const eliminatedBySpotLoss = getEliminatedBySpotLoss(roomState);
         if (eliminatedBySpotLoss.length > 0) {
             eliminatedBySpotLoss.forEach(pid => {
@@ -470,7 +485,6 @@ io.on('connection', (socket) => {
                 if (idx !== -1) roomState.turnOrder[idx] = socket.id;
             }
 
-            // ★ BUG FIX: リロード時にターンオーナーIDも確実に新IDに引き継ぐ
             if (roomState.turnOwnerId === oldId) {
                 roomState.turnOwnerId = socket.id;
             }
@@ -685,7 +699,8 @@ io.on('connection', (socket) => {
         };
 
         applyGodBonus(roomState.players[npcId], randomGodId);
-        roomState.districts[String(startDistrictId)] = npcId;
+        // ★ C-2対応: NPC追加時も5桁で記録
+        roomState.districts[String(startSpotId)] = npcId;
 
         io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,
             `🤖 ${roomState.players[npcId].username} が ${DISTRICTS_MASTER[startDistrictId]?.name || startDistrictId} に展開しました！`
@@ -738,7 +753,8 @@ io.on('connection', (socket) => {
             if (sacredDistrictId != null) {
                 const sacredId = String(sacredDistrictId);        
 
-                roomState.districts[sacredId] = socket.id;
+                // ★ C-2対応: 5桁で登録
+                roomState.districts[String(spawnSpot)] = socket.id;
                 p.districtId = sacredId;
                 p.spotId     = String(spawnSpot);
             }
@@ -761,7 +777,8 @@ io.on('connection', (socket) => {
             if (data.startDistrictId && !p.districtId) {
                 p.districtId = String(data.startDistrictId);
                 p.spotId = String(data.startDistrictId) + "01";
-                roomState.districts[p.districtId] = socket.id;
+                // ★ C-2対応: 5桁で登録
+                roomState.districts[p.spotId] = socket.id;
             }
 
             broadcastLobbyUpdate(roomId, roomState);
@@ -890,12 +907,13 @@ io.on('connection', (socket) => {
             if (data.type === 'attack' || data.type === 'move') {
                 if (neighbors.length > 0 && !neighbors.includes(targetSpotId)) {
                     socket.emit(SERVER_EVENTS.ERROR_MESSAGE, "隣接していないspotには移動・攻撃できません。");
-                    return; // finallyでロックを解除してやり直し
+                    return; 
                 }
 
                 if (data.type === 'attack') {
                     p.ap = Math.max(0, p.ap - 5);
-                    const defenderId = roomState.districts[targetDistrictId];
+                    // ★ C-2対応: 防御側の取得をspotIdで行う
+                    const defenderId = roomState.districts[targetSpotId];
                     const defender  = defenderId ? roomState.players[defenderId] : null;
                     const defBase   = defenderId ? calculateFinalStats(roomId, defenderId).def : 30;
                     const defValue  = defBase * (defender?.isDefending ? 1.5 : 1);
@@ -904,7 +922,8 @@ io.on('connection', (socket) => {
                     shouldAdvanceTurn = true; 
 
                     if (result.isWin) {
-                        roomState.districts[targetDistrictId] = socket.id;
+                        // ★ C-2対応: spot_id(5桁)で統一して占領
+                        roomState.districts[targetSpotId] = socket.id;
                         p.spotId = targetSpotId;
                         p.districtId = targetDistrictId;
                         io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `⚔️ ${p.username}: ${targetSpotId} を制圧！`);
@@ -917,7 +936,8 @@ io.on('connection', (socket) => {
                         });
 
                         io.to(roomId).emit(SERVER_EVENTS.TERRITORY_UPDATED, {
-                            districtId: targetDistrictId,
+                            spotId: targetSpotId,           // ★ C-2対応: 5桁を追加
+                            districtId: targetDistrictId,   // 3桁は互換用
                             owner: socket.id,
                             team: p.teamColor
                         });
@@ -973,14 +993,16 @@ io.on('connection', (socket) => {
                 shouldAdvanceTurn = true;
 
             } else if (data.type === 'escape') {
-                const myDistricts = Object.keys(roomState.districts)
-                    .filter(id => roomState.districts[id] === socket.id);
+                // ★ C-2対応: districtsから自分のspotId群を取得し、安全なdistrictIdを割り出す
+                const mySpots = Object.keys(roomState.districts)
+                    .filter(spotId => roomState.districts[spotId] === socket.id);
 
-                if (myDistricts.length > 0) {
-                    const dest = myDistricts[Math.floor(Math.random() * myDistricts.length)];
-                    p.districtId = dest;
-                    p.spotId = String(dest) + "01";
-                    io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `💨 ${p.username}: 自陣 ${dest} へ撤退しました。`);
+                if (mySpots.length > 0) {
+                    const destSpot = mySpots[Math.floor(Math.random() * mySpots.length)];
+                    const destDistrict = String(Math.floor(Number(destSpot) / 100));
+                    p.districtId = destDistrict;
+                    p.spotId = destSpot;
+                    io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `💨 ${p.username}: 自陣 ${destDistrict} へ撤退しました。`);
                 } else {
                     p.hp = Math.max(0, p.hp - 50);
                     io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `💥 ${p.username}: 逃げ場がなくダメージを受けた！`);
@@ -1007,7 +1029,6 @@ io.on('connection', (socket) => {
             }
         }
 
-        // 強制オートターンエンド
         if (shouldAdvanceTurn) {
             finalizeTurn(roomId, socket.id);
         }
@@ -1051,14 +1072,16 @@ io.on('connection', (socket) => {
 
         const p = roomState.players[socket.id];
         p.isDefending = false;
-        const myDistricts = Object.keys(roomState.districts)
-            .filter(id => roomState.districts[id] === socket.id);
+        // ★ C-2対応: spotベースでエスケープ先を検索
+        const mySpots = Object.keys(roomState.districts)
+            .filter(spotId => roomState.districts[spotId] === socket.id);
 
-        if (myDistricts.length > 0) {
-            const dest = myDistricts[Math.floor(Math.random() * myDistricts.length)];
-            p.districtId = dest;
-            p.spotId = String(dest) + "01";
-            io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `💨 ${p.username}: 自陣 ${dest} へ撤退しました。`);
+        if (mySpots.length > 0) {
+            const destSpot = mySpots[Math.floor(Math.random() * mySpots.length)];
+            const destDistrict = String(Math.floor(Number(destSpot) / 100));
+            p.districtId = destDistrict;
+            p.spotId = destSpot;
+            io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `💨 ${p.username}: 自陣 ${destDistrict} へ撤退しました。`);
         } else {
             p.hp = Math.max(0, p.hp - 50);
             io.to(roomId).emit(SERVER_EVENTS.GAME_LOG, `💥 ${p.username}: 逃げ場がなくダメージを受けた！`);
