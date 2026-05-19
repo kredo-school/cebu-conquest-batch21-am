@@ -2,7 +2,6 @@
 <?php
 require_once __DIR__ . '/api-cors.php';
 require_once __DIR__ . '/../db_connection.php';
-require_once 'jwt-helper.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);

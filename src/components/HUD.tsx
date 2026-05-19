@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import React, { useEffect, useState, useMemo, memo, useRef } from 'react';
 import { useGameStore } from '../store';
-import SoundManager from '../game/SoundManager'; // 🚀 SE再生用にインポートを追加
+import SoundManager from '../game/SoundManager'; 
 
 type HUDProps = object;
 
@@ -20,14 +20,13 @@ const globalPhaseTracker = {
 
 export const HUD: React.FC<HUDProps> = memo(() => {
   const logs = useGameStore(state => state.logs);
-  const districts = useGameStore(state => state.districts);
   const isMyTurn = useGameStore(state => state.isMyTurn);
   const turn = useGameStore(state => state.turn);
   const isSubmitted = useGameStore(state => state.isSubmitted);
   const activeBuffs = useGameStore(state => state.activeBuffs);
   const players = useGameStore(state => state.players);
   const stay = useGameStore(state => state.stay);
-  const endTurn = useGameStore(state => state.endTurn); // 🚀 ターンエンド処理を取得
+  const endTurn = useGameStore(state => state.endTurn); 
   const selectedDistrictId = useGameStore(state => state.selectedDistrictId);
   const lookupData = useGameStore(state => state.lookupData);
   const zoomLevel = useGameStore(state => state.zoomLevel);
@@ -66,7 +65,8 @@ export const HUD: React.FC<HUDProps> = memo(() => {
       globalPhaseTracker.played = true; 
       if (isPhaseAnimationEnabled) {
         const startTimer = setTimeout(() => setShowPhase(true), 50);
-        const endTimer = setTimeout(() => setShowPhase(false), 3500);
+        // 表示時間を2.5秒に設定
+        const endTimer = setTimeout(() => setShowPhase(false), 2500);
         return () => {
           clearTimeout(startTimer);
           clearTimeout(endTimer);
@@ -75,29 +75,34 @@ export const HUD: React.FC<HUDProps> = memo(() => {
     }
   }, [isMyTurn, isSubmitted, turn, isPhaseAnimationEnabled]);
 
-  // 🚀 占領済み領地のみを100%として算出する高エネルギーせめぎ合いロジック
   const teamStats = useMemo(() => {
-    const totalOccupied = Object.values(districts).filter(ownerId => ownerId && ownerId !== '').length;
+    const p0 = players?.[0];
+    const p1 = players?.[1];
 
-    const stats = (players || []).map((player, index) => {
-      const ownedCount = Object.values(districts).filter(ownerId => ownerId === player.id).length;
-      const defaultColor = index === 0 ? '#0ea5e9' : '#ea580c'; 
-      
-      const percent = totalOccupied > 0 ? (ownedCount / totalOccupied) * 100 : 0;
-      
-      return {
-        id: player.id,
-        name: player.playerName || player.username || 'Operator',
-        color: player.color || defaultColor, 
-        percent: percent
-      };
-    });
-    
+    const occ0 = p0?.occupancy ?? 0;
+    const occ1 = p1?.occupancy ?? 0;
+    const totalOcc = occ0 + occ1;
+
+    const share0 = totalOcc > 0 ? (occ0 / totalOcc) * 100 : 50;
+    const share1 = totalOcc > 0 ? (occ1 / totalOcc) * 100 : 50;
+
     return [
-      stats[0] || { id: 't0', name: 'Alpha Squad', color: '#0ea5e9', percent: 0 },
-      stats[1] || { id: 't1', name: 'Beta Squad', color: '#ea580c', percent: 0 }
+      {
+        id: p0?.id || 't0',
+        name: p0?.playerName || p0?.username || 'Alpha Squad',
+        color: p0?.color || '#0ea5e9',
+        percent: occ0,
+        share: share0
+      },
+      {
+        id: p1?.id || 't1',
+        name: p1?.playerName || p1?.username || 'Beta Squad',
+        color: p1?.color || '#ea580c',
+        percent: occ1,
+        share: share1
+      }
     ];
-  }, [districts, players]);
+  }, [players]);
 
   const team0 = teamStats[0];
   const team1 = teamStats[1];
@@ -109,82 +114,49 @@ export const HUD: React.FC<HUDProps> = memo(() => {
   return (
     <div className="absolute inset-0 pointer-events-none z-30 font-mono select-none flex flex-col transition-all duration-700">
       
-      {/* 📊 勢力分布：次世代ナワバリ・タクティカルゲージ */}
+      {/* 📊 勢力分布：ナワバリゲージ */}
       <div className={`pt-6 flex flex-col items-center gap-3 transition-all duration-700 ${lodClasses}`}>
-        {/* タイトルバッジ */}
         <div className="flex items-center gap-2 mb-[-12px] z-10">
           <span className="px-5 py-1.5 bg-slate-950 border border-slate-800 rounded-full text-[10px] font-black italic uppercase tracking-[0.3em] text-slate-400 shadow-[0_4px_12px_rgba(0,0,0,0.5)] font-fix">
-            TURF INFLULINE
+            GLOBAL OCCUPANCY
           </span>
         </div>
 
-        {/* 洗練された極太シームレスゲージ本体 */}
-        <div 
-          className="relative w-[650px] h-11 bg-slate-900 rounded-full border-2 border-slate-950 overflow-hidden shadow-[0_10px_25px_rgba(0,0,0,0.7)] flex"
-          style={{ backgroundColor: team1.percent > 0 ? team1.color : '#1e293b' }}
-        >
-          {/* 右側チーム (Team 1) の背景ストライプ演出 */}
-          {team1.percent > 0 && (
-            <div className="absolute inset-0 z-0">
-              <div className="absolute inset-0 opacity-15 bg-[repeating-linear-gradient(45deg,transparent,transparent_12px,rgba(255,255,255,0.3)_12px,rgba(255,255,255,0.3)_24px)] animate-ink-flow-reverse" />
-              <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
-              {/* 2P パーセンテージ表示 */}
-              <div className="absolute right-5 top-1/2 -translate-y-1/2 flex items-baseline z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-                <span className="text-xl font-black italic tracking-tighter text-white font-fix">
-                  {team1.percent.toFixed(1)}
-                </span>
-                <span className="text-xs font-black italic text-white ml-0.5 opacity-80 font-fix">
-                  %
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* 左側チーム (Team 0) ：上に重ねて右端を斜めにカット */}
-          <div 
-            className="h-full relative transition-all duration-1000 ease-out z-10" 
-            style={{ 
-              width: `${team0.percent}%`, 
-              backgroundColor: team0.color,
-              clipPath: 'polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%)' 
-            }}
-          >
-            <div className="absolute inset-0 opacity-15 bg-[repeating-linear-gradient(-45deg,transparent,transparent_12px,rgba(255,255,255,0.3)_12px,rgba(255,255,255,0.4)_24px)] animate-ink-flow" />
+        <div className="relative w-[650px] h-11 bg-slate-900 rounded-full border-2 border-slate-950 overflow-hidden shadow-[0_10px_25px_rgba(0,0,0,0.7)] flex">
+          <div className="absolute inset-0 transition-all duration-1000 ease-out z-0" style={{ backgroundColor: team1.color }}>
+            <div className="absolute inset-0 opacity-15 bg-[repeating-linear-gradient(45deg,transparent,transparent_12px,rgba(255,255,255,0.3)_12px,rgba(255,255,255,0.3)_24px)] animate-ink-flow-reverse" />
             <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
-            
-            {/* 1P パーセンテージ表示 */}
-            {team0.percent > 0 && (
-              <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-baseline z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-                <span className="text-xl font-black italic tracking-tighter text-white font-fix">
-                  {team0.percent.toFixed(1)}
-                </span>
-                <span className="text-xs font-black italic text-white ml-0.5 opacity-80 font-fix">
-                  %
-                </span>
-              </div>
-            )}
           </div>
 
-          {/* 衝突点：雷状のパルス発光エフェクトライン */}
-          {team0.percent > 0 && team0.percent < 100 && (
-            <div 
-              className="absolute top-0 bottom-0 w-1 bg-white z-20 shadow-[0_0_15px_#fff,0_0_30px_rgba(255,255,255,0.8)] transition-all duration-1000 ease-out skew-x-[-18deg] animate-pulse"
-              style={{ left: `calc(${team0.percent}% - 7px)` }}
-            />
-          )}
+          <div className="absolute top-0 bottom-0 left-0 transition-all duration-1000 ease-out z-10" style={{ width: `${team0.share}%`, backgroundColor: team0.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%)' }}>
+            <div className="absolute inset-0 opacity-15 bg-[repeating-linear-gradient(-45deg,transparent,transparent_12px,rgba(255,255,255,0.3)_12px,rgba(255,255,255,0.4)_24px)] animate-ink-flow" />
+            <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
+          </div>
 
-          {/* 全体のインナーシャドウ効果 */}
+          <div className="absolute top-0 bottom-0 w-1 bg-white z-20 shadow-[0_0_15px_#fff,0_0_30px_rgba(255,255,255,0.8)] transition-all duration-1000 ease-out skew-x-[-18deg] animate-pulse" style={{ left: `calc(${team0.share}% - 7px)` }} />
+
+          <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-baseline z-40 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+            <span className="text-xl font-black italic tracking-tighter text-white font-fix">{(team0.percent ?? 0).toFixed(1)}</span>
+            <span className="text-xs font-black italic text-white ml-0.5 opacity-80 font-fix">%</span>
+          </div>
+
+          <div className="absolute right-5 top-1/2 -translate-y-1/2 flex items-baseline z-40 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+            <span className="text-xl font-black italic tracking-tighter text-white font-fix">{(team1.percent ?? 0).toFixed(1)}</span>
+            <span className="text-xs font-black italic text-white ml-0.5 opacity-80 font-fix">%</span>
+          </div>
+
           <div className="absolute inset-0 pointer-events-none shadow-[inset_0_4px_12px_rgba(0,0,0,0.6)] z-30 rounded-full" />
         </div>
       </div>
 
       <div className="flex-grow pointer-events-none" />
 
-      {/* 🚀 中央：YOUR PHASE ホログラフィック・グリッチアニメーション */}
+      {/* 🚀 中央：YOUR PHASE シンプル化（文字の二重重なりエフェクトを完全排除） */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
         {showPhase && (
-          <div className="phase-animation-container">
-            <div className="phase-container flex flex-col items-center">
+          <div className="animate-simple-phase">
+            <div className="relative p-8 md:p-12 flex flex-col items-center">
+              {/* 四隅のコーナーフレーム */}
               <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-orange-500/50"></div>
               <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-orange-500/50"></div>
               <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-orange-500/50"></div>
@@ -192,13 +164,15 @@ export const HUD: React.FC<HUDProps> = memo(() => {
               
               <div className="flex items-center gap-4 mb-2">
                 <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-orange-500"></div>
-                <span className="text-[10px] font-black text-orange-400 uppercase tracking-[0.5em] holographic-text" data-text="TACTICAL ENGAGEMENT">
+                {/* 🚀 修正：二重化の原因だった holographic-text クラスと data-text 属性を削除 */}
+                <span className="text-[10px] font-black text-orange-400 uppercase tracking-[0.5em]">
                   TACTICAL ENGAGEMENT
                 </span>
                 <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-orange-500"></div>
               </div>
               
-              <h1 className="holographic-text text-[140px] md:text-[200px] font-black italic tracking-tighter uppercase flex flex-col items-center leading-none" data-text="YOUR PHASE">
+              {/* 🚀 修正：二重化の原因だった holographic-text クラスと data-text 属性を削除。ソリッドでクリアな文字に */}
+              <h1 className="text-[140px] md:text-[200px] font-black italic tracking-tighter uppercase flex flex-col items-center leading-none">
                 <span className="text-white">YOUR</span>
                 <span className="text-orange-500 -mt-8 md:-mt-12">PHASE</span>
               </h1>
@@ -261,8 +235,7 @@ export const HUD: React.FC<HUDProps> = memo(() => {
 
           <div className={`flex gap-5 items-end transition-all duration-500 ${isMyTurn ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
             
-            {/* 🚀 修正ポイント: 暗いサイバーブルー(bg-blue-950)のせいでグレーアウトに誤認されていた配色を完全リプレイス。
-                活性時はハッキリ目立つ高輝度ブルー(bg-blue-600/90)と鮮明な白文字(text-white)で点点灯させます */}
+            {/* 🚀 TURN END ボタン */}
             <button
               onClick={() => {
                 try { SoundManager.playSe("click"); } catch {}
@@ -279,11 +252,13 @@ export const HUD: React.FC<HUDProps> = memo(() => {
               <span className="font-fix text-base">TURN END</span>
             </button>
 
+            {/* 🚀 STAY ボタン */}
             <button onClick={stay} disabled={!isMyTurn} className={`bg-slate-900/90 backdrop-blur-xl border border-slate-700 text-slate-100 rounded-lg font-bold transition-all active:scale-95 flex flex-col items-center justify-center gap-1 w-36 h-20 text-lg shadow-lg`}>
               <span className="material-symbols-outlined text-green-400 text-xl">vitals</span>
-              <span className="font-fix text-base">STAY (回復)</span>
+              <span className="font-fix text-base">STAY</span>
               <span className="text-[7px] text-slate-500 uppercase tracking-widest font-fix">HP+20 / AP+30</span>
             </button>
+            
           </div>
         </div>
       </div>
@@ -293,90 +268,20 @@ export const HUD: React.FC<HUDProps> = memo(() => {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #ea580c; border-radius: 10px; }
         .font-fix { line-height: 1; }
         
-        @keyframes ink-flow {
-          from { background-position: 0% 0%; }
-          to { background-position: 60px 0%; }
-        }
-        @keyframes ink-flow-reverse {
-          from { background-position: 60px 0%; }
-          to { background-position: 0% 0%; }
-        }
-        .animate-ink-flow {
-          animation: ink-flow 4s linear infinite;
-          background-size: 60px 100%;
-        }
-        .animate-ink-flow-reverse {
-          animation: ink-flow-reverse 4s linear infinite;
-          background-size: 60px 100%;
-        }
+        @keyframes ink-flow { from { background-position: 0% 0%; } to { background-position: 60px 0%; } }
+        @keyframes ink-flow-reverse { from { background-position: 60px 0%; } to { background-position: 0% 0%; } }
+        .animate-ink-flow { animation: ink-flow 4s linear infinite; background-size: 60px 100%; }
+        .animate-ink-flow-reverse { animation: ink-flow-reverse 4s linear infinite; background-size: 60px 100%; }
 
-        @keyframes scanline {
-          0% { transform: translateY(-100%); }
-          100% { transform: translateY(100%); }
+        /* スッと現れて消えるシンプルなアニメーション */
+        @keyframes simplePhaseFade {
+          0% { opacity: 0; transform: scale(0.95); filter: blur(5px); }
+          10% { opacity: 1; transform: scale(1); filter: blur(0px); }
+          90% { opacity: 1; transform: scale(1); filter: blur(0px); }
+          100% { opacity: 0; transform: scale(1.05); filter: blur(10px); }
         }
-        @keyframes holographic-flicker {
-          0% { opacity: 0.85; transform: scaleY(1); }
-          5% { opacity: 0.9; transform: scaleY(1.005); }
-          10% { opacity: 0.85; transform: scaleY(1); }
-          15% { opacity: 1; transform: scaleY(1); }
-          20% { opacity: 0.9; transform: scaleY(1.01); }
-          25% { opacity: 0.85; transform: scaleY(1); }
-          100% { opacity: 0.85; transform: scaleY(1); }
-        }
-        @keyframes glitch-slice {
-          0% { clip-path: inset(10% 0 30% 0); transform: translateX(-2px); }
-          2% { clip-path: inset(50% 0 10% 0); transform: translateX(2px); }
-          4% { clip-path: inset(0% 0 80% 0); transform: translateX(-1px); }
-          6% { clip-path: none; transform: translateX(0); }
-          100% { clip-path: none; transform: translateX(0); }
-        }
-        @keyframes phase-bounce-zoom {
-          0% { opacity: 0; transform: scale(0); filter: brightness(2); }
-          15% { opacity: 1; transform: scale(1.2); filter: brightness(1.5); }
-          20% { transform: scale(0.95); }
-          25% { transform: scale(1); filter: brightness(1); }
-          35% { text-shadow: 0 0 20px rgba(249, 115, 22, 0.8), 0 0 40px rgba(249, 115, 22, 0.4); }
-          45% { text-shadow: 0 0 10px rgba(249, 115, 22, 0.5), 0 0 20px rgba(249, 115, 22, 0.3); }
-          55% { text-shadow: 0 0 20px rgba(249, 115, 22, 0.8), 0 0 40px rgba(249, 115, 22, 0.4); }
-          65% { text-shadow: 0 0 10px rgba(249, 115, 22, 0.5), 0 0 20px rgba(249, 115, 22, 0.3); }
-          75% { text-shadow: 0 0 20px rgba(249, 115, 22, 0.8), 0 0 40px rgba(249, 115, 22, 0.4); }
-          85% { opacity: 1; transform: scale(1); filter: brightness(1); }
-          95% { opacity: 0.5; transform: scale(1.1); }
-          100% { opacity: 0; transform: scale(0); filter: brightness(3); }
-        }
-
-        .holographic-text {
-          text-shadow: 
-            0 0 10px rgba(249, 115, 22, 0.5),
-            0 0 20px rgba(249, 115, 22, 0.3),
-            0 0 40px rgba(255, 255, 255, 0.2);
-          animation: holographic-flicker 4s infinite linear;
-          position: relative;
-        }
-        .holographic-text::before {
-          content: attr(data-text);
-          position: absolute;
-          left: 0; top: 0; width: 100%; height: 100%;
-          color: #fb923c;
-          opacity: 0.5;
-          z-index: -1;
-          animation: glitch-slice 8s infinite linear;
-        }
-
-        .phase-animation-container {
-          animation: phase-bounce-zoom 3.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
-        .phase-container {
-          position: relative;
-          padding: 2rem 4rem;
-        }
-        .phase-container::after {
-          content: '';
-          position: absolute;
-          top: 0; left: 0; right: 0; bottom: 0;
-          background: linear-gradient(transparent, rgba(249, 115, 22, 0.05), transparent);
-          animation: scanline 3s linear infinite;
-          pointer-events: none;
+        .animate-simple-phase {
+          animation: simplePhaseFade 2.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
       `}</style>
     </div>

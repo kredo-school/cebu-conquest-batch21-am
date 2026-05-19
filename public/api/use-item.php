@@ -1,7 +1,6 @@
 <?php
 require_once __DIR__ . '/api-cors.php';
 require_once __DIR__ . '/../db_connection.php';
-require_once 'jwt-helper.php';
 
 // HTTPメソッド制限
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -11,8 +10,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // JWT認証チェック
-$headers = getallheaders();
-$authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
 
 if (!preg_match('/Bearer\s(\S+)/', $authHeader, $matches) || !($userData = validateJWT($matches[1]))) {
     http_response_code(401);
