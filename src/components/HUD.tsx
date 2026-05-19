@@ -40,7 +40,11 @@ export const HUD: React.FC<HUDProps> = memo(() => {
 
   const targetInfo = useMemo(() => {
     if (selectedDistrictId === null || typeof selectedDistrictId === 'undefined' || !lookupData?.districts) return null;
-    const district = lookupData.districts.get(selectedDistrictId);
+    // selectedDistrictId は5桁spotId。lookupData.districtsは3桁キーのため変換する
+    const distId = typeof selectedDistrictId === 'number' && selectedDistrictId >= 10000
+      ? Math.floor(selectedDistrictId / 100)
+      : selectedDistrictId;
+    const district = lookupData.districts.get(distId);
     if (!district) return null;
     const areaId = district.parentAreaId;
     const area = (typeof areaId === 'number') ? lookupData.areas?.get(areaId) : null;

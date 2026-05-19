@@ -224,4 +224,48 @@ export default class CameraController {
     this.cam.setZoom(ZOOM.DEFAULT);
     if (this._onZoomChanged) this._onZoomChanged(ZOOM.DEFAULT);
   }
+
+  /**
+   * スポーン確定時に1回だけ呼ぶ。
+   * follow を停止してスポーン地点にカメラを即座に配置し、以降はフリーカメラへ移行する。
+   * @param {number} worldX
+   * @param {number} worldY
+   */
+  initAtSpawn(worldX, worldY) {
+    this.cam.stopFollow();
+    if (this._resumeFollowTimer) {
+      this._resumeFollowTimer.remove(false);
+      this._resumeFollowTimer = null;
+    }
+    this._followTarget = null;
+    this.cam.centerOn(worldX, worldY);
+  }
+
+  /**
+   * カメラを指定ワールド座標へ滑らかに移動する。
+   * バトル演出・地区選択ハイライト時に使う。
+   * @param {number} worldX
+   * @param {number} worldY
+   * @param {number} duration - ミリ秒（デフォルト 400ms）
+   */
+  panTo(worldX, worldY, duration = 400) {
+    this.cam.pan(worldX, worldY, duration, 'Power2');
+  }
+
+  /** ドラッグ移動が発生したか（タップ vs ドラッグの判定用） */
+  get wasDragged() {
+    return this._dragMoved;
+  }
+
+  /**
+   * シーン shutdown() から呼ぶ。タイマーを解除し follow を停止する。
+   * input ハンドラは Phaser のシーン破棄時に自動解除されるため不要。
+   */
+  destroy() {
+    if (this._resumeFollowTimer) {
+      this._resumeFollowTimer.remove(false);
+      this._resumeFollowTimer = null;
+    }
+    this._followTarget = null;
+  }
 }

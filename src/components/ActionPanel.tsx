@@ -35,7 +35,11 @@ export const ActionPanel: React.FC = memo(() => {
   const targetInfo = useMemo(() => {
     if (!selectedDistrictId || !lookupData) return null;
 
-    const district = lookupData.districts.get(selectedDistrictId);
+    // selectedDistrictId は5桁spotId。lookupData.districtsは3桁キーのため変換する
+    const distId = selectedDistrictId >= 10000
+      ? Math.floor(selectedDistrictId / 100)
+      : selectedDistrictId;
+    const district = lookupData.districts.get(distId);
     if (!district) return null;
 
     const areaId = district.parentAreaId;

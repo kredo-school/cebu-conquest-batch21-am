@@ -66,13 +66,16 @@ export const PhaserGameView = forwardRef<PhaserGameHandle, PhaserGameProps>((pro
     // 🚀 GDD v3.1 ID整合性チェック
     // ✅ 修正(Line 62): any を排除。Event 型として受け取り、内部で detail を持つ CustomEvent にキャスト
     const validateIdFormat = (e: Event) => {
-      const customEvent = e as CustomEvent<{ districtId?: number }>;
-      const id = customEvent.detail?.districtId || (typeof customEvent.detail === 'number' ? customEvent.detail : null);
-      
+      const customEvent = e as CustomEvent<{ districtId?: number; spotId?: number }>;
+      const spotId = customEvent.detail?.spotId ?? null;
+      const districtId = customEvent.detail?.districtId ?? null;
+      // spotId（5桁）を優先、なければ districtId（3桁）を使う
+      const id = spotId ?? districtId ?? (typeof customEvent.detail === 'number' ? customEvent.detail : null);
+
       if (id) {
         const isSpot = id >= 10000 && id <= 99999;
         const isDistrict = id >= 100 && id <= 999;
-        
+
         let islandName = "UNKNOWN";
         const lookupData = useGameStore.getState().lookupData as LookupData | null;
 
@@ -96,11 +99,12 @@ export const PhaserGameView = forwardRef<PhaserGameHandle, PhaserGameProps>((pro
           }
         }
 
+        const derivedDistrictId = isSpot ? Math.floor(id / 100) : (isDistrict ? id : null);
         console.log(
-          `%c 🛰️ PHASER ID CHECK %c ID: ${id} %c FORMAT: ${isSpot ? 'SPOT (5-DIGIT)' : (isDistrict ? 'DISTRICT (3-DIGIT)' : 'INVALID')} %c Island: ${islandName}`,
+          `%c 🛰️ PHASER ID CHECK %c spotId: ${spotId ?? 'N/A'}  districtId: ${districtId ?? derivedDistrictId ?? 'N/A'} %c FORMAT: ${isSpot ? 'SPOT (5-DIGIT) ✅' : (isDistrict ? 'DISTRICT (3-DIGIT) ⚠️' : 'INVALID ❌')} %c Island: ${islandName}`,
           "background: #f97316; color: white; font-weight: bold; padding: 2px 4px; border-radius: 4px 0 0 4px;",
           "background: #1e293b; color: #f97316; padding: 2px 4px;",
-          isSpot || isDistrict ? "background: #16a34a; color: white; padding: 2px 4px;" : "background: #dc2626; color: white; padding: 2px 4px;",
+          isSpot ? "background: #16a34a; color: white; padding: 2px 4px;" : (isDistrict ? "background: #ca8a04; color: white; padding: 2px 4px;" : "background: #dc2626; color: white; padding: 2px 4px;"),
           "color: #94a3b8; padding: 2px 4px;"
         );
       }
