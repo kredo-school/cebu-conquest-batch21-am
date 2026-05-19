@@ -123,6 +123,7 @@
   width: 110px;
   height: 110px;
   border-radius: 50%;
+  overflow: hidden;
   border: 3px solid var(--brand-orange);
   box-shadow: 0 0 20px rgba(250, 112, 0, 0.4);
   background: var(--bg-panel);
@@ -131,9 +132,19 @@
   justify-content: center;
   font-size: 0.6rem;
   color: var(--text-muted);
+  margin: 0 auto 1rem;
+  flex-shrink: 0;
+}
+
+.photo-placeholder img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   text-align: center;
   padding: 0.5rem;
   flex-shrink: 0;
+  object-position: center top;
+  
 }
 
 .team-name {
@@ -303,7 +314,7 @@
   height: 100%;
   object-fit: cover;
   border-radius: 0.5rem;
-  display: none;
+  /* display: none; */
 }
 
 /* ── GODS GRID ── */
@@ -710,6 +721,7 @@
   font-size: 0.95rem;
   text-align: center;
   gap: 0.5rem;
+  object-fit: cover;
 }
 
 /* ── API TABLE ── */
