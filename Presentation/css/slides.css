@@ -71,8 +71,8 @@
 }
 
 .title-logo {
-  width: 220px;
-  height: 220px;
+  width: 140px;
+  height: 140px;
   object-fit: contain;
   margin-bottom: 1.25rem;
   filter: drop-shadow(0 0 16px rgba(250, 112, 0, 0.6));
@@ -319,7 +319,7 @@
   align-items: center;
   text-align: center;
   gap: 0.4rem;
-  padding: 0.75rem 0.5rem;
+  padding: 0.5rem 0.25rem;
   border-radius: 0.75rem;
   border: 1px solid var(--border-dim);
   background: var(--bg-card);
@@ -334,8 +334,8 @@
 }
 
 .god-img {
-  width: 64px;
-  height: 64px;
+  width: 150px;
+  height: 150px;
   object-fit: contain;
   border-radius: 0.5rem;
 }
@@ -681,8 +681,8 @@
 }
 
 .gods-deco img {
-  width: 52px;
-  height: 52px;
+  width: 80px;
+  height: 80px;
   object-fit: contain;
   border-radius: 0.5rem;
   border: 1px solid var(--orange-glow-lo);
