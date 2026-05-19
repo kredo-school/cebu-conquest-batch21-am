@@ -124,6 +124,7 @@ function checkAllConquered(roomState) {
 
 // ==========================================
 // 🏴 所有地区数カウント（全滅判定用）
+// roomState.districts はキーが districtId（3桁）のため district 単位でカウント
 // ==========================================
 function countOwnedSpots(roomState, playerId) {
     return Object.values(roomState.districts).filter(owner => owner === playerId).length;
@@ -323,7 +324,7 @@ function finalizeTurn(roomId, currentId) {
         if (eliminatedBySpotLoss.length > 0) {
             eliminatedBySpotLoss.forEach(pid => {
                 const player = roomState.players[pid];
-                console.log(`[FINALIZE_TURN] プレイヤー敗北検知: playerId=${pid} username=${player?.username}`);
+                console.log(`[finalizeTurn] spot elimination: playerId=${pid} username=${player?.username}`);
                 io.to(roomId).emit(SERVER_EVENTS.GAME_LOG,
                     `💀 ${player?.username ?? pid}: 全地区を失い敗北しました！`
                 );
@@ -331,6 +332,7 @@ function finalizeTurn(roomId, currentId) {
             handleGameOver(roomId, roomState.turnOrder || Object.keys(roomState.players));
             return;
         }
+        // ==========================================
 
         const isAllConquered = checkAllConquered(roomState);
         const isSomeoneDead = Object.values(roomState.players).some(p => p && p.hp <= 0);
