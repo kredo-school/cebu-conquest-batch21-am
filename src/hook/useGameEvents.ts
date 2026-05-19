@@ -159,7 +159,16 @@ export const useGameEvents = () => {
 
     // 6. Network Grid Dominance Updates
     const handleTerritoryUpdated = (data: unknown) => {
-      emitToPhaser(REACT_TO_PHASER.TERRITORY_EFFECT, data as Record<string, unknown>);
+      const store = useGameStore.getState();
+      // Phaser側でgodColorを解決できるよう現在のplayers情報をpayloadに付与する
+      const playersMap: Record<string, unknown> = {};
+      store.players.forEach((p) => {
+        if (p.id) playersMap[p.id] = p;
+      });
+      emitToPhaser(REACT_TO_PHASER.TERRITORY_EFFECT, {
+        ...(data as Record<string, unknown>),
+        players: playersMap,
+      });
       useGameStore.getState().updateSelectedDistrict(null);
     };
 

@@ -484,20 +484,28 @@ export default class MainScene extends Phaser.Scene {
         handler: (e) => {
           const { districtId, owner, players } = e.detail ?? {};
           const dId = normalizeId(districtId);
-          const d = this.districts[dId];
-          if (!d) return;
+          if (!dId) return;
 
-          // ✅ 修正E-1: players は Object { socketId: playerData } の場合があるため Object.values() で配列化
+          // playerMapを構築、this._playerMapをフォールバックとして使用
           const playerMap = {};
           Object.values(players || {}).forEach((p) => {
-            playerMap[p.id] = { godId: p.godId ?? p.selectedGodId ?? null };
+            if (p?.id) playerMap[p.id] = { godId: p.godId ?? p.selectedGodId ?? null };
+          });
+          const effectiveMap = Object.keys(playerMap).length > 0 ? playerMap : (this._playerMap ?? {});
+
+          // サーバーは3桁districtIdで送るため正規化
+          const dId3 = dId >= 10000 ? Math.floor(dId / 100) : dId;
+
+          // district配下の全spotNameエントリを神カラーで塗りつぶす
+          const spots = this._getSpotsInDistrict(dId3);
+          spots.forEach((spotEntry) => {
+            this._repaintDistrictByOwner(spotEntry, owner ?? "neutral", effectiveMap);
           });
 
-          this._repaintDistrictByOwner(d, owner ?? "neutral", playerMap);
-
-          // 自分が新たに取得したときだけ "+1 SPOT" エフェクトを1回発火
-          if (owner === socket.id && !this.isSelectionMode) {
-            this.effectManager?.playCapturePopup(d.center.x, d.center.y);
+          // 自分が新たに取得したときだけ "+1 SPOT" エフェクトを1回発火（district中心座標を使用）
+          const districtEntry = this.districts[dId3] ?? this.districts[dId];
+          if (owner === socket.id && !this.isSelectionMode && districtEntry?.center) {
+            this.effectManager?.playCapturePopup(districtEntry.center.x, districtEntry.center.y);
           }
         },
       },
@@ -1360,8 +1368,8 @@ export default class MainScene extends Phaser.Scene {
 
       const spotId = d.id;
 
-      // ★ spotId(5桁)のみでマッチ。districtフォールバックは使わない
-      const ownerId = ownerIdMap[spotId] ?? "neutral";
+      // サーバーは3桁districtIdでディクショナリを管理しているためフォールバック必須
+      const ownerId = ownerIdMap[spotId] ?? ownerIdMap[Math.floor(spotId / 100)] ?? "neutral";
 
       if (d.owner === ownerId) return;
 
