@@ -16,7 +16,7 @@ export const BattleModal: React.FC = memo(() => {
   const {
     predictionModalOpen,
     targetDistrictInfo,
-    selectedDistrictId,
+    selectedDistrictId, // 🚀 修正: 125行目で使用するためにストアからの抽出を追加！
     atk, blessing, attack, move, closePrediction, ap,
     isMyTurn, escape, addLog,
     isUnderAttack, setUnderAttack,
@@ -98,7 +98,6 @@ export const BattleModal: React.FC = memo(() => {
     enemyDef = targetDistrictInfo.enemyDef || 40;
     winRate = (finalAtk / (finalAtk + enemyDef)) * 100;
 
-    // 🚀 GDD v4.1: Hostile assault initiates a fluctuating AP load (5-20)
     if (isEnemy) {
       displayApCost = '5-20';
       requiredApCost = 5; 
@@ -160,8 +159,8 @@ export const BattleModal: React.FC = memo(() => {
         .animate-slide-in-right { transform: translateX(100%); opacity: 0; animation: slide-in-right 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
         .font-fix { line-height: 1.2; }
         @keyframes fadeIn {
-          from { opacity: 0; transform: scale(0.95); }
-          to { opacity: 1; transform: scale(1); }
+          from { opacity: 0; transform: scale(0.95); filter: blur(5px); }
+          to { opacity: 1; transform: scale(1); filter: blur(0px); }
         }
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
       `}</style>
