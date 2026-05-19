@@ -50,28 +50,28 @@
             <div class="team-grid">
               <div class="team-member">
                 <div class="photo-placeholder" data-member="Akira">
-                  📷<br />Add photo:<br />Akira.jpg
+                  <img src="assets/reference/member_Akira.png" alt="" />
                 </div>
                 <div class="team-name text-orange">Akira</div>
                 <div class="team-role">Phaser.js &amp; Map Design</div>
               </div>
               <div class="team-member">
                 <div class="photo-placeholder" data-member="Issei">
-                  📷<br />Add photo:<br />Issei.jpg
+                  <img src="assets/reference/member_Issei.png" alt="" />
                 </div>
                 <div class="team-name text-orange">Issei</div>
                 <div class="team-role">React + TypeScript</div>
               </div>
               <div class="team-member">
                 <div class="photo-placeholder" data-member="Kei">
-                  📷<br />Add photo:<br />Kei.jpg
+                  <img src="assets/reference/member_Kei.png" alt="" />
                 </div>
                 <div class="team-name text-orange">Kei</div>
                 <div class="team-role">Socket.IO + Node.js</div>
               </div>
               <div class="team-member">
                 <div class="photo-placeholder" data-member="Nao">
-                  📷<br />Add photo:<br />Nao.jpg
+                  <img src="assets/reference/member_Nao.png" alt="" />
                 </div>
                 <div class="team-name text-orange">Nao</div>
                 <div class="team-role">PHP + MySQL</div>
@@ -1068,15 +1068,29 @@
                 </div>
               </div>
               <div>
-                <!-- Add screenshot: screenshots/tiled-editor.png -->
                 <div
                   class="screenshot-placeholder"
                   data-screenshot="tiled-editor"
-                  style="min-height: 280px"
+                  style="
+                    min-height: unset;
+                    height: 500px; /* ← この値で縦サイズを調整 */
+                    overflow: hidden;
+                    border-radius: 8px;
+                    padding: 0;
+                  "
                 >
-                  <span class="placeholder-icon">🧩</span>
-                  <span>Tiled Editor View</span>
-                  <span class="placeholder-hint">Add: assets/screenshots/tiled-editor.png</span>
+                  <img
+                    src="assets/screenshots/tiled-editor.png"
+                    alt="Tiled Editor Screenshot"
+                    style="
+                      width: 100%;
+                      height: 100%;
+                      display: block;
+                      object-fit: cover;
+                      object-position: center 55%;
+                      border-radius: 8px;
+                    "
+                  />
                 </div>
               </div>
             </div>
@@ -1655,12 +1669,27 @@
                 </div>
               </div>
               <div>
-                <div class="er-placeholder" style="min-height: 240px">
-                  <span style="font-size: 1.5rem">📊</span>
-                  <span>ER Diagram</span>
-                  <span style="font-size: 0.65rem; color: var(--tactical-cyan)"
-                    >Add ER diagram image here</span
-                  >
+                <div
+                  class="er-placeholder"
+                  style="
+                    min-height: unset;
+                    height: auto;
+                    overflow: hidden;
+                    padding: 0;
+                    align-items: stretch;
+                  "
+                >
+                  <img
+                    src="assets/screenshots/ER-diagram.png"
+                    alt=""
+                    style="
+                      width: 100%;
+                      height: auto;
+                      display: block;
+                      object-fit: contain; /* ← 図全体を収める（切り取りなし）*/
+                      object-position: center top;
+                    "
+                  />
                 </div>
               </div>
             </div>
@@ -2027,7 +2056,183 @@
         </section>
 
         <!-- Slide 38: Thank You -->
-        <section>
+        <section data-state="gods-carousel-active" style="padding: 0; overflow: hidden">
+          <!-- ① 背景カルーセル-->
+          <div style="position: absolute; inset: 0; overflow: hidden; z-index: 0">
+            <div
+              id="gods-strip"
+              style="
+                display: flex;
+                height: 100%;
+                width: 900%;
+                transform: translateX(0%);
+                transition: transform 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                will-change: transform;
+              "
+            >
+              <div
+                style="
+                  flex: 0 0 11.111%;
+                  background: url(&quot;assets/reference/god_Neil.png&quot;) center top/cover
+                    no-repeat;
+                "
+              ></div>
+              <div
+                style="
+                  flex: 0 0 11.111%;
+                  background: url(&quot;assets/reference/god_Garry.png&quot;) center top/cover
+                    no-repeat;
+                "
+              ></div>
+              <div
+                style="
+                  flex: 0 0 11.111%;
+                  background: url(&quot;assets/reference/god_Shem.png&quot;) center top/cover
+                    no-repeat;
+                "
+              ></div>
+              <div
+                style="
+                  flex: 0 0 11.111%;
+                  background: url(&quot;assets/reference/god_Quisie.png&quot;) center top/cover
+                    no-repeat;
+                "
+              ></div>
+              <div
+                style="
+                  flex: 0 0 11.111%;
+                  background: url(&quot;assets/reference/god_Eduardo.png&quot;) center top/cover
+                    no-repeat;
+                "
+              ></div>
+              <div
+                style="
+                  flex: 0 0 11.111%;
+                  background: url(&quot;assets/reference/god_Kurt.png&quot;) center top/cover
+                    no-repeat;
+                "
+              ></div>
+              <div
+                style="
+                  flex: 0 0 11.111%;
+                  background: url(&quot;assets/reference/god_Stephen.png&quot;) center top/cover
+                    no-repeat;
+                "
+              ></div>
+              <div
+                style="
+                  flex: 0 0 11.111%;
+                  background: url(&quot;assets/reference/god_Bernardine.png&quot;) center top/cover
+                    no-repeat;
+                "
+              ></div>
+              <div
+                style="
+                  flex: 0 0 11.111%;
+                  background: url(&quot;assets/reference/god_Neil.png&quot;) center top/cover
+                    no-repeat;
+                "
+              ></div>
+            </div>
+          </div>
+
+          <!-- ② オーバーレイ -->
+          <div
+            style="
+              position: absolute;
+              inset: 0;
+              z-index: 1;
+              background: linear-gradient(
+                to bottom,
+                rgba(0, 0, 0, 0.7) 0%,
+                rgba(0, 0, 0, 0.2) 30%,
+                rgba(0, 0, 0, 0.2) 60%,
+                rgba(0, 0, 0, 0.85) 100%
+              );
+            "
+          ></div>
+
+          <!-- ③ ロゴ：左上固定 / heightを削除して縦横比を維持 -->
+          <div style="position: absolute; top: 28px; left: 36px; z-index: 3">
+            <img
+              src="assets/reference/GI-Project_Logo.png"
+              alt="Logo"
+              style="width: 100px; display: block; opacity: 0.92"
+            />
+          </div>
+
+          <!-- ④ メインコンテンツ：下寄せ -->
+          <div
+            style="
+              position: relative;
+              z-index: 2;
+              height: 100%;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: flex-end; /* ← 下寄せ */
+              text-align: center;
+              padding: 0 60px 72px; /* ← 下に余白 */
+              box-sizing: border-box;
+              gap: 1.4rem;
+            "
+          >
+            <!-- タイトル -->
+            <div>
+              <h1
+                class="holo-flicker"
+                style="font-size: 2.4rem; margin: 0 0 0.5rem; letter-spacing: 0.04em"
+              >
+                Thank You for Watching
+              </h1>
+              <p
+                style="
+                  font-size: 0.9rem;
+                  margin: 0;
+                  color: #cbd5e1;
+                  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+                  letter-spacing: 0.06em;
+                "
+              >
+                Cebu Conquest / セブ獲り合戦 · Batch 21 AM · Kredo IT School · 2026
+              </p>
+            </div>
+
+            <!-- Q&A -->
+            <div
+              style="
+                font-size: 5rem;
+                font-weight: 900;
+                letter-spacing: 0.12em;
+                color: #ffffff;
+                text-shadow:
+                  0 0 20px rgba(250, 112, 0, 0.9),
+                  0 0 50px rgba(250, 112, 0, 0.5),
+                  0 2px 8px rgba(0, 0, 0, 0.9);
+                line-height: 1;
+              "
+            >
+              Q &amp; A
+            </div>
+
+            <!-- GitHub -->
+            <p
+              style="
+                font-size: 0.78rem;
+                margin: 0;
+                color: #94a3b8;
+                background: rgba(0, 0, 0, 0.55);
+                padding: 6px 16px;
+                border-radius: 4px;
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                letter-spacing: 0.08em;
+              "
+            >
+              GitHub: kredo-school / cebu-conquest-batch21-am
+            </p>
+          </div>
+        </section>
+        <!-- <section>
           <div class="thankyou-slide">
             <div>
               <img
@@ -2058,7 +2263,7 @@
               GitHub: kredo-school / cebu-conquest-batch21-am
             </p>
           </div>
-        </section>
+        </section> -->
       </div>
       <!-- /.slides -->
     </div>
@@ -2067,6 +2272,85 @@
     <!-- Reveal.js (CDN) -->
     <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
     <script>
+      (function () {
+        const GODS_COUNT = 8;
+        const INTERVAL_MS = 10000;
+        const TRANS_MS = 1200;
+
+        let current = 0;
+        let timer = null;
+        let locked = false;
+
+        function getStrip() {
+          return document.getElementById("gods-strip");
+        }
+
+        function moveTo(idx) {
+          const strip = getStrip();
+          if (!strip) return;
+          strip.style.transform = `translateX(-${idx * (100 / 9)}%)`;
+        }
+
+        function next() {
+          if (locked) return;
+          locked = true;
+
+          if (current === GODS_COUNT - 1) {
+            moveTo(8); // Neilコピーへ滑らか移動
+            current = 0;
+            setTimeout(() => {
+              const strip = getStrip();
+              if (!strip) return;
+              strip.style.transition = "none";
+              moveTo(0);
+              requestAnimationFrame(() =>
+                requestAnimationFrame(() => {
+                  strip.style.transition = "transform 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
+                  locked = false;
+                }),
+              );
+            }, TRANS_MS);
+          } else {
+            current = (current + 1) % GODS_COUNT;
+            moveTo(current);
+            setTimeout(() => {
+              locked = false;
+            }, TRANS_MS);
+          }
+        }
+
+        function start() {
+          stop();
+          current = 0;
+          locked = false;
+          moveTo(0);
+          timer = setInterval(next, INTERVAL_MS);
+        }
+
+        function stop() {
+          if (timer) {
+            clearInterval(timer);
+            timer = null;
+          }
+        }
+
+        // ✅ slidechanged + currentSlide/previousSlide が正しいAPI
+        Reveal.on("slidechanged", function (e) {
+          const entering =
+            e.currentSlide && e.currentSlide.dataset.state === "gods-carousel-active";
+          const leaving =
+            e.previousSlide && e.previousSlide.dataset.state === "gods-carousel-active";
+          if (entering) start();
+          if (leaving) stop();
+        });
+
+        // 直接そのスライドを開いた場合の保険
+        Reveal.on("ready", function () {
+          const slide = Reveal.getCurrentSlide();
+          if (slide && slide.dataset.state === "gods-carousel-active") start();
+        });
+      })();
+
       Reveal.initialize({
         hash: true,
         slideNumber: "c/t",
@@ -2081,7 +2365,6 @@
         margin: 0.04,
         minScale: 0.2,
         maxScale: 2.0,
-        // Keyboard shortcuts reminder — arrow keys, F for fullscreen, S for speaker view
       });
     </script>
   </body>

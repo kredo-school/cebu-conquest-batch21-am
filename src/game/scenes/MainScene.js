@@ -182,6 +182,12 @@ export default class MainScene extends Phaser.Scene {
     this._buildSpotLookup();
     this._drawDistrictPolygons();
     this._drawSpotOutlines();
+    // 隣接ハイライト用 Graphics（depth 4 = territoryOverlay の下）
+    this.adjacencyHighlightGraphics = this.add.graphics();
+    this.adjacencyHighlightGraphics.setDepth(4);
+    this._adjacencyTween = null;
+    this._isMyTurn = false;
+
     this.territoryOverlay = this.add.graphics();
     this.territoryOverlay.setDepth(5); // タイル(0) < オーバーレイ(5) < ラベル(10) < プレイヤー(20)
     this.cameraController = new CameraController(this);
@@ -194,6 +200,9 @@ export default class MainScene extends Phaser.Scene {
       const hoveredId = this._getDistrictAtPoint(worldPoint.x, worldPoint.y);
       this._updateHoverText(hoveredId);
     });
+
+    // 占領アニメーション重複防止用：{ [spotId]: ownerId } の前回スナップショット
+    this._previousOwnerMap = {};
 
     this._setupPointerInput();
     this._initSocket();
@@ -338,6 +347,9 @@ export default class MainScene extends Phaser.Scene {
 
           // ★ spotの中心座標にプレイヤーを配置
           this._placePlayer(spotId);
+          // ★ 初回スポーン: カメラをスポーン地点に固定してフリーカメラへ移行
+          const spawnXY = this.spots?.[spotId] ?? this.districts[districtId]?.center;
+          if (spawnXY) this.cameraController?.initAtSpawn(spawnXY.x, spawnXY.y);
           SoundManager.playSE("se_moving");
 
           console.log(`[Deploy] spotId=${spotId} districtId=${districtId}`);
@@ -417,9 +429,21 @@ export default class MainScene extends Phaser.Scene {
           }
 
           // ★ 全地区を神カラーで再描画
+          const isFirstSync = Object.keys(this._previousOwnerMap).length === 0;
           Object.values(this.districts).forEach((d) => {
             if (d.type !== "spotName") return; // ★ spot以外をスキップ
             const ownerId = districtOwnerMap[d.id] ?? "neutral";
+
+            // ★ 差分チェック：初回 sync 抑制 + 新規獲得時のみポップアップ
+            if (!isFirstSync && !this.isSelectionMode && d.center) {
+              const wasAlreadyMine = String(this._previousOwnerMap[d.id]) === String(socket.id);
+              const isNowMine = String(ownerId) === String(socket.id);
+              if (isNowMine && !wasAlreadyMine) {
+                this.effectManager?.playCapturePopup(d.center.x, d.center.y);
+              }
+            }
+            this._previousOwnerMap[d.id] = ownerId; // スナップショット更新
+
             this._repaintDistrictByOwner(d, ownerId, playerMap);
           });
 
@@ -465,6 +489,9 @@ export default class MainScene extends Phaser.Scene {
               this.currentSpotId = spawnSpot ?? sacredId; // ★ 5桁を保持
               this.currentDistrictId = sacredId; // 3桁: ADJACENCY チェック用
               this._placePlayer(spawnSpot ?? sacredId); // 5桁優先、なければ3桁フォールバック
+              // ★ 初回スポーン: カメラをスポーン地点に固定してフリーカメラへ移行
+              const spawnXY = this.spots?.[spawnSpot] ?? this.districts[sacredId]?.center;
+              if (spawnXY) this.cameraController?.initAtSpawn(spawnXY.x, spawnXY.y);
               SoundManager.playSE("se_moving");
 
               if (import.meta.env.DEV) {
@@ -500,11 +527,34 @@ export default class MainScene extends Phaser.Scene {
             this._repaintDistrictByOwner(spotEntry, owner ?? "neutral", effectiveMap);
           });
 
-          // 自分が新たに取得したときだけ "+1 SPOT" エフェクトを1回発火（district中心座標を使用）
+          // ★ 差分チェック：新たに自分のものになった場合だけエフェクト発火
           const districtEntry = this.districts[dId3] ?? this.districts[dId];
-          if (owner === socket.id && !this.isSelectionMode && districtEntry?.center) {
+          const isNowMine = String(owner) === String(socket.id);
+          const wasAlreadyMine = spots.some((s) => String(this._previousOwnerMap[s.id]) === String(socket.id));
+          if (isNowMine && !wasAlreadyMine && !this.isSelectionMode && districtEntry?.center) {
             this.effectManager?.playCapturePopup(districtEntry.center.x, districtEntry.center.y);
           }
+          // スナップショット更新
+          spots.forEach((s) => { this._previousOwnerMap[s.id] = owner ?? "neutral"; });
+        },
+      },
+      {
+        event: REACT_TO_PHASER.TURN_START_EFFECT,
+        handler: (e) => {
+          const { isMyTurn } = e.detail || {};
+          this._isMyTurn = !!isMyTurn;
+          if (isMyTurn) {
+            this._refreshAdjacentHighlights();
+          } else {
+            this._clearAdjacentHighlights();
+          }
+        },
+      },
+      {
+        event: REACT_TO_PHASER.GAME_OVER_EFFECT,
+        handler: () => {
+          this._isMyTurn = false;
+          this._clearAdjacentHighlights();
         },
       },
     ];
@@ -514,6 +564,7 @@ export default class MainScene extends Phaser.Scene {
   }
 
   shutdown() {
+    this.cameraController?.destroy();
     this._reactListeners?.forEach(({ event, handler }) =>
       window.removeEventListener(event, handler),
     );
@@ -962,15 +1013,15 @@ export default class MainScene extends Phaser.Scene {
       this._updateSpotOutline(d, true);
 
       if (import.meta.env.DEV) {
-        console.log("[emitToReact 直前] SELECT_DISTRICT payload:", {
-          districtId: spotId,
+        console.log("[emitToReact 直前] SELECT_DISTRICT payload (選択モード):", {
+          spotId,
+          districtId: Math.floor(spotId / 100),
           districtName: d?.name ?? String(spotId),
-          isMyTerritory: undefined,
-          isNeutral: undefined,
         });
       }
       emitToReact(PHASER_TO_REACT.SELECT_DISTRICT, {
-        districtId: spotId,
+        spotId,                           // 5桁（移動・配置の基準）
+        districtId: Math.floor(spotId / 100), // 3桁（UI表示・lookupData参照用）
         districtName: d?.name ?? String(spotId),
       });
     } else {
@@ -1117,6 +1168,98 @@ export default class MainScene extends Phaser.Scene {
     return null;
   }
 
+  /**
+   * 現在地（this.currentSpotId）から移動可能な隣接 spot をハイライト表示する。
+   * 自分のターン以外・currentSpotId 未設定時は即座にリターン。
+   */
+  _refreshAdjacentHighlights() {
+    if (this._adjacencyTween) {
+      this._adjacencyTween.stop();
+      this._adjacencyTween = null;
+    }
+    this.adjacencyHighlightGraphics.clear();
+
+    if (!this._isMyTurn) return;
+
+    const currentSpotId = this.currentSpotId;
+    if (currentSpotId == null) return;
+
+    const neighbors = getSpotNeighbors(currentSpotId);
+    if (neighbors.length === 0) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[adjacencyHighlight] spot ${currentSpotId} の隣接が未定義。` +
+            ` shared/adjacency.js の SPOT_ADJACENCY を確認すること。`,
+        );
+      }
+      return;
+    }
+
+    for (const neighborId of neighbors) {
+      const d = this.districts[neighborId];
+      if (!d || d.type !== "spotName") continue;
+
+      const owner = d.owner ?? "neutral";
+      let fillColor, strokeColor;
+
+      if (owner === "neutral") {
+        fillColor   = 0x06b6d4; // tactical cyan
+        strokeColor = 0x06b6d4;
+      } else if (owner === socket.id) {
+        fillColor   = 0x22c55e; // green（自陣）
+        strokeColor = 0x22c55e;
+      } else {
+        fillColor   = 0xfa7000; // neon orange（敵陣）
+        strokeColor = 0xfa7000;
+      }
+
+      // fill
+      this.adjacencyHighlightGraphics.fillStyle(fillColor, 0.30);
+      this.adjacencyHighlightGraphics.beginPath();
+      d.polygon.forEach((p, i) => {
+        i === 0
+          ? this.adjacencyHighlightGraphics.moveTo(p.x, p.y)
+          : this.adjacencyHighlightGraphics.lineTo(p.x, p.y);
+      });
+      this.adjacencyHighlightGraphics.closePath();
+      this.adjacencyHighlightGraphics.fillPath();
+
+      // stroke
+      this.adjacencyHighlightGraphics.lineStyle(4, strokeColor, 1.0);
+      this.adjacencyHighlightGraphics.beginPath();
+      d.polygon.forEach((p, i) => {
+        i === 0
+          ? this.adjacencyHighlightGraphics.moveTo(p.x, p.y)
+          : this.adjacencyHighlightGraphics.lineTo(p.x, p.y);
+      });
+      this.adjacencyHighlightGraphics.closePath();
+      this.adjacencyHighlightGraphics.strokePath();
+    }
+
+    // パルスアニメーション（alpha 0.55 ↔ 1.0）
+    this._adjacencyTween = this.tweens.add({
+      targets:  this.adjacencyHighlightGraphics,
+      alpha:    { from: 0.55, to: 1.0 },
+      duration: 800,
+      yoyo:     true,
+      repeat:   -1,
+      ease:     "Sine.easeInOut",
+    });
+  }
+
+  /**
+   * ハイライトを消去し Tween を停止する。
+   * ターン終了・ゲームオーバー時に呼ぶ。
+   */
+  _clearAdjacentHighlights() {
+    if (this._adjacencyTween) {
+      this._adjacencyTween.stop();
+      this._adjacencyTween = null;
+    }
+    this.adjacencyHighlightGraphics.clear();
+    this.adjacencyHighlightGraphics.setAlpha(1);
+  }
+
   _redrawDistrict(d, color, alpha = 0) {
     if (!d || !d.graphics) return;
     d.graphics.clear();
@@ -1248,12 +1391,13 @@ export default class MainScene extends Phaser.Scene {
       .setOrigin(0.5, 1)
       .setDepth(21);
 
-    // ── カメラ追従 ────────────────────────────────────────────
-    if (!this.isSelectionMode) {
-      this.cameraController?.follow(this.player);
-    } else {
-      this.cameras.main.pan(x, y, 600, "Power2");
+    // 選択フェーズはクリック地点へパン。スポーン後はフリーカメラ（initAtSpawn() 済み）。
+    if (this.isSelectionMode) {
+      this.cameraController?.panTo(x, y, 600);
     }
+
+    // ── 移動後の隣接ハイライト更新 ────────────────────────────
+    this._refreshAdjacentHighlights();
   }
 
   /**
@@ -1303,6 +1447,7 @@ export default class MainScene extends Phaser.Scene {
       })();
 
     let repaintCount = 0;
+    const isFirstSync = Object.keys(this._previousOwnerMap).length === 0;
 
     Object.values(this.districts).forEach((d) => {
       if (d.type !== "spotName") return;
@@ -1312,13 +1457,20 @@ export default class MainScene extends Phaser.Scene {
       // サーバーは3桁districtIdでディクショナリを管理しているためフォールバック必須
       const ownerId = ownerIdMap[spotId] ?? ownerIdMap[Math.floor(spotId / 100)] ?? "neutral";
 
-      if (d.owner === ownerId) return;
+      if (d.owner === ownerId) {
+        // 所有者変化なしでもスナップショットを同期
+        this._previousOwnerMap[spotId] = ownerId;
+        return;
+      }
 
-      if (!this.isSelectionMode && ownerId === socket.id && d.owner !== socket.id) {
+      // ★ 差分チェック：初回 sync 抑制 + _previousOwnerMap で重複発火防止
+      if (!isFirstSync && !this.isSelectionMode && ownerId === socket.id &&
+          String(this._previousOwnerMap[spotId]) !== String(socket.id)) {
         SoundManager.playSE("se_territory_control");
         this.effectManager?.playCapturePopup(d.center.x, d.center.y);
       }
 
+      this._previousOwnerMap[spotId] = ownerId; // スナップショット更新
       d.owner = ownerId;
       repaintCount++;
 
@@ -1347,6 +1499,21 @@ export default class MainScene extends Phaser.Scene {
     if (serverPlayers && typeof this._syncPlayerDots === "function") {
       this._syncPlayerDots(serverPlayers);
     }
+  }
+
+  /**
+   * 前回と今回のオーナーマップを比較し、自分が新たに獲得した spotId の配列を返す
+   * @param {Object} newOwnerMap  { [spotId]: ownerId }
+   * @param {string|number} myId  自分の playerId
+   * @returns {string[]}
+   */
+  _getNewlyCapturedSpots(newOwnerMap, myId) {
+    const prev = this._previousOwnerMap;
+    return Object.keys(newOwnerMap).filter((spotId) => {
+      const wasAlreadyMine = String(prev[spotId]) === String(myId);
+      const isNowMine      = String(newOwnerMap[spotId]) === String(myId);
+      return isNowMine && !wasAlreadyMine;
+    });
   }
 
   _markSpot(spotId, color, alpha = 0.5) {
