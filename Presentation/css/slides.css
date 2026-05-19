@@ -93,7 +93,7 @@
 }
 
 .title-batch {
-  font-size: 0.875rem;
+  font-size: 1.05rem;
   color: var(--text-muted);
   margin-top: 1.5rem;
   letter-spacing: 0.15em;
@@ -107,7 +107,8 @@
   justify-content: center;
   align-items: center;
   gap: 2.5rem;
-  height: 70vh;
+  height: 40vh;
+
 }
 
 .team-card {
@@ -149,7 +150,7 @@
 }
 
 .team-role {
-  font-size: 0.85rem;
+  font-size: 1.05rem;
   color: #06b6d4;
   font-weight: 400;
   text-align: center;
@@ -172,7 +173,7 @@
   padding: 0.6rem 1rem;
   border-radius: 0.5rem;
   border: 1px solid var(--border-dim);
-  font-size: 0.85rem;
+  font-size: 1.05rem;
 }
 
 .timeline-item.done {
@@ -191,13 +192,13 @@
 .timeline-week {
   font-weight: 700;
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.95rem;
 }
 .timeline-label {
   font-weight: 600;
 }
 .timeline-status {
-  font-size: 0.75rem;
+  font-size: 0.95rem;
 }
 
 /* Slide 6: Dual Timeline */
@@ -216,7 +217,7 @@
 }
 
 .timeline-col-header {
-  font-size: 0.85rem;
+  font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -228,7 +229,7 @@
   display: flex;
   gap: 0.5rem;
   align-items: baseline;
-  font-size: 0.72rem;
+  font-size: 0.92rem;
   padding: 0.25rem 0.5rem;
   border-radius: 0.375rem;
   border: 1px solid transparent;
@@ -239,7 +240,7 @@
   font-weight: 700;
   white-space: nowrap;
   min-width: 4.5rem;
-  font-size: 0.68rem;
+  font-size: 0.88rem;
 }
 
 .timeline-desc {
@@ -279,7 +280,7 @@
   justify-content: center;
   background: rgba(250, 112, 0, 0.04);
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.95rem;
   text-align: center;
   gap: 0.5rem;
   padding: 1rem;
@@ -291,7 +292,7 @@
 }
 
 .screenshot-placeholder .placeholder-hint {
-  font-size: 0.65rem;
+  font-size: 1.05rem;
   color: var(--brand-orange);
   opacity: 0.7;
   font-family: "Courier New", monospace;
@@ -341,13 +342,13 @@
 }
 
 .god-name {
-  font-size: 0.8rem;
+  font-size: 1.0rem;
   font-weight: 700;
   color: var(--text-white);
 }
 
 .god-bonus {
-  font-size: 0.65rem;
+  font-size: 1.05rem;
   color: var(--neon-cyan);
   line-height: 1.3;
 }
@@ -365,7 +366,7 @@
   grid-template-columns: 60px 1fr 50px;
   align-items: center;
   gap: 0.75rem;
-  font-size: 0.85rem;
+  font-size: 1.05rem;
 }
 
 .stat-label {
@@ -412,7 +413,7 @@
 .action-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: 1.0rem;
 }
 
 .action-table th {
@@ -487,7 +488,7 @@
   justify-content: space-between;
   align-items: center;
   border: 1px solid;
-  font-size: 0.85rem;
+  font-size: 1.05rem;
 }
 
 .arch-layer.phaser {
@@ -518,11 +519,11 @@
 }
 .arch-layer-desc {
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.95rem;
   text-align: right;
 }
 .arch-layer-tech {
-  font-size: 0.75rem;
+  font-size: 0.95rem;
   opacity: 0.7;
 }
 
@@ -539,7 +540,7 @@
 .event-box {
   padding: 0.6rem 1rem;
   border-radius: 0.5rem;
-  font-size: 0.75rem;
+  font-size: 0.95rem;
   font-weight: 700;
   border: 1px solid;
   text-align: center;
@@ -583,7 +584,7 @@
   padding: 0.6rem 1rem;
   border-radius: 0.5rem;
   border: 1px solid var(--border-dim);
-  font-size: 0.8rem;
+  font-size: 1.0rem;
 }
 
 .lod-zoom {
@@ -610,7 +611,7 @@
   border-radius: 0.5rem;
   background: rgba(239, 68, 68, 0.06);
   border: 1px solid rgba(239, 68, 68, 0.2);
-  font-size: 0.82rem;
+  font-size: 1.02rem;
 }
 
 .bug-icon {
@@ -623,7 +624,7 @@
 }
 .bug-fix {
   color: var(--green-ok);
-  font-size: 0.75rem;
+  font-size: 0.95rem;
   margin-top: 0.15rem;
 }
 
@@ -643,7 +644,7 @@
   border-radius: 0.5rem;
   background: rgba(34, 197, 94, 0.05);
   border: 1px solid rgba(34, 197, 94, 0.2);
-  font-size: 0.85rem;
+  font-size: 1.05rem;
 }
 
 .lesson-icon {
@@ -706,7 +707,7 @@
   justify-content: center;
   background: rgba(6, 182, 212, 0.04);
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.95rem;
   text-align: center;
   gap: 0.5rem;
 }
@@ -715,7 +716,7 @@
 .api-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.78rem;
+  font-size: 0.98rem;
   margin-top: 0.75rem;
 }
 
@@ -758,7 +759,7 @@
   border-radius: 0.5rem;
   border: 1px solid var(--tactical-cyan);
   color: var(--neon-cyan);
-  font-size: 0.78rem;
+  font-size: 0.98rem;
   font-weight: 700;
   background: rgba(6, 182, 212, 0.07);
   text-align: center;
@@ -775,7 +776,7 @@
 .keyword-chip {
   padding: 0.5rem 1.25rem;
   border-radius: 9999px;
-  font-size: 0.85rem;
+  font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -799,7 +800,7 @@
   padding: 0.65rem 1rem;
   border-radius: 0.5rem;
   border: 1px solid var(--border-dim);
-  font-size: 0.82rem;
+  font-size: 1.02rem;
 }
 
 .win-item.primary {
@@ -830,7 +831,7 @@
   padding: 0.6rem 1rem;
   border-radius: 0.5rem;
   border: 1px solid var(--border-dim);
-  font-size: 0.82rem;
+  font-size: 1.02rem;
   align-items: center;
 }
 
@@ -857,7 +858,7 @@
   padding: 0.6rem 1rem;
   border-radius: 0.5rem;
   border: 1px solid var(--border-dim);
-  font-size: 0.82rem;
+  font-size: 1.02rem;
 }
 
 .npc-num {
@@ -888,13 +889,13 @@
   border-radius: 0.75rem;
   border: 1px solid var(--border-dim);
   background: var(--bg-card);
-  font-size: 0.78rem;
+  font-size: 0.98rem;
 }
 
 .state-group-title {
   font-weight: 700;
   color: var(--brand-orange);
-  font-size: 0.72rem;
+  font-size: 0.92rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   margin-bottom: 0.4rem;
@@ -903,7 +904,7 @@
 .state-key {
   color: var(--neon-cyan);
   font-family: "Courier New", monospace;
-  font-size: 0.72rem;
+  font-size: 0.92rem;
 }
 
 /* ── ACHIEVEMENT LIST (closing) ── */
@@ -922,7 +923,7 @@
   border-radius: 0.5rem;
   border: 1px solid rgba(34, 197, 94, 0.3);
   background: rgba(34, 197, 94, 0.05);
-  font-size: 0.85rem;
+  font-size: 1.05rem;
 }
 
 .achieve-icon {
@@ -938,7 +939,7 @@
 }
 
 .info-card-label {
-  font-size: 0.65rem;
+  font-size: 1.05rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--text-muted);
@@ -964,7 +965,7 @@
   border-radius: 0.5rem;
   border: 1px solid rgba(250, 112, 0, 0.2);
   background: rgba(250, 112, 0, 0.04);
-  font-size: 0.8rem;
+  font-size: 1.0rem;
 }
 
 .gotcha-title {
@@ -974,6 +975,6 @@
 }
 .gotcha-code {
   font-family: "Courier New", monospace;
-  font-size: 0.72rem;
+  font-size: 0.92rem;
   color: var(--neon-cyan);
 }
