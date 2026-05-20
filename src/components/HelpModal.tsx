@@ -16,9 +16,11 @@ export const HelpModal: React.FC<HelpModalProps> = ({ onClose }) => {
         
         {/* Header */}
         <div className="p-6 border-b border-cyan-500/20 bg-cyan-500/5 flex justify-between items-center">
-          <div>
+          <div className="flex flex-col gap-2">
+            {/* 🚀 修正ポイント: Tactical Manual と Operation の間の縦間隔を拡張 */}
             <h2 className="text-2xl font-black text-cyan-400 italic tracking-tighter uppercase font-fix">Tactical Manual</h2>
-            <p className="text-[10px] text-cyan-700 font-bold tracking-[0.3em] uppercase mt-1 font-fix">Operation: Cebu Conquest</p>
+            {/* 🚀 修正ポイント: 「:」の前後に半角スペースを追加して統一 */}
+            <p className="text-[10px] text-cyan-700 font-bold tracking-[0.3em] uppercase font-fix">Operation : Cebu Conquest</p>
           </div>
           <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-red-500/20 text-slate-500 hover:text-red-500 transition-all">
             <span className="material-symbols-outlined">close</span>

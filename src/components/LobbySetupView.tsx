@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import React, { useState, memo, useCallback } from 'react';
-import { useGameStore, Player } from '../store'; 
+import { useGameStore } from '../store'; 
 import socket from '../socket';
 import SoundManager from '../game/SoundManager';
 import { GlobalNavbar } from './layout/GlobalNavbar';
@@ -16,13 +16,12 @@ interface LobbySetupViewProps {
 
 interface SocketResponse {
   success: boolean;
-  roomId: string; // 🚀 Real identifier returned from the server
+  roomId: string;
   maxPlayers?: number;
   players?: string[]; 
   message?: string;
 }
 
-// 🚀 1. Physical Lock
 let isCreatingLock = false; 
 
 export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({ 
@@ -37,7 +36,6 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
     turnTime: 60,
   });
 
-  // --- 🚀 Room Creation Logic: Fully synchronized with server allocation & type safety fixed ---
   const handleFinalCreate = useCallback(async (): Promise<void> => {
     if (isCreatingLock) return;
     isCreatingLock = true;
@@ -46,15 +44,12 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
       SoundManager.playSe('click');
       addLog(`📡 Requesting operational clearance from HQ...`);
 
-      // 🚀 2. Client-side ID generation deprecated!
-      // Send creation request to Socket server first, receiving server-generated ID via callback
       socket.emit(CLIENT_EVENTS.CREATE_ROOM, { ...config, username: playerName }, async (response: SocketResponse) => {
         if (response && response.success && response.roomId) {
-          const serverRoomId = response.roomId; // 🚀 This is the definitive server-allocated identifier
+          const serverRoomId = response.roomId;
           
           addLog(`✅ Clearance Granted: Room[${serverRoomId}] successfully established`);
 
-          // 🚀 3. Sync with PHP DB via server-provided ID if necessary
           try {
             await authenticatedFetch('create-room.php', {
               method: 'POST',
@@ -62,7 +57,6 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
             });
           } catch (_dbErr) { console.error("DB Sync Error", _dbErr); }
 
-          // 🚀 4. Set to store (isHost removed to prevent type errors)
           setStatus({ 
             maxPlayers: response.maxPlayers || config.maxPlayers,
             roomId: serverRoomId, 
@@ -74,7 +68,6 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
             }]
           });
 
-          // 🚀 5. Navigate with the validated room ID
           onJoinSuccess(serverRoomId);
 
         } else {
@@ -89,9 +82,7 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
     }
   }, [config, playerName, addLog, setStatus, onJoinSuccess, authenticatedFetch]);
 
-  // --- 🚀 Join Logic (Handles total space elimination) ---
   const handleJoin = useCallback(async (): Promise<void> => {
-    // 💡 Sanitize inputs by removing all spaces and converting to uppercase
     const cleanId = joinId.replace(/\s/g, '').toUpperCase();
     
     if (cleanId.length !== 6) {
@@ -99,13 +90,12 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
       return;
     }
 
-    try { SoundManager.playSe('click'); } catch { /* ignore */ }
+    try { SoundManager.playSe('click'); } catch { }
     addLog(`📡 Attempting connection to Room[${cleanId}]...`);
 
     try {
       const dbResult = await authenticatedFetch<{ status: string; message?: string }>('join-room.php', {
         method: 'POST',
-        // 💡 Transmit cleanId with spaces completely extracted to the server gateway
         body: JSON.stringify({ roomId: cleanId, username: playerName })
       });
 
@@ -134,17 +124,10 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-xl bg-black/80">
           <div className="w-full max-w-lg glass-panel tactical-border-modal border-t-4 border-brand-500 p-1 bg-slate-900/90 shadow-[0_0_80px_rgba(250,112,0,0.2)] animate-fadeIn">
             <div className="p-10 bg-black/40 text-left text-white">
-              <div className="mb-10 flex justify-between items-start">
-                <div>
-                  <div className="text-[10px] font-black text-brand-500 tracking-[0.4em] uppercase mb-1 font-fix">System:// Protocol_Init</div>
-                  <h2 className="text-4xl font-black italic uppercase tracking-tighter font-fix text-left">
-                    Operation <span className="text-brand-500">Parameters</span>
-                  </h2>
-                </div>
-                <div className="text-right">
-                  <div className="text-[8px] font-mono text-slate-500 leading-none font-fix">ID: CC-B21-AM</div>
-                  <div className="text-[8px] font-mono text-brand-500 animate-pulse mt-1 font-fix">UPLINK_ACTIVE</div>
-                </div>
+              <div className="mb-10">
+                <h2 className="text-4xl font-black italic uppercase tracking-tighter font-fix text-left">
+                  Operation <span className="text-brand-500">Parameters</span>
+                </h2>
               </div>
               <div className="space-y-8">
                 <div>
@@ -154,25 +137,24 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
                   <div className="grid grid-cols-3 gap-3">
                     {[2, 3, 4].map(num => (
                       <button key={num} onClick={() => setConfig({...config, maxPlayers: num})}
-                        className={`relative flex flex-col items-center justify-center py-6 transition-all duration-300 border ${
+                        className={`relative flex flex-col items-center justify-center py-6 transition-all duration-300 border rounded-2xl ${
                           config.maxPlayers === num ? 'bg-brand-500/20 border-brand-500 shadow-[0_0_20px_rgba(250,112,0,0.3)] text-white' : 'bg-slate-800/30 border-white/5 hover:border-brand-500/40 text-slate-500'
                         }`}>
-                        <span className="text-2xl font-black font-fix">{num}P</span>
-                        <span className="text-[8px] font-bold tracking-widest mt-1 font-fix">{num === 2 ? 'DUO_LINK' : num === 3 ? 'TRIO_FORMATION' : 'FULL_SQUAD'}</span>
+                        <span className="text-lg font-black font-fix">{num === 2 ? 'Duo' : num === 3 ? 'Trio' : 'Squad'}</span>
                         {config.maxPlayers === num && <div className="absolute -top-1 -right-1 w-2 h-2 bg-brand-500 animate-ping"></div>}
                       </button>
                     ))}
                   </div>
                 </div>
-                <div className="bg-slate-800/20 border-l-2 border-brand-500 p-4 text-left">
-                  <p className="text-[9px] text-slate-400 leading-relaxed italic uppercase tracking-wider font-fix">
+                <div className="bg-slate-800/20 border-l-2 border-brand-500 p-4 text-left rounded-2xl">
+                  <p className="text-[9px] text-slate-400 leading-relaxed uppercase tracking-wider font-fix">
                     Warning: Changing operator capacity will reconfigure the neural link. Confirm all members are ready before initiating.
                   </p>
                 </div>
               </div>
               <div className="flex gap-4 mt-12">
-                <CustomButton onClick={() => setShowConfig(false)} variant="ghost" className="flex-1">Abort</CustomButton>
-                <CustomButton onClick={handleFinalCreate} variant="primary" className="flex-[2]">Initiate Operation</CustomButton>
+                <CustomButton onClick={() => setShowConfig(false)} variant="ghost" className="flex-1 rounded-2xl">Abort</CustomButton>
+                <CustomButton onClick={handleFinalCreate} variant="primary" className="flex-[2] rounded-2xl">Initiate Operation</CustomButton>
               </div>
             </div>
           </div>
@@ -183,16 +165,15 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
       <main className="flex-1 flex flex-col items-center justify-start md:justify-center p-10 z-10 py-20">
         <h1 className="text-5xl md:text-7xl font-black italic tracking-tighter text-white uppercase mb-12 animate-pulse font-fix">Tactical Setup</h1>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full max-w-5xl">
-          <div className="glass-panel p-10 flex flex-col border border-white/5 bg-slate-900/40 text-left">
+          <div className="glass-panel p-10 flex flex-col border border-white/5 bg-slate-900/40 text-left rounded-2xl">
             <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter font-fix">Create Room</h2>
-            <p className="text-slate-400 text-xs mb-10 leading-relaxed italic font-fix">Establish a new command post and generate a unique uplink code for your squad.</p>
-            <CustomButton onClick={() => { try{SoundManager.playSe('click');} catch {} setShowConfig(true); }} variant="primary" className="mt-auto w-full text-lg py-4">Configure Operation</CustomButton>
+            <p className="text-slate-400 text-xs mb-10 leading-relaxed font-fix">Establish a new command post and generate a unique uplink code for your squad.</p>
+            <CustomButton onClick={() => { try{SoundManager.playSe('click');} catch {} setShowConfig(true); }} variant="primary" className="mt-auto w-full text-lg py-4 rounded-2xl">Configure Operation</CustomButton>
           </div>
-          <div className="glass-panel p-10 flex flex-col border border-white/5 bg-slate-900/40 text-left">
+          <div className="glass-panel p-10 flex flex-col border border-white/5 bg-slate-900/40 text-left rounded-2xl">
             <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter font-fix">Join Room</h2>
             <div className="mb-10 text-left">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block font-fix">Enter Command Code</label>
-              {/* 💡 Robust input validation via JS filtering specific syntax & restricting max raw characters to 6 */}
               <input type="text" value={joinId} placeholder="0 0 0 0 0 0"
                 onChange={(e) => {
                   let val = e.target.value.toUpperCase();
@@ -200,11 +181,10 @@ export const LobbySetupView: React.FC<LobbySetupViewProps> = memo(({
                   if (val.replace(/\s/g, '').length > 6) return;
                   setJoinId(val);
                 }}
-                className="w-full bg-black/40 border border-slate-800 rounded-lg py-4 px-6 text-3xl font-black tracking-[0.5em] text-cyan-400 text-center focus:outline-none focus:border-cyan-500 transition-all font-mono"
+                className="w-full bg-black/40 border border-slate-800 rounded-2xl py-4 px-6 text-3xl font-black tracking-[0.5em] text-cyan-400 text-center focus:outline-none focus:border-cyan-500 transition-all font-mono"
               />
             </div>
-            {/* 💡 Disabling constraints evaluate character thresholds dynamically matching clean variants omitting spaces */}
-            <CustomButton onClick={handleJoin} disabled={joinId.replace(/\s/g, '').length !== 6} variant="primary" className={`mt-auto w-full text-lg py-4 ${joinId.replace(/\s/g, '').length === 6 ? '!bg-slate-100 !text-slate-900 hover:!bg-white' : ''}`}>
+            <CustomButton onClick={handleJoin} disabled={joinId.replace(/\s/g, '').length !== 6} variant="primary" className={`mt-auto w-full text-lg py-4 rounded-2xl ${joinId.replace(/\s/g, '').length === 6 ? '!bg-slate-100 !text-slate-900 hover:!bg-white' : ''}`}>
               Join Operation
             </CustomButton>
           </div>

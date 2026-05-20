@@ -4,6 +4,7 @@ import socket from '../socket';
 import { SERVER_EVENTS } from '../../shared/socketEvents.js'; 
 import { useGameStore, Player } from '../store'; 
 import { emitToPhaser, REACT_TO_PHASER, PHASER_TO_REACT } from '../game/events/PhaserBridge'; 
+import { playBGM } from '../hook/useBGM'; 
 
 interface ServerPlayerPayload {
   playerId: string;
@@ -32,7 +33,7 @@ interface SyncStatePayload {
 
 /**
  * 🛰️ useGameEvents: Manages persistent real-time socket streams & Phaser bridge datalinks.
- * Resolved: Merged remote 5-digit spotId, dynamic non-stale socket.id mapping, and action submit state resets.
+ * Resolved: Aligned incoming Phaser event payload keys safely into UI state architectures.
  */
 export const useGameEvents = () => {
   useEffect(() => {
@@ -54,10 +55,16 @@ export const useGameEvents = () => {
     const handleStatsUpdate = (e: Event) => {
       const ce = e as CustomEvent;
       const { hp, stamina, atk, def, faith } = ce.detail;
-      useGameStore.getState().setStatus({ hp, ap: stamina, atk, def, blessing: faith });
+      
+      useGameStore.getState().setStatus({ 
+        hp: hp, 
+        ap: stamina,       // stamina → ap (UIキー変換)
+        atk: atk, 
+        def: def, 
+        blessing: faith    // faith → blessing (UIキー変換)
+      });
     };
 
-    // ✅ Merged: Captured incoming 5-digit spotId structures via non-stale static store selectors
     const handleSelectDistrict = (e: Event) => {
       const ce = e as CustomEvent;
       const { districtId, districtName, isMyTerritory, isNeutral, spotId } = ce.detail;
@@ -72,10 +79,14 @@ export const useGameEvents = () => {
     // 1. Core Server State Sync Matrix
     const handleSyncState = (data: unknown) => {
       const store = useGameStore.getState();
+      
+      // 🚀 修正ポイント: すでにゲームオーバー状態（真の決着状態）であるならば、
+      // サーバーから遅れて降ってくる古い同期データによる状態の巻き戻し・上書きを完全にブロックする
+      if (store.isGameOver) return;
+
       const currentView = store.view;
       const payload = data as SyncStatePayload; 
 
-      // ✅ Merged: Prioritize real-time socket.id over stale closure strings to prevent isMyTurn overwrite errors
       store.syncServerState(payload as unknown as Record<string, unknown>, socket.id || store.myId);
 
       // Update Active Lobby Operator Registries
@@ -144,7 +155,6 @@ export const useGameEvents = () => {
       
       console.log(`[TURN_START] turn=${payload.turn} isMyTurn=${isMe} turnOwnerId=${payload.turnOwnerId} mySocketId=${socket.id}`);
       
-      // ✅ Merged: Reset submission blocks instantly upon new phase rotators to free action inputs
       store.setStatus({ isMyTurn: isMe, turn: payload.turn, isSubmitted: false });
       emitToPhaser(REACT_TO_PHASER.TURN_START_EFFECT, { turn: payload.turn, isMyTurn: isMe });
       
@@ -160,7 +170,6 @@ export const useGameEvents = () => {
     // 6. Network Grid Dominance Updates
     const handleTerritoryUpdated = (data: unknown) => {
       const store = useGameStore.getState();
-      // Phaser側でgodColorを解決できるよう現在のplayers情報をpayloadに付与する
       const playersMap: Record<string, unknown> = {};
       store.players.forEach((p) => {
         if (p.id) playersMap[p.id] = p;
@@ -182,12 +191,31 @@ export const useGameEvents = () => {
 
     // 8. Operation Termination Matrix
     const handleGameOver = (data: unknown) => {
-      const payload = data as { winnerName: string; winnerId: string };
+      const store = useGameStore.getState();
+      // 🚀 修正: payload にサーバー計算済みの score を期待
+      const payload = data as { winnerName: string; winnerId: string; score?: number };
+      
+      // ストアのゲームオーバー状態を確定
+      store.setStatus({ isGameOver: true, winnerId: payload.winnerId });
+      
+      // 🚀 修正: サーバーから届いた確定スコアをセット（なければ null のまま）
+      if (typeof payload.score === 'number') {
+        store.setFinalScore(payload.score);
+      }
+      
+      const isWinner = store.myId === payload.winnerId;
+      playBGM(isWinner ? 'winner' : 'loser');
+      
       setTimeout(() => {
-        useGameStore.getState().setStatus({ isGameOver: true, winnerId: payload.winnerId, view: 'ranking' });
+        useGameStore.getState().setStatus({ view: 'ranking' });
       }, 1500);
-      emitToPhaser(REACT_TO_PHASER.GAME_OVER_EFFECT, payload as unknown as Record<string, unknown>);
-      useGameStore.getState().updateSelectedDistrict(null);
+
+      emitToPhaser(REACT_TO_PHASER.GAME_OVER_EFFECT, {
+        ...payload,
+        isWinner: isWinner,
+      });
+      
+      store.updateSelectedDistrict(null);
     };
 
     // 9. Incoming Comms Feed Infiltration (Tactical Chat Streams)
@@ -195,7 +223,6 @@ export const useGameEvents = () => {
       useGameStore.getState().addLog({ sender: data.username || 'Operator', message: data.message });
     };
 
-    // ✅ Merged: Added instant action dispatch lockdown parameters to block transactional overlapping
     const handleActionResult = () => {
       useGameStore.setState({ isSubmitted: true });
       useGameStore.getState().updateSelectedDistrict(null);
@@ -211,7 +238,7 @@ export const useGameEvents = () => {
     socket.on(SERVER_EVENTS.ACTION_REJECTED, handleActionRejected);
     socket.on(SERVER_EVENTS.GAME_OVER, handleGameOver);
     socket.on(SERVER_EVENTS.RECEIVE_CHAT, handleReceiveChat);
-    socket.on(SERVER_EVENTS.ACTION_RESULT, handleActionResult); // ✅ Enforced named event string key constants
+    socket.on(SERVER_EVENTS.ACTION_RESULT, handleActionResult); 
 
     return () => {
       socket.off(SERVER_EVENTS.SYNC_STATE, handleSyncState);

@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 // src/hook/useBGM.ts
-// React側 BGM管理モジュール（waiting / setting / winner / Loser）
+// React側 BGM管理モジュール（waiting / setting / winner / loser）
 
 const TARGET_VOLUME = 0.4;
 const FADE_DURATION = 1000; // 1秒かけてフェード
@@ -10,14 +10,14 @@ const bgmMap: Record<string, HTMLAudioElement> = {
   waiting: new Audio('/assets/audio/bgm/waiting.ogg'),
   setting: new Audio('/assets/audio/bgm/setting.ogg'),
   winner:  new Audio('/assets/audio/bgm/winner.ogg'),
-  Loser:   new Audio('/assets/audio/bgm/Loser.ogg'),
+  loser:   new Audio('/assets/audio/bgm/Loser.ogg'), // 🚀 修正: Loser -> loser
 };
 
 const bgmFallback: Record<string, string> = {
   waiting: '/assets/audio/bgm/waiting.mp3',
   setting: '/assets/audio/bgm/setting.mp3',
   winner:  '/assets/audio/bgm/winner.mp3',
-  Loser:   '/assets/audio/bgm/Loser.mp3',
+  loser:   '/assets/audio/bgm/Loser.mp3', // 🚀 修正: Loser -> loser
 };
 
 Object.entries(bgmMap).forEach(([key, audio]) => {
