@@ -294,7 +294,7 @@
   font-size: 0.95rem;
   text-align: center;
   gap: 0.5rem;
-  padding: 1rem;
+  padding: 0;
 }
 
 .screenshot-placeholder .placeholder-icon {

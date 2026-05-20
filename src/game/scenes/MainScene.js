@@ -436,9 +436,10 @@ export default class MainScene extends Phaser.Scene {
 
             // ★ 差分チェック：初回 sync 抑制 + 新規獲得時のみポップアップ
             if (!isFirstSync && !this.isSelectionMode && d.center) {
-              const wasAlreadyMine = String(this._previousOwnerMap[d.id]) === String(socket.id);
+              // ★ _repaintDistrictByOwner の前に d.owner を退避
+              const prevOwner = d.owner ?? "neutral";
               const isNowMine = String(ownerId) === String(socket.id);
-              if (isNowMine && !wasAlreadyMine) {
+              if (isNowMine && String(prevOwner) !== String(socket.id)) {
                 this.effectManager?.playCapturePopup(d.center.x, d.center.y);
               }
             }
@@ -523,14 +524,18 @@ export default class MainScene extends Phaser.Scene {
 
           // district配下の全spotNameエントリを神カラーで塗りつぶす
           const spots = this._getSpotsInDistrict(dId3);
+
+          // ★ _repaintDistrictByOwner が s.owner を更新する前に前オーナーを退避
+          const prevOwners = spots.map((s) => s.owner ?? "neutral");
+
           spots.forEach((spotEntry) => {
             this._repaintDistrictByOwner(spotEntry, owner ?? "neutral", effectiveMap);
           });
 
-          // ★ 差分チェック：新たに自分のものになった場合だけエフェクト発火
+          // ★ 「前オーナーが誰も自分でなく、今のオーナーが自分」の場合だけアニメーション発火
           const districtEntry = this.districts[dId3] ?? this.districts[dId];
           const isNowMine = String(owner) === String(socket.id);
-          const wasAlreadyMine = spots.some((s) => String(this._previousOwnerMap[s.id]) === String(socket.id));
+          const wasAlreadyMine = prevOwners.some((p) => p === socket.id);
           if (isNowMine && !wasAlreadyMine && !this.isSelectionMode && districtEntry?.center) {
             this.effectManager?.playCapturePopup(districtEntry.center.x, districtEntry.center.y);
           }

@@ -1165,44 +1165,59 @@
 
         <!-- Slide 22: Battle Effects & UX Design -->
         <section>
-          <div class="slide-inner">
-            <div class="section-label">Effects &amp; UX</div>
-            <h2>Battle Effects &amp; UX Design</h2>
-            <div class="two-col" style="margin-top: 0.75rem">
-              <div>
-                <!-- Add screenshot: screenshots/battle-effect.png -->
-                <div
-                  class="screenshot-placeholder"
-                  data-screenshot="battle-effect"
-                  style="min-height: 220px"
-                >
-                  <span class="placeholder-icon">✨</span>
-                  <span>Battle Effect Screenshot</span>
-                  <span class="placeholder-hint">Add: assets/screenshots/battle-effect.png</span>
-                </div>
-              </div>
-              <div style="display: flex; flex-direction: column; gap: 0.55rem">
-                <h3 class="text-orange">Design Philosophy</h3>
-                <div class="card" style="font-size: 0.8rem">
-                  <span class="text-orange" style="font-weight: 700">Tactical:</span> All map colors
-                  are semantically coded — orange (owned), cyan (neutral), red (enemy).
-                </div>
-                <div class="card" style="font-size: 0.8rem">
-                  <span class="text-cyan" style="font-weight: 700">Cyberpunk:</span> Scanline
-                  overlay, glitch-text on titles, neon glow on active elements.
-                </div>
-                <div class="card" style="font-size: 0.8rem">
-                  <span class="text-green" style="font-weight: 700">Readable:</span> Spot names
-                  never overlap player avatars. God avatars scale with zoom.
-                </div>
-                <div class="card" style="font-size: 0.8rem">
-                  <span style="color: #818cf8; font-weight: 700">Atmospheric:</span> EffectManager
-                  fires territory flash on capture, hit burst on battle.
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+  <div class="slide-inner">
+    <div class="section-label">Effects &amp; UX</div>
+    <h2>Battle Effects &amp; UX Design</h2>
+    <div class="two-col" style="margin-top: 0.75rem">
+      <div>
+        <!-- 3枚横並び -->
+        <div style="
+          display: flex;
+          gap: 0.5rem;
+          height: 420px;
+          overflow: hidden;
+          border-radius: 8px;
+          border: 2px dashed var(--brand-orange);
+        ">
+          <img
+            src="assets/screenshots/battle.png"
+            alt=""
+            style="flex: 1; width: 0; object-fit: cover; object-position: center top; display: block;"
+          />
+          <img
+            src="assets/screenshots/terrytory-update.png"
+            alt=""
+            style="flex: 1; width: 0; object-fit: cover; object-position: center top; display: block;"
+          />
+          <img
+            src="assets/screenshots/plus1.png"
+            alt=""
+            style="flex: 1; width: 0; object-fit: cover; object-position: center top; display: block;"
+          />
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 0.55rem">
+        <h3 class="text-orange">Design Philosophy</h3>
+        <div class="card" style="font-size: 0.8rem">
+          <span class="text-orange" style="font-weight: 700">Tactical:</span> All map colors
+          are semantically coded — orange (owned), cyan (neutral), red (enemy).
+        </div>
+        <div class="card" style="font-size: 0.8rem">
+          <span class="text-cyan" style="font-weight: 700">Cyberpunk:</span> Scanline
+          overlay, glitch-text on titles, neon glow on active elements.
+        </div>
+        <div class="card" style="font-size: 0.8rem">
+          <span class="text-green" style="font-weight: 700">Readable:</span> Spot names
+          never overlap player avatars. God avatars scale with zoom.
+        </div>
+        <div class="card" style="font-size: 0.8rem">
+          <span style="color: #818cf8; font-weight: 700">Atmospheric:</span> EffectManager
+          fires territory flash on capture, hit burst on battle.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
         <!-- ■ ISSEI'S SECTION ────────────────────────────────── -->
 
@@ -1219,9 +1234,7 @@
                   data-screenshot="hud-full"
                   style="min-height: 240px"
                 >
-                  <span class="placeholder-icon">🖥️</span>
-                  <span>Full HUD Screenshot</span>
-                  <span class="placeholder-hint">Add: assets/screenshots/hud-full.png</span>
+                  <img src="assets/screenshots/hud-full.png" alt="">
                 </div>
               </div>
               <div>
@@ -1317,9 +1330,7 @@
                   data-screenshot="god-selection"
                   style="min-height: 260px"
                 >
-                  <span class="placeholder-icon">🏛️</span>
-                  <span>God Selection Screen</span>
-                  <span class="placeholder-hint">Add: assets/screenshots/god-selection.png</span>
+                  <img src="assets/screenshots/god-selection.png" alt="">
                 </div>
               </div>
               <div style="display: flex; flex-direction: column; gap: 0.55rem">
