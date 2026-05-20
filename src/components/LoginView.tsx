@@ -35,6 +35,7 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
 
     setIsLoading(true);
     setErrorMsg(null);
+    // eslint-disable-next-line react-hooks/purity
     const startTime = Date.now();
     addLog(isRegisterMode ? "📡 Initiating registration protocol..." : "🔑 Authenticating credentials...");
 
@@ -67,6 +68,7 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
         }
       }
 
+      // eslint-disable-next-line react-hooks/purity
       const elapsed = Date.now() - startTime;
       const waitTime = Math.max(SCAN_CYCLE - elapsed, 0);
       await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -86,6 +88,7 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
       }
 
     } catch (_error: unknown) {
+      // eslint-disable-next-line react-hooks/purity
       const elapsed = Date.now() - startTime;
       await new Promise(resolve => setTimeout(resolve, Math.max(SCAN_CYCLE - elapsed, 0)));
       setErrorMsg("SERVER ERROR: Failed to connect to HQ. Check database or CORS.");
@@ -119,9 +122,7 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
   };
 
   return (
-    // 🚀 修正ポイント: 最外層のクラス名・背景色・z-indexを LobbySetupView と完全に同一の構造に統一
     <div className="w-full h-screen bg-slate-950 text-slate-200 font-body relative flex flex-col overflow-hidden select-none text-left z-0">
-      {/* 🚀 修正ポイント: LobbySetupView から背景レイヤー（-z-10、opacity-40）を完全移植 */}
       <div className="fixed inset-0 -z-10 island-silhouette opacity-40 pointer-events-none" />
       <div className="fixed inset-0 -z-10 tropical-flare pointer-events-none" />
 
@@ -132,18 +133,16 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
 
       <main className="relative z-20 flex-1 flex flex-col items-center justify-center px-4 pt-16 pb-4 overflow-hidden">
         
-        {/* タイトル周り：バッジとオレンジ巨大タイトル */}
-        <div className="text-center mb-6 shrink-0 h-[110px] flex flex-col justify-end items-center">
-          <div className="px-4 py-0.5 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-400 text-[10px] font-black tracking-[0.2em] uppercase mb-3 font-fix">
-            WELCOME TO THE ARCHIPELAGO
-          </div>
+        <div className="text-center mb-8 shrink-0 flex flex-col items-center">
           <h1 className="text-4xl md:text-6xl font-black text-[#e05a13] tracking-tighter uppercase font-fix">
             CEBU CONQUEST
           </h1>
-          <p className="text-slate-400 text-sm font-medium tracking-wide mt-1 mb-3 font-fix">Enter the battlefield.</p>
+          <div className="px-4 py-0.5 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-400 text-[10px] font-black tracking-[0.2em] uppercase mt-4 mb-2 font-fix">
+            WELCOME TO THE ARCHIPELAGO
+          </div>
+          <p className="text-slate-400 text-sm font-medium tracking-wide mb-6 font-fix">Enter the battlefield.</p>
         </div>
 
-        {/* 中央フォームカード */}
         <div 
           className="w-full max-w-sm bg-[#151c2c]/60 backdrop-blur-xl p-6 rounded-2xl border border-slate-800 shadow-2xl relative overflow-hidden text-left shrink-0"
           style={{
@@ -180,7 +179,6 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
             <form className="space-y-3.5" onSubmit={handleAuthSubmit}>
               {errorMsg && <div className="bg-red-500/10 border border-red-500/50 p-2 rounded text-[10px] text-red-400 font-bold animate-fadeIn font-fix">⚠️ {errorMsg}</div>}
 
-              {/* USER ID 入力欄 */}
               <div className="space-y-1.5 text-left">
                 <label className={`block text-[10px] font-black tracking-wider uppercase ml-1 transition-colors duration-500 font-fix ${isRegisterMode ? 'text-cyan-500' : 'text-slate-400'}`}>USER ID</label>
                 <div className="relative group">
@@ -191,7 +189,6 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
                 </div>
               </div>
 
-              {/* PASSWORD 入力欄 */}
               <div className="space-y-1.5 text-left">
                 <label className={`block text-[10px] font-black tracking-wider uppercase ml-1 transition-colors duration-500 font-fix ${isRegisterMode ? 'text-cyan-500' : 'text-slate-400'}`}>PASSWORD</label>
                 <div className="relative group">
@@ -213,9 +210,8 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
                 </div>
               )}
 
-              {/* ENTER ARCHIPELAGO ボタン */}
               <div className="pt-2">
-                <CustomButton type="submit" disabled={isLoading} variant="primary" className={`w-full py-3 text-sm font-black tracking-widest font-fix bg-[#e05a13] hover:brightness-110 text-white flex items-center justify-center gap-1 ${isRegisterMode ? '!bg-cyan-700 hover:!bg-cyan-600 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : ''}`}>
+                <CustomButton type="submit" disabled={isLoading} variant="primary" className={`w-full py-3 text-sm font-black tracking-widest font-fix bg-[#c24e0f] hover:brightness-110 text-white flex items-center justify-center gap-1 ${isRegisterMode ? '!bg-cyan-700 hover:!bg-cyan-600 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : ''}`}>
                   {isLoading ? 'SYNCING...' : (isRegisterMode ? 'REGISTER ACCOUNT' : 'ENTER ACCOUNT')}
                   {!isLoading && <span className="material-symbols-outlined text-base">bolt</span>}
                 </CustomButton>
@@ -235,16 +231,14 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
           )}
         </div>
 
-        {/* 下部3つのBentoCard */}
         {!isRegisterMode && (
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-3 w-full max-w-3xl shrink-0 animate-fadeIn">
+          <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-3 w-full max-w-3xl shrink-0 animate-fadeIn">
             <BentoCard icon="cloud_off" title="No Laravel" sub="First project without Laravel" isActive={activeCategory === 'laravel'} onClick={() => setActiveCategory('laravel')}/>
             <BentoCard icon="military_tech" title="God Teachers" sub="Do you believe in God" isActive={activeCategory === 'gods'} onClick={() => setActiveCategory('gods')}/>
             <BentoCard icon="map" title="Cebu Conquest" sub="Learn about Cebu" isActive={activeCategory === 'about'} onClick={() => setActiveCategory('about')}/>
           </div>
         )}
 
-        {/* ポップアップ詳細ダイアログ */}
         {activeCategory && (
           <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-fadeIn">
             <div className="bg-[#151c2c]/80 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl relative text-left">
@@ -285,7 +279,6 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
         <div className="text-orange-500/40 font-bold uppercase tracking-[0.3em] font-fix text-[8px]">© 2026 Batch21 [AM GI Offline] Protocol Active</div>
       </footer>
 
-      {/* 🚀 修正ポイント: スタイル定義内のアセット定義を LobbySetupView のアセットに100%完全同期 */}
       <style>{`
         .material-symbols-outlined { font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 48 }
         .scanning-line { height: 1px; position: absolute; width: 100%; top: 0; animation: scan 3s linear infinite; opacity: 0.3; }
@@ -294,7 +287,6 @@ export const LoginView: React.FC<LoginViewProps> = memo(({ onLogin, onOpenSettin
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .font-fix { line-height: 1.2; }
         
-        /* 💡 LobbySetupView から完全にコピーした高輝度演出およびカラープロパティ */
         .tropical-flare { 
           background: radial-gradient(circle at center, rgba(249, 115, 22, 0.4) 0%, rgba(249, 115, 22, 0) 70%); 
         }

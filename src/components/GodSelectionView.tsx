@@ -32,7 +32,7 @@ interface GodSacredLand {
 const GOD_SLOTS: GodSlot[] = [
   { id: 1, textureKey: 'god-neil',   name: "Neil", role: "WAR",         bonus: "MAX_HP +30, STAMINA -25, HP +10", img: "/assets/images/gods/Neil.png", desc: "High durability status configuration tailored for frontline operators." },
   { id: 2, textureKey: 'god-garry',  name: "Garry", role: "STRATEGIST", bonus: "ATK +20",    img: "/assets/images/gods/Garry.png", desc: "Pure offensive augmentation designed for high-caliber strikers." },
-  { id: 3, textureKey: 'god-shem',   name: "Shem", role: "BURN",        bonus: "MAX_AP +15, HP +10, AP +10", img: "/assets/images/gods/Shem.png", desc: "Optimized balance prioritizing action frequency and sustained engagement durability." },
+  { id: 3, textureKey: 'god-shem',   name: "Shem", role: "BURN",         bonus: "MAX_AP +15, HP +10, AP +10", img: "/assets/images/gods/Shem.png", desc: "Optimized balance prioritizing action frequency and sustained engagement durability." },
   { id: 4, textureKey: 'god-quisie', name: "Quisie", role: "STEALTH",    bonus: "HP -20, FAITH 100", img: "/assets/images/gods/Quisie.png", desc: "Special auxiliary configuration initiating deployment with maximum FAITH matrix values." },
   { id: 5, textureKey: 'god-eduardo', name: "Eduardo", role: "HEAVY",       bonus: "DEF +15",    img: "/assets/images/gods/Eduardo.png", desc: "Reinforced defense parameters to effectively mitigate counter-offensive damage." },
   { id: 6, textureKey: 'god-kurt',   name: "Kurt", role: "SUPPORT",    bonus: "STAMINA +30, HP -10", img: "/assets/images/gods/Kurt.png", desc: "Extends maximum stamina capacity to ensure optimal maneuvering and mobility." },
@@ -170,35 +170,36 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
                   onClick={() => !lock && selectedGodId === null && setPendingSelection(god)} 
                   className={`group relative flex flex-col bg-zinc-900/40 border-2 transition-all duration-300 rounded-xl overflow-hidden ${
                     isSelected 
-                      ? "border-orange-500 z-10 scale-[1.02]" // 🚀 Mod: Removed card-wide shadow
+                      ? "border-orange-500 z-10 scale-[1.02]" 
                       : lock 
-                        ? "border-orange-500/20 opacity-80 grayscale-[0.3] cursor-not-allowed" // 🚀 Mod: Increased contrast for locked slots to remain legible
+                        ? "border-orange-500/20 opacity-80 grayscale-[0.3] cursor-not-allowed" 
                         : selectedGodId !== null
                           ? "border-orange-500/10 opacity-50 cursor-default"
-                          : "border-orange-500/20 hover:border-orange-500/50 hover:bg-zinc-800/50 cursor-pointer" // 🚀 Mod: Added subtle orange boundary lines
+                          : "border-orange-500/20 hover:border-orange-500/50 hover:bg-zinc-800/50 cursor-pointer" 
                   }`}
                 >
-                  <div className="relative h-[60%] shrink-0 overflow-hidden bg-black flex items-center justify-center">
+                  <div className="relative h-[52%] shrink-0 overflow-hidden bg-black flex items-center justify-center rounded-t-xl">
                     <img 
                       src={god.img} 
                       className={`w-full h-full object-cover object-top transition-all duration-700 group-hover:scale-110 
-                        ${isSelected ? 'drop-shadow-[0_10px_20px_rgba(249,115,22,0.4)]' : 'drop-shadow-[0_5px_15px_rgba(0,0,0,0.6)]'} // 🚀 Mod: Applied faint dropshadow properties exclusively to the portrait image
+                        ${isSelected ? 'drop-shadow-[0_10px_20px_rgba(249,115,22,0.4)]' : 'drop-shadow-[0_5px_15px_rgba(0,0,0,0.6)]'} 
                       `} 
                       alt={god.name} 
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = '/assets/images/gods/fallback.png';
                       }}
                     />
+                    {/* 🚀 修正ポイント: rounded-t-xl を付与して上部左右のはみ出し角を完全にクリッピング */}
                     {isSelected && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-orange-600/20 backdrop-blur-[2px]">
+                      <div className="absolute inset-0 flex items-center justify-center bg-orange-600/20 backdrop-blur-[2px] rounded-t-xl">
                         <div className="bg-orange-500 text-black text-[10px] font-black px-4 py-1 skew-x-[-15deg] border-r-4 border-black font-fix text-left">
                           LINK ESTABLISHED
                         </div>
                       </div>
                     )}
+                    {/* 🚀 修正ポイント: Occupied オーバーレイ側にも念のため同様の上部角丸を完全同期 */}
                     {lock && (
-                      // 🚀 Mod: Adjusted backing to bg-slate-950/40 for clearer sub-content legibility
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/40 backdrop-blur-[1px]">
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/40 backdrop-blur-[1px] rounded-t-xl">
                          <div className="w-10 h-10 rounded-full border-2 border-orange-500/30 bg-slate-900/90 mb-2 overflow-hidden flex items-center justify-center shadow-xl">
                             <span className="material-symbols-outlined text-orange-500/70">person</span>
                          </div>
@@ -215,19 +216,19 @@ export const GodSelectionView: React.FC<GodSelectionViewProps> = memo(({
                     </div>
                   </div>
 
-                  <div className="p-4 flex flex-col flex-1 gap-2 text-left justify-between">
-                    <div>
-                      <h3 className={`text-base lg:text-lg font-black tracking-tight font-fix italic ${lock ? 'text-zinc-400' : 'text-white'}`}>
+                  <div className="p-3.5 flex flex-col flex-1 text-left justify-between min-h-0">
+                    <div className="min-h-0 flex flex-col">
+                      <h3 className={`text-base font-black tracking-tight font-fix italic leading-none ${lock ? 'text-zinc-400' : 'text-white'}`}>
                         {god.name}
                       </h3>
-                      <div className="h-px w-8 bg-orange-500/50 my-1.5"></div>
+                      <div className="h-px w-8 bg-orange-500/50 my-1.5 shrink-0"></div>
                       <p className={`text-[10px] leading-snug line-clamp-3 font-fix ${lock ? 'text-zinc-500' : 'text-zinc-400'}`}>
                         {god.desc}
                       </p>
                     </div>
-                    <div className={`pt-2 flex items-center justify-between text-[9px] font-black font-fix ${lock ? 'text-orange-950' : 'text-orange-500/80'}`}>
-                       <span>BONUS: {god.bonus}</span>
-                       <span className="material-symbols-outlined text-sm">bolt</span>
+                    <div className={`pt-1.5 flex items-center justify-between text-[9px] font-black font-fix border-t border-white/5 mt-1 shrink-0 ${lock ? 'text-orange-950' : 'text-orange-500/90'}`}>
+                       <span className="truncate pr-1">BONUS: {god.bonus}</span>
+                       <span className="material-symbols-outlined text-sm shrink-0">bolt</span>
                     </div>
                   </div>
                 </div>

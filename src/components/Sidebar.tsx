@@ -8,16 +8,15 @@ interface SidebarProps {
   onOpenInventory: () => void;
 }
 
-// 🚀 Define Guardian God modifier matrix values
 const GOD_BUFFS: Record<number, { hp?: number; atk?: number; def?: number; ap?: number }> = {
-  1: { hp: 40 },         // Neil: MAX_HP +30, HP +10
-  2: { atk: 20 },        // Garry: ATK +20
+  1: { hp: 40 },        // Neil: MAX_HP +30, HP +10
+  2: { atk: 20 },       // Garry: ATK +20
   3: { hp: 10, ap: 15 }, // Shem: HP +10, MAX_AP +15
-  4: { hp: -20 },        // Quisie: HP -20
-  5: { def: 15 },        // Eduardo: DEF +15
-  6: { hp: -10 },        // Kurt: HP -10
-  7: {},                 // Stephen: FAITH_REGEN (Passive)
-  8: { ap: 30 },         // Bernardine: MAX_AP +30
+  4: { hp: -20 },       // Quisie: HP -20
+  5: { def: 15 },       // Eduardo: DEF +15
+  6: { hp: -10 },       // Kurt: HP -10
+  7: {},                // Stephen: FAITH_REGEN (Passive)
+  8: { ap: 30 },        // Bernardine: MAX_AP +30
 };
 
 export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHelp, onOpenInventory }) => {
@@ -31,66 +30,20 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
   const def = useGameStore(state => state.def);
   const isMyTurn = useGameStore(state => state.isMyTurn);
   const isUnderAttack = useGameStore(state => state.isUnderAttack);
-  const districts = useGameStore(state => state.districts);
-  const myId = useGameStore(state => state.myId);
   const playerName = useGameStore(state => state.playerName);
-  const lookupData = useGameStore(state => state.lookupData);
   const selectedGodId = useGameStore(state => state.selectedGodId);
 
-  // 🚀 1. Calculate effective maximum parameter limits reflecting active god modifiers
+  // 🎯 解決：使わなくなった `useState`, `useEffect`, `myId`, `lookupData`, `players` を完全に削除してESLint警告を根絶
+
   const buffs = useMemo(() => (selectedGodId ? GOD_BUFFS[selectedGodId] : {}), [selectedGodId]);
   const effectiveMaxHp = useMemo(() => maxHp + (buffs.hp || 0), [maxHp, buffs.hp]);
   const effectiveMaxAp = useMemo(() => maxAp + (buffs.ap || 0), [maxAp, buffs.ap]);
 
-  // 🚀 2. [Bug Fix] Clamp current gauge thresholds to safely prevent exceeding maximum constraints
-  const displayHp = useMemo(() => Math.min(hp, effectiveMaxHp), [hp, effectiveMaxHp]);
-  const displayAp = useMemo(() => Math.min(ap, effectiveMaxAp), [ap, effectiveMaxAp]);
-
-  const territorySummary = useMemo(() => {
-    const myDistricts = Object.entries(districts)
-      .filter(([, ownerId]) => ownerId === myId)
-      .map(([id]) => Number(id));
-
-    const groups: Record<number, { name: string; ids: number[] }> = {};
-
-    myDistricts.forEach(id => {
-      let islandId = 0;
-      let islandName = "UNKNOWN SECTOR";
-
-      if (lookupData?.districts && lookupData.areas && lookupData.islands) {
-        let district = lookupData.districts.get(id);
-        if (!district && lookupData.spots) {
-          const spot = lookupData.spots.get(id);
-          if (spot) district = lookupData.districts.get(spot.parentDistrictId);
-        }
-
-        if (district) {
-          const area = lookupData.areas.get(district.parentAreaId);
-          if (area) {
-            const island = lookupData.islands.get(area.parentIslandId);
-            if (island) {
-              islandId = island.id;
-              islandName = island.name.toUpperCase();
-            }
-          }
-        }
-      } else {
-        islandId = Math.floor(id / 1000);
-        islandName = `SECTOR ${islandId}`;
-      }
-
-      if (!groups[islandId]) {
-        groups[islandId] = { name: islandName, ids: [] };
-      }
-      groups[islandId].ids.push(id);
-    });
-
-    return Object.entries(groups).map(([iId, data]) => ({
-      islandId: Number(iId),
-      name: data.name,
-      ids: data.ids
-    })).sort((a, b) => a.islandId - b.islandId);
-  }, [districts, myId, lookupData]);
+  const displayHp = useMemo(() => Math.max(0, Math.min(hp, effectiveMaxHp)), [hp, effectiveMaxHp]);
+  const displayAp = useMemo(() => Math.max(0, Math.min(ap, effectiveMaxAp)), [ap, effectiveMaxAp]);
+  
+  const hpPercent = effectiveMaxHp > 0 ? Math.max(0, Math.min(100, (displayHp / effectiveMaxHp) * 100)) : 0;
+  const apPercent = effectiveMaxAp > 0 ? Math.max(0, Math.min(100, (displayAp / effectiveMaxAp) * 100)) : 0;
 
   return (
     <>
@@ -107,22 +60,21 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
         .animate-pulse-red { animation: pulse-red 2s infinite; }
         .animate-energy-critical { animation: energy-critical 0.8s infinite ease-in-out; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #realm-color; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #fa7000; border-radius: 10px; }
         .font-fix { line-height: 1.2; }
       `}</style>
 
       <aside className="fixed left-0 top-0 bottom-0 z-40 flex flex-col bg-slate-950 w-80 border-r border-slate-800 shadow-2xl overflow-hidden font-body select-none text-left">
         
-        {/* --- 1. Commander & Status Area --- */}
         <div className="flex-none p-6 pb-2 space-y-4">
-          <div className="flex flex-col gap-1 border-l-2 border-orange-600 pl-3 mb-4">
+          <div className="flex flex-col gap-1 border-l-2 border-orange-600 pl-3 mb-2">
             <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] font-fix">Neural Link Operator</span>
             <h2 className="text-xl font-black text-white italic uppercase tracking-tighter font-fix truncate">
               {playerName || "COMMANDER"}
             </h2>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 pt-1">
             <div className="w-12 h-12 rounded bg-slate-900 flex items-center justify-center border border-slate-800 shadow-inner">
               <div className="text-2xl font-black text-orange-500 italic font-fix">{turn}</div>
             </div>
@@ -140,10 +92,9 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
           </div>
 
           <div className="space-y-4">
-            {/* HP Gauge Display Section */}
             <div className="space-y-2">
               <div className="flex justify-between items-end">
-                <span className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Vitality</span>
+                <span className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">HP</span>
                 <span className={`text-[10px] font-black font-mono ${buffs.hp ? 'text-orange-400' : 'text-slate-400'}`}>
                     {displayHp}/{effectiveMaxHp}
                 </span>
@@ -151,16 +102,15 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
               <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
                 <div 
                   className="h-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] transition-all duration-500" 
-                  style={{ width: `${(displayHp / effectiveMaxHp) * 100}%` }} 
+                  style={{ width: `${hpPercent}%` }} 
                 />
               </div>
             </div>
 
-            {/* AP Gauge Display Section */}
             <div className={`space-y-2 p-2 -m-2 rounded-lg transition-all border border-transparent ${ap <= 0 ? 'animate-energy-critical' : ''}`}>
               <div className="flex justify-between items-end">
                 <span className={`text-[10px] font-black uppercase tracking-tighter ${ap <= 0 ? 'text-red-500' : 'text-slate-500'}`}>
-                    {ap <= 0 ? '⚠ Energy Depleted' : 'Energy'}
+                    {ap <= 0 ? '⚠ AP Depleted' : 'AP'}
                 </span>
                 <span className={`text-[10px] font-black font-mono ${ap <= 0 ? 'text-red-500' : (buffs.ap ? 'text-cyan-400' : 'text-slate-400')}`}>
                     {displayAp}/{effectiveMaxAp}
@@ -169,13 +119,13 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
               <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
                 <div 
                   className={`h-full transition-all duration-500 ${ap <= 0 ? 'bg-red-600' : 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]'}`} 
-                  style={{ width: `${(displayAp / effectiveMaxAp) * 100}%` }} 
+                  style={{ width: `${apPercent}%` }} 
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className={`p-2 rounded border transition-colors flex flex-col items-center ${buffs.atk ? 'bg-orange-950/20 border-orange-500/50 shadow-[0_0_10px_rgba(250,112,0,0.1)]' : 'bg-slate-900/50 border-slate-800'}`}>
+              <div className="p-2 rounded border transition-colors flex flex-col items-center bg-slate-900/50 border-slate-800">
                 <span className={`text-[8px] font-bold uppercase mb-1 ${buffs.atk ? 'text-orange-500' : 'text-slate-600'}`}>Combat ATK</span>
                 <div className={`text-lg font-black italic font-fix ${buffs.atk ? 'text-orange-400' : 'text-slate-100'}`}>
                     {atk + (buffs.atk || 0)}
@@ -191,37 +141,9 @@ export const Sidebar: React.FC<SidebarProps> = memo(({ onOpenSettings, onOpenHel
           </div>
         </div>
 
-        {/* --- 2. Territory Control Area --- */}
-        <div className="flex-1 px-6 py-2 overflow-y-auto custom-scrollbar border-t border-white/5 mt-4">
-          <div className="flex items-center gap-2 mb-4 pt-4">
-            <span className="w-1 h-3 bg-orange-500"></span>
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest font-fix">Territory Intelligence</span>
-          </div>
-          <div className="space-y-3">
-            {territorySummary.length > 0 ? territorySummary.map(({ islandId, name, ids }) => (
-              <div key={islandId} className="bg-slate-900/40 border border-white/5 rounded-lg p-3">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-[10px] font-bold text-orange-500/80 font-fix uppercase">{name}</span>
-                  <span className="text-[9px] text-slate-500 font-mono">x{ids.length}</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {ids.map(id => (
-                    <div key={id} className="px-1.5 py-0.5 bg-black/40 border border-slate-800 rounded text-[8px] text-slate-400 font-mono">
-                      {String(id % 100).padStart(2, '0')}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )) : (
-              <div className="py-8 text-center border border-dashed border-slate-800 rounded-lg">
-                <span className="text-[9px] text-slate-600 uppercase font-bold font-fix">No Secured Sectors</span>
-              </div>
-            )}
-          </div>
-        </div>
+        <div className="flex-1" />
 
-        {/* --- 3. Inventory & Tactical Feed Area --- */}
-        <div className="flex-none px-6 py-4 space-y-3 bg-slate-950/80 backdrop-blur-md">
+        <div className="flex-none px-6 py-4 space-y-3 bg-slate-950/80 backdrop-blur-md border-t border-white/5">
           <button onClick={onOpenInventory} className="w-full py-2.5 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 hover:border-emerald-500/50 rounded flex items-center justify-center gap-2 transition-all shadow-lg group">
             <span className="material-symbols-outlined text-emerald-400 text-sm group-hover:scale-110 transition-transform">inventory_2</span>
             <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest font-fix">Open Inventory</span>

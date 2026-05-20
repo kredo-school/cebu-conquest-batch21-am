@@ -57,17 +57,17 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
 
   return (
     <div 
-      className={`glass-panel p-5 rounded-2xl border-l-4 flex flex-col gap-4 group transition-all duration-500 h-64 w-72 shrink-0 relative overflow-visible ${
+      className={ `glass-panel p-5 rounded-2xl border-l-4 flex flex-col gap-4 group transition-all duration-500 h-64 w-72 shrink-0 relative overflow-visible ${
         isPlayerReady ? 'border-l-[#fa7000] bg-orange-950/10 shadow-[0_0_30px_rgba(250,112,0,0.2)]' : 'border-l-slate-800 bg-slate-900/40 opacity-90'
-      } ${isHovered ? 'z-50' : 'z-10'}`}
-      style={{
+      } ${isHovered ? 'z-50' : 'z-10'}` }
+      style={ {
         background: `radial-gradient(circle at top right, ${isPlayerReady ? 'rgba(250, 112, 0, 0.15)' : 'rgba(255, 255, 255, 0.05)'}, transparent 70%), rgba(15, 23, 42, 0.8)`
-      }}
+      } }
     >
       <div 
         className="relative h-40 w-full shrink-0 overflow-hidden rounded-xl bg-slate-950 flex items-center justify-center border border-white/5 cursor-help"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        onMouseEnter={ () => setIsHovered(true) }
+        onMouseLeave={ () => setIsHovered(false) }
       >
         {!god ? (
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/80 pointer-events-none">
@@ -78,10 +78,10 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
           </div>
         ) : (
           <img 
-            className={`w-full h-full object-cover object-top transition-all duration-700 pointer-events-none ${!isPlayerReady ? 'opacity-40 grayscale blur-[1px]' : 'opacity-100 grayscale-0 blur-0'}`} 
+            className={ `w-full h-full object-cover object-top transition-all duration-700 pointer-events-none ${!isPlayerReady ? 'opacity-40 grayscale blur-[1px]' : 'opacity-100 grayscale-0 blur-0'}` } 
             src={god.img} 
             alt="God Portrait"
-            style={{ filter: isPlayerReady ? 'none' : undefined }}
+            style={ { filter: isPlayerReady ? 'none' : undefined } }
           />
         )}
         <div className="absolute inset-0 pointer-events-none border border-white/5 m-1 rounded-lg"></div>
@@ -102,17 +102,17 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
       <div className="flex justify-between items-center shrink-0">
         <div className="flex flex-col text-left">
           <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-none mb-1 font-fix">{isPlayerReady ? 'Link Confirmed' : 'Decrypting Signal'}</p>
-          <span className={`font-black uppercase text-lg truncate max-w-[150px] leading-none font-fix ${isPlayerReady ? 'text-white' : 'text-slate-600'}`}>
+          <span className={ `font-black uppercase text-lg truncate max-w-[150px] leading-none font-fix ${isPlayerReady ? 'text-white' : 'text-slate-600'}` }>
             {isPlayerReady ? (player.username || player.playerName) : 'ANALYZING...'}
           </span>
         </div>
-        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isPlayerReady ? 'border-[#fa7000] bg-[#fa7000] shadow-[0_0_10px_rgba(250,112,0,0.5)]' : 'border-slate-800'}`}>
+        <div className={ `w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isPlayerReady ? 'border-[#fa7000] bg-[#fa7000] shadow-[0_0_10px_rgba(250,112,0,0.5)]' : 'border-slate-800'}` }>
           {isPlayerReady && <span className="material-symbols-outlined text-black text-[16px] font-bold">check</span>}
         </div>
       </div>
 
       <div className="relative god-area mt-auto pt-2 border-t border-slate-800/50 shrink-0 text-left">
-        <div className={`flex items-center gap-2 transition-all duration-700 ${isPlayerReady ? 'opacity-100 translate-y-0' : 'opacity-20 translate-y-1'}`}>
+        <div className={ `flex items-center gap-2 transition-all duration-700 ${isPlayerReady ? 'opacity-100 translate-y-0' : 'opacity-20 translate-y-1'}` }>
           {isPlayerReady ? (
              <div className="relative">
                 {isNpc ? (
@@ -124,7 +124,7 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
                 )}
                 {isMe && (
                   <div className="w-4 h-4 rounded-full border border-white absolute -bottom-1 -right-1 z-20 overflow-hidden bg-slate-800 flex items-center justify-center shadow-md">
-                    {avatarUrl ? <img src={avatarUrl} alt="Me" className="w-full h-full object-cover" /> : <span className="material-symbols-outlined text-slate-400" style={{ fontSize: '10px' }}>person</span>}
+                    {avatarUrl ? <img src={avatarUrl} alt="Me" className="w-full h-full object-cover" /> : <span className="material-symbols-outlined text-slate-400" style={ { fontSize: '10px' } }>person</span>}
                   </div>
                 )}
              </div>
@@ -133,7 +133,18 @@ const PlayerCard = memo(({ player, isMe, isHost, myAvatar }: { player: ExtendedP
           )}
           <div className="leading-tight">
             <p className="text-[8px] text-[#fa7000]/70 font-bold uppercase tracking-widest mb-0.5 font-fix">Guardian God</p>
-            <p className="text-[11px] font-black text-white uppercase font-fix">{isPlayerReady && god ? god.name : "Waiting..."}</p>
+            <p className="text-[11px] font-black text-white uppercase font-fix">
+              {isPlayerReady && god ? god.name : (
+                <span className="inline-flex items-center">
+                  Waiting
+                  <span className="inline-flex ml-0.5 tracking-tighter">
+                    <span className="animate-dotFlow" style={ { animationDelay: '0s' } }>.</span>
+                    <span className="animate-dotFlow" style={ { animationDelay: '0.2s' } }>.</span>
+                    <span className="animate-dotFlow" style={ { animationDelay: '0.4s' } }>.</span>
+                  </span>
+                </span>
+              )}
+            </p>
           </div>
         </div>
       </div>
@@ -226,6 +237,15 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes scanline { 0% { top: 0%; opacity: 0; } 50% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
         .animate-scanline { animation: scanline 3s linear infinite; }
+        
+        @keyframes dotFlow {
+          0%, 100% { opacity: 0.2; transform: translateY(0); }
+          50% { opacity: 1; transform: translateY(-1px); }
+        }
+        .animate-dotFlow { display: inline-block; animation: dotFlow 1.2s infinite ease-in-out; }
+
+        @keyframes shine { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+        .group:hover .animate-shineEffect { animation: shine 0.6s ease-in-out forwards; }
       `}</style>
       
       <div className="fixed inset-0 -z-10 island-silhouette opacity-40 pointer-events-none" />
@@ -238,11 +258,14 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
           
           <div className="flex justify-between items-end mb-6 shrink-0 text-left">
             <div>
-              <h1 className="text-4xl font-black text-white mb-2 tracking-tighter italic uppercase font-fix">READY FOR UPLINK</h1>
-              <div className="flex items-center gap-2 text-[#fa7000] font-black uppercase tracking-widest text-[11px] font-fix">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#fa7000] animate-pulse shadow-[0_0_10px_#fa7000]"></div>
-                SQUAD SYNCHRONIZATION ACTIVE
-              </div>
+              <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic font-fix inline-flex items-center">
+                READY FOR UPLINK
+                <span className="inline-flex ml-1 tracking-tighter not-italic">
+                  <span className="animate-dotFlow" style={ { animationDelay: '0s' } }>.</span>
+                  <span className="animate-dotFlow" style={ { animationDelay: '0.2s' } }>.</span>
+                  <span className="animate-dotFlow" style={ { animationDelay: '0.4s' } }>.</span>
+                </span>
+              </h1>
             </div>
             <div className="flex items-baseline gap-10 text-right leading-none">
               <p className="text-slate-400 text-[10px] uppercase tracking-widest font-bold font-fix whitespace-nowrap">SQUAD CAPACITY</p>
@@ -261,7 +284,7 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
                   return <PlayerCard key={lp.playerId} player={playerData} isMe={lp.playerId === myId} isHost={index === 0} myAvatar={playerAvatar} />;
                 }
                 return (
-                  <div key={`empty-${index}`} className="glass-panel p-5 rounded-2xl border-2 border-dashed border-slate-800 flex flex-col items-center justify-center gap-3 h-64 w-72 shrink-0 text-slate-600">
+                  <div key={ `empty-${index}` } className="glass-panel p-5 rounded-2xl border-2 border-dashed border-slate-800 flex flex-col items-center justify-center gap-3 h-64 w-72 shrink-0 text-slate-600">
                     <span className="material-symbols-outlined text-5xl">person_add</span>
                     <span className="text-[11px] font-black uppercase tracking-[0.2em] font-fix text-center">AWAITING OPERATOR</span>
                   </div>
@@ -275,8 +298,9 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
             <div className="flex-1 glass-panel rounded-xl overflow-hidden flex flex-col h-32 border-slate-800 shadow-2xl w-full max-w-[600px]">
               <div className="flex-1 p-4 space-y-3 overflow-y-auto text-sm custom-scrollbar font-mono bg-slate-950/20 text-left">
                 {chatLogs.map((log, i) => (
-                  <div key={`chat-${i}`} className="flex gap-2 animate-fadeIn text-left">
-                    <span className={`${log.sender === (playerName || 'Operator') ? 'text-cyan-400' : 'text-[#fa7000]'} font-bold shrink-0`}>{log.sender}:</span>
+                  <div key={ `chat-${i}` } className="flex gap-2 animate-fadeIn text-left">
+                    <span className="text-slate-500 font-bold shrink-0">[{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}]</span>
+                    <span className={ `${log.sender === (playerName || 'Operator') ? 'text-cyan-400' : 'text-[#fa7000]'} font-bold shrink-0` }>{log.sender}:</span>
                     <span className="text-slate-300 break-words font-fix">{log.message}</span>
                   </div>
                 ))}
@@ -284,36 +308,42 @@ export const WaitingView: React.FC<WaitingViewProps> = ({
               </div>
               <div className="p-3 bg-slate-950/50 border-t border-slate-800 shrink-0">
                 <div className="relative flex items-center">
-                  {/* 🚀 修正ポイント: 送信ボタンとの重複を防ぐため、py-2 px-4 から py-2 pl-4 pr-10 へ右端のパディングを確保 */}
                   <input 
                     className="w-full bg-slate-900 border-slate-800 rounded-lg py-2 pl-4 pr-10 text-xs focus:ring-[#fa7000] focus:border-[#fa7000] text-slate-200 outline-none font-mono" 
                     placeholder="TRANSMIT TACTICAL DATA..." 
                     value={chatInput} 
-                    onChange={(e) => setChatInput(e.target.value)} 
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                    onChange={ (e) => setChatInput(e.target.value) } 
+                    onKeyDown={ (e) => e.key === 'Enter' && handleSendMessage() }
                   />
                   <button onClick={handleSendMessage} className="absolute right-2 text-[#fa7000] hover:text-orange-400 transition-colors"><span className="material-symbols-outlined text-sm">send</span></button>
                 </div>
               </div>
             </div>
 
+            {/* ⚡ 出撃準備ボタン */}
+            {/* 🚀 修正ポイント: 先ほどのLobbyViewと同じ仕様に完全同期。左右の装飾アイコンを排除、サブテキストを黒トーンベースの英字「LANDING ON CEBU ISLAND」に置換 */}
             <div className="w-full lg:w-[400px] shrink-0">
               <button 
                 onClick={handleReadyClick}
-                className={`w-full h-[96px] flex flex-col items-center justify-center rounded-2xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-[2px] shadow-lg shrink-0
+                className={ `w-full h-[96px] flex flex-col items-center justify-center rounded-2xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-[2px] shadow-lg shrink-0 relative overflow-hidden group
                 ${isLocked 
                   ? 'bg-slate-800 border-slate-950 text-[#fa7000] shadow-orange-950/20 active:brightness-90' 
-                  : 'bg-gradient-to-r from-orange-600 to-orange-500 border-orange-800 text-black font-black shadow-orange-500/20 hover:brightness-110 active:brightness-90'}`}
+                  : 'bg-gradient-to-r from-orange-600 to-orange-500 border-orange-800 text-black font-black shadow-orange-500/20 hover:brightness-110 active:brightness-90'}` }
               >
-                <div className="flex items-center gap-3">
-                  <span className={`material-symbols-outlined text-2xl ${isLocked ? 'animate-pulse' : ''}`}>{isLocked ? 'lock' : 'bolt'}</span>
-                  <span className="text-2xl font-black italic tracking-widest leading-none font-fix whitespace-nowrap">
-                    {isLocked ? 'CANCEL READY' : 'DEPLOY SQUAD'}
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:100%_8px] pointer-events-none"></div>
+                
+                <div className="flex items-center relative z-10 font-fix">
+                  <span className="text-xl font-black italic tracking-[0.15em] leading-none whitespace-nowrap">
+                    {isLocked ? 'UNREADY' : 'READY'}
                   </span>
                 </div>
-                <div className={`text-[11px] font-mono tracking-[0.4em] mt-2 opacity-80 font-fix ${isLocked ? 'text-[#fa7000]' : 'text-orange-950'}`}>
-                  {isLocked ? 'SYNC_ACTIVE_100_AUTHORIZED' : 'UPLINK_PROTOCOL_B21_INITIATED'}
+
+                <div className={ `text-[9px] font-mono tracking-[0.3em] mt-2 font-fix opacity-80 flex items-center gap-1.5 ${isLocked ? 'text-[#fa7000]/80' : 'text-orange-950/80'}` }>
+                  <span className="inline-block w-1 h-1 rounded-full bg-current animate-pulse"></span>
+                  LANDING ON CEBU ISLAND
                 </div>
+
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full animate-shineEffect pointer-events-none"></div>
               </button>
             </div>
 

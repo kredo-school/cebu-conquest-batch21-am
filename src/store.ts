@@ -9,14 +9,14 @@ import SoundManager from './game/SoundManager';
 const MAP_REPAINT_EVENT = 'react:mapRepaint';
 
 export const GOD_BUFF_MAP: Record<number, { hp?: number; atk?: number; def?: number; ap?: number }> = {
-  1: { hp: 40 },      // Neil: MAX_HP +30, HP +10
-  2: { atk: 20 },     // Garry: ATK +20
+  1: { hp: 40 },       // Neil: MAX_HP +30, HP +10
+  2: { atk: 20 },      // Garry: ATK +20
   3: { hp: 10, ap: 15 }, // Shem: HP +10, MAX_AP +15
-  4: { hp: -20 },     // Quisie: HP -20
-  5: { def: 15 },     // Eduardo: DEF +15
-  6: { hp: -10 },     // Kurt: HP -10
-  7: {},              // Stephen: FAITH_REGEN (Passive)
-  8: { ap: 30 },      // Bernardine: MAX_AP +30
+  4: { hp: -20 },      // Quisie: HP -20
+  5: { def: 15 },      // Eduardo: DEF +15
+  6: { hp: -10 },      // Kurt: HP -10
+  7: {},               // Stephen: FAITH_REGEN (Passive)
+  8: { ap: 30 },       // Bernardine: MAX_AP +30
 };
 
 export interface ChatMessage {
@@ -145,6 +145,7 @@ export interface GameState {
   turnOwner: string;
   isGameOver: boolean; 
   winnerId: string | null; 
+  finalScore: number | null; // 🚀 追加
   isSubmitted: boolean;
   isGameStarted: boolean;
   setGameStarted: (started: boolean) => void;
@@ -204,6 +205,7 @@ export interface GameState {
   closePrediction: () => void;
   updateBuffs: () => void;
   setStatus: (status: Partial<GameState>) => void;
+  setFinalScore: (score: number) => void; // 🚀 追加
   syncServerState: (data: Record<string, unknown>, myId: string) => void;
   attack: (targetId: number) => void;
   move: (targetId: number) => void;
@@ -244,7 +246,7 @@ export const useGameStore = create<GameState>()(
       districts: {}, currentDistrictName: "No Sector Selected", selectedDistrictId: null,
       playerName: "",
       myId: "", myTeam: "Explorer", isMyTurn: true, turnOwner: "YOU",
-      isGameOver: false, winnerId: null, isSubmitted: false,
+      isGameOver: false, winnerId: null, finalScore: null, isSubmitted: false,
       isGameStarted: false,
       setGameStarted: (started) => set({ isGameStarted: started }),
       selectedGodId: null, godsList: [], resultData: null, predictionModalOpen: false,
@@ -315,14 +317,12 @@ export const useGameStore = create<GameState>()(
         } catch { return false; }
       },
       
-      // 🚀 修正ポイント: PHP側から territories が正常に取得できなかった場合の判定を安全ガードで強化
       syncMasterData: async () => {
         try {
           const json = await get().authenticatedFetch<MasterData>('master-data.php');
           if (json?.status === 'success' && json.data) {
             const districtsMap: Record<string, string> = {};
             
-            // territoriesが未定義(undefined)の時、forEachでクラッシュするのを配列チェックで鉄壁ガード
             if (json.data && Array.isArray(json.data.territories)) {
               json.data.territories.forEach((t) => { 
                 districtsMap[String(t.district_id)] = t.owner_id || ''; 
@@ -485,6 +485,7 @@ export const useGameStore = create<GameState>()(
         if (get().isGameOver) return;
         set((state) => ({ ...state, ...stats }));
       },
+      setFinalScore: (score) => set({ finalScore: score }),
       saveResult: async () => {
         try {
           const { players, myId } = get();

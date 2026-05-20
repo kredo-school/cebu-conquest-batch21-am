@@ -15,30 +15,23 @@ interface InventoryModalProps {
   onClose: () => void;
 }
 
-// 🚀 Magic function: Automatically detects 5 distinct attribute styles based on item effects
 const getItemStyle = (effect: string = '') => {
   const e = effect.toUpperCase();
-  // ⚔️ ATK (Offensive)
   if (e.includes('ATK') || e.includes('ATTACK') || e.includes('DAMAGE') || e.includes('OFFENSE')) {
     return { type: 'ATK', icon: 'swords', color: 'text-red-500', border: 'border-red-500/50', hover: 'hover:border-red-500', bg: 'bg-red-500/10', btn: 'bg-red-600 hover:bg-red-500', badge: 'bg-red-500/20 text-red-400' };
   }
-  // 🛡️ DEF (Defensive)
   if (e.includes('DEF') || e.includes('DEFENSE') || e.includes('SHIELD')) {
     return { type: 'DEF', icon: 'shield', color: 'text-blue-500', border: 'border-blue-500/50', hover: 'hover:border-blue-500', bg: 'bg-blue-500/10', btn: 'bg-blue-600 hover:bg-blue-500', badge: 'bg-blue-500/20 text-blue-400' };
   }
-  // 💚 HP (Vitality / Recovery)
   if (e.includes('HP') || e.includes('HEALTH') || e.includes('RECOVERY') || e.includes('VITALITY')) {
     return { type: 'HP', icon: 'favorite', color: 'text-emerald-500', border: 'border-emerald-500/50', hover: 'hover:border-emerald-500', bg: 'bg-emerald-500/10', btn: 'bg-emerald-600 hover:bg-emerald-500', badge: 'bg-emerald-500/20 text-emerald-400' };
   }
-  // ⚡ AP (Action Points / Stamina)
   if (e.includes('AP') || e.includes('ACTION') || e.includes('STAMINA') || e.includes('ENERGY')) {
     return { type: 'AP', icon: 'bolt', color: 'text-amber-500', border: 'border-amber-500/50', hover: 'hover:border-amber-500', bg: 'bg-amber-500/10', btn: 'bg-amber-600 hover:bg-amber-500', badge: 'bg-amber-500/20 text-amber-400' };
   }
-  // ✨ FAITH (Divine Alignment)
   if (e.includes('FAITH') || e.includes('GOD') || e.includes('DIVINE')) {
     return { type: 'FAITH', icon: 'auto_awesome', color: 'text-fuchsia-500', border: 'border-fuchsia-500/50', hover: 'hover:border-fuchsia-500', bg: 'bg-fuchsia-500/10', btn: 'bg-fuchsia-600 hover:bg-fuchsia-500', badge: 'bg-fuchsia-500/20 text-fuchsia-400' };
   }
-  // 📦 Miscellaneous (Default Fallback)
   return { type: 'ITEM', icon: 'inventory_2', color: 'text-orange-500', border: 'border-orange-500/50', hover: 'hover:border-orange-500', bg: 'bg-orange-500/10', btn: 'bg-orange-600 hover:bg-orange-500', badge: 'bg-orange-500/20 text-orange-400' };
 };
 
@@ -47,7 +40,6 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 📦 1. Fetch Inventory (For initial display: handled via PHP for persistent database synchronization)
   const fetchInventory = useCallback(async () => {
     setLoading(true);
     try {
@@ -63,17 +55,22 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
   }, [authenticatedFetch, addLog]);
 
   useEffect(() => {
-    fetchInventory();
+    let isMounted = true;
+    const load = async () => {
+      await fetchInventory();
+    };
+    if (isMounted) load();
+    return () => { isMounted = false; };
   }, [fetchInventory]);
 
   // 📦 Synchronize with input state on the Zustand store inventory
   useEffect(() => {
-    if (inventory && Array.isArray(inventory)) {
+    if (inventory && Array.isArray(inventory) && inventory.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setItems(inventory as Item[]);
     }
   }, [inventory]);
 
-  // ⚡ 2. Item Deployment Execution
   const handleDeployItem = (itemId: number) => {
     executeUseItem(itemId);
     onClose(); 
@@ -83,7 +80,6 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
     <div className="fixed inset-0 z-[200000] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-sm">
       <div className="glass-panel w-full max-w-2xl bg-slate-900 border border-white/10 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col animate-fadeIn">
         
-        {/* Header */}
         <div className="px-8 py-6 border-b border-white/5 flex justify-between items-center bg-slate-950/50">
           <div className="text-left">
             <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase font-fix">Tactical Inventory</h2>
@@ -94,15 +90,12 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
           </button>
         </div>
 
-        {/* Item List */}
         <div className="flex-1 p-8 overflow-y-auto custom-scrollbar min-h-[400px]">
           {loading ? (
             <div className="h-full flex items-center justify-center text-slate-500 animate-pulse uppercase font-black tracking-widest font-fix">Scanning Storage...</div>
           ) : items.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {items.map((item) => {
-                
-                // 🏝️ Resolve parent island sector assignment names
                 let islandName = "UNKNOWN SECTOR";
                 if (lookupData) {
                   const spot = lookupData.spots.get(item.id);
@@ -114,13 +107,11 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
                   }
                 }
 
-                // 🚀 Fetch responsive attribute theme style parameters
                 const style = getItemStyle(item.effect);
 
                 return (
                   <div key={item.id} className={`bg-slate-800/40 border ${style.border} ${style.hover} rounded-2xl p-4 flex gap-4 transition-all group relative overflow-hidden text-left shadow-lg`}>
                     
-                    {/* Icon Display Area (Renders responsive attribute icon if image_url is missing) */}
                     <div className={`w-16 h-16 ${style.bg} rounded-xl flex items-center justify-center border border-white/10 shrink-0 overflow-hidden relative z-10`}>
                       {item.image_url ? (
                         <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
@@ -152,7 +143,6 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
                       </button>
                     </div>
 
-                    {/* 🚀 Integrate sub-layer backdrop watermark icon */}
                     <div className="absolute -right-4 -bottom-4 opacity-5 pointer-events-none group-hover:scale-110 group-hover:opacity-10 transition-all duration-500">
                         <span className={`material-symbols-outlined text-[80px] ${style.color}`}>{style.icon}</span>
                     </div>
@@ -168,7 +158,6 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ onClose }) => {
           )}
         </div>
 
-        {/* Footer */}
         <div className="px-8 py-4 bg-slate-950/50 border-t border-white/5 flex justify-between items-center">
           <div className="flex gap-2">
              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
